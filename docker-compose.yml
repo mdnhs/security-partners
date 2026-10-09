@@ -1,6 +1,5 @@
-# Production stack for security.raynx.ie: the Next.js app behind Caddy (HTTPS).
-# Start:  docker compose up -d --build
-# Logs:   docker compose logs -f
+# Production stack for security.raynx.ie
+# Handled by Dokploy: Traefik manages reverse proxy, SSL (Let's Encrypt), and routes to port 3000.
 
 services:
   web:
@@ -10,20 +9,3 @@ services:
     expose:
       - "3000"
 
-  caddy:
-    image: caddy:2.10-alpine
-    restart: unless-stopped
-    depends_on:
-      - web
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-
-volumes:
-  caddy_data:
-  caddy_config:
