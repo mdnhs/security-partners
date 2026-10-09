@@ -17,6 +17,12 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        brand:
+          "bg-brand-green text-white hover:bg-brand-green-dark focus-visible:ring-brand-green/40",
+        "brand-outline":
+          "border-[1.5px] border-white/70 text-white hover:border-white hover:bg-white/10 focus-visible:ring-white/40",
+        "brand-outline-blue":
+          "border-[1.5px] border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white focus-visible:ring-brand-blue/30",
       },
       size: {
         default:
@@ -30,6 +36,9 @@ const buttonVariants = cva(
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
+        pill: "h-auto rounded-full px-7 py-4 text-base leading-normal font-bold",
+        "pill-sm":
+          "h-auto rounded-full px-6 py-3.5 text-[15px] leading-normal font-bold",
       },
     },
     defaultVariants: {
@@ -54,4 +63,12 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+// cva output is not merged, so conflicting base/variant classes must go through cn
+function buttonClassName(
+  props?: VariantProps<typeof buttonVariants>,
+  className?: string
+) {
+  return cn(buttonVariants(props), className)
+}
+
+export { Button, buttonClassName, buttonVariants }

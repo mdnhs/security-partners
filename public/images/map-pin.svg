@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="120" height="96" viewBox="0 0 120 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Pin">
+<path id="Vector" d="M60 96C90.9279 96 116 91.5228 116 86C116 80.4772 90.9279 76 60 76C29.0721 76 4 80.4772 4 86C4 91.5228 29.0721 96 60 96Z" fill="#67BD31" fill-opacity="0.1"/>
+<path id="Vector_2" d="M60 92C78.7777 92 94 89.3137 94 86C94 82.6863 78.7777 80 60 80C41.2223 80 26 82.6863 26 86C26 89.3137 41.2223 92 60 92Z" fill="#67BD31" fill-opacity="0.18"/>
+<path id="Vector_3" d="M60 89C64.9706 89 69 87.6569 69 86C69 84.3431 64.9706 83 60 83C55.0294 83 51 84.3431 51 86C51 87.6569 55.0294 89 60 89Z" fill="black" fill-opacity="0.25"/>
+<path id="Vector_4" d="M60 30C48 30 38 40 38 52C38 69 60 86 60 86C60 86 82 69 82 52C82 40 72 30 60 30Z" fill="#2751A3" stroke="white" stroke-width="3"/>
+<path id="Vector_5" d="M60 60C64.4183 60 68 56.4183 68 52C68 47.5817 64.4183 44 60 44C55.5817 44 52 47.5817 52 52C52 56.4183 55.5817 60 60 60Z" fill="white"/>
+</g>
+</svg>

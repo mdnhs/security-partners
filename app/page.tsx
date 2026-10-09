@@ -1,19 +1,29 @@
-import { Button } from "@/components/ui/button"
+import { About } from "@/components/home/about"
+import { Blog, Clients, Team } from "@/components/home/clients-team-blog"
+import { Contact, LocationMap } from "@/components/home/contact"
+import { Hero } from "@/components/home/hero"
+import { HomeMotion } from "@/components/motion/home-motion"
+import { EnquireBanner, Services } from "@/components/home/services"
+import { SiteFooter } from "@/components/home/site-footer"
+import { SiteHeader } from "@/components/home/site-header"
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
+    <>
+      <SiteHeader />
+      <main>
+        <Hero />
+        <About />
+        <Services />
+        <EnquireBanner />
+        <Clients />
+        <Team />
+        <Blog />
+        <Contact />
+        <LocationMap />
+      </main>
+      <SiteFooter />
+      <HomeMotion />
+    </>
   )
 }
