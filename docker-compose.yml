@@ -3,9 +3,9 @@
 
 services:
   security-web:
-    build: .
-    image: security-partners-web
+    image: ghcr.io/mdnhs/security-partners:latest
     restart: unless-stopped
     expose:
       - "3000"
+
 
