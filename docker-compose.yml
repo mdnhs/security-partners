@@ -2,7 +2,7 @@
 # Handled by Dokploy: Traefik manages reverse proxy, SSL (Let's Encrypt), and routes to port 3000.
 
 services:
-  web:
+  security-web:
     build: .
     image: security-partners-web
     restart: unless-stopped
