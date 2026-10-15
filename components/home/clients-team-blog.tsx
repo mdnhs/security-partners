@@ -1,7 +1,9 @@
 import Image from "next/image"
+import Link from "next/link"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container, SectionHeading } from "@/components/home/section"
+import { BlogCard } from "@/components/blog/blog-card"
 import { clients, posts, team } from "@/components/home/data"
 
 export function Clients() {
@@ -32,7 +34,13 @@ export function Clients() {
   )
 }
 
-export function Team() {
+export function Team({
+  title = "Meet The Team",
+  description = "The people behind Security Partners.",
+}: {
+  title?: string
+  description?: string
+}) {
   return (
     <section
       id="team"
@@ -41,8 +49,8 @@ export function Team() {
       <Container className="flex flex-col gap-14">
         <SectionHeading
           eyebrow="Our people"
-          title="Meet The Team"
-          description="The people behind Security Partners."
+          title={title}
+          description={description}
         />
         <ul data-stagger className="grid gap-6 lg:grid-cols-2">
           {team.map((member) => (
@@ -74,10 +82,10 @@ export function Team() {
               </div>
               <div className="flex flex-1 flex-col gap-3.5 px-8 pt-8 pb-7">
                 <div className="flex flex-col gap-1 pt-1.5">
-                  <h3 className="text-[22px] font-black text-white">
+                  <h3 className="text-[22px] leading-[normal] font-black text-white">
                     {member.name}
                   </h3>
-                  <p className="text-sm font-bold tracking-[0.02em] text-brand-green">
+                  <p className="text-sm leading-[normal] font-bold tracking-[0.02em] text-brand-green">
                     {member.role}
                   </p>
                 </div>
@@ -88,7 +96,7 @@ export function Team() {
                 <div className="h-px bg-white/20" />
                 <a
                   href={`mailto:${member.email}`}
-                  className="text-[13px] font-medium break-all text-white hover:underline"
+                  className="text-[13px] leading-[normal] font-medium break-all text-white hover:underline"
                 >
                   {member.email}
                 </a>
@@ -116,8 +124,8 @@ export function Blog() {
             description="Security tips, company news and advice from the Security Partners team."
             className="max-w-[640px]"
           />
-          <a
-            href="#blog"
+          <Link
+            href="/blog"
             data-reveal
             className={buttonClassName({
               variant: "brand-outline-blue",
@@ -125,48 +133,13 @@ export function Blog() {
             })}
           >
             View All Posts <span aria-hidden>→</span>
-          </a>
+          </Link>
         </div>
 
         <ul data-stagger className="grid gap-6 md:grid-cols-3">
-          {posts.map((post) => (
-            <li key={post.title}>
-              <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
-                <div className="relative h-[230px] shrink-0 overflow-hidden">
-                  <Image
-                    src={post.cover}
-                    alt=""
-                    fill
-                    sizes="(min-width: 768px) 33vw, 100vw"
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                  />
-                </div>
-                <div className="flex flex-col items-start gap-3.5 px-7 pt-7 pb-8">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-brand-mint px-3 py-1.5 text-xs font-bold text-brand-green-dark">
-                      {post.category}
-                    </span>
-                    <time
-                      dateTime={post.date}
-                      className="text-[13px] font-medium text-brand-muted"
-                    >
-                      {post.displayDate}
-                    </time>
-                  </div>
-                  <h3 className="text-[22px] leading-[1.3] font-black text-brand-navy">
-                    {post.title}
-                  </h3>
-                  <p className="text-[15px] leading-[1.6] text-brand-ink">
-                    {post.excerpt}
-                  </p>
-                  <a
-                    href="#blog"
-                    className="pt-1 text-[15px] font-bold whitespace-pre text-brand-blue hover:underline"
-                  >
-                    {"Read Article  →"}
-                  </a>
-                </div>
-              </article>
+          {posts.slice(0, 3).map((post) => (
+            <li key={post.slug}>
+              <BlogCard post={post} />
             </li>
           ))}
         </ul>

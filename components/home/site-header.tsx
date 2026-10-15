@@ -2,14 +2,20 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { MenuIcon, XIcon } from "lucide-react"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container } from "@/components/home/section"
 import { contact, navLinks } from "@/components/home/data"
+import { cn } from "@/lib/utils"
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`)
 
   return (
     <>
@@ -39,7 +45,10 @@ export function SiteHeader() {
           className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-brand-green"
         />
         <Container className="flex items-center justify-between gap-6">
-          <a href="#top" className="relative h-[68px] w-[112px] shrink-0">
+          <Link
+            href={pathname === "/" ? "#top" : "/"}
+            className="relative h-[68px] w-[112px] shrink-0"
+          >
             <Image
               src="/images/logo.png"
               alt="Security Partners Ltd."
@@ -48,33 +57,37 @@ export function SiteHeader() {
               className="object-contain"
               priority
             />
-          </a>
+          </Link>
 
           <nav
             aria-label="Main"
             className="hidden items-center gap-9 text-base font-bold text-brand-navy lg:flex"
           >
             {navLinks.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
-                className="transition-colors hover:text-brand-green"
+                aria-current={isActive(link.href) ? "page" : undefined}
+                className={cn(
+                  "transition-colors hover:text-brand-green",
+                  isActive(link.href) && "text-brand-green"
+                )}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
 
           <div className="flex items-center gap-3">
-            <a
-              href="#contact"
+            <Link
+              href="/contact"
               className={buttonClassName(
                 { variant: "brand", size: "pill" },
                 "max-sm:px-5 max-sm:py-3 max-sm:text-sm"
               )}
             >
               Get a Quote
-            </a>
+            </Link>
             <button
               type="button"
               aria-label={open ? "Close menu" : "Open menu"}
@@ -100,14 +113,18 @@ export function SiteHeader() {
           >
             <Container className="flex flex-col py-2 text-base font-bold text-brand-navy">
               {navLinks.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-lg px-2 py-3 hover:bg-brand-surface"
+                  aria-current={isActive(link.href) ? "page" : undefined}
+                  className={cn(
+                    "rounded-lg px-2 py-3 hover:bg-brand-surface",
+                    isActive(link.href) && "text-brand-green"
+                  )}
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </Container>
           </nav>

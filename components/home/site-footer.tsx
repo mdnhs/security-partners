@@ -1,4 +1,5 @@
 import Image from "next/image"
+import Link from "next/link"
 
 import { Container } from "@/components/home/section"
 import { contact, groupCompanies, navLinks } from "@/components/home/data"
@@ -35,9 +36,9 @@ export function SiteFooter() {
           <nav aria-label="Footer" className="flex flex-1 flex-col gap-3.5">
             <p className={headingClass}>Quick Links</p>
             {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className={linkClass}>
+              <Link key={link.href} href={link.href} className={linkClass}>
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
 

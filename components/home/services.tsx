@@ -1,10 +1,17 @@
 import Image from "next/image"
+import Link from "next/link"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container, Eyebrow, SectionHeading } from "@/components/home/section"
-import { contact, services } from "@/components/home/data"
+import { contact, services, type Service } from "@/components/home/data"
 
-export function Services() {
+export function Services({
+  title = "Our Services",
+  description = "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
+}: {
+  title?: string
+  description?: string
+}) {
   return (
     <section
       id="services"
@@ -13,8 +20,8 @@ export function Services() {
       <Container className="flex flex-col items-center gap-14">
         <SectionHeading
           eyebrow="What we do"
-          title="Our Services"
-          description="Professional security solutions for every sector, from a single alarm response to full-time static guarding."
+          title={title}
+          description={description}
         />
 
         <ul
@@ -22,38 +29,7 @@ export function Services() {
           className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3"
         >
           {services.map((service) => (
-            <li
-              key={service.title}
-              className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]"
-            >
-              <div
-                data-service-icon
-                className="flex size-[88px] items-center justify-center overflow-hidden rounded-[20px] bg-brand-mint"
-              >
-                <div className="relative size-[120px] shrink-0">
-                  <Image
-                    src={service.icon}
-                    alt=""
-                    fill
-                    sizes="120px"
-                    className="object-contain"
-                  />
-                </div>
-              </div>
-              <h3 className="text-[22px] font-black text-brand-navy">
-                {service.title}
-              </h3>
-              <p className="text-base leading-[1.6] text-brand-ink">
-                {service.description}
-              </p>
-              <a
-                href="#contact"
-                className="flex items-center gap-2 text-[15px] font-bold text-brand-blue hover:underline"
-                aria-label={`Read more about ${service.title}`}
-              >
-                Read More <span aria-hidden>→</span>
-              </a>
-            </li>
+            <ServiceCard key={service.slug} service={service} />
           ))}
         </ul>
       </Container>
@@ -61,9 +37,43 @@ export function Services() {
   )
 }
 
+export function ServiceCard({ service }: { service: Service }) {
+  return (
+    <li className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
+      <div
+        data-service-icon
+        className="flex size-[88px] items-center justify-center overflow-hidden rounded-[20px] bg-brand-mint"
+      >
+        <div className="relative size-[120px] shrink-0">
+          <Image
+            src={service.icon}
+            alt=""
+            fill
+            sizes="120px"
+            className="object-contain"
+          />
+        </div>
+      </div>
+      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy">
+        {service.title}
+      </h3>
+      <p className="text-base leading-[1.6] text-brand-ink">
+        {service.description}
+      </p>
+      <Link
+        href={`/services/${service.slug}`}
+        className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue hover:underline"
+        aria-label={`Read more about ${service.title}`}
+      >
+        Read More <span aria-hidden>→</span>
+      </Link>
+    </li>
+  )
+}
+
 export function EnquireBanner() {
   return (
-    <section className="bg-white px-6 pb-20 md:px-10 lg:pb-28">
+    <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
       <Container>
         <div
           data-banner
@@ -104,12 +114,12 @@ export function EnquireBanner() {
             data-banner-item
             className="relative flex flex-wrap justify-center gap-4 pt-2"
           >
-            <a
-              href="#contact"
+            <Link
+              href="/contact"
               className={buttonClassName({ variant: "brand", size: "pill" })}
             >
               Get a Quote
-            </a>
+            </Link>
             <a
               href={contact.officeHref}
               className={buttonClassName({

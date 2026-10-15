@@ -20,7 +20,10 @@ function Field({
 }) {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <label htmlFor={htmlFor} className="text-sm font-bold text-brand-navy">
+      <label
+        htmlFor={htmlFor}
+        className="text-sm leading-[normal] font-bold text-brand-navy"
+      >
         {label}
       </label>
       {children}

@@ -25,7 +25,10 @@ const infoItems = [
     icon: "/images/mail.svg",
     lines: [
       { text: `Tel: ${contact.office} Ext 2`, href: contact.officeHref },
-      { text: `or ${contact.operationsMobile}`, href: "tel:+353858591299" },
+      {
+        text: `or ${contact.operationsMobile}`,
+        href: contact.operationsMobileHref,
+      },
       {
         text: contact.operationsEmail,
         href: `mailto:${contact.operationsEmail}`,
@@ -65,7 +68,7 @@ export function Contact() {
                 <Image src={item.icon} alt="" width={22} height={22} />
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-[17px] font-black text-white">
+                <p className="text-[17px] leading-[normal] font-black text-white">
                   {item.title}
                 </p>
                 {item.lines.map((line) =>
