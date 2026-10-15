@@ -21,7 +21,8 @@
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:generate": "NODE_OPTIONS='--import ./scripts/register-server-only.mjs' drizzle-kit generate",
     "db:migrate": "pnpm tsx:server scripts/migrate.ts",
-    "scripts:build": "tsx scripts/build-scripts.ts"
+    "scripts:build": "tsx scripts/build-scripts.ts",
+    "test:e2e": "playwright test tests/e2e"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -58,6 +59,7 @@
     "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "otpauth": "9.5.2",
     "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",

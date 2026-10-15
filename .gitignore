@@ -49,3 +49,6 @@ playwright-report/
 
 # bundled ops scripts (Docker builder output)
 /scripts/dist/
+
+# e2e fixtures written by tests/e2e/seed.ts
+/tests/e2e/.state/

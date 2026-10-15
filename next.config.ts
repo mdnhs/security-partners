@@ -5,6 +5,10 @@ import type { NextConfig } from "next"
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  experimental: {
+    // forbidden() from requirePermission() renders app/(admin)/admin/forbidden.tsx
+    authInterrupts: true,
+  },
 }
 
 export default nextConfig
