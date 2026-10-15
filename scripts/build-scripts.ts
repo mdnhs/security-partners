@@ -7,7 +7,12 @@ import { pathToFileURL } from "node:url"
 import { build, type Plugin } from "esbuild"
 
 /** Scripts shipped in the image. Later phases append their script names. */
-export const SCRIPT_ENTRIES = ["migrate"] as const
+export const SCRIPT_ENTRIES = [
+  "migrate",
+  "admin-create",
+  "owner-recover",
+  "demo-seed",
+] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */
 const serverOnlyStub: Plugin = {

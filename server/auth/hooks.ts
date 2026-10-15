@@ -77,6 +77,20 @@ function attemptedEmail(
 /** Better Auth's pending-challenge cookie (`<prefix>.two_factor`). */
 const TWO_FACTOR_COOKIE = "two_factor"
 
+/** Account-changing endpoints an impersonation session may not call. */
+const SELF_SERVICE_PATHS = new Set([
+  "/change-password",
+  "/update-user",
+  "/change-email",
+  "/delete-user",
+  "/two-factor/enable",
+  "/two-factor/disable",
+  "/two-factor/generate-backup-codes",
+  "/revoke-session",
+  "/revoke-sessions",
+  "/revoke-other-sessions",
+])
+
 /**
  * Project hooks for Better Auth, packaged as a plugin so they run after the
  * twoFactor plugin's hooks (plugin hooks run in plugin order; options.hooks
@@ -96,6 +110,17 @@ export function securityHooks(): BetterAuthPlugin {
           matcher: (ctx) => ctx.path?.startsWith("/admin/") ?? false,
           handler: createAuthMiddleware(async (ctx) => {
             if (ctx.request) throw new APIError("NOT_FOUND")
+          }),
+        },
+        {
+          // "View as" must not change the impersonated person's credentials.
+          matcher: (ctx) => SELF_SERVICE_PATHS.has(ctx.path ?? ""),
+          handler: createAuthMiddleware(async (ctx) => {
+            const session = await getSessionFromCtx(ctx)
+            if (session?.session.impersonatedBy)
+              throw new APIError("FORBIDDEN", {
+                message: "Account settings are disabled while impersonating",
+              })
           }),
         },
         {

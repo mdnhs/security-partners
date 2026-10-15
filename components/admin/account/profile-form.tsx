@@ -1,0 +1,92 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+
+import { FormError, FormNotice } from "@/components/admin/auth/form-messages"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { authClient, authErrorMessage } from "@/lib/auth-client"
+
+export function ProfileForm({
+  name,
+  email,
+  title,
+}: {
+  name: string
+  email: string
+  title: string | null
+}) {
+  const router = useRouter()
+  const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(
+    null
+  )
+  const [pending, setPending] = useState(false)
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const nextName = String(form.get("name") ?? "").trim()
+    const nextTitle = String(form.get("title") ?? "").trim()
+    if (!nextName) {
+      setStatus({ ok: false, message: "Enter your name." })
+      return
+    }
+    setPending(true)
+    const { error } = await authClient.updateUser({
+      name: nextName,
+      title: nextTitle || null,
+    })
+    setPending(false)
+    if (error) {
+      setStatus({ ok: false, message: authErrorMessage(error) })
+      return
+    }
+    setStatus({ ok: true, message: "Profile saved." })
+    router.refresh()
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4">
+      {status ? (
+        status.ok ? (
+          <FormNotice>{status.message}</FormNotice>
+        ) : (
+          <FormError>{status.message}</FormError>
+        )
+      ) : null}
+      <div className="grid gap-2">
+        <Label htmlFor="profile-email">Email</Label>
+        <Input id="profile-email" value={email} disabled readOnly />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="profile-name">Name</Label>
+        <Input
+          id="profile-name"
+          name="name"
+          defaultValue={name}
+          maxLength={100}
+          autoComplete="name"
+          required
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="profile-title">Job title</Label>
+        <Input
+          id="profile-title"
+          name="title"
+          defaultValue={title ?? ""}
+          maxLength={100}
+          aria-describedby="profile-title-hint"
+        />
+        <p id="profile-title-hint" className="text-xs text-muted-foreground">
+          Shown as the byline role on articles you write.
+        </p>
+      </div>
+      <Button type="submit" disabled={pending} className="self-start">
+        {pending ? "Saving…" : "Save profile"}
+      </Button>
+    </form>
+  )
+}

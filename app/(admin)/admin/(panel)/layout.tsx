@@ -34,6 +34,12 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
             >
               Dashboard
             </Link>
+            <Link
+              href="/admin/account"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Account
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">
