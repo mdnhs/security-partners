@@ -9,8 +9,6 @@ import { SiteFooter } from "@/components/home/site-footer"
 import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
 
-export const dynamicParams = false
-
 export function generateStaticParams() {
   return allPosts.map((post) => ({ slug: post.slug }))
 }

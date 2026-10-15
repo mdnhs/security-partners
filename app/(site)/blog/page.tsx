@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 
 import { BlogPosts } from "@/components/blog/blog-posts"
 import { PageHero } from "@/components/home/page-hero"
@@ -13,8 +14,7 @@ export const metadata: Metadata = {
     "Security tips, company news and advice from the Security Partners team.",
 }
 
-export default async function BlogPage({ searchParams }: PageProps<"/blog">) {
-  const { category } = await searchParams
+export default function BlogPage({ searchParams }: PageProps<"/blog">) {
   return (
     <>
       <SiteHeader />
@@ -25,13 +25,25 @@ export default async function BlogPage({ searchParams }: PageProps<"/blog">) {
           title="News & Insights"
           description="Security tips, company news and advice from the Security Partners team."
         />
-        <BlogPosts
-          initialCategory={typeof category === "string" ? category : undefined}
-        />
+        {/* cacheComponents: searchParams is request data, read inside Suspense. */}
+        <Suspense fallback={null}>
+          <Posts searchParams={searchParams} />
+        </Suspense>
         <EnquireBanner />
       </main>
       <SiteFooter />
       <HomeMotion />
     </>
+  )
+}
+
+async function Posts({
+  searchParams,
+}: Pick<PageProps<"/blog">, "searchParams">) {
+  const { category } = await searchParams
+  return (
+    <BlogPosts
+      initialCategory={typeof category === "string" ? category : undefined}
+    />
   )
 }

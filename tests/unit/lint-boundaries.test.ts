@@ -68,3 +68,62 @@ describe(
     })
   }
 )
+
+const drizzleImport =
+  'import { eq } from "drizzle-orm"\n\nexport const x = eq\n'
+const pgCoreImport =
+  'import { text } from "drizzle-orm/pg-core"\n\nexport const x = text\n'
+
+describe(
+  "lint boundaries: only repos (and server/db, tests) import drizzle-orm",
+  { timeout: 30_000 },
+  () => {
+    it.each([
+      "server/modules/pages/service.ts",
+      "server/modules/pages/queries.ts",
+      "server/lib/fixture.ts",
+      "app/(site)/fixture.tsx",
+      "components/fixture.tsx",
+      "scripts/fixture.ts",
+    ])("flags drizzle-orm in %s", async (file) => {
+      const errors = await boundaryErrors(drizzleImport, file)
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("server/modules/*/repo.ts")
+      expect(await boundaryErrors(pgCoreImport, file)).toHaveLength(1)
+    })
+
+    it("flags drizzle-orm in lib/ and still flags server/ imports there", async () => {
+      expect(
+        await boundaryErrors(drizzleImport, "lib/fixture.ts")
+      ).toHaveLength(1)
+      expect(await boundaryErrors(aliasImport, "lib/fixture.ts")).toHaveLength(
+        1
+      )
+    })
+
+    it.each([
+      "server/modules/pages/repo.ts",
+      "server/db/schema/fixture.ts",
+      "server/db/seed/index.ts",
+      "tests/integration/fixture.test.ts",
+    ])("allows drizzle-orm in %s", async (file) => {
+      expect(await boundaryErrors(drizzleImport, file)).toEqual([])
+    })
+
+    it("flags routes importing a repo (relative or alias)", async () => {
+      const relative =
+        'import * as repo from "./repo"\n\nexport const x = repo\n'
+      const alias =
+        'import * as repo from "@/server/modules/users/repo"\n\nexport const x = repo\n'
+      expect(
+        await boundaryErrors(relative, "server/modules/pages/routes.ts")
+      ).toHaveLength(1)
+      expect(
+        await boundaryErrors(alias, "server/modules/pages/routes.ts")
+      ).toHaveLength(1)
+      expect(
+        await boundaryErrors(relative, "server/modules/pages/service.ts")
+      ).toEqual([])
+    })
+  }
+)

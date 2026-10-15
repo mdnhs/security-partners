@@ -10,8 +10,6 @@ import { HomeMotion } from "@/components/motion/home-motion"
 import { OtherServices } from "@/components/services/other-services"
 import { ServiceBody } from "@/components/services/service-body"
 
-export const dynamicParams = false
-
 export function generateStaticParams() {
   return services.map((service) => ({ slug: service.slug }))
 }
