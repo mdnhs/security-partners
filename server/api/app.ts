@@ -8,6 +8,7 @@ import { limitBody } from "@/server/api/middleware/body-limit"
 import { notFoundHandler, onError } from "@/server/api/middleware/error"
 import { requestIdMiddleware } from "@/server/api/middleware/request-id"
 import { sameOrigin } from "@/server/api/middleware/same-origin"
+import { getAuth } from "@/server/auth/auth"
 import { healthRoutes } from "@/server/modules/health/routes"
 
 /**
@@ -32,10 +33,15 @@ export function createApp() {
   api.onError(onError)
   api.notFound(notFoundHandler)
 
+  // 2. Better Auth (sign-in, sign-out, password reset, two-factor)
+  api.on(["GET", "POST"], "/auth/*", limitBody("public"), (c) =>
+    getAuth().handler(c.req.raw)
+  )
+
   // 3. Public endpoints (rate limit added in Phase 7)
   api.use("/v1/public/*", limitBody("public"))
 
-  // 4. Admin endpoints (session + signedIn inserted before sameOrigin in Phase 2)
+  // 4. Admin endpoints (session + signedIn inserted before sameOrigin in Task 3)
   api.use("/v1/admin/*", sameOrigin(), limitBody("admin"))
   api.route("/v1/admin", adminRoutes)
 
