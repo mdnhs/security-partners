@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   decryptSecret,
@@ -29,19 +29,47 @@ describe("deriveKey", () => {
     ).toBe(false)
   })
 
-  it("defaults to BETTER_AUTH_SECRET from the env", () => {
-    process.env.DATABASE_URL = "postgres://sp:sp@127.0.0.1:5432/sp_test"
-    process.env.BETTER_AUTH_SECRET = SECRET
-    process.env.BETTER_AUTH_URL = "http://localhost:3000"
-    try {
+  describe("with env vars", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it("defaults to BETTER_AUTH_SECRET from the env", () => {
+      vi.stubEnv("DATABASE_URL", "postgres://sp:sp@127.0.0.1:5432/sp_test")
+      vi.stubEnv("BETTER_AUTH_SECRET", SECRET)
+      vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000")
       expect(deriveKey("preview").equals(deriveKey("preview", SECRET))).toBe(
         true
       )
-    } finally {
-      delete process.env.DATABASE_URL
-      delete process.env.BETTER_AUTH_SECRET
-      delete process.env.BETTER_AUTH_URL
+    })
+  })
+
+  it("rejects an explicit secret that is empty or shorter than 32 characters", () => {
+    for (const bad of ["", "short", "x".repeat(31)]) {
+      expect(() => deriveKey("secrets", bad)).toThrow(
+        "Secret must be at least 32 characters"
+      )
     }
+    expect(deriveKey("secrets", "x".repeat(32))).toHaveLength(32)
+  })
+})
+
+describe("explicit secret validation", () => {
+  it("encryptSecret and decryptSecret reject a short explicit secret", () => {
+    const token = encryptSecret("value", AAD, SECRET)
+    expect(() => encryptSecret("value", AAD, "too-short")).toThrow(
+      "Secret must be at least 32 characters"
+    )
+    expect(() => decryptSecret(token, AAD, "")).toThrow(
+      "Secret must be at least 32 characters"
+    )
+  })
+
+  it("does not mask missing env config as a decryption failure", () => {
+    const token = encryptSecret("value", AAD, SECRET)
+    expect(() => decryptSecret(token, AAD)).toThrow(
+      "Invalid environment configuration"
+    )
   })
 })
 
@@ -107,6 +135,40 @@ describe("encryptSecret / decryptSecret", () => {
     expect(() => decryptSecret("v1:a:b", AAD, SECRET)).toThrow(
       "Malformed encrypted secret"
     )
+  })
+
+  it("rejects a truncated tag or a wrong-length IV as malformed", () => {
+    const [v, iv, ct, tag] = encryptSecret("value", AAD, SECRET).split(":")
+    const truncate = (b64: string, bytes: number) =>
+      Buffer.from(b64, "base64url").subarray(0, bytes).toString("base64url")
+    const extend = (b64: string) =>
+      Buffer.concat([Buffer.from(b64, "base64url"), Buffer.alloc(4)]).toString(
+        "base64url"
+      )
+    for (const token of [
+      [v, iv, ct, truncate(tag, 6)],
+      [v, truncate(iv, 8), ct, tag],
+      [v, extend(iv), ct, tag],
+      [v, "", ct, tag],
+    ]) {
+      expect(() => decryptSecret(token.join(":"), AAD, SECRET)).toThrow(
+        "Malformed encrypted secret"
+      )
+    }
+  })
+
+  it("rejects parts that are not strict base64url", () => {
+    const [v, iv, ct, tag] = encryptSecret("value", AAD, SECRET).split(":")
+    for (const token of [
+      [v, `${iv}=`, ct, tag],
+      [v, iv, `${ct}+`, tag],
+      [v, iv, ct, `${tag}/`],
+      [v, iv, ct, ` ${tag}`],
+    ]) {
+      expect(() => decryptSecret(token.join(":"), AAD, SECRET)).toThrow(
+        "Malformed encrypted secret"
+      )
+    }
   })
 })
 
