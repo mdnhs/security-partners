@@ -1,16 +1,20 @@
 import "server-only"
 
+import { createElement } from "react"
+
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { admin, twoFactor } from "better-auth/plugins"
 import { createAccessControl } from "better-auth/plugins/access"
 
+import { ResetPasswordEmail } from "@/emails/reset-password"
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth/password"
 import { hasPermission } from "@/lib/auth/permissions"
 import { ROLES, type Role } from "@/lib/auth/roles"
 import { type Db, getDb } from "@/server/db/client"
 import * as schema from "@/server/db/schema"
 import { getEnv } from "@/server/env"
+import { mailer } from "@/server/lib/mailer"
 
 import { actorFor, auditAuthEvent, securityHooks } from "./hooks"
 
@@ -79,6 +83,18 @@ function createAuth(db: Db) {
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: RESET_TOKEN_EXPIRES_IN,
+      // Forgot-password: Better Auth creates the token; we link to our page.
+      sendResetPassword: async ({ user, token }) => {
+        await mailer.send({
+          to: user.email,
+          subject: "Reset your Security Partners admin password",
+          react: createElement(ResetPasswordEmail, {
+            name: user.name,
+            url: adminUrl("/admin/reset-password", { token }),
+            expiresInMinutes: RESET_TOKEN_EXPIRES_IN / 60,
+          }),
+        })
+      },
       onPasswordReset: async ({ user }, request) => {
         await auditAuthEvent(actorFor(user, request?.headers), {
           action: "auth.password_reset",
