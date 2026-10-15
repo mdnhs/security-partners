@@ -4,6 +4,8 @@ import {
 } from "better-auth/client/plugins"
 import { createAuthClient } from "better-auth/react"
 
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth/password"
+
 /**
  * Browser client for /api/auth (same origin). Admin-plugin endpoints are not
  * exposed over HTTP; user management goes through /api/v1/admin/users.
@@ -31,8 +33,9 @@ export function authErrorMessage(
     case "BANNED_USER":
       return "This account is suspended. Contact an administrator."
     case "INVALID_CODE":
-    case "INVALID_BACKUP_CODE":
       return "That code is not valid. Check your authenticator app and try again."
+    case "INVALID_BACKUP_CODE":
+      return "That backup code is not valid or was already used. Try another one."
     case "INVALID_TWO_FACTOR_COOKIE":
     case "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE":
       return "Your sign-in expired. Sign in again."
@@ -41,9 +44,9 @@ export function authErrorMessage(
     case "INVALID_TOKEN":
       return "This link has expired or was already used. Ask an administrator for a new one."
     case "PASSWORD_TOO_SHORT":
-      return "Use at least 12 characters."
+      return `Use at least ${PASSWORD_MIN_LENGTH} characters.`
     case "PASSWORD_TOO_LONG":
-      return "Use at most 128 characters."
+      return `Use at most ${PASSWORD_MAX_LENGTH} characters.`
     case "INVALID_PASSWORD":
       return "Your current password is incorrect."
     default:

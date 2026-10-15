@@ -56,4 +56,9 @@ describe("proxy.ts (optimistic /admin gate)", () => {
   it("does not treat look-alike paths as auth pages", () => {
     expect(proxy(request("/admin/sign-in-later")).status).toBe(307)
   })
+
+  it("gates sub-paths of auth pages (only the exact page is public)", () => {
+    expect(proxy(request("/admin/sign-in/anything")).status).toBe(307)
+    expect(proxy(request("/admin/sign-in/")).headers.get("location")).toBeNull()
+  })
 })

@@ -50,7 +50,7 @@ export function ForgotPasswordForm() {
     )
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
       {error ? <FormError>{error}</FormError> : null}
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>

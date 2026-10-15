@@ -18,11 +18,16 @@ const NOTICES: Record<string, string> = {
   "signed-out": "You are signed out.",
 }
 
+/** The notice for `?notice=…`; only our own keys (never `__proto__` etc.). */
+export function signInNotice(key: string | null): string | null {
+  return key !== null && Object.hasOwn(NOTICES, key) ? NOTICES[key] : null
+}
+
 export function SignInForm() {
   const router = useRouter()
   const params = useSearchParams()
   const next = safeNext(params.get("next"))
-  const notice = NOTICES[params.get("notice") ?? ""]
+  const notice = signInNotice(params.get("notice"))
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -49,7 +54,7 @@ export function SignInForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
       {notice && !error ? <FormNotice>{notice}</FormNotice> : null}
       {error ? <FormError>{error}</FormError> : null}
       <div className="grid gap-2">

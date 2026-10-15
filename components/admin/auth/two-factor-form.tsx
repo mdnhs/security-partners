@@ -47,7 +47,7 @@ export function TwoFactorForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4">
       {error ? <FormError>{error}</FormError> : null}
       {expired ? (
         <Link

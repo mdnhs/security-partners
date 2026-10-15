@@ -11,7 +11,7 @@ export const ADMIN_HOME = "/admin"
 
 export function isAdminAuthPath(pathname: string): boolean {
   return ADMIN_AUTH_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`)
+    (path) => pathname === path || pathname === `${path}/`
   )
 }
 

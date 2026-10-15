@@ -35,4 +35,11 @@ describe("isAdminAuthPath", () => {
     expect(isAdminAuthPath("/admin")).toBe(false)
     expect(isAdminAuthPath("/admin/sign-in-later")).toBe(false)
   })
+
+  it("matches the exact path or the path plus one trailing slash only", () => {
+    expect(isAdminAuthPath("/admin/two-factor/")).toBe(true)
+    expect(isAdminAuthPath("/admin/sign-in/anything")).toBe(false)
+    expect(isAdminAuthPath("/admin/set-password/x/y")).toBe(false)
+    expect(isAdminAuthPath("/admin/sign-in//")).toBe(false)
+  })
 })

@@ -137,13 +137,83 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/)
   })
 
-  test("forgot password answers the same for any email", async ({ page }) => {
-    await page.goto("/admin/forgot-password")
-    await page.getByLabel("Email").fill("nobody@e2e.test")
-    await page.getByRole("button", { name: "Send reset link" }).click()
+  test("a failed sign-out shows an error and keeps the session", async ({
+    page,
+  }) => {
+    const { editor } = readFixtures()
+    await page.goto("/admin/sign-in")
+    await signIn(page, editor.email, E2E_PASSWORD)
     await expect(
-      page.getByText("If nobody@e2e.test has an admin account")
+      page.getByRole("heading", { name: `Welcome, ${editor.name}` })
     ).toBeVisible()
+
+    await page.route("**/api/auth/sign-out", (route) =>
+      route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Internal server error" }),
+      })
+    )
+    await page.getByRole("button", { name: "Sign out" }).click()
+    await expect(page.getByText("Internal server error")).toBeVisible()
+    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeEnabled()
+
+    await page.unroute("**/api/auth/sign-out")
+    await page.getByRole("button", { name: "Sign out" }).click()
+    await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
+  })
+
+  test("unknown ?notice= values (incl. __proto__) render no notice", async ({
+    page,
+  }) => {
+    for (const notice of ["__proto__", "constructor", "nope"]) {
+      await page.goto(`/admin/sign-in?notice=${notice}`)
+      await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible()
+      await expect(page.locator('[data-slot="alert"]')).toHaveCount(0)
+    }
+  })
+
+  test("forgot password answers the same for any email", async ({ page }) => {
+    const { editor } = readFixtures()
+    const answers = []
+    for (const email of [editor.email, "nobody@e2e.test"]) {
+      await page.goto("/admin/forgot-password")
+      await page.getByLabel("Email").fill(email)
+      const response = page.waitForResponse(
+        "**/api/auth/request-password-reset"
+      )
+      await page.getByRole("button", { name: "Send reset link" }).click()
+      const res = await response
+      const notice = page.getByRole("status")
+      await expect(notice).toContainText(`If ${email} has an admin account`)
+      answers.push({
+        status: res.status(),
+        body: await res.json(),
+        notice: (await notice.innerText()).replace(email, "<email>"),
+      })
+    }
+    expect(answers[0].status).toBe(200)
+    expect(answers[1]).toEqual(answers[0])
+  })
+
+  test("forgot password submitted before hydration keeps the email out of the URL", async ({
+    browser,
+  }, testInfo) => {
+    // The only auth form in the static HTML: the others read search params
+    // and render on the client (Suspense), so they need JS to appear at all.
+    const context = await browser.newContext({
+      baseURL: BASE_URL,
+      javaScriptEnabled: false,
+      extraHTTPHeaders: { "x-forwarded-for": clientIpFor(testInfo.title) },
+    })
+    const page = await context.newPage()
+    await page.goto("/admin/forgot-password")
+    await page.getByLabel("Email").fill("leak@e2e.test")
+    await page.getByRole("button", { name: "Send reset link" }).click()
+    await page.waitForLoadState()
+    expect(page.url()).not.toContain("leak")
+    await context.close()
   })
 
   test("sign-in is rate limited in production: the 6th attempt in a minute → 429", async ({
