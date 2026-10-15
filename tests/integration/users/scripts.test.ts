@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { getDb } from "@/server/db/client"
 import { users } from "@/server/db/schema"
 
-import { TEST_DATABASE_URL } from "../db"
-import { resetDb } from "../db"
+import { resetDb, TEST_DATABASE_URL } from "../db"
+import { authPost } from "../helpers/auth"
 
 /** Runs a package script the way an operator does (tsx + server-only hook). */
 function run(script: string, args: string[], env: Record<string, string> = {}) {
@@ -71,5 +71,27 @@ describe("operator scripts", { timeout: 60_000 }, () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toContain("created owner@demo.local (owner)")
     expect(result.stdout).toContain("7 demo accounts ready")
+    expect(result.stdout + result.stderr).not.toContain("demo-password-123")
+  })
+
+  it("pnpm demo:seed takes the password from DEMO_PASSWORD and never prints it", async () => {
+    const result = run("demo:seed", [], {
+      DEMO_PASSWORD: "env-demo-password-456",
+    })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain("7 demo accounts ready")
+    expect(result.stdout + result.stderr).not.toContain("env-demo-password")
+    const res = await authPost("/sign-in/email", {
+      email: "viewer@demo.local",
+      password: "env-demo-password-456",
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it("pnpm demo:seed without --password or DEMO_PASSWORD prints usage", () => {
+    const result = run("demo:seed", [], { DEMO_PASSWORD: "" })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain("Usage: demo:seed --password")
+    expect(result.stderr).toContain("DEMO_PASSWORD")
   })
 })

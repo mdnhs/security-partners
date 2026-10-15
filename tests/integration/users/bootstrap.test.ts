@@ -1,8 +1,16 @@
 import { eq, like } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { InviteEmail } from "@/emails/invite"
+import { ResetPasswordEmail } from "@/emails/reset-password"
+import { app } from "@/server/api/app"
+import {
+  createPasswordToken,
+  INVITE_TOKEN_EXPIRES_IN,
+} from "@/server/auth/tokens"
 import { getDb } from "@/server/db/client"
 import { auditLog, sessions, twoFactors, users } from "@/server/db/schema"
+import { mailer } from "@/server/lib/mailer"
 import {
   createOwner,
   recoverOwner,
@@ -11,6 +19,13 @@ import {
 
 import { resetDb } from "../db"
 import { authPost, createUser, signIn, TEST_PASSWORD } from "../helpers/auth"
+
+const sessionOf = async (cookie: string) =>
+  (
+    await app.request("/api/auth/get-session?disableCookieCache=true", {
+      headers: { cookie },
+    })
+  ).json()
 
 const tokenOf = (url: string) =>
   new URL(url).searchParams.get("token") as string
@@ -111,6 +126,56 @@ describe("recoverOwner (owner:recover)", () => {
     await signIn(owner.email, "recovered-password-1")
   })
 
+  it("voids earlier password links and emails the reset wording", async () => {
+    const owner = await createUser({ roles: ["owner"] })
+    const earlier = await createPasswordToken(owner.id, INVITE_TOKEN_EXPIRES_IN)
+    const send = vi.spyOn(mailer, "send")
+
+    const result = await recoverOwner({ email: owner.email })
+    const [audit] = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "user.owner_recover"))
+    expect(audit.diff).toMatchObject({ passwordLinksRevoked: 1 })
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][0].react.type).toBe(ResetPasswordEmail)
+
+    const stale = await authPost("/reset-password", {
+      token: earlier,
+      newPassword: "stale-link-password-1",
+    })
+    expect(stale.status).toBe(400)
+    expect((await stale.json()).code).toBe("INVALID_TOKEN")
+    const fresh = await authPost("/reset-password", {
+      token: tokenOf(result.url),
+      newPassword: "recovered-password-1",
+    })
+    expect(fresh.status).toBe(200)
+  })
+
+  it("an owner without a password gets a set-password link and the invite email", async () => {
+    const owner = await createUser({ roles: ["owner"], password: null })
+    const send = vi.spyOn(mailer, "send")
+
+    const result = await recoverOwner({ email: owner.email })
+    expect(result.url).toMatch(
+      /^http:\/\/localhost:3000\/admin\/set-password\?token=/
+    )
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][0]).toMatchObject({
+      to: owner.email,
+      subject: "You're invited to the Security Partners admin",
+    })
+    expect(send.mock.calls[0][0].react.type).toBe(InviteEmail)
+
+    const set = await authPost("/reset-password", {
+      token: tokenOf(result.url),
+      newPassword: "first-owner-password",
+    })
+    expect(set.status).toBe(200)
+    await signIn(owner.email, "first-owner-password")
+  })
+
   it("refuses non-owners and unknown emails", async () => {
     const editor = await createUser({ roles: ["editor"] })
     await expect(recoverOwner({ email: editor.email })).rejects.toThrow(
@@ -134,6 +199,7 @@ describe("seedDemoUsers (demo:seed)", () => {
       ["intake@demo.local", true],
       ["viewer@demo.local", true],
     ])
+    const signedIn = await signIn("editor@demo.local", "first-demo-password")
     // drift that a re-run must repair
     await getDb()
       .update(users)
@@ -149,6 +215,8 @@ describe("seedDemoUsers (demo:seed)", () => {
     expect(rows).toHaveLength(7)
     const viewer = rows.find((r) => r.email === "viewer@demo.local")
     expect(viewer).toMatchObject({ role: "viewer", banned: false })
+    // sessions from before the reset are revoked
+    expect(await sessionOf(signedIn)).toBeNull()
 
     await signIn("editor@demo.local", "second-demo-password")
     const old = await authPost("/sign-in/email", {

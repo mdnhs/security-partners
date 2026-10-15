@@ -24,6 +24,13 @@ describe("seed guard (spec §14)", () => {
     "postgres://sp:secret@10.0.0.5:5432/sp_development",
     "postgres://sp:secret@db.example.com:5432/test_prod",
     "not a url",
+    // pg's ?host= overrides the URL authority (TCP host or socket path)
+    "postgres://sp:x@localhost:5432/security?host=db.example.com",
+    "postgres://sp:x@localhost/security?host=/cloudsql/proj:eu:inst",
+    // hostaddr bypasses name resolution of the (local-looking) host
+    "postgres://sp:x@localhost:5432/sp_dev?hostaddr=10.0.0.5",
+    // malformed percent-encoding
+    "postgres://h/sp%zz_dev",
   ])("refuses %s without --allow-production", (url) => {
     expect(isDisposableDatabase(url)).toBe(false)
     expect(() => assertDisposable(url, false)).toThrow("--allow-production")
@@ -42,6 +49,15 @@ describe("seed guard (spec §14)", () => {
     expect(message).toContain("db.example.com:5432/security")
     expect(message).not.toContain("supersecret")
     expect(describeDatabase("postgres://u:p@h:1/d")).toBe("h:1/d")
+  })
+
+  it("describes the effective target pg would connect to", () => {
+    expect(
+      describeDatabase(
+        "postgres://sp:x@localhost:5432/security?host=db.example.com"
+      )
+    ).toBe("db.example.com:5432/security")
+    expect(describeDatabase("not a url")).toBe("an unparseable DATABASE_URL")
   })
 
   it("--allow-production bypasses the check", () => {

@@ -77,18 +77,25 @@ function attemptedEmail(
 /** Better Auth's pending-challenge cookie (`<prefix>.two_factor`). */
 const TWO_FACTOR_COOKIE = "two_factor"
 
-/** Account-changing endpoints an impersonation session may not call. */
-const SELF_SERVICE_PATHS = new Set([
+/**
+ * Account-changing (or password-probing / secret-revealing) endpoints an
+ * impersonation session may not call.
+ */
+export const SELF_SERVICE_PATHS: ReadonlySet<string> = new Set([
   "/change-password",
+  "/verify-password",
   "/update-user",
   "/change-email",
   "/delete-user",
   "/two-factor/enable",
   "/two-factor/disable",
   "/two-factor/generate-backup-codes",
+  "/two-factor/get-totp-uri",
   "/revoke-session",
   "/revoke-sessions",
   "/revoke-other-sessions",
+  "/unlink-account",
+  "/link-social",
 ])
 
 /**

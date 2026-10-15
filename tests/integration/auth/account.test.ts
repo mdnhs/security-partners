@@ -3,6 +3,7 @@ import { URI } from "otpauth"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import { app } from "@/server/api/app"
+import { SELF_SERVICE_PATHS } from "@/server/auth/hooks"
 import { getDb } from "@/server/db/client"
 import { auditLog, twoFactors, users } from "@/server/db/schema"
 
@@ -13,7 +14,6 @@ import {
   cookiesFrom,
   createUser,
   mergeCookies,
-  ORIGIN,
   signIn,
   signedInUser,
   TEST_PASSWORD,
@@ -223,32 +223,66 @@ describe("account security (Task 2.6)", () => {
     expect(await session(laptop)).not.toBeNull()
   })
 
-  it("an impersonation session cannot change the impersonated user's password or 2FA", async () => {
-    const admin = await signedInUser(["admin"])
-    const target = await createUser({ roles: ["editor"] })
-    const start = await adminRequest(`/users/${target.id}/impersonate`, {
-      cookie: admin.cookie,
-      method: "POST",
-    })
-    const asTarget = mergeCookies(admin.cookie, start)
-    for (const [path, body] of [
-      [
-        "/change-password",
-        { currentPassword: TEST_PASSWORD, newPassword: "hijacked-password-1" },
-      ],
-      ["/two-factor/enable", { password: TEST_PASSWORD }],
-      ["/update-user", { name: "Hijacked" }],
-    ] as const) {
-      const res = await app.request(`/api/auth${path}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: ORIGIN,
-          cookie: asTarget,
-        },
-        body: JSON.stringify(body),
-      })
-      expect([path, res.status]).toEqual([path, 403])
+  describe("an impersonation session cannot use account settings", () => {
+    /** A valid-looking body per endpoint, so only the guard can refuse it. */
+    const BODIES: Record<string, unknown> = {
+      "/change-password": {
+        currentPassword: TEST_PASSWORD,
+        newPassword: "hijacked-password-1",
+      },
+      "/verify-password": { password: TEST_PASSWORD },
+      "/update-user": { name: "Hijacked" },
+      "/change-email": { newEmail: "hijacked@example.test" },
+      "/delete-user": { password: TEST_PASSWORD },
+      "/two-factor/enable": { password: TEST_PASSWORD },
+      "/two-factor/disable": { password: TEST_PASSWORD },
+      "/two-factor/generate-backup-codes": { password: TEST_PASSWORD },
+      "/two-factor/get-totp-uri": { password: TEST_PASSWORD },
+      "/revoke-session": { token: "any-session-token" },
+      "/revoke-sessions": {},
+      "/revoke-other-sessions": {},
+      "/unlink-account": { providerId: "credential" },
+      "/link-social": { provider: "google" },
     }
+
+    it("covers every guarded path, including the probing ones", () => {
+      expect([...SELF_SERVICE_PATHS].sort()).toEqual(Object.keys(BODIES).sort())
+      for (const path of [
+        "/verify-password",
+        "/two-factor/get-totp-uri",
+        "/unlink-account",
+        "/link-social",
+      ])
+        expect(SELF_SERVICE_PATHS.has(path)).toBe(true)
+    })
+
+    it.each([...SELF_SERVICE_PATHS])("%s → 403", async (path) => {
+      const admin = await signedInUser(["admin"])
+      const target = await createUser({ roles: ["editor"] })
+      const start = await adminRequest(`/users/${target.id}/impersonate`, {
+        cookie: admin.cookie,
+        method: "POST",
+      })
+      expect(start.status).toBe(200)
+      const res = await authPost(
+        path,
+        BODIES[path],
+        mergeCookies(admin.cookie, start)
+      )
+      expect(res.status).toBe(403)
+      expect((await res.json()).message).toBe(
+        "Account settings are disabled while impersonating"
+      )
+    })
+
+    it("the same user's own session is not affected", async () => {
+      const { cookie } = await signedInUser(["editor"])
+      const res = await authPost(
+        "/verify-password",
+        { password: TEST_PASSWORD },
+        cookie
+      )
+      expect(res.status).toBe(200)
+    })
   })
 })

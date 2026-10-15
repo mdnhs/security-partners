@@ -165,7 +165,7 @@ export type DemoUser = { email: string; role: Role; created: boolean }
 /**
  * demo:seed: one account per role, `<role>@demo.local`, all with `password`.
  * Idempotent: existing demo accounts get their single role, name and
- * password back, are unbanned and have 2FA turned off.
+ * password back, are unbanned, have 2FA turned off and are signed out.
  */
 export async function seedDemoUsers(password: string): Promise<DemoUser[]> {
   if (
@@ -207,6 +207,8 @@ export async function seedDemoUsers(password: string): Promise<DemoUser[]> {
         accountId: userId,
         password: hash,
       })
+    // A reset demo account starts signed out everywhere (old password's sessions).
+    if (existing) await repo.deleteUserSessions(db, userId)
     result.push({ email, role, created: !existing })
   }
   return result
