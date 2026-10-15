@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import { Geist_Mono, Lato } from "next/font/google"
 
 import "../globals.css"
@@ -17,17 +16,13 @@ const fontMono = Geist_Mono({
   variable: "--font-mono",
 })
 
-export const metadata: Metadata = {
-  title: "Security Partners Ltd. | Watching Over You",
-  description:
-    "Proactive, flexible and customer-focused security services across Ireland, backed by a dedicated 24/7 operations team. Based in Mountmellick, Co. Laois since 2008.",
-}
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Title and description come from each page's generateMetadata (DB).
+  // lang is part of the static shell; SiteLocale applies settings.site.locale.
   return (
     <html
       lang="en"

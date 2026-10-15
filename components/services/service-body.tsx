@@ -3,12 +3,55 @@ import Link from "next/link"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container, Eyebrow } from "@/components/home/section"
-import { contact, services, type Service } from "@/components/home/data"
+import { renderInline } from "@/lib/rich-text/render"
+import type { ParagraphsDoc } from "@/lib/schemas/common"
 import { cn } from "@/lib/utils"
 
-export function ServiceBody({ service }: { service: Service }) {
-  const { detail } = service
+export type ServiceBodyProps = {
+  slug: string
+  image: { src: string; alt: string }
+  heading: string
+  overview: ParagraphsDoc
+  included: string[]
+  callout: string
+  phone24h: string
+  phone24hHref: string
+  allServices: { slug: string; title: string }[]
+  operations: {
+    office: string
+    officeHref: string
+    extension: string
+    mobile: string
+    mobileHref: string
+    email: string
+  }
+  labels: {
+    overviewEyebrow: string
+    includedHeading: string
+    allServicesAria: string
+    allServicesHeading: string
+    helpEyebrow: string
+    helpHeading: string
+    telLabel: string
+    orLabel: string
+    phone24hLabel: string
+    cta: { label: string; href: string }
+  }
+}
 
+export function ServiceBody({
+  slug,
+  image,
+  heading,
+  overview,
+  included,
+  callout,
+  phone24h,
+  phone24hHref,
+  allServices,
+  operations,
+  labels,
+}: ServiceBodyProps) {
   return (
     <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
       <Container className="flex flex-col gap-12 lg:flex-row lg:items-start">
@@ -22,8 +65,8 @@ export function ServiceBody({ service }: { service: Service }) {
               className="absolute inset-x-0 -top-[8%] h-[116%] will-change-transform"
             >
               <Image
-                src="/images/about.png"
-                alt="Security Partners officer at work"
+                src={image.src}
+                alt={image.alt}
                 fill
                 sizes="(min-width: 1280px) 760px, 100vw"
                 className="object-cover"
@@ -32,20 +75,22 @@ export function ServiceBody({ service }: { service: Service }) {
           </div>
 
           <div data-stagger className="mt-8 flex flex-col gap-3.5">
-            <Eyebrow>Service overview</Eyebrow>
+            <Eyebrow>{labels.overviewEyebrow}</Eyebrow>
             <h2 className="text-3xl leading-[1.15] font-black tracking-[-0.01em] text-brand-navy md:text-[40px]">
-              {detail.heading}
+              {heading}
             </h2>
           </div>
-          <p className="text-lg leading-[1.7] text-brand-ink">
-            {detail.overview}
-          </p>
+          {overview.content.map((paragraph, i) => (
+            <p key={i} className="text-lg leading-[1.7] text-brand-ink">
+              {renderInline(paragraph.content)}
+            </p>
+          ))}
 
           <h3 className="text-[26px] leading-[normal] font-black text-brand-navy">
-            What&apos;s included
+            {labels.includedHeading}
           </h3>
           <ul data-stagger className="flex flex-col gap-3.5">
-            {detail.included.map((item) => (
+            {included.map((item) => (
               <li key={item} className="flex items-start gap-3.5">
                 <Image
                   src="/images/check.svg"
@@ -72,13 +117,13 @@ export function ServiceBody({ service }: { service: Service }) {
             </div>
             <div className="flex min-w-0 flex-col gap-1 leading-[normal]">
               <p className="text-base leading-[normal] font-bold text-brand-navy">
-                {detail.callout}
+                {callout}
               </p>
               <a
-                href={contact.phone24hHref}
+                href={phone24hHref}
                 className="text-[28px] font-black text-brand-blue hover:underline"
               >
-                {contact.phone24h}
+                {phone24h}
               </a>
             </div>
           </div>
@@ -86,14 +131,14 @@ export function ServiceBody({ service }: { service: Service }) {
 
         <aside className="flex w-full flex-col gap-6 lg:w-[392px] lg:shrink-0">
           <nav
-            aria-label="All services"
+            aria-label={labels.allServicesAria}
             className="flex flex-col gap-2.5 rounded-3xl border border-brand-line bg-white px-6 py-7 shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)]"
           >
             <p className="mb-3.5 text-xl leading-[normal] font-black text-brand-navy">
-              All Services
+              {labels.allServicesHeading}
             </p>
-            {services.map((item) => {
-              const active = item.slug === service.slug
+            {allServices.map((item) => {
+              const active = item.slug === slug
               return (
                 <Link
                   key={item.slug}
@@ -122,49 +167,47 @@ export function ServiceBody({ service }: { service: Service }) {
           </nav>
 
           <div className="flex flex-col items-start gap-3.5 rounded-3xl bg-brand-blue px-8 py-9">
-            <Eyebrow>Need help?</Eyebrow>
+            <Eyebrow>{labels.helpEyebrow}</Eyebrow>
             <p className="text-[26px] leading-[1.2] font-black text-white">
-              Talk to our Operations Team
+              {labels.helpHeading}
             </p>
             <div className="text-[15px] leading-[1.65] text-white/85">
               <p>
-                Tel:{" "}
-                <a href={contact.officeHref} className="hover:text-white">
-                  {contact.office} Ext 2
+                {labels.telLabel}{" "}
+                <a href={operations.officeHref} className="hover:text-white">
+                  {operations.office}
+                  {` ${operations.extension}`}
                 </a>{" "}
-                or{" "}
-                <a
-                  href={contact.operationsMobileHref}
-                  className="hover:text-white"
-                >
-                  {contact.operationsMobile}
+                {labels.orLabel}{" "}
+                <a href={operations.mobileHref} className="hover:text-white">
+                  {operations.mobile}
                 </a>
               </p>
               <a
-                href={`mailto:${contact.operationsEmail}`}
+                href={`mailto:${operations.email}`}
                 className="break-all hover:text-white"
               >
-                {contact.operationsEmail}
+                {operations.email}
               </a>
             </div>
             <div className="h-px w-full bg-white/18" />
             <p className="text-sm leading-[normal] font-bold text-white/70">
-              24 Hour Number
+              {labels.phone24hLabel}
             </p>
             <a
-              href={contact.phone24hHref}
+              href={phone24hHref}
               className="text-[28px] leading-[normal] font-black text-white"
             >
-              {contact.phone24h}
+              {phone24h}
             </a>
             <Link
-              href="/contact"
+              href={labels.cta.href}
               className={buttonClassName(
                 { variant: "brand", size: "pill" },
                 "w-full"
               )}
             >
-              Get a Quote
+              {labels.cta.label}
             </Link>
           </div>
         </aside>

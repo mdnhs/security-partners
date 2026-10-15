@@ -1,36 +1,26 @@
 import type { Metadata } from "next"
+import { connection } from "next/server"
+import { Suspense } from "react"
 
-import { Departments } from "@/components/contact/departments"
-import { Contact, LocationMap } from "@/components/home/contact"
-import { contact } from "@/components/home/data"
-import { PageHero } from "@/components/home/page-hero"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
-import { HomeMotion } from "@/components/motion/home-motion"
+import { loadSiteSources } from "@/server/modules/pages/sources"
+import { ContactTemplate } from "@/templates/contact/render"
+import { contactView } from "@/templates/contact/view"
+import { pageMetadata } from "@/templates/shared/page-meta"
 
-export const metadata: Metadata = {
-  title: "Contact Us | Security Partners Ltd.",
-  description: `Get in touch with our team. For urgent matters, our 24 Hour Number is ${contact.phone24h}.`,
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  return pageMetadata(await loadSiteSources(), "contact")
 }
 
 export default function ContactPage() {
   return (
-    <>
-      <SiteHeader />
-      <main>
-        <PageHero
-          image="/images/hero.jpg"
-          crumb="Contact"
-          wideDescription
-          title="Contact Us"
-          description={`Get in touch with our team. For urgent matters, our 24 Hour Number is ${contact.phone24h}.`}
-        />
-        <Contact />
-        <Departments />
-        <LocationMap />
-      </main>
-      <SiteFooter />
-      <HomeMotion />
-    </>
+    <Suspense fallback={null}>
+      <Contact />
+    </Suspense>
   )
+}
+
+async function Contact() {
+  await connection()
+  return <ContactTemplate view={contactView(await loadSiteSources())} />
 }

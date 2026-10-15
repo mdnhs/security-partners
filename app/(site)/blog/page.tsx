@@ -1,49 +1,44 @@
 import type { Metadata } from "next"
+import { connection } from "next/server"
 import { Suspense } from "react"
 
 import { BlogPosts } from "@/components/blog/blog-posts"
-import { PageHero } from "@/components/home/page-hero"
-import { EnquireBanner } from "@/components/home/services"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
-import { HomeMotion } from "@/components/motion/home-motion"
+import { loadSiteSources } from "@/server/modules/pages/sources"
+import { BlogTemplate } from "@/templates/blog/render"
+import { blogView } from "@/templates/blog/view"
+import { pageMetadata } from "@/templates/shared/page-meta"
 
-export const metadata: Metadata = {
-  title: "News & Insights | Security Partners Ltd.",
-  description:
-    "Security tips, company news and advice from the Security Partners team.",
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  return pageMetadata(await loadSiteSources(), "blog")
 }
 
 export default function BlogPage({ searchParams }: PageProps<"/blog">) {
   return (
-    <>
-      <SiteHeader />
-      <main>
-        <PageHero
-          image="/images/banner.png"
-          crumb="Blog"
-          title="News & Insights"
-          description="Security tips, company news and advice from the Security Partners team."
-        />
-        {/* cacheComponents: searchParams is request data, read inside Suspense. */}
-        <Suspense fallback={null}>
-          <Posts searchParams={searchParams} />
-        </Suspense>
-        <EnquireBanner />
-      </main>
-      <SiteFooter />
-      <HomeMotion />
-    </>
+    <Suspense fallback={null}>
+      <Blog searchParams={searchParams} />
+    </Suspense>
   )
 }
 
-async function Posts({
+async function Blog({
   searchParams,
 }: Pick<PageProps<"/blog">, "searchParams">) {
-  const { category } = await searchParams
+  await connection()
+  const [{ category }, sources] = await Promise.all([
+    searchParams,
+    loadSiteSources(),
+  ])
+  const view = blogView(sources)
   return (
-    <BlogPosts
-      initialCategory={typeof category === "string" ? category : undefined}
+    <BlogTemplate
+      view={view}
+      posts={
+        <BlogPosts
+          {...view.posts}
+          initialCategory={typeof category === "string" ? category : undefined}
+        />
+      }
     />
   )
 }

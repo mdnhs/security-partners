@@ -1,7 +1,7 @@
 "use client"
 
 import { buttonClassName } from "@/components/ui/button"
-import { contact } from "@/components/home/data"
+import { interpolate } from "@/lib/interpolate"
 import { cn } from "@/lib/utils"
 
 const inputClass =
@@ -31,64 +31,80 @@ function Field({
   )
 }
 
-// No backend yet: hand the enquiry to the visitor's mail client.
-function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-  event.preventDefault()
-  const data = new FormData(event.currentTarget)
-  const name = String(data.get("name") ?? "")
-  const body = [
-    `Name: ${name}`,
-    `Email: ${data.get("email") ?? ""}`,
-    `Phone: ${data.get("phone") ?? ""}`,
-    "",
-    String(data.get("message") ?? ""),
-  ].join("\n")
-  const subject = `Website enquiry from ${name}`
-  window.location.href = `mailto:${contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+export type ContactFormProps = {
+  labels: {
+    nameLabel: string
+    namePlaceholder: string
+    emailLabel: string
+    emailPlaceholder: string
+    phoneLabel: string
+    phonePlaceholder: string
+    messageLabel: string
+    messagePlaceholder: string
+    submitLabel: string
+  }
+  /** Until Phase 7 the enquiry opens the visitor's mail client. */
+  mailto: { email: string; subject: string }
 }
 
-export function ContactForm() {
+export function ContactForm({ labels, mailto }: ContactFormProps) {
+  // No backend yet: hand the enquiry to the visitor's mail client.
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const name = String(data.get("name") ?? "")
+    const body = [
+      `Name: ${name}`,
+      `Email: ${data.get("email") ?? ""}`,
+      `Phone: ${data.get("phone") ?? ""}`,
+      "",
+      String(data.get("message") ?? ""),
+    ].join("\n")
+    const subject = interpolate(mailto.subject, { name })
+    window.location.href = `mailto:${mailto.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <div className="flex flex-col gap-4 sm:flex-row">
-        <Field label="Your Name" htmlFor="name" className="flex-1">
+        <Field label={labels.nameLabel} htmlFor="name" className="flex-1">
           <input
             id="name"
             name="name"
             required
             autoComplete="name"
-            placeholder="John Smith"
+            placeholder={labels.namePlaceholder}
             className={cn(inputClass, "h-[54px]")}
           />
         </Field>
-        <Field label="Email" htmlFor="email" className="flex-1">
+        <Field label={labels.emailLabel} htmlFor="email" className="flex-1">
           <input
             id="email"
             name="email"
             type="email"
             required
             autoComplete="email"
-            placeholder="you@company.ie"
+            placeholder={labels.emailPlaceholder}
             className={cn(inputClass, "h-[54px]")}
           />
         </Field>
       </div>
-      <Field label="Phone" htmlFor="phone">
+      <Field label={labels.phoneLabel} htmlFor="phone">
         <input
           id="phone"
           name="phone"
           type="tel"
           autoComplete="tel"
-          placeholder="085 000 0000"
+          placeholder={labels.phonePlaceholder}
           className={cn(inputClass, "h-[54px]")}
         />
       </Field>
-      <Field label="Message" htmlFor="message">
+      <Field label={labels.messageLabel} htmlFor="message">
         <textarea
           id="message"
           name="message"
           required
-          placeholder="Tell us about your security requirements..."
+          placeholder={labels.messagePlaceholder}
           className={cn(inputClass, "h-[130px] resize-y pt-4")}
         />
       </Field>
@@ -99,7 +115,7 @@ export function ContactForm() {
           "w-full"
         )}
       >
-        Send Message
+        {labels.submitLabel}
       </button>
     </form>
   )

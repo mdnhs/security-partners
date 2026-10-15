@@ -8,10 +8,39 @@ import { MenuIcon, XIcon } from "lucide-react"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container } from "@/components/home/section"
-import { contact, navLinks } from "@/components/home/data"
 import { cn } from "@/lib/utils"
 
-export function SiteHeader() {
+type NavLink = { label: string; href: string }
+
+// Label and value stay separate text nodes ("24 Hour Number: " + number),
+// as on the static site: Chrome positions glyphs per text node.
+export type SiteHeaderProps = {
+  topBar: {
+    phone24hLabel: string
+    phone24h: string
+    phone24hHref: string
+    email: string
+    hoursLabel: string
+    hours: string
+  }
+  logo: { src: string; alt: string }
+  links: NavLink[]
+  cta: NavLink
+  aria: {
+    mainNav: string
+    openMenu: string
+    closeMenu: string
+    mobileNav: string
+  }
+}
+
+export function SiteHeader({
+  topBar,
+  logo,
+  links,
+  cta,
+  aria,
+}: SiteHeaderProps) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const isActive = (href: string) =>
@@ -22,18 +51,20 @@ export function SiteHeader() {
       <div className="bg-brand-navy px-6 py-2.5 text-[13px] md:px-10">
         <Container className="flex flex-wrap items-center justify-between gap-x-7 gap-y-1">
           <div className="flex flex-wrap items-center gap-x-7 gap-y-1">
-            <a href={contact.phone24hHref} className="font-medium text-white">
-              24 Hour Number: {contact.phone24h}
+            <a href={topBar.phone24hHref} className="font-medium text-white">
+              {`${topBar.phone24hLabel} `}
+              {topBar.phone24h}
             </a>
             <a
-              href={`mailto:${contact.email}`}
+              href={`mailto:${topBar.email}`}
               className="text-white/75 hover:text-white"
             >
-              {contact.email}
+              {topBar.email}
             </a>
           </div>
           <p className="hidden text-white/75 md:block">
-            Office hours: {contact.hours}
+            {`${topBar.hoursLabel} `}
+            {topBar.hours}
           </p>
         </Container>
       </div>
@@ -50,8 +81,8 @@ export function SiteHeader() {
             className="relative h-[68px] w-[112px] shrink-0"
           >
             <Image
-              src="/images/logo.png"
-              alt="Security Partners Ltd."
+              src={logo.src}
+              alt={logo.alt}
               fill
               sizes="112px"
               className="object-contain"
@@ -60,10 +91,10 @@ export function SiteHeader() {
           </Link>
 
           <nav
-            aria-label="Main"
+            aria-label={aria.mainNav}
             className="hidden items-center gap-9 text-base font-bold text-brand-navy lg:flex"
           >
-            {navLinks.map((link) => (
+            {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -80,17 +111,17 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-3">
             <Link
-              href="/contact"
+              href={cta.href}
               className={buttonClassName(
                 { variant: "brand", size: "pill" },
                 "max-sm:px-5 max-sm:py-3 max-sm:text-sm"
               )}
             >
-              Get a Quote
+              {cta.label}
             </Link>
             <button
               type="button"
-              aria-label={open ? "Close menu" : "Open menu"}
+              aria-label={open ? aria.closeMenu : aria.openMenu}
               aria-expanded={open}
               aria-controls="mobile-nav"
               onClick={() => setOpen((v) => !v)}
@@ -108,11 +139,11 @@ export function SiteHeader() {
         {open && (
           <nav
             id="mobile-nav"
-            aria-label="Mobile"
+            aria-label={aria.mobileNav}
             className="border-t border-brand-line pt-2 lg:hidden"
           >
             <Container className="flex flex-col py-2 text-base font-bold text-brand-navy">
-              {navLinks.map((link) => (
+              {links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}

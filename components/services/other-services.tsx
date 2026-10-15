@@ -1,25 +1,33 @@
 import { Container, SectionHeading } from "@/components/home/section"
-import { services } from "@/components/home/data"
-import { ServiceCard } from "@/components/home/services"
+import {
+  ServiceCard,
+  type ServiceCardData,
+  type ServiceCardLabels,
+} from "@/components/home/services"
 
-// The next three services after the current one, wrapping around the list.
-export function OtherServices({ slug }: { slug: string }) {
-  const index = services.findIndex((service) => service.slug === slug)
-  const others = [1, 2, 3].map(
-    (offset) => services[(index + offset) % services.length]
-  )
+export type OtherServicesProps = {
+  eyebrow: string
+  heading: string
+  intro: string
+  /** The next three services after the current one, wrapping around. */
+  services: ServiceCardData[]
+  labels: ServiceCardLabels
+}
 
+export function OtherServices({
+  eyebrow,
+  heading,
+  intro,
+  services,
+  labels,
+}: OtherServicesProps) {
   return (
     <section className="bg-brand-surface px-6 py-20 md:px-10 lg:py-28">
       <Container className="flex flex-col gap-14">
-        <SectionHeading
-          eyebrow="More services"
-          title="Other Services"
-          description="Explore the rest of our security services."
-        />
+        <SectionHeading eyebrow={eyebrow} title={heading} description={intro} />
         <ul data-stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {others.map((service) => (
-            <ServiceCard key={service.slug} service={service} />
+          {services.map((service) => (
+            <ServiceCard key={service.slug} service={service} labels={labels} />
           ))}
         </ul>
       </Container>

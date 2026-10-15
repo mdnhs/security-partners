@@ -1,29 +1,28 @@
-import { About } from "@/components/home/about"
-import { Blog, Clients, Team } from "@/components/home/clients-team-blog"
-import { Contact, LocationMap } from "@/components/home/contact"
-import { Hero } from "@/components/home/hero"
-import { HomeMotion } from "@/components/motion/home-motion"
-import { EnquireBanner, Services } from "@/components/home/services"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
+import type { Metadata } from "next"
+import { connection } from "next/server"
+import { Suspense } from "react"
 
-export default function Page() {
+import { loadSiteSources } from "@/server/modules/pages/sources"
+import { HomeTemplate } from "@/templates/home/render"
+import { homeView } from "@/templates/home/view"
+import { pageMetadata } from "@/templates/shared/page-meta"
+
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  return pageMetadata(await loadSiteSources(), "home")
+}
+
+// Content is read per request inside Suspense (after connection()), so the
+// build never touches the database. The fallback renders nothing.
+export default function HomePage() {
   return (
-    <>
-      <SiteHeader />
-      <main>
-        <Hero />
-        <About />
-        <Services />
-        <EnquireBanner />
-        <Clients />
-        <Team />
-        <Blog />
-        <Contact />
-        <LocationMap />
-      </main>
-      <SiteFooter />
-      <HomeMotion />
-    </>
+    <Suspense fallback={null}>
+      <Home />
+    </Suspense>
   )
+}
+
+async function Home() {
+  await connection()
+  return <HomeTemplate view={homeView(await loadSiteSources())} />
 }

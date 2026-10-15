@@ -4,34 +4,68 @@ import { useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 
-import { AuthorBadge, BlogCard, PostMeta } from "@/components/blog/blog-card"
+import {
+  type Author,
+  AuthorBadge,
+  BlogCard,
+  type BlogCardPost,
+  PostMeta,
+} from "@/components/blog/blog-card"
 import { Container } from "@/components/home/section"
-import { blogFilters, featuredPost, posts } from "@/components/home/data"
+import { interpolate, interpolateParts } from "@/lib/interpolate"
 import { cn } from "@/lib/utils"
-
-const ALL = "All Posts"
-const PAGE_SIZE = 6
 
 const pill =
   "rounded-full px-[22px] py-3 text-[15px] leading-[normal] font-bold transition-colors"
 const pageButton =
   "flex size-12 items-center justify-center rounded-full text-base leading-[normal] font-bold transition-colors"
 
-export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
+export type BlogPostsProps = {
+  /** Every article except the featured one, newest first. */
+  posts: BlogCardPost[]
+  featured: (BlogCardPost & { author: Author | null }) | null
+  /** Category names in the filter bar (categories with showInFilter). */
+  filters: string[]
+  pageSize: number
+  initialCategory?: string
+  labels: {
+    allPosts: string
+    readArticle: string
+    featuredBadge: string
+    /** "No posts in {category} yet. Check back soon." */
+    emptyCategory: string
+    filterAria: string
+    paginationAria: string
+    previousPage: string
+    /** "Page {n}" */
+    pageNumber: string
+    nextPage: string
+  }
+}
+
+export function BlogPosts({
+  posts,
+  featured,
+  filters,
+  pageSize,
+  initialCategory,
+  labels,
+}: BlogPostsProps) {
+  const all = labels.allPosts
   const [category, setCategory] = useState(
-    initialCategory && blogFilters.includes(initialCategory)
-      ? initialCategory
-      : ALL
+    initialCategory && filters.includes(initialCategory) ? initialCategory : all
   )
   const [page, setPage] = useState(1)
   const sectionRef = useRef<HTMLElement>(null)
 
   const filtered =
-    category === ALL ? posts : posts.filter((p) => p.category === category)
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    category === all ? posts : posts.filter((p) => p.category === category)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const visible = filtered.slice((page - 1) * pageSize, page * pageSize)
   const showFeatured =
-    page === 1 && (category === ALL || category === featuredPost.category)
+    featured !== null &&
+    page === 1 &&
+    (category === all || category === featured.category)
 
   const selectCategory = (next: string) => {
     setCategory(next)
@@ -50,10 +84,10 @@ export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
       <Container className="flex flex-col gap-10">
         <div
           role="group"
-          aria-label="Filter posts by category"
+          aria-label={labels.filterAria}
           className="flex flex-wrap gap-3"
         >
-          {[ALL, ...blogFilters].map((item) => {
+          {[all, ...filters].map((item) => {
             const active = item === category
             return (
               <button
@@ -78,7 +112,7 @@ export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
           <article className="group flex flex-col overflow-hidden rounded-[28px] border border-brand-line bg-white shadow-[0px_12px_40px_0px_rgba(13,26,51,0.06)] lg:h-[451px] lg:flex-row">
             <div className="relative h-64 shrink-0 overflow-hidden md:h-80 lg:h-auto lg:w-[600px]">
               <Image
-                src={featuredPost.cover}
+                src={featured.cover}
                 alt=""
                 fill
                 sizes="(min-width: 1024px) 600px, 100vw"
@@ -87,26 +121,24 @@ export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
             </div>
             <div className="flex flex-1 flex-col items-start justify-center gap-[18px] p-8 md:p-14">
               <PostMeta
-                featured
-                category={featuredPost.category}
-                date={featuredPost.date}
+                featuredLabel={labels.featuredBadge}
+                category={featured.category}
+                date={featured.date}
               >
-                {featuredPost.displayDate}
+                {featured.displayDate}
               </PostMeta>
               <h2 className="text-3xl leading-[1.2] font-black tracking-[-0.01em] text-brand-navy md:text-4xl md:leading-[1.2]">
-                {featuredPost.title}
+                {featured.title}
               </h2>
               <p className="text-[17px] leading-[1.65] text-brand-ink">
-                {featuredPost.excerpt}
+                {featured.excerpt}
               </p>
-              {featuredPost.author && (
-                <AuthorBadge author={featuredPost.author} />
-              )}
+              {featured.author && <AuthorBadge author={featured.author} />}
               <Link
-                href={`/blog/${featuredPost.slug}`}
+                href={`/blog/${featured.slug}`}
                 className="pt-1.5 text-base leading-[normal] font-bold whitespace-pre text-brand-blue hover:underline"
               >
-                {"Read Article  →"}
+                {labels.readArticle}
               </Link>
             </div>
           </article>
@@ -116,25 +148,25 @@ export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
           <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {visible.map((post) => (
               <li key={post.slug}>
-                <BlogCard post={post} />
+                <BlogCard post={post} readArticle={labels.readArticle} />
               </li>
             ))}
           </ul>
         ) : (
           !showFeatured && (
             <p className="rounded-3xl border border-brand-line bg-white px-8 py-16 text-center text-lg text-brand-ink">
-              No posts in {category} yet. Check back soon.
+              {interpolateParts(labels.emptyCategory, { category })}
             </p>
           )
         )}
 
         <nav
-          aria-label="Pagination"
+          aria-label={labels.paginationAria}
           className="flex items-center justify-center gap-2.5"
         >
           <button
             type="button"
-            aria-label="Previous page"
+            aria-label={labels.previousPage}
             disabled={page === 1}
             onClick={() => goTo(page - 1)}
             className={cn(
@@ -148,7 +180,7 @@ export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
             <button
               key={n}
               type="button"
-              aria-label={`Page ${n}`}
+              aria-label={interpolate(labels.pageNumber, { n })}
               aria-current={n === page ? "page" : undefined}
               onClick={() => goTo(n)}
               className={cn(
@@ -163,7 +195,7 @@ export function BlogPosts({ initialCategory }: { initialCategory?: string }) {
           ))}
           <button
             type="button"
-            aria-label="Next page"
+            aria-label={labels.nextPage}
             disabled={page === pageCount}
             onClick={() => goTo(page + 1)}
             className={cn(

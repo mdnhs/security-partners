@@ -1,41 +1,36 @@
 "use client"
 
-const networks = [
-  {
-    label: "f",
-    name: "Facebook",
-    href: (url: string) =>
-      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
-  },
-  {
-    label: "in",
-    name: "LinkedIn",
-    href: (url: string) =>
-      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
-  },
-  {
-    label: "X",
-    name: "X",
-    href: (url: string, title: string) =>
-      `https://x.com/intent/post?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`,
-  },
-]
+import { interpolate, shareHref } from "@/lib/interpolate"
+
+export type ShareLinksProps = {
+  title: string
+  label: string
+  /** "Share on {name}" */
+  ariaTemplate: string
+  /** href templates with {url} and {title} (lib/interpolate shareHref). */
+  networks: { label: string; name: string; href: string }[]
+}
 
 // Builds share URLs from the live page address, so no site URL config is needed.
-export function ShareLinks({ title }: { title: string }) {
+export function ShareLinks({
+  title,
+  label,
+  ariaTemplate,
+  networks,
+}: ShareLinksProps) {
   return (
     <div className="flex items-center gap-2.5">
       <p className="text-sm leading-[normal] font-bold text-brand-navy">
-        Share:
+        {label}
       </p>
       {networks.map((network) => (
         <button
           key={network.name}
           type="button"
-          aria-label={`Share on ${network.name}`}
+          aria-label={interpolate(ariaTemplate, { name: network.name })}
           onClick={() =>
             window.open(
-              network.href(window.location.href, title),
+              shareHref(network.href, { url: window.location.href, title }),
               "_blank",
               "noopener,noreferrer"
             )

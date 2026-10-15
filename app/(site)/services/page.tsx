@@ -1,40 +1,26 @@
 import type { Metadata } from "next"
+import { connection } from "next/server"
+import { Suspense } from "react"
 
-import { Clients } from "@/components/home/clients-team-blog"
-import { PageHero } from "@/components/home/page-hero"
-import { EnquireBanner, Services } from "@/components/home/services"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
-import { HomeMotion } from "@/components/motion/home-motion"
-import { WhyChooseUs } from "@/components/services/why-choose-us"
+import { loadSiteSources } from "@/server/modules/pages/sources"
+import { ServicesTemplate } from "@/templates/services/render"
+import { servicesView } from "@/templates/services/view"
+import { pageMetadata } from "@/templates/shared/page-meta"
 
-export const metadata: Metadata = {
-  title: "Our Services | Security Partners Ltd.",
-  description:
-    "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  return pageMetadata(await loadSiteSources(), "services")
 }
 
 export default function ServicesPage() {
   return (
-    <>
-      <SiteHeader />
-      <main>
-        <PageHero
-          image="/images/banner.png"
-          crumb="Services"
-          title="Our Services"
-          description="Professional security solutions for every sector, from a single alarm response to full-time static guarding."
-        />
-        <Services
-          title="Security For Every Sector"
-          description="Six specialist services, all backed by our dedicated 24/7 Operations Team."
-        />
-        <WhyChooseUs />
-        <Clients />
-        <EnquireBanner />
-      </main>
-      <SiteFooter />
-      <HomeMotion />
-    </>
+    <Suspense fallback={null}>
+      <Services />
+    </Suspense>
   )
+}
+
+async function Services() {
+  await connection()
+  return <ServicesTemplate view={servicesView(await loadSiteSources())} />
 }

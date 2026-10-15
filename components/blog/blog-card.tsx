@@ -1,10 +1,30 @@
 import Image from "next/image"
 import Link from "next/link"
 
-import type { Post } from "@/components/home/data"
 import { cn } from "@/lib/utils"
 
-export function BlogCard({ post }: { post: Post }) {
+/** An article as cards and lists show it (dates already formatted). */
+export type BlogCardPost = {
+  slug: string
+  title: string
+  excerpt: string
+  category: string
+  /** "2026-09-20" for <time dateTime>. */
+  date: string
+  /** "20 Sep 2026". */
+  displayDate: string
+  cover: string
+}
+
+export type Author = { name: string; role: string }
+
+export function BlogCard({
+  post,
+  readArticle,
+}: {
+  post: BlogCardPost
+  readArticle: string
+}) {
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
       <div className="relative h-[230px] shrink-0 overflow-hidden">
@@ -30,7 +50,7 @@ export function BlogCard({ post }: { post: Post }) {
           href={`/blog/${post.slug}`}
           className="pt-1 text-[15px] leading-[normal] font-bold whitespace-pre text-brand-blue hover:underline"
         >
-          {"Read Article  →"}
+          {readArticle}
         </Link>
       </div>
     </article>
@@ -40,19 +60,20 @@ export function BlogCard({ post }: { post: Post }) {
 export function PostMeta({
   category,
   date,
-  featured,
+  featuredLabel,
   children,
 }: {
   category: string
   date: string
-  featured?: boolean
+  /** Shows the "Featured" badge when set. */
+  featuredLabel?: string
   children: React.ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3 leading-[normal]">
-      {featured && (
+      {featuredLabel && (
         <span className="rounded-full bg-brand-blue px-3 py-1.5 text-xs leading-[normal] font-bold text-white">
-          Featured
+          {featuredLabel}
         </span>
       )}
       <span className="rounded-full bg-brand-mint px-3 py-1.5 text-xs leading-[normal] font-bold text-brand-green-dark">
@@ -72,7 +93,7 @@ export function AuthorBadge({
   author,
   size = "sm",
 }: {
-  author: NonNullable<Post["author"]>
+  author: Author
   size?: "sm" | "lg"
 }) {
   const initials = author.name
