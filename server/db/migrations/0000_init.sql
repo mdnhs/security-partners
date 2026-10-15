@@ -1,0 +1,1 @@
+CREATE TYPE "public"."content_status" AS ENUM('draft', 'in_review', 'scheduled', 'published');

@@ -15,7 +15,12 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
-    "test:watch": "vitest --project unit"
+    "test:watch": "vitest --project unit",
+    "tsx:server": "tsx --env-file-if-exists=.env.development --import ./scripts/register-server-only.mjs",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:generate": "NODE_OPTIONS='--import ./scripts/register-server-only.mjs' drizzle-kit generate",
+    "db:migrate": "pnpm tsx:server scripts/migrate.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

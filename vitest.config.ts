@@ -23,6 +23,21 @@ export default defineConfig({
           setupFiles: ["./tests/unit/setup.ts"],
         },
       },
+      {
+        // Real Postgres (sp_test). Needs `pnpm db:up` locally; CI provides a
+        // postgres service. Files run one at a time: they share one database.
+        extends: true,
+        test: {
+          name: "integration",
+          environment: "node",
+          include: ["tests/integration/**/*.test.ts"],
+          globalSetup: ["./tests/integration/global-setup.ts"],
+          setupFiles: ["./tests/integration/setup.ts"],
+          fileParallelism: false,
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
+        },
+      },
     ],
   },
 })
