@@ -29,6 +29,12 @@ describe("scripts bundle", () => {
     expect(code).not.toContain("cannot be imported from a Client Component")
   })
 
+  it("seed.mjs imports sharp at runtime (native, from the standalone node_modules)", () => {
+    const code = readFileSync(join(outdir, "seed.mjs"), "utf8")
+    expect(code).toMatch(/from "sharp"/)
+    expect(code).not.toContain("libvips")
+  })
+
   it("migrate.mjs runs standalone and exits 1 listing every missing env var", () => {
     const env = { ...process.env }
     for (const key of ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL"])

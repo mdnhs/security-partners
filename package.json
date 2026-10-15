@@ -25,7 +25,8 @@
     "test:e2e": "playwright test tests/e2e",
     "admin:create": "pnpm tsx:server scripts/admin-create.ts",
     "owner:recover": "pnpm tsx:server scripts/owner-recover.ts",
-    "demo:seed": "pnpm tsx:server scripts/demo-seed.ts"
+    "demo:seed": "pnpm tsx:server scripts/demo-seed.ts",
+    "db:seed": "pnpm tsx:server scripts/seed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

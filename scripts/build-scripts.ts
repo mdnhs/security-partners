@@ -12,6 +12,7 @@ export const SCRIPT_ENTRIES = [
   "admin-create",
   "owner-recover",
   "demo-seed",
+  "seed",
 ] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */
@@ -41,8 +42,9 @@ export async function buildScripts(
     target: "node22",
     format: "esm",
     tsconfig: resolve("tsconfig.json"),
-    // pg lazily requires the optional native binding; it is never installed.
-    external: ["pg-native"],
+    // pg lazily requires the optional native binding (never installed); sharp
+    // is native and ships in the standalone node_modules (Next traces it).
+    external: ["pg-native", "sharp"],
     // CommonJS dependencies (pg) call require(); give the ESM bundle one.
     banner: {
       js: 'import { createRequire as __spCreateRequire } from "node:module"; const require = __spCreateRequire(import.meta.url);',
