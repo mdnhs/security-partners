@@ -46,3 +46,6 @@ playwright-report/
 # vitest
 /.vitest/
 !.env.example
+
+# bundled ops scripts (Docker builder output)
+/scripts/dist/

@@ -20,7 +20,8 @@
     "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:generate": "NODE_OPTIONS='--import ./scripts/register-server-only.mjs' drizzle-kit generate",
-    "db:migrate": "pnpm tsx:server scripts/migrate.ts"
+    "db:migrate": "pnpm tsx:server scripts/migrate.ts",
+    "scripts:build": "tsx scripts/build-scripts.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

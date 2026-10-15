@@ -1,5 +1,11 @@
 # Production stack for security.raynx.ie
 # Handled by Dokploy: Traefik manages reverse proxy, SSL (Let's Encrypt), and routes to port 3000.
+# Postgres 17 runs as a separate Dokploy database service. Set exactly these
+# three variables in the Dokploy environment tab (nothing else is read):
+#   DATABASE_URL        postgres://<user>:<password>@<dokploy-db-host>:5432/<db>
+#   BETTER_AUTH_SECRET  >= 32 random chars (openssl rand -base64 48); also derives the encryption keys
+#   BETTER_AUTH_URL     https://security.raynx.ie
+# The container applies pending migrations on start (docker-entrypoint.sh).
 
 services:
   security-web:
@@ -7,5 +13,13 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in Dokploy}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in Dokploy}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL in Dokploy}
+    volumes:
+      # Uploads and local backups until R2 is configured in the admin.
+      - security-data:/data
 
-
+volumes:
+  security-data:
