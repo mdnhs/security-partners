@@ -1,6 +1,20 @@
 import type { ReactNode } from "react"
 import { Body, Container, Head, Hr, Html, Preview, Text } from "react-email"
 
+const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`
+
+/**
+ * Link lifetime in words: up to an hour in minutes, then whole hours, then
+ * whole days from two days on (60 → "60 minutes", 1440 → "24 hours",
+ * 10080 → "7 days").
+ */
+export function formatExpiry(minutes: number): string {
+  if (minutes >= 2 * 1440 && minutes % 1440 === 0)
+    return plural(minutes / 1440, "day")
+  if (minutes > 60 && minutes % 60 === 0) return plural(minutes / 60, "hour")
+  return plural(minutes, "minute")
+}
+
 // Shared frame for transactional emails. Plain inline styles: email clients
 // ignore the site's CSS.
 export const emailStyles = {

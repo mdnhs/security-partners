@@ -1,6 +1,6 @@
 import { Button, Heading, Link, Text } from "react-email"
 
-import { EmailLayout, emailStyles } from "./layout"
+import { EmailLayout, emailStyles, formatExpiry } from "./layout"
 
 export type InviteEmailProps = {
   name: string
@@ -15,6 +15,7 @@ export function InviteEmail({
   url,
   expiresInDays,
 }: InviteEmailProps) {
+  const expiry = formatExpiry(expiresInDays * 1440)
   return (
     <EmailLayout preview="You're invited to the Security Partners admin">
       <Heading as="h1" style={emailStyles.heading}>
@@ -29,8 +30,8 @@ export function InviteEmail({
         Choose your password
       </Button>
       <Text style={emailStyles.small}>
-        This link works once and expires in {expiresInDays} days. If the button
-        does not work, open this address:{" "}
+        This link works once and expires in {expiry}. If the button does not
+        work, open this address:{" "}
         <Link href={url} style={emailStyles.link}>
           {url}
         </Link>

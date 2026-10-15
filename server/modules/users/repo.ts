@@ -9,7 +9,9 @@ import {
   exists,
   gt,
   ilike,
+  isNotNull,
   isNull,
+  like,
   ne,
   not,
   or,
@@ -20,7 +22,13 @@ import {
 import type { Role } from "@/lib/auth/roles"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
-import { accounts, sessions, twoFactors, users } from "@/server/db/schema"
+import {
+  accounts,
+  sessions,
+  twoFactors,
+  users,
+  verifications,
+} from "@/server/db/schema"
 
 // Any constant: serialises owner-count checks (demote/ban the last owner).
 const OWNERS_LOCK_ID = 7_314_002
@@ -180,13 +188,17 @@ export async function setUserBan(
     .where(eq(users.id, id))
 }
 
+/**
+ * Signs `userId` out everywhere: their own sessions and every impersonation
+ * session they started (impersonation never outlives the impersonator).
+ */
 export async function deleteUserSessions(
   db: DbOrTx,
   userId: string
 ): Promise<number> {
   const deleted = await db
     .delete(sessions)
-    .where(eq(sessions.userId, userId))
+    .where(or(eq(sessions.userId, userId), eq(sessions.impersonatedBy, userId)))
     .returning({ id: sessions.id })
   return deleted.length
 }
@@ -211,7 +223,10 @@ export async function lockOwners(tx: DbOrTx): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(${OWNERS_LOCK_ID})`)
 }
 
-/** Owners who are not banned now, excluding `exceptUserId`. */
+/**
+ * Active owners (have a password, not banned now), excluding `exceptUserId`.
+ * An invited owner who never chose a password does not count.
+ */
 export async function countActiveOwners(
   db: DbOrTx,
   exceptUserId: string
@@ -219,8 +234,48 @@ export async function countActiveOwners(
   const [{ n }] = await db
     .select({ n: count() })
     .from(users)
-    .where(and(hasRole("owner"), not(bannedNow), ne(users.id, exceptUserId)))
+    .where(
+      and(
+        hasRole("owner"),
+        not(bannedNow),
+        hasPassword,
+        ne(users.id, exceptUserId)
+      )
+    )
   return n
+}
+
+/**
+ * Deletes every unused password link (invite, reset, recovery) of `userId`:
+ * Better Auth's `reset-password:<token>` verification rows whose value is the
+ * user id. Returns how many were deleted.
+ */
+export async function deletePasswordTokens(
+  db: DbOrTx,
+  userId: string
+): Promise<number> {
+  const deleted = await db
+    .delete(verifications)
+    .where(
+      and(
+        like(verifications.identifier, "reset-password:%"),
+        eq(verifications.value, userId)
+      )
+    )
+    .returning({ id: verifications.id })
+  return deleted.length
+}
+
+/** Deletes the sessions in which someone is impersonating `userId`. */
+export async function deleteImpersonationSessionsOf(
+  db: DbOrTx,
+  userId: string
+): Promise<number> {
+  const deleted = await db
+    .delete(sessions)
+    .where(and(eq(sessions.userId, userId), isNotNull(sessions.impersonatedBy)))
+    .returning({ id: sessions.id })
+  return deleted.length
 }
 
 /** Turns two-factor off and deletes the TOTP secret and backup codes. */

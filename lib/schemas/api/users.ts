@@ -13,7 +13,12 @@ export const rolesSchema = z
   .transform((roles) => [...new Set(roles)])
 
 const name = z.string().trim().min(1, "Required").max(100)
-const title = z.string().trim().max(100)
+/** Byline title; blank → null (no title). */
+const title = z
+  .string()
+  .trim()
+  .max(100)
+  .transform((v) => v || null)
 
 export const inviteUserInput = z.object({
   email: z

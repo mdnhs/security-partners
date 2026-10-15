@@ -1,6 +1,6 @@
 import { Button, Heading, Link, Text } from "react-email"
 
-import { EmailLayout, emailStyles } from "./layout"
+import { EmailLayout, emailStyles, formatExpiry } from "./layout"
 
 export type ResetPasswordEmailProps = {
   name: string
@@ -28,9 +28,9 @@ export function ResetPasswordEmail({
         Choose a new password
       </Button>
       <Text style={emailStyles.small}>
-        This link works once and expires in {expiresInMinutes} minutes. If you
-        did not ask for this, ignore this email; your password stays the same.
-        Link:{" "}
+        This link works once and expires in {formatExpiry(expiresInMinutes)}. If
+        you did not ask for this, ignore this email; your password stays the
+        same. Link:{" "}
         <Link href={url} style={emailStyles.link}>
           {url}
         </Link>

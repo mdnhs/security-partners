@@ -1,5 +1,6 @@
 import "server-only"
 
+import { isAPIError } from "better-auth/api"
 import { createElement } from "react"
 
 import { InviteEmail } from "@/emails/invite"
@@ -64,8 +65,32 @@ async function loadTarget(db: DbOrTx, id: string) {
   return target
 }
 
+/** Same definition as repo.countActiveOwners: has a password, not banned now. */
 const isActiveOwner = (row: repo.UserRow) =>
-  parseRoles(row.role).includes("owner") && !isBannedNow(row)
+  parseRoles(row.role).includes("owner") && row.hasPassword && !isBannedNow(row)
+
+const DUPLICATE_EMAIL = "A user with this email already exists"
+
+/**
+ * Better Auth's "user exists" error, or the users.email unique violation
+ * (Postgres 23505, possibly wrapped in `cause`) when two invites race.
+ */
+function isDuplicateEmailError(err: unknown): boolean {
+  if (
+    isAPIError(err) &&
+    err.body?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"
+  )
+    return true
+  let current: unknown = err
+  for (let depth = 0; current && depth < 5; depth++) {
+    if ((current as { code?: unknown }).code === "23505") return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+
+const impersonates = (roles: readonly string[]) =>
+  hasPermission(roles, { user: ["impersonate"] })
 
 /** 409 when `target` is the only active owner (call inside a tx after lockOwners). */
 async function assertNotLastOwner(
@@ -114,18 +139,26 @@ export async function inviteUser(
   assertMayAssign(actor, input.roles)
   const db = getDb()
   if (await repo.findUserByEmail(db, input.email))
-    throw new AppError("CONFLICT", "A user with this email already exists")
+    throw new AppError("CONFLICT", DUPLICATE_EMAIL)
 
-  const { user } = await getAuth().api.createUser({
-    body: {
-      email: input.email,
-      name: input.name,
-      role: input.roles,
-      data: { title: input.title || null },
-    },
-  })
+  let user: { id: string }
+  try {
+    ;({ user } = await getAuth().api.createUser({
+      body: {
+        email: input.email,
+        name: input.name,
+        role: input.roles,
+        data: { title: input.title ?? null },
+      },
+    }))
+  } catch (err) {
+    if (isDuplicateEmailError(err))
+      throw new AppError("CONFLICT", DUPLICATE_EMAIL)
+    throw err
+  }
   const token = await createPasswordToken(user.id, INVITE_TOKEN_EXPIRES_IN)
   const inviteUrl = passwordUrl("set-password", token)
+  // Audit before the mail step: the invite exists whether or not email works.
   await writeAudit(db, actor, {
     action: "user.invite",
     entityType: "user",
@@ -136,19 +169,33 @@ export async function inviteUser(
       title: input.title ?? null,
     },
   })
-  const inviter = await repo.findUserById(db, actor.userId)
-  const { delivered } = await mailer.send({
+  const { delivered } = await sendInviteEmail(db, actor, {
     to: input.email,
-    subject: "You're invited to the Security Partners admin",
-    react: createElement(InviteEmail, {
-      name: input.name,
-      inviterName: inviter?.name ?? "An administrator",
-      url: inviteUrl,
-      expiresInDays: INVITE_TOKEN_EXPIRES_IN / 86_400,
-    }),
+    name: input.name,
+    url: inviteUrl,
+    expiresInSeconds: INVITE_TOKEN_EXPIRES_IN,
   })
   const created = await loadTarget(db, user.id)
   return { user: toUserItem(created), inviteUrl, emailDelivered: delivered }
+}
+
+/** Invite wording ("X invited you … choose a password"); mail failure → delivered: false. */
+async function sendInviteEmail(
+  db: DbOrTx,
+  actor: Actor,
+  msg: { to: string; name: string; url: string; expiresInSeconds: number }
+) {
+  const inviter = await repo.findUserById(db, actor.userId)
+  return mailer.send({
+    to: msg.to,
+    subject: "You're invited to the Security Partners admin",
+    react: createElement(InviteEmail, {
+      name: msg.name,
+      inviterName: inviter?.name ?? "An administrator",
+      url: msg.url,
+      expiresInDays: msg.expiresInSeconds / 86_400,
+    }),
+  })
 }
 
 export async function updateUser(
@@ -189,12 +236,25 @@ export async function setRoles(
     assertMayTouch(actor, target)
     if (!input.roles.includes("owner"))
       await assertNotLastOwner(tx, target, "demoted")
+    const from = parseRoles(target.role)
     await repo.setUserRoles(tx, id, input.roles)
+    const revoked: Record<string, number> = {}
+    if (input.roles.includes("owner") && !from.includes("owner")) {
+      // New owner: links and "View as" sessions issued while they were not
+      // an owner (by non-owners) must not grant owner access.
+      revoked.passwordLinksRevoked = await repo.deletePasswordTokens(tx, id)
+      revoked.impersonationsRevoked = await repo.deleteImpersonationSessionsOf(
+        tx,
+        id
+      )
+    }
+    if (impersonates(from) && !impersonates(input.roles))
+      revoked.sessionsRevoked = await repo.deleteUserSessions(tx, id)
     await writeAudit(tx, actor, {
       action: "user.roles_change",
       entityType: "user",
       entityId: id,
-      diff: { from: parseRoles(target.role), to: input.roles },
+      diff: { from, to: input.roles, ...revoked },
     })
   })
   return toUserItem(await loadTarget(db, id))
@@ -306,6 +366,8 @@ export async function createPasswordLink(
       "CONFLICT",
       "Unban this user before sending a password link"
     )
+  // Only the newest link works: earlier invite/reset links stop working.
+  const revoked = await repo.deletePasswordTokens(db, id)
   const token = await createPasswordToken(id, RECOVERY_TOKEN_EXPIRES_IN)
   const url = passwordUrl(
     target.hasPassword ? "reset-password" : "set-password",
@@ -315,16 +377,24 @@ export async function createPasswordLink(
     action: "user.password_link",
     entityType: "user",
     entityId: id,
+    diff: { passwordLinksRevoked: revoked },
   })
-  const { delivered } = await mailer.send({
-    to: target.email,
-    subject: "Choose a password for the Security Partners admin",
-    react: createElement(ResetPasswordEmail, {
-      name: target.name,
-      url,
-      expiresInMinutes: RECOVERY_TOKEN_EXPIRES_IN / 60,
-    }),
-  })
+  const { delivered } = target.hasPassword
+    ? await mailer.send({
+        to: target.email,
+        subject: "Reset your Security Partners admin password",
+        react: createElement(ResetPasswordEmail, {
+          name: target.name,
+          url,
+          expiresInMinutes: RECOVERY_TOKEN_EXPIRES_IN / 60,
+        }),
+      })
+    : await sendInviteEmail(db, actor, {
+        to: target.email,
+        name: target.name,
+        url,
+        expiresInSeconds: RECOVERY_TOKEN_EXPIRES_IN,
+      })
   return { url, emailDelivered: delivered }
 }
 
