@@ -50,6 +50,23 @@ describe("settings schemas (spec §5.4 + shared sections ruling)", () => {
     expect(settingsSchemas.navigation.safeParse(bad).success).toBe(false)
   })
 
+  it.each(["javascript:alert(1)", "data:text/html,x"])(
+    "rejects %j as a share network href",
+    (value) => {
+      const bad = structuredClone(fixture.microcopy)
+      bad.share.networks[0].href = value
+      expect(settingsSchemas.microcopy.safeParse(bad).success).toBe(false)
+    }
+  )
+
+  it.each(["javascript:alert(1)", "data:text/html,x"])(
+    "rejects %j as the site production URL",
+    (value) => {
+      const bad = { ...fixture.site, productionUrl: value }
+      expect(settingsSchemas.site.safeParse(bad).success).toBe(false)
+    }
+  )
+
   it("rejects malformed tracking ids", () => {
     expect(
       settingsSchemas.tracking.safeParse({ ...fixture.tracking, gtmId: "UA-1" })

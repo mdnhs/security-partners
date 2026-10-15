@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   href,
+  httpUrl,
   link,
   mediaRef,
   richText,
+  seo,
   slug,
   text,
 } from "@/lib/schemas/common"
@@ -49,6 +51,19 @@ describe("href / link", () => {
     "ftp://x.ie",
     "about",
     "{not a placeholder}",
+    // Browsers read "\" as "/" and drop tabs/newlines → protocol-relative.
+    "/\\evil.example",
+    "\\/evil.example",
+    "/\t/evil.example",
+    "/\n/evil.example",
+    " /about",
+    "/ about",
+    // Control characters anywhere.
+    "/about\u0000",
+    "/ab\rout",
+    "https://example.ie/\u007f",
+    "#top\u0085",
+    "java\tscript:alert(1)",
   ])("rejects %j", (value) => expect(ok(href, value)).toBe(false))
 
   it("link needs a label and a safe href", () => {
@@ -71,6 +86,23 @@ describe("text: no whitespace normalisation (Review Focus 1)", () => {
   ])("round-trips %j unchanged", (value) => {
     expect(text.parse(value)).toBe(value)
   })
+})
+
+describe("httpUrl / seo.canonical", () => {
+  it.each(["https://www.securitypartnersltd.com/about", "http://example.ie"])(
+    "accepts %s",
+    (value) => {
+      expect(ok(httpUrl, value)).toBe(true)
+      expect(ok(seo, { canonical: value })).toBe(true)
+    }
+  )
+  it.each(["javascript:alert(1)", "data:text/html,x", "ftp://x.ie", "/about"])(
+    "rejects %j",
+    (value) => {
+      expect(ok(httpUrl, value)).toBe(false)
+      expect(ok(seo, { canonical: value })).toBe(false)
+    }
+  )
 })
 
 describe("mediaRef", () => {

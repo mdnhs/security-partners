@@ -1,10 +1,10 @@
 import { z } from "zod"
 
-import { mediaRef, text } from "../common"
+import { httpUrl, mediaRef, text } from "../common"
 
 export const clientSchema = z.object({
   name: text,
   logo: mediaRef,
-  url: z.url().nullable(),
+  url: httpUrl.nullable(),
 })
 export type ClientInput = z.infer<typeof clientSchema>

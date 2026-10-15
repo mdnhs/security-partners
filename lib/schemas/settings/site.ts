@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { mediaRef, text } from "../common"
+import { httpUrl, mediaRef, text } from "../common"
 
 /** settings.site — brand and locale (spec §5.4, D7). */
 export const siteSettings = z.object({
@@ -10,7 +10,7 @@ export const siteSettings = z.object({
   logoAlt: text,
   logoOnDark: mediaRef.nullable(),
   favicon: mediaRef.nullable(),
-  productionUrl: z.url().nullable(),
+  productionUrl: httpUrl.nullable(),
   timezone: text,
   /** <html lang> of the public site. */
   locale: text,

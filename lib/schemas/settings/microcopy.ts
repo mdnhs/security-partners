@@ -69,7 +69,7 @@ export const microcopySettings = z.object({
     ctaHref: href,
   }),
   share: z.object({
-    networks: z.array(z.object({ label: text, name: text, href: text })).min(1),
+    networks: z.array(z.object({ label: text, name: text, href })).min(1),
   }),
 })
 export type MicrocopySettings = z.infer<typeof microcopySettings>
