@@ -6,6 +6,25 @@ import { createApp } from "@/server/api/app"
 import { zv } from "@/server/api/validate"
 import { AppError, conflict } from "@/server/lib/errors"
 
+// Since Phase 2, /api/v1/admin/* runs the session middleware first. These
+// tests cover the envelope, sameOrigin and body limits only, so the session
+// lookup is stubbed: a request carrying UNIT_COOKIE is a signed-in owner.
+vi.mock("@/server/auth/session", () => ({
+  sessionFromHeaders: async (headers: Headers) =>
+    headers.get("cookie")?.includes("sp.session_token=unit-test")
+      ? {
+          actor: {
+            userId: "0190a6e0-0000-7000-8000-000000000001",
+            roles: ["owner"],
+            ip: null,
+            userAgent: null,
+            impersonatorId: null,
+          },
+        }
+      : null,
+}))
+const UNIT_COOKIE = "sp.session_token=unit-test"
+
 const app = createApp()
 // Test-only routes on a private app instance.
 app.get("/v1/__test/app-error", () => {
@@ -213,7 +232,7 @@ describe("body limits", () => {
   })
 
   it("admin: 1 MB ok, larger → 413 envelope", async () => {
-    const headers = { origin: ORIGIN }
+    const headers = { origin: ORIGIN, cookie: UNIT_COOKIE }
     const ok = await app.request("/api/v1/admin/__test/echo", {
       method: "POST",
       headers,
@@ -233,7 +252,7 @@ describe("sameOrigin on /api/v1/admin/*", () => {
   const post = (headers: Record<string, string>) =>
     app.request("/api/v1/admin/__test/echo", {
       method: "POST",
-      headers,
+      headers: { cookie: UNIT_COOKIE, ...headers },
       body: "x",
     })
 
@@ -270,8 +289,18 @@ describe("sameOrigin on /api/v1/admin/*", () => {
 
   it("lets safe methods through", async () => {
     const res = await app.request("/api/v1/admin/__test/missing", {
-      headers: { origin: "https://evil.example" },
+      headers: { origin: "https://evil.example", cookie: UNIT_COOKIE },
     })
     expect(res.status).toBe(404)
+  })
+
+  it("runs after the session check: no session → 401 even from the app origin", async () => {
+    const res = await app.request("/api/v1/admin/__test/echo", {
+      method: "POST",
+      headers: { origin: ORIGIN },
+      body: "x",
+    })
+    expect(res.status).toBe(401)
+    expect((await res.json()).error.code).toBe("UNAUTHENTICATED")
   })
 })

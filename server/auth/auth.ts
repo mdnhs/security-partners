@@ -12,7 +12,7 @@ import { type Db, getDb } from "@/server/db/client"
 import * as schema from "@/server/db/schema"
 import { getEnv } from "@/server/env"
 
-import { securityHooks } from "./hooks"
+import { actorFor, auditAuthEvent, securityHooks } from "./hooks"
 
 export const SESSION_EXPIRES_IN = 60 * 60 * 24 * 7 // 7 days (spec §6)
 export const IMPERSONATION_EXPIRES_IN = 60 * 60 // 1 hour
@@ -79,6 +79,13 @@ function createAuth(db: Db) {
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: RESET_TOKEN_EXPIRES_IN,
+      onPasswordReset: async ({ user }, request) => {
+        await auditAuthEvent(actorFor(user, request?.headers), {
+          action: "auth.password_reset",
+          entityType: "user",
+          entityId: user.id,
+        })
+      },
     },
     session: {
       expiresIn: SESSION_EXPIRES_IN,

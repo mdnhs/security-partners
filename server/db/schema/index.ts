@@ -4,3 +4,4 @@ import "server-only"
 // getDb() both read this file. Later phases append `export * from "./<module>"`.
 export { contentStatus } from "./_shared"
 export * from "./auth"
+export * from "./audit"

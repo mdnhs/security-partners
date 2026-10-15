@@ -1,13 +1,62 @@
 import "server-only"
 
 import type { BetterAuthPlugin } from "better-auth"
-import { APIError, createAuthMiddleware } from "better-auth/api"
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+  isAPIError,
+} from "better-auth/api"
+
+import { parseRoles } from "@/lib/auth/permissions"
+import { getDb } from "@/server/db/client"
+import type { Actor } from "@/server/lib/actor"
+import { type AuditEntry, writeAudit } from "@/server/lib/audit"
+import { clientIp } from "@/server/lib/ip"
+
+type AuthUser = { id: string; role?: string | null }
+
+export function actorFor(
+  user: AuthUser,
+  headers: Headers | undefined,
+  impersonatedBy: string | null = null
+): Actor {
+  return {
+    userId: user.id,
+    roles: parseRoles(user.role),
+    ip: headers ? clientIp(headers) : null,
+    userAgent: headers?.get("user-agent") ?? null,
+    impersonatorId: impersonatedBy,
+  }
+}
+
+/** Audit must never break authentication: failures are logged, not thrown. */
+export async function auditAuthEvent(
+  actor: Actor | null,
+  entry: AuditEntry
+): Promise<void> {
+  try {
+    await writeAudit(getDb(), actor, entry)
+  } catch (err) {
+    console.error(
+      `[audit] could not record ${entry.action}:`,
+      err instanceof Error ? err.message : String(err)
+    )
+  }
+}
+
+const SECOND_FACTOR_PATHS = new Set([
+  "/two-factor/verify-totp",
+  "/two-factor/verify-backup-code",
+])
+
+const isOk = (returned: unknown) => !isAPIError(returned)
 
 /**
  * Project hooks for Better Auth, packaged as a plugin so they run after the
  * twoFactor plugin's hooks (plugin hooks run in plugin order; options.hooks
  * would run first and see a sign-in that twoFactor later turns into a
- * challenge). Task 3 adds the audit hooks.
+ * challenge).
  */
 export function securityHooks(): BetterAuthPlugin {
   return {
@@ -22,6 +71,129 @@ export function securityHooks(): BetterAuthPlugin {
           matcher: (ctx) => ctx.path?.startsWith("/admin/") ?? false,
           handler: createAuthMiddleware(async (ctx) => {
             if (ctx.request) throw new APIError("NOT_FOUND")
+          }),
+        },
+        {
+          // Changing the password always signs out every other device.
+          matcher: (ctx) => ctx.path === "/change-password",
+          handler: createAuthMiddleware(async (ctx) => ({
+            context: { body: { ...ctx.body, revokeOtherSessions: true } },
+          })),
+        },
+        {
+          // Sign-out: record who before the session is deleted.
+          matcher: (ctx) => ctx.path === "/sign-out",
+          handler: createAuthMiddleware(async (ctx) => {
+            const session = await getSessionFromCtx(ctx)
+            if (!session) return
+            await auditAuthEvent(
+              actorFor(
+                session.user,
+                ctx.headers,
+                session.session.impersonatedBy ?? null
+              ),
+              {
+                action: "auth.sign_out",
+                entityType: "user",
+                entityId: session.user.id,
+              }
+            )
+          }),
+        },
+      ],
+      after: [
+        {
+          matcher: (ctx) => ctx.path === "/sign-in/email",
+          handler: createAuthMiddleware(async (ctx) => {
+            const headers = ctx.headers
+            const created = ctx.context.newSession
+            if (created) {
+              await auditAuthEvent(actorFor(created.user, headers), {
+                action: "auth.sign_in",
+                entityType: "user",
+                entityId: created.user.id,
+                diff: { method: "password" },
+              })
+              return
+            }
+            const returned = ctx.context.returned
+            if (!isAPIError(returned)) return // two-factor challenge pending
+            const email =
+              typeof ctx.body?.email === "string"
+                ? ctx.body.email.toLowerCase()
+                : null
+            const found = email
+              ? await ctx.context.internalAdapter.findUserByEmail(email)
+              : null
+            await auditAuthEvent(null, {
+              action: "auth.sign_in_failed",
+              entityType: "user",
+              entityId: found?.user.id,
+              diff: {
+                method: "password",
+                email,
+                reason: returned.body?.code ?? null,
+              },
+              ip: headers ? clientIp(headers) : null,
+              userAgent: headers?.get("user-agent") ?? null,
+            })
+          }),
+        },
+        {
+          matcher: (ctx) => SECOND_FACTOR_PATHS.has(ctx.path ?? ""),
+          handler: createAuthMiddleware(async (ctx) => {
+            const headers = ctx.headers
+            const method = ctx.path.endsWith("totp") ? "totp" : "backup_code"
+            // verifyTwoFactor() stores the pre-existing session here; null
+            // means this call completes a sign-in challenge.
+            const prior = ctx.context.session
+            const created = ctx.context.newSession
+            if (!prior && created) {
+              await auditAuthEvent(actorFor(created.user, headers), {
+                action: "auth.sign_in",
+                entityType: "user",
+                entityId: created.user.id,
+                diff: { method },
+              })
+            } else if (prior && created && method === "totp") {
+              // first successful code while signed in turns 2FA on
+              await auditAuthEvent(actorFor(prior.user, headers), {
+                action: "auth.2fa_enable",
+                entityType: "user",
+                entityId: prior.user.id,
+              })
+            } else if (!prior && isAPIError(ctx.context.returned)) {
+              await auditAuthEvent(null, {
+                action: "auth.sign_in_failed",
+                diff: { method },
+                ip: headers ? clientIp(headers) : null,
+                userAgent: headers?.get("user-agent") ?? null,
+              })
+            }
+          }),
+        },
+        {
+          matcher: (ctx) =>
+            ctx.path === "/two-factor/disable" ||
+            ctx.path === "/change-password",
+          handler: createAuthMiddleware(async (ctx) => {
+            const session = ctx.context.session
+            if (!session || !isOk(ctx.context.returned)) return
+            await auditAuthEvent(
+              actorFor(
+                session.user,
+                ctx.headers,
+                session.session.impersonatedBy ?? null
+              ),
+              {
+                action:
+                  ctx.path === "/change-password"
+                    ? "auth.password_change"
+                    : "auth.2fa_disable",
+                entityType: "user",
+                entityId: session.user.id,
+              }
+            )
           }),
         },
       ],
