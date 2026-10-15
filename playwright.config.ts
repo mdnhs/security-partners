@@ -24,7 +24,9 @@ export default defineConfig({
     { name: "e2e", testMatch: "e2e/**/*.spec.ts", dependencies: ["e2e-setup"], use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
   ],
   webServer: {
-    command: `pnpm build && pnpm start -p ${PORT}`,
+    // Build (no DB), then reset + migrate + seed sp_e2e so pages render the
+    // seeded content (tests/visual/seed.ts), then serve it.
+    command: `pnpm build && pnpm tsx:server tests/visual/seed.ts && pnpm start -p ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     // Always start our own server: a stale one on the port would serve old
     // code or lack the E2E env (port must be free).

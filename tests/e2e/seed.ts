@@ -11,7 +11,8 @@ import {
   INVITE_TOKEN_EXPIRES_IN,
   passwordUrl,
 } from "@/server/auth/tokens"
-import { closeDb } from "@/server/db/client"
+import { closeDb, getDb } from "@/server/db/client"
+import { seedContent } from "@/server/db/seed"
 import { runMigrations } from "@/server/db/migrate"
 import { getEnv } from "@/server/env"
 
@@ -27,6 +28,8 @@ if (new URL(DATABASE_URL).pathname !== "/sp_e2e")
 
 await runMigrations(DATABASE_URL)
 await resetDb()
+// The public site needs its content (Phase 3); users are created below.
+await seedContent(getDb())
 const auth = getAuth()
 
 const editor = { email: "editor@e2e.test", name: "Edith Editor" }
