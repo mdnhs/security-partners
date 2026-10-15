@@ -958,17 +958,19 @@
       "target": "pages.home.hero.secondaryCta.label",
       "pages": [
         "/"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "home.hero.secondaryCta.href",
       "source": "components/home/hero.tsx:77",
       "kind": "tel",
-      "value": "{settings.contact.phone24hHref}",
+      "value": "{phone24hHref}",
       "target": "pages.home.hero.secondaryCta.href",
       "pages": [
         "/"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.about.eyebrow",
@@ -1153,7 +1155,8 @@
         "/",
         "/services",
         "/services/[slug]"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "serviceCard.href",
@@ -1270,13 +1273,14 @@
         "/services/[slug]",
         "/team",
         "/blog"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.enquireBanner.secondaryCta.href",
       "source": "components/home/services.tsx:124",
       "kind": "tel",
-      "value": "{settings.contact.officeHref}",
+      "value": "{officeHref}",
       "target": "settings.sections.enquireBanner.secondaryCta.href",
       "pages": [
         "/",
@@ -1285,7 +1289,8 @@
         "/services/[slug]",
         "/team",
         "/blog"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "services",
@@ -1726,12 +1731,13 @@
       "id": "sections.contact.infoItems.lines.href",
       "source": "components/home/contact.tsx:16",
       "kind": "href",
-      "value": "{settings.contact.phone24hHref}",
+      "value": "{phone24hHref}",
       "target": "settings.sections.contact.infoItems[].lines[].href",
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.infoItems.operationsTel",
@@ -1742,7 +1748,8 @@
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.infoItems.operationsMobile",
@@ -1753,7 +1760,8 @@
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.infoItems.operationsEmailHref",
@@ -1764,7 +1772,8 @@
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.eyebrow",
@@ -1814,12 +1823,13 @@
       "id": "sections.contact.map.href",
       "source": "components/home/contact.tsx:109",
       "kind": "href",
-      "value": "{settings.contact.mapsHref}",
+      "value": "{mapsHref}",
       "target": "settings.sections.contact.map.link",
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.map.tiles",
@@ -1830,7 +1840,8 @@
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.map.logo",
@@ -1962,14 +1973,15 @@
       "pages": [
         "/",
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "sections.contact.form.mailtoTarget",
       "source": "components/home/contact-form.tsx:47",
       "kind": "mailto",
       "value": "mailto:{email}",
-      "target": "settings.leads.recipients",
+      "target": "settings.contact.email",
       "pages": [
         "/",
         "/contact"
@@ -2333,14 +2345,15 @@
       "target": "settings.seo.defaults.titleTemplate",
       "pages": [
         "/services/[slug]"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "serviceDetail.meta.description",
       "source": "app/services/[slug]/page.tsx:29",
       "kind": "meta",
       "value": "{detail.intro}",
-      "target": "services[].seo.description",
+      "target": "services[].detail.intro",
       "pages": [
         "/services/[slug]"
       ]
@@ -2439,7 +2452,7 @@
       "id": "serviceDetail.body.calloutPhone",
       "source": "components/services/service-body.tsx:81",
       "kind": "tel",
-      "value": "{settings.contact.phone24h}",
+      "value": "{phone24h}",
       "target": "settings.contact.phone24h",
       "pages": [
         "/services/[slug]"
@@ -2833,7 +2846,8 @@
       "target": "settings.microcopy.blog.emptyCategory",
       "pages": [
         "/blog"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "blog.pagination.aria",
@@ -2863,7 +2877,8 @@
       "target": "settings.microcopy.aria.pageNumber",
       "pages": [
         "/blog"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "blog.pagination.next",
@@ -3246,14 +3261,15 @@
       "target": "settings.seo.defaults.titleTemplate",
       "pages": [
         "/blog/[slug]"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "article.meta.description",
       "source": "app/blog/[slug]/page.tsx:27",
       "kind": "meta",
       "value": "{excerpt}",
-      "target": "articles[].seo.description",
+      "target": "articles[].excerpt",
       "pages": [
         "/blog/[slug]"
       ]
@@ -3436,7 +3452,8 @@
       "target": "settings.microcopy.aria.shareOn",
       "pages": [
         "/blog/[slug]"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "article.share.networks",
@@ -3476,7 +3493,8 @@
       "target": "settings.microcopy.share.networks[].href",
       "pages": [
         "/blog/[slug]"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "contact.meta.title",
@@ -3496,7 +3514,8 @@
       "target": "pages.contact.seo.description",
       "pages": [
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "contact.hero.image",
@@ -3536,7 +3555,8 @@
       "target": "pages.contact.hero.description",
       "pages": [
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "contact.departments.eyebrow",
@@ -3626,17 +3646,19 @@
       "target": "pages.contact.departments.items[].lines[].text",
       "pages": [
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "contact.departments.items.lines.href",
       "source": "components/contact/departments.tsx:13",
       "kind": "tel",
-      "value": "{settings.contact.officeHref}",
+      "value": "{officeHref}",
       "target": "pages.contact.departments.items[].lines[].href",
       "pages": [
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "contact.departments.ops.mobile",
@@ -3646,7 +3668,8 @@
       "target": "pages.contact.departments.items[].lines[].text",
       "pages": [
         "/contact"
-      ]
+      ],
+      "template": true
     },
     {
       "id": "contact.departments.hr.phone",
