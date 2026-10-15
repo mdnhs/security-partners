@@ -40,14 +40,14 @@ export const media = pgTable(
   (t) => [unique("media_driver_key_unique").on(t.driver, t.key)]
 )
 
-/** Where a media row is used (Phase 6 blocks deleting media in use). */
+/** Where a media row is used; RESTRICT blocks deleting media in use (23503 → 409). */
 export const mediaUsages = pgTable(
   "media_usages",
   {
     id: id(),
     mediaId: uuid("media_id")
       .notNull()
-      .references(() => media.id, { onDelete: "cascade" }),
+      .references(() => media.id, { onDelete: "restrict" }),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
     field: text("field").notNull(),

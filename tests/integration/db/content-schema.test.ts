@@ -3,12 +3,19 @@ import { beforeEach, describe, expect, it } from "vitest"
 
 import { getDb } from "@/server/db/client"
 import {
+  aiConversations,
+  aiMessages,
   articleCategories,
   articles,
+  clients,
+  jobs,
   media,
+  mediaUsages,
   pages,
   redirects,
+  revisions,
   services,
+  users,
 } from "@/server/db/schema"
 
 import { resetDb } from "../db"
@@ -61,6 +68,13 @@ async function pgCode(run: Promise<unknown>): Promise<string | undefined> {
     const e = err as { code?: string; cause?: { code?: string } }
     return e.cause?.code ?? e.code
   }
+}
+
+const mediaRow = {
+  key: "/images/logo.svg",
+  driver: "static" as const,
+  mime: "image/svg+xml",
+  size: 1,
 }
 
 beforeEach(resetDb)
@@ -151,6 +165,93 @@ describe("content schema migration (0003_content)", () => {
     expect(
       await pgCode(
         db.insert(redirects).values({ fromPath: "/c", toPath: "/d", code: 307 })
+      )
+    ).toBe("23514")
+  })
+
+  it("rejects self-redirects and relative from paths (23514)", async () => {
+    const db = getDb()
+    expect(
+      await pgCode(
+        db.insert(redirects).values({ fromPath: "/a", toPath: "/a" })
+      )
+    ).toBe("23514")
+    expect(
+      await pgCode(db.insert(redirects).values({ fromPath: "a", toPath: "/b" }))
+    ).toBe("23514")
+  })
+
+  it("will not delete media that is in use (23503)", async () => {
+    const db = getDb()
+    const [row] = await db.insert(media).values(mediaRow).returning()
+    await db.insert(mediaUsages).values({
+      mediaId: row.id,
+      entityType: "service",
+      entityId: "x",
+      field: "icon",
+    })
+    expect(await pgCode(db.delete(media).where(eq(media.id, row.id)))).toBe(
+      "23503"
+    )
+  })
+
+  it("will not delete media used as a client logo (23503)", async () => {
+    const db = getDb()
+    const [row] = await db.insert(media).values(mediaRow).returning()
+    await db.insert(clients).values({ name: "Acme", logoId: row.id })
+    expect(await pgCode(db.delete(media).where(eq(media.id, row.id)))).toBe(
+      "23503"
+    )
+  })
+
+  it("keeps job keys unique but allows many unkeyed jobs", async () => {
+    const db = getDb()
+    const runAt = new Date()
+    const [job] = await db
+      .insert(jobs)
+      .values({ name: "publish", key: "publish:a", runAt })
+      .returning()
+    expect(job.attempts).toBe(0)
+    expect(
+      await pgCode(
+        db.insert(jobs).values({ name: "publish", key: "publish:a", runAt })
+      )
+    ).toBe("23505")
+    await db.insert(jobs).values([
+      { name: "sweep", runAt },
+      { name: "sweep", runAt },
+    ])
+  })
+
+  it("keeps one revision per entity version (23505)", async () => {
+    const db = getDb()
+    const row = { entityType: "page", entityId: "home", version: 1, data: {} }
+    await db.insert(revisions).values(row)
+    expect(await pgCode(db.insert(revisions).values(row))).toBe("23505")
+    await db.insert(revisions).values({ ...row, version: 2 })
+  })
+
+  it("only allows known ai message roles (23514)", async () => {
+    const db = getDb()
+    const [user] = await db
+      .insert(users)
+      .values({ name: "U", email: "u@example.test" })
+      .returning()
+    const [conversation] = await db
+      .insert(aiConversations)
+      .values({ userId: user.id, title: "T" })
+      .returning()
+    for (const role of ["user", "assistant", "system", "tool"] as const)
+      await db
+        .insert(aiMessages)
+        .values({ conversationId: conversation.id, role, content: "c" })
+    expect(
+      await pgCode(
+        db.insert(aiMessages).values({
+          conversationId: conversation.id,
+          role: "bot" as "user",
+          content: "c",
+        })
       )
     ).toBe("23514")
   })

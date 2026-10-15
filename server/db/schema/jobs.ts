@@ -10,6 +10,8 @@ export const jobs = pgTable(
   {
     id: id(),
     name: text("name").notNull(),
+    /** Dedupe key for singleton/per-entity jobs; null = no dedupe. */
+    key: text("key").unique(),
     payload: jsonb("payload"),
     runAt: tsz("run_at").notNull(),
     lockedAt: tsz("locked_at"),

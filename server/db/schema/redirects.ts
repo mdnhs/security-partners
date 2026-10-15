@@ -15,5 +15,9 @@ export const redirects = pgTable(
     hits: integer("hits").notNull().default(0),
     ...timestamps(),
   },
-  (t) => [check("redirects_code", sql`${t.code} in (301, 302)`)]
+  (t) => [
+    check("redirects_code", sql`${t.code} in (301, 302)`),
+    check("redirects_not_self", sql`${t.fromPath} <> ${t.toPath}`),
+    check("redirects_from_path_absolute", sql`${t.fromPath} like '/%'`),
+  ]
 )

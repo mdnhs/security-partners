@@ -1,6 +1,13 @@
 import "server-only"
 
-import { index, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core"
+import {
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 import { id, tsz } from "./_shared"
 import { users } from "./auth"
@@ -19,5 +26,11 @@ export const revisions = pgTable(
     }),
     createdAt: tsz("created_at").notNull().defaultNow(),
   },
-  (t) => [index("revisions_entity_idx").on(t.entityType, t.entityId, t.version)]
+  (t) => [
+    unique("revisions_entity_version_unique").on(
+      t.entityType,
+      t.entityId,
+      t.version
+    ),
+  ]
 )
