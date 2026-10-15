@@ -15,8 +15,9 @@ export type ArticleHeaderProps = {
     /** Lead paragraph (falls back to the excerpt). */
     lead: string
     category: string
-    date: string
-    displayDate: string
+    /** null (never published): the date is omitted. */
+    date: string | null
+    displayDate: string | null
     /** "5 min read", or null to hide it. */
     readTime: string | null
     author: Author | null
@@ -65,7 +66,9 @@ export function ArticleHeader({ article, breadcrumb }: ArticleHeaderProps) {
           <span className="rounded-full bg-brand-mint px-3 py-1.5 text-xs leading-[normal] font-bold text-brand-green-dark">
             {article.category}
           </span>
-          <time dateTime={article.date}>{article.displayDate}</time>
+          {article.date && (
+            <time dateTime={article.date}>{article.displayDate}</time>
+          )}
           {article.readTime && (
             <>
               <span aria-hidden className="font-bold text-brand-placeholder">
@@ -122,8 +125,9 @@ export type ArticleBodyProps = {
     slug: string
     title: string
     cover: string
-    date: string
-    displayDate: string
+    /** null (never published): the date is omitted. */
+    date: string | null
+    displayDate: string | null
   }[]
   categories: { name: string; count: number }[]
   labels: {
@@ -201,12 +205,14 @@ export function ArticleBody({
                   <p className="text-[15px] leading-[1.35] font-bold text-brand-navy group-hover:text-brand-blue">
                     {item.title}
                   </p>
-                  <time
-                    dateTime={item.date}
-                    className="text-[13px] leading-[normal] font-medium text-brand-muted"
-                  >
-                    {item.displayDate}
-                  </time>
+                  {item.date && (
+                    <time
+                      dateTime={item.date}
+                      className="text-[13px] leading-[normal] font-medium text-brand-muted"
+                    >
+                      {item.displayDate}
+                    </time>
+                  )}
                 </div>
               </Link>
             ))}

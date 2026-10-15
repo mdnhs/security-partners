@@ -16,6 +16,7 @@ import {
   chromeView,
   enquireBannerView,
   featuredArticle,
+  hrefView,
   listedArticles,
   pageHeroView,
 } from "@/templates/shared/views"
@@ -104,7 +105,7 @@ export function articleView(s: SiteSources, slug: string): ArticleView | null {
         ariaLabel: microcopy.aria.breadcrumb,
         home: microcopy.breadcrumb.home,
         blog: microcopy.breadcrumb.blog,
-        blogHref: microcopy.breadcrumb.blogHref,
+        blogHref: hrefView(s, microcopy.breadcrumb.blogHref),
       },
     },
     body: {
@@ -141,7 +142,7 @@ export function articleView(s: SiteSources, slug: string): ArticleView | null {
         copy: microcopy.article.ctaCopy,
         link: {
           label: microcopy.article.ctaLabel,
-          href: microcopy.article.ctaHref,
+          href: hrefView(s, microcopy.article.ctaHref),
         },
       },
     },

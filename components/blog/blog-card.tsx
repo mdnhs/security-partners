@@ -9,10 +9,10 @@ export type BlogCardPost = {
   title: string
   excerpt: string
   category: string
-  /** "2026-09-20" for <time dateTime>. */
-  date: string
-  /** "20 Sep 2026". */
-  displayDate: string
+  /** "2026-09-20" for <time dateTime>; null: no date shown (never published). */
+  date: string | null
+  /** "20 Sep 2026"; null with `date`. */
+  displayDate: string | null
   cover: string
 }
 
@@ -64,7 +64,8 @@ export function PostMeta({
   children,
 }: {
   category: string
-  date: string
+  /** null: the date is omitted. */
+  date: string | null
   /** Shows the "Featured" badge when set. */
   featuredLabel?: string
   children: React.ReactNode
@@ -79,12 +80,14 @@ export function PostMeta({
       <span className="rounded-full bg-brand-mint px-3 py-1.5 text-xs leading-[normal] font-bold text-brand-green-dark">
         {category}
       </span>
-      <time
-        dateTime={date}
-        className="text-[13px] font-medium text-brand-muted"
-      >
-        {children}
-      </time>
+      {date && (
+        <time
+          dateTime={date}
+          className="text-[13px] font-medium text-brand-muted"
+        >
+          {children}
+        </time>
+      )}
     </div>
   )
 }

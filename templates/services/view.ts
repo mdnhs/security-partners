@@ -13,6 +13,7 @@ import {
   chromeView,
   clientsView,
   enquireBannerView,
+  hrefView,
   pageHeroView,
   placeholders,
   serviceCard,
@@ -75,10 +76,12 @@ export function serviceDetailView(
   const { content } = service
   const { microcopy } = s.settings
   const values = placeholders(s)
-  // The next three services after this one, wrapping around the list.
-  const others = [1, 2, 3]
-    .map((offset) => s.services[(index + offset) % s.services.length])
-    .filter((other) => other.slug !== slug)
+  // The next three services after this one, wrapping around the list; each
+  // other service at most once (fewer cards when fewer than four exist).
+  const others = [
+    ...s.services.slice(index + 1),
+    ...s.services.slice(0, index),
+  ].slice(0, 3)
   return {
     chrome: chromeView(s),
     hero: {
@@ -86,7 +89,7 @@ export function serviceDetailView(
       trail: [
         {
           label: microcopy.breadcrumb.services,
-          href: microcopy.breadcrumb.servicesHref,
+          href: hrefView(s, microcopy.breadcrumb.servicesHref),
         },
       ],
       crumb: content.title,
@@ -128,7 +131,7 @@ export function serviceDetailView(
         phone24hLabel: microcopy.service.phone24hLabel,
         cta: {
           label: microcopy.service.ctaLabel,
-          href: microcopy.service.ctaHref,
+          href: hrefView(s, microcopy.service.ctaHref),
         },
       },
     },

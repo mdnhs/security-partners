@@ -20,7 +20,7 @@ import {
   interpolateHref,
   interpolateParts,
 } from "@/lib/interpolate"
-import type { PageHero } from "@/lib/schemas/common"
+import type { Link, PageHero } from "@/lib/schemas/common"
 import type { WithMedia } from "@/lib/media"
 
 import type { SiteArticle, SiteService, SiteSources } from "./sources"
@@ -31,6 +31,19 @@ import type { SiteArticle, SiteService, SiteSources } from "./sources"
 /** Settings.contact fields + derived tel: hrefs for {placeholders}. */
 export const placeholders = (s: SiteSources) =>
   contactPlaceholders(s.settings.contact)
+
+/**
+ * An admin-editable href: {placeholders} filled, then re-checked (ruling);
+ * an unsafe or unresolved result renders "#".
+ */
+export const hrefView = (s: SiteSources, href: string) =>
+  interpolateHref(href, placeholders(s))
+
+/** A stored { label, href } link with its href through hrefView. */
+export const linkView = (s: SiteSources, link: Link): Link => ({
+  label: link.label,
+  href: hrefView(s, link.href),
+})
 
 export type ChromeView = {
   header: SiteHeaderProps
@@ -54,8 +67,8 @@ export function chromeView(s: SiteSources): ChromeView {
         hours: contact.hours,
       },
       logo: { src: site.logo.url, alt: site.logoAlt },
-      links: navigation.headerLinks,
-      cta: navigation.headerCta,
+      links: navigation.headerLinks.map((l) => linkView(s, l)),
+      cta: linkView(s, navigation.headerCta),
       aria: {
         mainNav: microcopy.aria.mainNav,
         openMenu: microcopy.aria.openMenu,
@@ -69,7 +82,7 @@ export function chromeView(s: SiteSources): ChromeView {
       quickLinks: {
         heading: footer.quickLinksHeading,
         ariaLabel: microcopy.aria.footerNav,
-        links: navigation.headerLinks,
+        links: navigation.headerLinks.map((l) => linkView(s, l)),
       },
       contact: {
         heading: footer.contactHeading,
@@ -94,7 +107,10 @@ export function chromeView(s: SiteSources): ChromeView {
         })),
       },
       copyright: site.copyright,
-      legal: footer.legal,
+      legal: {
+        privacy: linkView(s, footer.legal.privacy),
+        terms: linkView(s, footer.legal.terms),
+      },
     },
   }
 }
@@ -123,7 +139,7 @@ export function enquireBannerView(s: SiteSources): EnquireBannerProps {
     eyebrow: banner.eyebrow,
     heading: banner.heading,
     copy: banner.copy,
-    cta: banner.cta,
+    cta: linkView(s, banner.cta),
     secondaryCta: {
       label: interpolateParts(banner.secondaryCta.label, values),
       href: interpolateHref(banner.secondaryCta.href, values),
@@ -221,9 +237,14 @@ export function serviceCardLabels(s: SiteSources): ServiceCardLabels {
   }
 }
 
-/** Published date as shown on cards ("2026-09-20" / "20 Sep 2026"). */
-export function articleDates(article: SiteArticle) {
-  const at = article.publishedAt ?? new Date(0)
+/** Published date as shown on cards ("2026-09-20" / "20 Sep 2026"); nulls without one. */
+export function articleDates(
+  article: SiteArticle
+): Pick<BlogCardPost, "date" | "displayDate"> {
+  const at = article.publishedAt
+  // No publish date (not expected for published rows): show no date rather
+  // than an invented one.
+  if (!at) return { date: null, displayDate: null }
   return { date: isoDate(at), displayDate: formatPostDate(at) }
 }
 
