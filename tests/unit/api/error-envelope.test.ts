@@ -20,6 +20,12 @@ app.get("/v1/__test/http-exception", () => {
 app.get("/v1/__test/boom", () => {
   throw new Error("secret detail /var/app/server.ts:42")
 })
+app.get("/v1/__test/app-error-internal", () => {
+  throw new AppError("INTERNAL", "secret detail /var/app/db.ts:7")
+})
+app.get("/v1/__test/http-exception-5xx", () => {
+  throw new HTTPException(502, { message: "secret upstream detail" })
+})
 app.post(
   "/v1/__test/validate",
   zv(
@@ -131,6 +137,34 @@ describe("API error envelope", () => {
     spy.mockRestore()
   })
 
+  it("AppError with status ≥ 500 → generic message, real one only logged", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const res = await app.request("/api/v1/__test/app-error-internal")
+    expect(res.status).toBe(500)
+    const text = await res.text()
+    expect(JSON.parse(text)).toEqual({
+      error: {
+        code: "INTERNAL",
+        message: "Internal server error",
+        requestId: expect.any(String),
+      },
+    })
+    expect(text).not.toContain("secret detail")
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("secret detail"))
+    spy.mockRestore()
+  })
+
+  it("HTTPException 5xx → message scrubbed", async () => {
+    const res = await app.request("/api/v1/__test/http-exception-5xx")
+    expect(res.status).toBe(502)
+    const text = await res.text()
+    expect(JSON.parse(text).error).toMatchObject({
+      code: "INTERNAL",
+      message: "Internal server error",
+    })
+    expect(text).not.toContain("secret upstream detail")
+  })
+
   it("zv → 422 VALIDATION_FAILED with dotted fieldErrors", async () => {
     const res = await app.request("/api/v1/__test/validate", {
       method: "POST",
@@ -215,6 +249,19 @@ describe("sameOrigin on /api/v1/admin/*", () => {
     const res = await post({ origin: "https://evil.example" })
     expect(res.status).toBe(403)
     expect((await res.json()).error.code).toBe("FORBIDDEN")
+  })
+
+  it("rejects a foreign Origin even with Sec-Fetch-Site: same-origin (Origin wins)", async () => {
+    const res = await post({
+      origin: "https://evil.example",
+      "sec-fetch-site": "same-origin",
+    })
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe("FORBIDDEN")
+  })
+
+  it("rejects Sec-Fetch-Site: same-site when Origin is absent", async () => {
+    expect((await post({ "sec-fetch-site": "same-site" })).status).toBe(403)
   })
 
   it("rejects an unsafe request with neither header", async () => {

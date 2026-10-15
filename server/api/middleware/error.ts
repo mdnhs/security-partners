@@ -38,8 +38,14 @@ const codeForStatus = (status: number): ErrorCode => {
 
 export const onError: ErrorHandler<AppEnv> = (err, c) => {
   if (err instanceof AppError) {
-    if (err.status >= 500)
+    if (err.status >= 500) {
+      // Log the real message with the request id; never send it to the client.
       console.error(`[api] ${c.get("requestId")} ${err.code}: ${err.message}`)
+      return c.json(
+        errorEnvelope(c, err.code, "Internal server error"),
+        err.status
+      )
+    }
     const extra = {
       fieldErrors: err.details?.fieldErrors,
       current: err.details?.current,
