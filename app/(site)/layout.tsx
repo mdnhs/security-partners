@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { Geist_Mono, Lato } from "next/font/google"
 
-import "./globals.css"
+import "../globals.css"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
