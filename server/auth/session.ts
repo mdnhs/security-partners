@@ -3,6 +3,7 @@ import "server-only"
 import { getSessionCookie } from "better-auth/cookies"
 import { headers } from "next/headers"
 import { forbidden, redirect } from "next/navigation"
+import { cache } from "react"
 
 import {
   hasPermission,
@@ -72,10 +73,14 @@ export async function sessionFromHeaders(
   }
 }
 
-/** Server Components / Server Functions: the current session, read fresh. */
-export async function getSessionContext(): Promise<SessionContext | null> {
-  return sessionFromHeaders(await headers())
-}
+/**
+ * Server Components / Server Functions: the current session, read fresh from
+ * the database once per request. React `cache()` dedupes the read across the
+ * layout, page and helpers of one render; the next request reads again.
+ */
+export const getSessionContext: () => Promise<SessionContext | null> = cache(
+  async () => sessionFromHeaders(await headers())
+)
 
 /** Fresh session, bypasses the cookie cache. */
 export async function getActor(): Promise<Actor | null> {

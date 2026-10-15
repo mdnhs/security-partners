@@ -7,6 +7,7 @@ import {
   getSessionFromCtx,
   isAPIError,
 } from "better-auth/api"
+import { z } from "zod"
 
 import { parseRoles } from "@/lib/auth/permissions"
 import { getDb } from "@/server/db/client"
@@ -51,6 +52,30 @@ const SECOND_FACTOR_PATHS = new Set([
 ])
 
 const isOk = (returned: unknown) => !isAPIError(returned)
+
+/** RFC 5321 path limit: longest address worth keeping in an audit row. */
+const EMAIL_MAX_LENGTH = 254
+const emailShape = z.email()
+
+/**
+ * The address typed into a failed sign-in, for the audit diff: lower-cased,
+ * at most 254 chars, and only when it is an email at all (anything else is
+ * attacker-controlled noise and is recorded as `emailInvalid: true`).
+ */
+function attemptedEmail(
+  raw: unknown
+): { email: string } | { emailInvalid: true } {
+  const email =
+    typeof raw === "string"
+      ? raw.trim().toLowerCase().slice(0, EMAIL_MAX_LENGTH)
+      : ""
+  return emailShape.safeParse(email).success
+    ? { email }
+    : { emailInvalid: true }
+}
+
+/** Better Auth's pending-challenge cookie (`<prefix>.two_factor`). */
+const TWO_FACTOR_COOKIE = "two_factor"
 
 /**
  * Project hooks for Better Auth, packaged as a plugin so they run after the
@@ -118,20 +143,20 @@ export function securityHooks(): BetterAuthPlugin {
             }
             const returned = ctx.context.returned
             if (!isAPIError(returned)) return // two-factor challenge pending
-            const email =
-              typeof ctx.body?.email === "string"
-                ? ctx.body.email.toLowerCase()
+            const attempted = attemptedEmail(ctx.body?.email)
+            const found =
+              "email" in attempted
+                ? await ctx.context.internalAdapter.findUserByEmail(
+                    attempted.email
+                  )
                 : null
-            const found = email
-              ? await ctx.context.internalAdapter.findUserByEmail(email)
-              : null
             await auditAuthEvent(null, {
               action: "auth.sign_in_failed",
               entityType: "user",
               entityId: found?.user.id,
               diff: {
                 method: "password",
-                email,
+                ...attempted,
                 reason: returned.body?.code ?? null,
               },
               ip: headers ? clientIp(headers) : null,
@@ -163,9 +188,26 @@ export function securityHooks(): BetterAuthPlugin {
                 entityId: prior.user.id,
               })
             } else if (!prior && isAPIError(ctx.context.returned)) {
+              // The challenged account: the signed two_factor cookie names a
+              // verification row whose value is the user id (still present
+              // after a wrong code; consumed only on success or lockout).
+              const challenge = await ctx.getSignedCookie(
+                ctx.context.createAuthCookie(TWO_FACTOR_COOKIE).name,
+                ctx.context.secret
+              )
+              const pending = challenge
+                ? await ctx.context.internalAdapter.findVerificationValue(
+                    challenge
+                  )
+                : null
               await auditAuthEvent(null, {
                 action: "auth.sign_in_failed",
-                diff: { method },
+                entityType: "user",
+                entityId: pending?.value || undefined,
+                diff: {
+                  method,
+                  reason: ctx.context.returned.body?.code ?? null,
+                },
                 ip: headers ? clientIp(headers) : null,
                 userAgent: headers?.get("user-agent") ?? null,
               })

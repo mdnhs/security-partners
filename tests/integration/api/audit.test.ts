@@ -47,8 +47,17 @@ async function seed() {
       diff: { i },
     })
   }
+  // Pin created_at to SEED_START + i minutes: whole-millisecond values make
+  // the from/to bounds exact (Postgres stores microseconds, the API returns ms).
+  await db.execute(
+    sql`update audit_log set created_at = ${SEED_START}::timestamptz + ((diff->>'i')::int * interval '1 minute')`
+  )
   return { admin, editor }
 }
+
+const SEED_START = "2026-01-01T00:00:00.000Z"
+const seedTime = (i: number) =>
+  new Date(Date.parse(SEED_START) + i * 60_000).toISOString()
 
 async function resetAuditOnly() {
   await getDb().execute(sql`truncate table audit_log`)
@@ -110,23 +119,29 @@ describe("GET /api/v1/admin/audit", () => {
 
   it("filters by from/to (inclusive) and searches with q", async () => {
     const { admin } = await seed()
-    const all = (await list(admin.cookie, "?pageSize=100&sort=createdAt:asc"))
-      .body.items as Item[]
-    // API dates have millisecond precision, Postgres stores microseconds:
-    // widen `to` by 1 ms so row 9 itself is inside the window.
-    const from = all[5].createdAt
-    const to = new Date(Date.parse(all[9].createdAt) + 1).toISOString()
+    // rows 5..9 sit exactly on the bounds' minutes; 4 and 10 are one minute out
+    const from = seedTime(5)
+    const to = seedTime(9)
     const window = await list(
       admin.cookie,
-      `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&pageSize=100`
+      `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&pageSize=100&sort=createdAt:asc`
     )
-    expect(window.body.total).toBeGreaterThanOrEqual(5)
-    for (const item of window.body.items as Item[]) {
-      expect(Date.parse(item.createdAt)).toBeGreaterThanOrEqual(
-        Date.parse(from)
-      )
-      expect(Date.parse(item.createdAt)).toBeLessThanOrEqual(Date.parse(to))
-    }
+    expect(window.body.total).toBe(5)
+    const items = window.body.items as (Item & { diff: { i: number } })[]
+    expect(items.map((item) => item.diff.i)).toEqual([5, 6, 7, 8, 9])
+    expect(items[0].createdAt).toBe(from)
+    expect(items.at(-1)!.createdAt).toBe(to)
+    // one millisecond inside either bound drops the boundary row
+    const narrower = await list(
+      admin.cookie,
+      `?from=${encodeURIComponent(new Date(Date.parse(from) + 1).toISOString())}&to=${encodeURIComponent(new Date(Date.parse(to) - 1).toISOString())}&pageSize=100`
+    )
+    expect(narrower.body.total).toBe(3)
+    expect(
+      (narrower.body.items as (Item & { diff: { i: number } })[])
+        .map((item) => item.diff.i)
+        .sort((a, b) => a - b)
+    ).toEqual([6, 7, 8])
     const search = await list(admin.cookie, "?q=page-1")
     // page-10, page-12, page-14, page-16, page-18 (odd i are user.ban rows)
     expect(search.body.total).toBe(5)
