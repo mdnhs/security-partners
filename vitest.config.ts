@@ -24,6 +24,16 @@ export default defineConfig({
         },
       },
       {
+        // Admin client components: React Testing Library in jsdom.
+        extends: true,
+        test: {
+          name: "dom",
+          environment: "jsdom",
+          include: ["tests/dom/**/*.test.tsx"],
+          setupFiles: ["./tests/dom/setup.ts"],
+        },
+      },
+      {
         // Real Postgres (sp_test). Needs `pnpm db:up` locally; CI provides a
         // postgres service. Files run one at a time: they share one database.
         extends: true,

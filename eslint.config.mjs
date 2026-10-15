@@ -40,6 +40,18 @@ const eslintConfig = defineConfig([
     files: ["lib/**/*.{ts,tsx}", "templates/*/schema.ts"],
     rules: restrict(serverImport, drizzleImport),
   },
+  // The typed admin API client needs the route *types* only (erased at
+  // build): type-only imports of server/ are allowed in this one file.
+  {
+    files: ["lib/api-client.ts"],
+    rules: {
+      ...restrict(drizzleImport),
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        { patterns: [{ ...serverImport, allowTypeImports: true }] },
+      ],
+    },
+  },
   {
     files: ["server/modules/*/routes.ts"],
     rules: restrict(drizzleImport, repoImport),

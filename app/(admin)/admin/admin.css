@@ -1,0 +1,34 @@
+/*
+ * Admin-only design tokens. Imported by the admin root layout only and
+ * scoped to <html data-admin>, so the public site's tokens never change.
+ * Brand colours come from globals.css (--color-brand-*).
+ */
+html[data-admin] {
+  --primary: var(--color-brand-navy);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: var(--color-brand-blue);
+  --accent: var(--color-brand-surface);
+  --accent-foreground: var(--color-brand-navy);
+  --chart-1: var(--color-brand-blue);
+  --chart-2: var(--color-brand-green);
+  --chart-3: var(--color-brand-navy);
+  --chart-4: var(--color-brand-muted);
+  --chart-5: var(--color-brand-blue-deep);
+  --sidebar: var(--color-brand-navy);
+  --sidebar-foreground: oklch(0.93 0.01 264);
+  --sidebar-primary: var(--color-brand-green);
+  --sidebar-primary-foreground: var(--color-brand-navy);
+  --sidebar-accent: oklch(1 0 0 / 9%);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: var(--color-brand-green);
+}
+
+html[data-admin].dark {
+  --primary: oklch(0.93 0.01 264);
+  --primary-foreground: var(--color-brand-navy);
+  --ring: oklch(0.7 0.12 264);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.17 0.03 264);
+}
