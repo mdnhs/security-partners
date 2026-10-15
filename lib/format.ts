@@ -41,3 +41,41 @@ export function describeUserAgent(
   if (browser && os) return `${browser} on ${os}`
   return browser ?? os ?? "Unknown device"
 }
+
+// Article dates. Intl's en-IE short month for September is "Sept", but the
+// site prints "20 Sep 2026", so month names come from a fixed list.
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]
+
+const calendarDate = new Intl.DateTimeFormat("en-GB", {
+  timeZone: SITE_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
+/** Calendar date in Irish time as "2026-09-20" (for <time dateTime>). */
+export function isoDate(value: Date): string {
+  const parts = Object.fromEntries(
+    calendarDate.formatToParts(value).map((p) => [p.type, p.value])
+  )
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+/** "20 Sep 2026" in Irish time (article cards and headers). */
+export function formatPostDate(value: Date): string {
+  const [year, month, day] = isoDate(value).split("-")
+  return `${day} ${MONTHS[Number(month) - 1]} ${year}`
+}

@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { isSafeHref } from "../href"
+
 // Building blocks shared by settings, template and collection schemas.
 // Strings are never trimmed or normalised: seeded copy must render
 // byte-identical (en-dashes, double spaces, "→", apostrophes).
@@ -15,22 +17,8 @@ export const slug = z
 /** Required editable copy (may contain {placeholders}, see lib/interpolate.ts). */
 export const text = z.string().min(1, "Required").max(5000)
 
-/** A whole-value placeholder such as "{phone24hHref}". */
-const WHOLE_PLACEHOLDER = /^\{[A-Za-z]\w*\}$/
-const ABSOLUTE = /^(https?:\/\/|tel:|mailto:)\S+$/i
-const CONTROL_CHAR = /[\u0000-\u001f\u007f-\u009f]/
-/** Browsers treat "\" as "/" and skip tabs/newlines: "/\host" and "/\t/host" are protocol-relative. */
-const UNSAFE_PREFIX = /[\\\s]/
-
 /** Internal path, #anchor, http(s), tel:, mailto: or a {placeholder}. Never javascript: or //host. */
-export function isSafeHref(value: string): boolean {
-  if (CONTROL_CHAR.test(value)) return false
-  if (UNSAFE_PREFIX.test(value.slice(0, 2))) return false
-  if (WHOLE_PLACEHOLDER.test(value)) return true
-  if (value.startsWith("/")) return !value.startsWith("//")
-  if (value.startsWith("#")) return !/\s/.test(value)
-  return ABSOLUTE.test(value)
-}
+export { isSafeHref }
 
 export const href = z
   .string()
