@@ -507,6 +507,11 @@ docs/{brief.md, runbook.md, launch.md}
 
 ---
 
+## Changes
+
+- 2026-10-16: `SettingsKey` gains `"sections.about"` and `"sections.contact"` (contact info + form copy + map) — sections rendered on more than one page are shared globals (extends spec D10). `article_categories` gains `showInFilter boolean`. `users` gains `title` (byline role). Inventory-discovered fields (e.g. `contact.operationsExtension`, `pages.blog.pageSize`, `services[].heroImage|image|imageAlt`, `pages.team.leadership.photoPlaceholder`) are added in Phase 3.
+- 2026-10-16: Scheduler cannot call `revalidateTag`; jobs call internal `/api/v1/internal/revalidate` signed with HKDF purpose `"cron"` (added to `KeyPurpose`). `invalidate()` uses `revalidateTag(tag, { expire: 0 })`. `proxy.ts` matches `/admin/:path*` only; `/api` noindex header set in Hono.
+
 ## Execution
 
 - Method: superpowers:subagent-driven-development. All subagents run with `model: "opus"`.
