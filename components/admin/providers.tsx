@@ -26,23 +26,34 @@ export function makeQueryClient() {
   })
 }
 
-let browserQueryClient: QueryClient | undefined
-function getQueryClient() {
+let browserQueryClient: { key: string; client: QueryClient } | undefined
+
+/**
+ * The browser's QueryClient for one identity (`cacheKey`, e.g.
+ * "<userId>:<impersonatorId>"). A new identity gets a fresh client, so cached
+ * data never leaks from one user (or impersonation) to the next.
+ */
+export function getQueryClient(cacheKey: string): QueryClient {
   if (environmentManager.isServer()) return makeQueryClient()
-  return (browserQueryClient ??= makeQueryClient())
+  if (browserQueryClient?.key !== cacheKey)
+    browserQueryClient = { key: cacheKey, client: makeQueryClient() }
+  return browserQueryClient.client
 }
 
 /** TanStack Query, tooltips and toasts for the signed-in admin. */
 export function AdminProviders({
   children,
+  cacheKey,
   client,
 }: {
   children: ReactNode
+  /** Identity the query cache belongs to (see getQueryClient). */
+  cacheKey: string
   /** Tests pass their own client. */
   client?: QueryClient
 }) {
   // No useState: React drops state if it suspends before the first render.
-  const queryClient = client ?? getQueryClient()
+  const queryClient = client ?? getQueryClient(cacheKey)
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

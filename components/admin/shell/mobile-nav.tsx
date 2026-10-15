@@ -34,13 +34,13 @@ export function MobileNav() {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-72 gap-6 overflow-y-auto border-sidebar-border bg-sidebar px-3 py-4 text-sidebar-foreground [&_[data-slot=sheet-close]]:text-sidebar-foreground"
+        className="gap-6 overflow-y-auto border-sidebar-border bg-sidebar px-3 py-4 text-sidebar-foreground data-[side=left]:w-72 [&_[data-slot=sheet-close]]:text-sidebar-foreground"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
           <SheetDescription>Admin sections</SheetDescription>
         </SheetHeader>
-        <SidebarBrand />
+        <SidebarBrand onNavigate={() => setOpen(false)} />
         <SidebarNav onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>

@@ -3,6 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useId } from "react"
 
 import { useAdminSession } from "@/components/admin/session-provider"
 import { cn } from "@/lib/utils"
@@ -10,10 +11,11 @@ import { cn } from "@/lib/utils"
 import { isActiveItem, navItems } from "./nav"
 
 /** Brand mark + "Website admin" label at the top of the navigation. */
-export function SidebarBrand() {
+export function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <Link
       href="/admin"
+      onClick={onNavigate}
       className="flex items-center gap-3 rounded-lg px-2 py-1.5 outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/60"
     >
       <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded-md bg-white px-1.5">
@@ -41,38 +43,46 @@ export function SidebarBrand() {
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { roles } = useAdminSession()
+  // Unique per instance: the sidebar and the mobile sheet both render this.
+  const idPrefix = useId()
   return (
     <nav aria-label="Admin" className="flex flex-col gap-5">
-      {navItems(roles).map((section) => (
-        <div key={section.label} className="flex flex-col gap-1">
-          <p className="px-3 text-[11px] font-bold tracking-[0.08em] text-sidebar-foreground/55 uppercase">
-            {section.label}
-          </p>
-          <ul className="flex flex-col gap-0.5">
-            {section.items.map((item) => {
-              const active = isActiveItem(item, pathname)
-              const Icon = item.icon
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/85 transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 focus-visible:ring-sidebar-ring/60",
-                      active &&
-                        "bg-sidebar-accent text-sidebar-accent-foreground before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-sidebar-primary"
-                    )}
-                  >
-                    <Icon aria-hidden className="size-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
+      {navItems(roles).map((section) => {
+        const labelId = `${idPrefix}-${section.label}`
+        return (
+          <div key={section.label} className="flex flex-col gap-1">
+            <p
+              id={labelId}
+              className="px-3 text-[11px] font-bold tracking-[0.08em] text-sidebar-foreground/55 uppercase"
+            >
+              {section.label}
+            </p>
+            <ul aria-labelledby={labelId} className="flex flex-col gap-0.5">
+              {section.items.map((item) => {
+                const active = isActiveItem(item, pathname)
+                const Icon = item.icon
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      onClick={onNavigate}
+                      className={cn(
+                        "group relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/85 transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 focus-visible:ring-sidebar-ring/60",
+                        active &&
+                          "bg-sidebar-accent text-sidebar-accent-foreground before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-sidebar-primary"
+                      )}
+                    >
+                      <Icon aria-hidden className="size-4 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )
+      })}
     </nav>
   )
 }

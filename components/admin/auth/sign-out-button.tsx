@@ -17,7 +17,12 @@ export async function signOutOrError(): Promise<string | null> {
   }
 }
 
-export function SignOutButton() {
+export function SignOutButton({
+  onSignedOut,
+}: {
+  /** Runs once the session has ended, before leaving the page. */
+  onSignedOut?: () => void
+} = {}) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +46,7 @@ export function SignOutButton() {
             setPending(false)
             return
           }
+          onSignedOut?.()
           router.replace("/admin/sign-in?notice=signed-out")
           router.refresh()
         }}

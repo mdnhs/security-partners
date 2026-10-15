@@ -25,20 +25,31 @@ export function AdminShell({
 }) {
   return (
     <AdminSessionProvider value={session}>
-      <AdminProviders client={queryClient}>
+      <AdminProviders
+        cacheKey={`${session.user.id}:${session.impersonatedBy ?? ""}`}
+        client={queryClient}
+      >
         <a
           href="#main"
           className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:ring-3 focus:ring-ring/50"
         >
           Skip to content
         </a>
-        {session.impersonatedBy ? (
-          <ImpersonationBanner name={session.user.name} />
-        ) : null}
         <div className="flex min-h-svh">
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
-            <Topbar />
+            {/*
+             * One sticky header for the content column: the impersonation
+             * banner stacks above the topbar instead of covering it, and the
+             * full-height sidebar sits beside it, never underneath
+             * (WCAG 2.2 SC 2.4.11).
+             */}
+            <div data-slot="admin-header" className="sticky top-0 z-30">
+              {session.impersonatedBy ? (
+                <ImpersonationBanner name={session.user.name} />
+              ) : null}
+              <Topbar />
+            </div>
             <main
               id="main"
               tabIndex={-1}

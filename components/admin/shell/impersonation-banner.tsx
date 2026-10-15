@@ -8,7 +8,10 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 
-/** Sticky notice while an owner/admin views the admin as another user (spec §6). */
+/**
+ * Notice while an owner/admin views the admin as another user (spec §6).
+ * Rendered inside the shell's sticky header, above the topbar.
+ */
 export function ImpersonationBanner({ name }: { name: string }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -18,7 +21,7 @@ export function ImpersonationBanner({ name }: { name: string }) {
     <div
       role="region"
       aria-label="Impersonation"
-      className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 bg-amber-300 px-4 py-2 text-sm font-medium text-amber-950"
+      className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 bg-amber-300 px-4 py-2 text-sm font-medium text-amber-950"
     >
       <span className="flex items-center gap-2">
         <Eye aria-hidden className="size-4" />
