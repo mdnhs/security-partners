@@ -971,121 +971,121 @@
       ]
     },
     {
-      "id": "home.about.eyebrow",
+      "id": "sections.about.eyebrow",
       "source": "components/home/about.tsx:19",
       "kind": "text",
       "value": "Who we are",
-      "target": "pages.home.about.eyebrow",
+      "target": "settings.sections.about.eyebrow",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.heading",
+      "id": "sections.about.heading",
       "source": "components/home/about.tsx:21",
       "kind": "text",
       "value": "A family-run security company you can trust",
-      "target": "pages.home.about.heading",
+      "target": "settings.sections.about.heading",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.body.paragraph1",
+      "id": "sections.about.body.paragraph1",
       "source": "components/home/about.tsx:28",
       "kind": "richText",
       "value": "Security Partners Ltd is a privately owned security company based in Mountmellick, Co. Laois. We are strategically based in the midlands, allowing us to provide services across Ireland.",
-      "target": "pages.home.about.body",
+      "target": "settings.sections.about.body",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.body.paragraph2",
+      "id": "sections.about.body.paragraph2",
       "source": "components/home/about.tsx:36",
       "kind": "richText",
       "value": "Since our foundation in 2008, our objective has been and still is to provide a first class service to all sectors of business. We are dedicated to safeguarding our clients' business and investment, and giving them peace of mind.",
-      "target": "pages.home.about.body",
+      "target": "settings.sections.about.body",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.image",
+      "id": "sections.about.image",
       "source": "components/home/about.tsx:72",
       "kind": "image",
       "value": "/images/about.png",
-      "target": "pages.home.about.image",
+      "target": "settings.sections.about.image",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.imageAlt",
+      "id": "sections.about.imageAlt",
       "source": "components/home/about.tsx:73",
       "kind": "alt",
       "value": "Security Partners officer reviewing paperwork",
-      "target": "pages.home.about.imageAlt",
+      "target": "settings.sections.about.imageAlt",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.badge.value",
+      "id": "sections.about.badge.value",
       "source": "components/home/about.tsx:83",
       "kind": "text",
       "value": "2008",
-      "target": "pages.home.about.badge.value",
+      "target": "settings.sections.about.badge.value",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.badge.label",
+      "id": "sections.about.badge.label",
       "source": "components/home/about.tsx:85",
       "kind": "text",
       "value": "Established",
-      "target": "pages.home.about.badge.label",
+      "target": "settings.sections.about.badge.label",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.badge.caption",
+      "id": "sections.about.badge.caption",
       "source": "components/home/about.tsx:87",
       "kind": "text",
       "value": "Mountmellick, Co. Laois",
-      "target": "pages.home.about.badge.caption",
+      "target": "settings.sections.about.badge.caption",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.highlights",
+      "id": "sections.about.highlights",
       "source": "components/home/data.ts:25",
       "kind": "list",
       "value": "5",
-      "target": "pages.home.about.highlights",
+      "target": "settings.sections.about.highlights",
       "pages": [
         "/",
         "/about"
       ]
     },
     {
-      "id": "home.about.highlights.item",
+      "id": "sections.about.highlights.item",
       "source": "components/home/data.ts:26",
       "kind": "text",
       "value": "Dedicated 24/7 Operations Team for all your security requirements",
-      "target": "pages.home.about.highlights[]",
+      "target": "settings.sections.about.highlights[]",
       "pages": [
         "/",
         "/about"
@@ -1524,7 +1524,7 @@
       "source": "components/home/clients-team-blog.tsx:68",
       "kind": "image",
       "value": "/images/team-temp.jpg",
-      "target": "team[].photo",
+      "target": "pages.team.leadership.photoPlaceholder",
       "pages": [
         "/",
         "/team"
@@ -1679,161 +1679,161 @@
       ]
     },
     {
-      "id": "home.contact.infoItems",
+      "id": "sections.contact.infoItems",
       "source": "components/home/contact.tsx:7",
       "kind": "list",
       "value": "4",
-      "target": "pages.home.contact.infoItems",
+      "target": "settings.sections.contact.infoItems",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.title",
+      "id": "sections.contact.infoItems.title",
       "source": "components/home/contact.tsx:9",
       "kind": "text",
       "value": "Office Hours",
-      "target": "pages.home.contact.infoItems[].title",
+      "target": "settings.sections.contact.infoItems[].title",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.icon",
+      "id": "sections.contact.infoItems.icon",
       "source": "components/home/contact.tsx:10",
       "kind": "image",
       "value": "/images/clock.svg",
-      "target": "pages.home.contact.infoItems[].icon",
+      "target": "settings.sections.contact.infoItems[].icon",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.lines.text",
+      "id": "sections.contact.infoItems.lines.text",
       "source": "components/home/contact.tsx:11",
       "kind": "text",
       "value": "Monday–Friday: 9am to 6pm",
-      "target": "pages.home.contact.infoItems[].lines[].text",
+      "target": "settings.sections.contact.infoItems[].lines[].text",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.lines.href",
+      "id": "sections.contact.infoItems.lines.href",
       "source": "components/home/contact.tsx:16",
       "kind": "href",
       "value": "{settings.contact.phone24hHref}",
-      "target": "pages.home.contact.infoItems[].lines[].href",
+      "target": "settings.sections.contact.infoItems[].lines[].href",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.operationsTel",
+      "id": "sections.contact.infoItems.operationsTel",
       "source": "components/home/contact.tsx:27",
       "kind": "text",
       "value": "Tel: {office} Ext 2",
-      "target": "pages.home.contact.infoItems[].lines[].text",
+      "target": "settings.sections.contact.infoItems[].lines[].text",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.operationsMobile",
+      "id": "sections.contact.infoItems.operationsMobile",
       "source": "components/home/contact.tsx:29",
       "kind": "text",
       "value": "or {operationsMobile}",
-      "target": "pages.home.contact.infoItems[].lines[].text",
+      "target": "settings.sections.contact.infoItems[].lines[].text",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.infoItems.operationsEmailHref",
+      "id": "sections.contact.infoItems.operationsEmailHref",
       "source": "components/home/contact.tsx:34",
       "kind": "mailto",
       "value": "mailto:{operationsEmail}",
-      "target": "pages.home.contact.infoItems[].lines[].href",
+      "target": "settings.sections.contact.infoItems[].lines[].href",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.eyebrow",
+      "id": "sections.contact.eyebrow",
       "source": "components/home/contact.tsx:53",
       "kind": "text",
       "value": "Contact",
-      "target": "pages.home.contact.eyebrow",
+      "target": "settings.sections.contact.eyebrow",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.heading",
+      "id": "sections.contact.heading",
       "source": "components/home/contact.tsx:54",
       "kind": "text",
       "value": "Get In Touch",
-      "target": "pages.home.contact.heading",
+      "target": "settings.sections.contact.heading",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "home.contact.intro",
+      "id": "sections.contact.intro",
       "source": "components/home/contact.tsx:56",
       "kind": "text",
       "value": "Send us a message and we'll get back to you within one working day.",
-      "target": "pages.home.contact.intro",
+      "target": "settings.sections.contact.intro",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "map.aria",
+      "id": "sections.contact.map.aria",
       "source": "components/home/contact.tsx:112",
       "kind": "aria",
       "value": "Open Security Partners Ltd. location in Google Maps",
-      "target": "settings.microcopy.aria.openMap",
+      "target": "settings.sections.contact.map.ariaLabel",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "map.href",
+      "id": "sections.contact.map.href",
       "source": "components/home/contact.tsx:109",
       "kind": "href",
       "value": "{settings.contact.mapsHref}",
-      "target": "pages.contact.map.link",
+      "target": "settings.sections.contact.map.link",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "map.tiles",
+      "id": "sections.contact.map.tiles",
       "source": "components/home/contact.tsx:124",
       "kind": "image",
       "value": "/images/map/tile-{col}-{row}.png",
-      "target": "pages.contact.map.tiles",
+      "target": "settings.sections.contact.map.tiles",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "map.logo",
+      "id": "sections.contact.map.logo",
       "source": "components/home/contact.tsx:143",
       "kind": "image",
       "value": "/images/logo.png",
@@ -1844,128 +1844,128 @@
       ]
     },
     {
-      "id": "map.label",
+      "id": "sections.contact.map.label",
       "source": "components/home/contact.tsx:152",
       "kind": "text",
       "value": "Security Partners Ltd.",
-      "target": "pages.contact.map.label",
+      "target": "settings.sections.contact.map.label",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.name.label",
+      "id": "sections.contact.form.name.label",
       "source": "components/home/contact-form.tsx:54",
       "kind": "text",
       "value": "Your Name",
-      "target": "settings.microcopy.contactForm.nameLabel",
+      "target": "settings.sections.contact.form.nameLabel",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.name.placeholder",
+      "id": "sections.contact.form.name.placeholder",
       "source": "components/home/contact-form.tsx:60",
       "kind": "text",
       "value": "John Smith",
-      "target": "settings.microcopy.contactForm.namePlaceholder",
+      "target": "settings.sections.contact.form.namePlaceholder",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.email.label",
+      "id": "sections.contact.form.email.label",
       "source": "components/home/contact-form.tsx:64",
       "kind": "text",
       "value": "Email",
-      "target": "settings.microcopy.contactForm.emailLabel",
+      "target": "settings.sections.contact.form.emailLabel",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.email.placeholder",
+      "id": "sections.contact.form.email.placeholder",
       "source": "components/home/contact-form.tsx:71",
       "kind": "text",
       "value": "you@company.ie",
-      "target": "settings.microcopy.contactForm.emailPlaceholder",
+      "target": "settings.sections.contact.form.emailPlaceholder",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.phone.label",
+      "id": "sections.contact.form.phone.label",
       "source": "components/home/contact-form.tsx:76",
       "kind": "text",
       "value": "Phone",
-      "target": "settings.microcopy.contactForm.phoneLabel",
+      "target": "settings.sections.contact.form.phoneLabel",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.phone.placeholder",
+      "id": "sections.contact.form.phone.placeholder",
       "source": "components/home/contact-form.tsx:82",
       "kind": "text",
       "value": "085 000 0000",
-      "target": "settings.microcopy.contactForm.phonePlaceholder",
+      "target": "settings.sections.contact.form.phonePlaceholder",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.message.label",
+      "id": "sections.contact.form.message.label",
       "source": "components/home/contact-form.tsx:86",
       "kind": "text",
       "value": "Message",
-      "target": "settings.microcopy.contactForm.messageLabel",
+      "target": "settings.sections.contact.form.messageLabel",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.message.placeholder",
+      "id": "sections.contact.form.message.placeholder",
       "source": "components/home/contact-form.tsx:91",
       "kind": "text",
       "value": "Tell us about your security requirements...",
-      "target": "settings.microcopy.contactForm.messagePlaceholder",
+      "target": "settings.sections.contact.form.messagePlaceholder",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.submit",
+      "id": "sections.contact.form.submit",
       "source": "components/home/contact-form.tsx:102",
       "kind": "text",
       "value": "Send Message",
-      "target": "settings.microcopy.contactForm.submitLabel",
+      "target": "settings.sections.contact.form.submitLabel",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.mailtoSubject",
+      "id": "sections.contact.form.mailtoSubject",
       "source": "components/home/contact-form.tsx:46",
       "kind": "text",
       "value": "Website enquiry from {name}",
-      "target": "settings.microcopy.contactForm.mailtoSubject",
+      "target": "settings.sections.contact.form.mailtoSubject",
       "pages": [
         "/",
         "/contact"
       ]
     },
     {
-      "id": "contactForm.mailtoTarget",
+      "id": "sections.contact.form.mailtoTarget",
       "source": "components/home/contact-form.tsx:47",
       "kind": "mailto",
       "value": "mailto:{email}",
@@ -3209,7 +3209,7 @@
       "id": "categories",
       "source": "components/home/data.ts:365",
       "kind": "list",
-      "value": "5",
+      "value": "7",
       "target": "categories[].*",
       "pages": [
         "/blog",
@@ -3222,6 +3222,17 @@
       "kind": "text",
       "value": "Company News",
       "target": "categories[].name",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "categories.showInFilter",
+      "source": "components/home/data.ts:366",
+      "kind": "text",
+      "value": "true",
+      "target": "categories[].showInFilter",
       "pages": [
         "/blog",
         "/blog/[slug]"
@@ -3453,6 +3464,16 @@
       "kind": "text",
       "value": "Facebook",
       "target": "settings.microcopy.share.networks[].name",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.share.networks.href",
+      "source": "components/blog/share-links.tsx:8",
+      "kind": "href",
+      "value": "https://www.facebook.com/sharer/sharer.php?u={url}",
+      "target": "settings.microcopy.share.networks[].href",
       "pages": [
         "/blog/[slug]"
       ]

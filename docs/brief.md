@@ -248,7 +248,7 @@ From spec §1.5: new public UI of any kind (except the conditional consent banne
 
 ## 14. Field inventory summary
 
-Full list: `docs/brief-inventory.json` (321 entries, validated by `pnpm dlx tsx scripts/check-inventory.ts`).
+Full list: `docs/brief-inventory.json` (323 entries, validated by `pnpm dlx tsx scripts/check-inventory.ts`).
 
 Scope: `app/**/*.tsx` and `components/**/*.{ts,tsx}`, excluding `components/ui/**`, `components/motion/**` and `components/theme-provider.tsx`.
 
@@ -263,17 +263,17 @@ An entry counts once for every page it renders on, so shared header and footer e
 | `/services` | 86 |
 | `/services/[slug]` | 98 |
 | `/team` | 81 |
-| `/blog` | 95 |
-| `/blog/[slug]` | 99 |
+| `/blog` | 96 |
+| `/blog/[slug]` | 101 |
 | `/contact` | 103 |
 
 ### 14.2 Entries per kind
 
 | Kind | Entries |
 |---|---|
-| text | 192 |
+| text | 193 |
 | image | 27 |
-| href | 18 |
+| href | 19 |
 | list | 18 |
 | aria | 17 |
 | meta | 17 |
@@ -281,31 +281,32 @@ An entry counts once for every page it renders on, so shared header and footer e
 | mailto | 8 |
 | alt | 7 |
 | richText | 4 |
-| **Total** | **321** |
+| **Total** | **323** |
 
 ### 14.3 Conventions used in the inventory
 
 - `source` is the `file:line` holding the literal; for multi-line strings, the first line of the value.
 - Arrays (from `components/*/data.ts` and inline arrays inside components) are recorded once as `kind: "list"` with `value` = item count, plus one entry per field of the item shape, using the first item's value. Collection list entries use the target `<collection>[].*` (for example `clients[].*`); lists stored inside a page or setting use the field path without `[]` (for example `pages.about.stats`), and their fields use `[]` (for example `pages.about.stats[].value`).
 - Values that interpolate data use `{name}` placeholders (for example `Call 24/7: {phone24h}`). Hrefs built from contact data point at the `settings.contact.*` field they derive from.
+- Rule: an entry whose `value` contains `{…}` is a derived usage, not a source value. It records where a field is rendered (or how a string is composed from fields); the source value lives in the entry without placeholders that has the same or the referenced target. Seeds take values only from entries without `{…}`.
 - Contact values (`components/home/data.ts` `contact` object) are recorded once at their definition, with `pages` listing every route that renders them. Usage sites that print a contact value without extra copy are not repeated; usage sites that add copy (for example `Tel:`, `24hr:`, `Ext 2`) have their own entries.
-- Decorative assets (check marks, icon tiles, the hero dot, map pin) and empty `alt=""` attributes are design system, not content, and are not inventoried.
+- Decorative assets (check marks, icon tiles, the hero dot, map pin), typographic separators (breadcrumb `/`, article meta `•`, the footer legal separator `"   ·   "`, arrows `→`/`←`) and empty `alt=""` attributes are design system, not content, and are not inventoried.
 - Shared template labels on the service detail and article pages (for example "Keep reading", "Related Articles", "What's included") target `settings.microcopy.*`; per-item fields target `services[].…` / `articles[].…`.
-- Shared sections reused on several pages target `settings.sections.*` (D10): Enquire banner (`/`, `/about`, `/services`, `/services/[slug]`, `/team`, `/blog`), Clients strip (`/`, `/about`, `/services`), Why Choose Us (`/services`).
+- Shared sections reused on several pages target `settings.sections.*` (D10, extended — see Changes): Enquire banner (`/`, `/about`, `/services`, `/services/[slug]`, `/team`, `/blog`), Clients strip (`/`, `/about`, `/services`), Why Choose Us (`/services`), About section (`/`, `/about`) as `settings.sections.about.*`, and Contact section info cards, contact form copy and location map (`/`, `/contact`) as `settings.sections.contact.*` (map under `settings.sections.contact.map.*`, form under `settings.sections.contact.form.*`).
 
 ### 14.4 Notes for Phase 3
 
 - **Footer legal links** are `href="#"` today. They are recorded as `settings.footer.legal.privacy.*` and `settings.footer.legal.terms.*`; in Phase 3 they will point to `/privacy` and `/terms`.
 - **Footer Quick Links** render the same array as the header nav (`navLinks`), so they are recorded once as `settings.navigation.headerLinks`.
 - **Home has no `metadata` export**; `/` uses the root layout title and description (`settings.seo.defaults.*`). Service and article pages build titles from the template `{title} | Security Partners Ltd.` (`settings.seo.defaults.titleTemplate`) and use `detail.intro` / `excerpt` as the description.
-- **Sections shared between two page templates**: the About section renders on `/` and `/about`, and the Contact section, contact form and location map render on `/` and `/contact`. The inventory targets `pages.home.about.*`, `pages.home.contact.*` and `pages.contact.map.*` with both routes in `pages`. Spec §5.2 lists "about body" on the about template, so Phase 3 must decide whether `/about` reads the home fields or its own copy seeded with the same values. The Services and Team section eyebrows ("What we do", "Our people") are recorded per page because their headings are already per page.
+- **Sections shared between two page templates** are shared settings, not page fields: the About section (`/` and `/about`) is `settings.sections.about.*`, and the Contact section info cards, contact form copy and location map (`/` and `/contact`) are `settings.sections.contact.*`. Both pages render the same settings record, so the `home`, `about` and `contact` templates do not carry their own copy of these fields (this supersedes "about intro" / "about body" / "contact section copy" / "map" in the §7.1 outline). The Services and Team section eyebrows ("What we do", "Our people") are recorded per page because their headings are already per page.
 - **Home hero naming**: the `<h1>` "Security Partners Ltd." is `pages.home.hero.heading`, "Watching Over You" is `pages.home.hero.tagline`, and the paragraph is `pages.home.hero.subheading`. (The brief example in the Phase 0 task paired `home.hero.heading` with "Watching Over You"; the inventory follows the rendered markup.)
 - **Hero stats** carry an animation count and suffix (`data-count`, `data-suffix`) besides the displayed value; both are recorded (`pages.home.hero.stats[].count|suffix`).
-- **Team photos** are design placeholders: every member renders two stacked images (`/images/team-temp.jpg` under `/images/about.png`). Both layers target `team[].photo`; Phase 3 must keep both layers to stay pixel-identical until real photos exist.
+- **Team photos** are design placeholders: every member renders two stacked images. The underlay `/images/team-temp.jpg` is the same for every member and targets `pages.team.leadership.photoPlaceholder`; the per-member image (`/images/about.png` today) targets `team[].photo`. Phase 3 must keep both layers to stay pixel-identical.
 - **Service detail** uses the same hero image (`/images/hero.jpg`) and body image (`/images/about.png`, alt "Security Partners officer at work") for every service; recorded as `services[].heroImage`, `services[].image`, `services[].imageAlt`. Detail copy for five of the six services reuses company facts until final copy is supplied (comment in `components/home/data.ts`).
-- **Blog categories**: the filter bar shows five categories (Company News, Mobile Patrols, Event Security, Retail Security, Alarm Response). "Alarm Response" has no posts, and posts also use "Key Holding" and "Open Up & Lock Up", which are not in the filter bar but appear as article categories. Phase 3 needs a way to reproduce exactly these five filter pills.
+- **Blog categories**: the seed has seven categories — the five in the filter set (Company News, Mobile Patrols, Event Security, Retail Security, Alarm Response) plus "Key Holding" and "Open Up & Lock Up", which posts use but the filter set excludes ("Alarm Response" has no posts). `categories[].showInFilter` is `true` for the five and `false` for the other two. Both the blog filter bar (`components/blog/blog-posts.tsx`) and the article sidebar "Categories" nav (`components/blog/article.tsx:222`) iterate the filter set, so both are driven by `showInFilter`, in `sortOrder`.
 - **Blog listing** pages through posts six at a time (`PAGE_SIZE = 6`, recorded as `pages.blog.pageSize`); the home blog section shows three (`pages.home.blog.count`).
-- **Articles**: only `mobile-patrols-protect-your-business-after-hours` has a designed body (10 blocks) plus `readTime`, `lead` and `tags`; the others render their excerpt as the body. The featured article (`18-years-of-watching-over-ireland`) lives outside the `posts` array and is recorded under `articles[18-years-of-watching-over-ireland].*` plus `pages.blog.featuredArticle`. Bylines ("Michael McDonald", "Managing Director") come from user profiles per spec §5.3. Display dates (for example "20 Sep 2026") derive from `publishedAt`.
+- **Articles**: only `mobile-patrols-protect-your-business-after-hours` has a designed body (10 blocks) plus `readTime`, `lead` and `tags`; the others render their excerpt as the body. The featured article (`18-years-of-watching-over-ireland`) lives outside the `posts` array and is recorded under `articles[18-years-of-watching-over-ireland].*` plus `pages.blog.featuredArticle`. Bylines come from the author's user profile per spec §5.3: the name ("Michael McDonald") from `users.name`, and the role ("Managing Director") from the new `users.title` field. Display dates (for example "20 Sep 2026") derive from `publishedAt`.
 - **Contact form** has no backend: it opens a `mailto:` to `info@securitypartnersltd.com` with subject "Website enquiry from {name}". No success or error messages exist on the page today. Phase 7 replaces this with the leads endpoint.
 - **Group companies** carry a `phoneHref` that the footer does not use (the phone renders as plain text).
 - **Favicon** (`app/favicon.ico`) maps to `settings.site.favicon`; it is binary, so it has no inventory line.
@@ -317,3 +318,5 @@ An entry counts once for every page it renders on, so shared header and footer e
 - The Accounts line "Tel: (057) 8697670 Ext 3" formats the office number differently from "057 8697670" elsewhere.
 
 ## Changes
+
+- 2026-10-16: sections shown on more than one page are shared settings (`sections.about`, `sections.contact`), extending D10.

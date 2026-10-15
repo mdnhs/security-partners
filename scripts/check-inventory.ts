@@ -26,7 +26,7 @@ const ROOTS = [
   /^services\[[a-z0-9-]*\]\./,
   /^articles\[[a-z0-9-]*\]\./,
   /^(team|clients|groupCompanies|categories)\[\]\./,
-  /^settings\.(site|contact|navigation|footer|sections\.enquireBanner|sections\.clients|sections\.whyChooseUs|seo\.defaults|consent|tracking|customCode|microcopy|leads)\./,
+  /^settings\.(site|contact|navigation|footer|sections\.enquireBanner|sections\.clients|sections\.whyChooseUs|sections\.about|sections\.contact|seo\.defaults|consent|tracking|customCode|microcopy|leads)\./,
 ]
 
 const raw = JSON.parse(readFileSync("docs/brief-inventory.json", "utf8")) as {
