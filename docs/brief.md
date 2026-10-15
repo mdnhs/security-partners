@@ -327,3 +327,4 @@ An entry counts once for every page it renders on, so shared header and footer e
 
 - 2026-10-16: sections shown on more than one page are shared settings (`sections.about`, `sections.contact`), extending D10.
 - 2026-10-16: field additions from the inventory: `article_categories.showInFilter` and `users.title`; inventory entries whose value is a template string carry `template: true`.
+- 2026-10-16: public pages moved to app/(site) (route group); inventory source paths updated.

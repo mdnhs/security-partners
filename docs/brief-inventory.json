@@ -3,7 +3,7 @@
   "entries": [
     {
       "id": "layout.meta.title",
-      "source": "app/layout.tsx:21",
+      "source": "app/(site)/layout.tsx:21",
       "kind": "meta",
       "value": "Security Partners Ltd. | Watching Over You",
       "target": "settings.seo.defaults.title",
@@ -20,7 +20,7 @@
     },
     {
       "id": "layout.meta.description",
-      "source": "app/layout.tsx:23",
+      "source": "app/(site)/layout.tsx:23",
       "kind": "meta",
       "value": "Proactive, flexible and customer-focused security services across Ireland, backed by a dedicated 24/7 operations team. Based in Mountmellick, Co. Laois since 2008.",
       "target": "settings.seo.defaults.description",
@@ -37,7 +37,7 @@
     },
     {
       "id": "layout.html.lang",
-      "source": "app/layout.tsx:33",
+      "source": "app/(site)/layout.tsx:33",
       "kind": "meta",
       "value": "en",
       "target": "settings.site.locale",
@@ -2019,7 +2019,7 @@
     },
     {
       "id": "about.meta.title",
-      "source": "app/about/page.tsx:15",
+      "source": "app/(site)/about/page.tsx:15",
       "kind": "meta",
       "value": "About Us | Security Partners Ltd.",
       "target": "pages.about.seo.title",
@@ -2029,7 +2029,7 @@
     },
     {
       "id": "about.meta.description",
-      "source": "app/about/page.tsx:17",
+      "source": "app/(site)/about/page.tsx:17",
       "kind": "meta",
       "value": "A family-run security company based in Mountmellick, Co. Laois, providing first class security services across Ireland since 2008.",
       "target": "pages.about.seo.description",
@@ -2039,7 +2039,7 @@
     },
     {
       "id": "about.hero.image",
-      "source": "app/about/page.tsx:26",
+      "source": "app/(site)/about/page.tsx:26",
       "kind": "image",
       "value": "/images/hero.jpg",
       "target": "pages.about.hero.image",
@@ -2049,7 +2049,7 @@
     },
     {
       "id": "about.hero.crumb",
-      "source": "app/about/page.tsx:27",
+      "source": "app/(site)/about/page.tsx:27",
       "kind": "text",
       "value": "About Us",
       "target": "pages.about.hero.crumb",
@@ -2059,7 +2059,7 @@
     },
     {
       "id": "about.hero.title",
-      "source": "app/about/page.tsx:28",
+      "source": "app/(site)/about/page.tsx:28",
       "kind": "text",
       "value": "About Security Partners",
       "target": "pages.about.hero.title",
@@ -2069,7 +2069,7 @@
     },
     {
       "id": "about.hero.description",
-      "source": "app/about/page.tsx:29",
+      "source": "app/(site)/about/page.tsx:29",
       "kind": "text",
       "value": "A family-run security company based in Mountmellick, Co. Laois, providing first class security services across Ireland since 2008.",
       "target": "pages.about.hero.description",
@@ -2079,7 +2079,7 @@
     },
     {
       "id": "about.values.eyebrow",
-      "source": "app/about/page.tsx:34",
+      "source": "app/(site)/about/page.tsx:34",
       "kind": "text",
       "value": "Our values",
       "target": "pages.about.values.eyebrow",
@@ -2089,7 +2089,7 @@
     },
     {
       "id": "about.values.title",
-      "source": "app/about/page.tsx:35",
+      "source": "app/(site)/about/page.tsx:35",
       "kind": "text",
       "value": "What We Stand For",
       "target": "pages.about.values.title",
@@ -2099,7 +2099,7 @@
     },
     {
       "id": "about.values.description",
-      "source": "app/about/page.tsx:36",
+      "source": "app/(site)/about/page.tsx:36",
       "kind": "text",
       "value": "Security Partners Ltd has an excellent reputation for providing a proactive, flexible and quality service that is completely customer focused.",
       "target": "pages.about.values.description",
@@ -2189,7 +2189,7 @@
     },
     {
       "id": "services.meta.title",
-      "source": "app/services/page.tsx:12",
+      "source": "app/(site)/services/page.tsx:12",
       "kind": "meta",
       "value": "Our Services | Security Partners Ltd.",
       "target": "pages.services.seo.title",
@@ -2199,7 +2199,7 @@
     },
     {
       "id": "services.meta.description",
-      "source": "app/services/page.tsx:14",
+      "source": "app/(site)/services/page.tsx:14",
       "kind": "meta",
       "value": "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
       "target": "pages.services.seo.description",
@@ -2209,7 +2209,7 @@
     },
     {
       "id": "services.hero.image",
-      "source": "app/services/page.tsx:23",
+      "source": "app/(site)/services/page.tsx:23",
       "kind": "image",
       "value": "/images/banner.png",
       "target": "pages.services.hero.image",
@@ -2219,7 +2219,7 @@
     },
     {
       "id": "services.hero.crumb",
-      "source": "app/services/page.tsx:24",
+      "source": "app/(site)/services/page.tsx:24",
       "kind": "text",
       "value": "Services",
       "target": "pages.services.hero.crumb",
@@ -2229,7 +2229,7 @@
     },
     {
       "id": "services.hero.title",
-      "source": "app/services/page.tsx:25",
+      "source": "app/(site)/services/page.tsx:25",
       "kind": "text",
       "value": "Our Services",
       "target": "pages.services.hero.title",
@@ -2239,7 +2239,7 @@
     },
     {
       "id": "services.hero.description",
-      "source": "app/services/page.tsx:26",
+      "source": "app/(site)/services/page.tsx:26",
       "kind": "text",
       "value": "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
       "target": "pages.services.hero.description",
@@ -2249,7 +2249,7 @@
     },
     {
       "id": "services.servicesSection.heading",
-      "source": "app/services/page.tsx:29",
+      "source": "app/(site)/services/page.tsx:29",
       "kind": "text",
       "value": "Security For Every Sector",
       "target": "pages.services.servicesSection.heading",
@@ -2259,7 +2259,7 @@
     },
     {
       "id": "services.servicesSection.intro",
-      "source": "app/services/page.tsx:30",
+      "source": "app/(site)/services/page.tsx:30",
       "kind": "text",
       "value": "Six specialist services, all backed by our dedicated 24/7 Operations Team.",
       "target": "pages.services.servicesSection.intro",
@@ -2339,7 +2339,7 @@
     },
     {
       "id": "serviceDetail.meta.titleTemplate",
-      "source": "app/services/[slug]/page.tsx:28",
+      "source": "app/(site)/services/[slug]/page.tsx:28",
       "kind": "meta",
       "value": "{title} | Security Partners Ltd.",
       "target": "settings.seo.defaults.titleTemplate",
@@ -2350,7 +2350,7 @@
     },
     {
       "id": "serviceDetail.meta.description",
-      "source": "app/services/[slug]/page.tsx:29",
+      "source": "app/(site)/services/[slug]/page.tsx:29",
       "kind": "meta",
       "value": "{detail.intro}",
       "target": "services[].detail.intro",
@@ -2360,7 +2360,7 @@
     },
     {
       "id": "serviceDetail.hero.image",
-      "source": "app/services/[slug]/page.tsx:44",
+      "source": "app/(site)/services/[slug]/page.tsx:44",
       "kind": "image",
       "value": "/images/hero.jpg",
       "target": "services[].heroImage",
@@ -2370,7 +2370,7 @@
     },
     {
       "id": "serviceDetail.hero.trailLabel",
-      "source": "app/services/[slug]/page.tsx:45",
+      "source": "app/(site)/services/[slug]/page.tsx:45",
       "kind": "text",
       "value": "Services",
       "target": "settings.microcopy.breadcrumb.services",
@@ -2380,7 +2380,7 @@
     },
     {
       "id": "serviceDetail.hero.trailHref",
-      "source": "app/services/[slug]/page.tsx:45",
+      "source": "app/(site)/services/[slug]/page.tsx:45",
       "kind": "href",
       "value": "/services",
       "target": "settings.microcopy.breadcrumb.servicesHref",
@@ -2390,7 +2390,7 @@
     },
     {
       "id": "serviceDetail.hero.crumb",
-      "source": "app/services/[slug]/page.tsx:46",
+      "source": "app/(site)/services/[slug]/page.tsx:46",
       "kind": "text",
       "value": "{title}",
       "target": "services[].title",
@@ -2400,7 +2400,7 @@
     },
     {
       "id": "serviceDetail.hero.description",
-      "source": "app/services/[slug]/page.tsx:48",
+      "source": "app/(site)/services/[slug]/page.tsx:48",
       "kind": "text",
       "value": "{detail.intro}",
       "target": "services[].detail.intro",
@@ -2590,7 +2590,7 @@
     },
     {
       "id": "team.meta.title",
-      "source": "app/team/page.tsx:13",
+      "source": "app/(site)/team/page.tsx:13",
       "kind": "meta",
       "value": "Our Team | Security Partners Ltd.",
       "target": "pages.team.seo.title",
@@ -2600,7 +2600,7 @@
     },
     {
       "id": "team.meta.description",
-      "source": "app/team/page.tsx:15",
+      "source": "app/(site)/team/page.tsx:15",
       "kind": "meta",
       "value": "The experienced people behind Security Partners, from operations to HR and accounts.",
       "target": "pages.team.seo.description",
@@ -2610,7 +2610,7 @@
     },
     {
       "id": "team.hero.image",
-      "source": "app/team/page.tsx:24",
+      "source": "app/(site)/team/page.tsx:24",
       "kind": "image",
       "value": "/images/hero.jpg",
       "target": "pages.team.hero.image",
@@ -2620,7 +2620,7 @@
     },
     {
       "id": "team.hero.crumb",
-      "source": "app/team/page.tsx:25",
+      "source": "app/(site)/team/page.tsx:25",
       "kind": "text",
       "value": "Our Team",
       "target": "pages.team.hero.crumb",
@@ -2630,7 +2630,7 @@
     },
     {
       "id": "team.hero.title",
-      "source": "app/team/page.tsx:26",
+      "source": "app/(site)/team/page.tsx:26",
       "kind": "text",
       "value": "Meet The Team",
       "target": "pages.team.hero.title",
@@ -2640,7 +2640,7 @@
     },
     {
       "id": "team.hero.description",
-      "source": "app/team/page.tsx:27",
+      "source": "app/(site)/team/page.tsx:27",
       "kind": "text",
       "value": "The experienced people behind Security Partners, from operations to HR and accounts.",
       "target": "pages.team.hero.description",
@@ -2650,7 +2650,7 @@
     },
     {
       "id": "team.leadership.heading",
-      "source": "app/team/page.tsx:30",
+      "source": "app/(site)/team/page.tsx:30",
       "kind": "text",
       "value": "Leadership & Management",
       "target": "pages.team.leadership.heading",
@@ -2660,7 +2660,7 @@
     },
     {
       "id": "team.leadership.intro",
-      "source": "app/team/page.tsx:31",
+      "source": "app/(site)/team/page.tsx:31",
       "kind": "text",
       "value": "Contact the right person directly for your query.",
       "target": "pages.team.leadership.intro",
@@ -2670,7 +2670,7 @@
     },
     {
       "id": "team.officers.eyebrow",
-      "source": "app/team/page.tsx:34",
+      "source": "app/(site)/team/page.tsx:34",
       "kind": "text",
       "value": "On the ground",
       "target": "pages.team.officers.eyebrow",
@@ -2680,7 +2680,7 @@
     },
     {
       "id": "team.officers.title",
-      "source": "app/team/page.tsx:35",
+      "source": "app/(site)/team/page.tsx:35",
       "kind": "text",
       "value": "Our Officers",
       "target": "pages.team.officers.title",
@@ -2690,7 +2690,7 @@
     },
     {
       "id": "team.officers.description",
-      "source": "app/team/page.tsx:36",
+      "source": "app/(site)/team/page.tsx:36",
       "kind": "text",
       "value": "Behind our management team is a team of licensed, uniformed officers working across Ireland.",
       "target": "pages.team.officers.description",
@@ -2740,7 +2740,7 @@
     },
     {
       "id": "blog.meta.title",
-      "source": "app/blog/page.tsx:11",
+      "source": "app/(site)/blog/page.tsx:11",
       "kind": "meta",
       "value": "News & Insights | Security Partners Ltd.",
       "target": "pages.blog.seo.title",
@@ -2750,7 +2750,7 @@
     },
     {
       "id": "blog.meta.description",
-      "source": "app/blog/page.tsx:13",
+      "source": "app/(site)/blog/page.tsx:13",
       "kind": "meta",
       "value": "Security tips, company news and advice from the Security Partners team.",
       "target": "pages.blog.seo.description",
@@ -2760,7 +2760,7 @@
     },
     {
       "id": "blog.hero.image",
-      "source": "app/blog/page.tsx:23",
+      "source": "app/(site)/blog/page.tsx:23",
       "kind": "image",
       "value": "/images/banner.png",
       "target": "pages.blog.hero.image",
@@ -2770,7 +2770,7 @@
     },
     {
       "id": "blog.hero.crumb",
-      "source": "app/blog/page.tsx:24",
+      "source": "app/(site)/blog/page.tsx:24",
       "kind": "text",
       "value": "Blog",
       "target": "pages.blog.hero.crumb",
@@ -2780,7 +2780,7 @@
     },
     {
       "id": "blog.hero.title",
-      "source": "app/blog/page.tsx:25",
+      "source": "app/(site)/blog/page.tsx:25",
       "kind": "text",
       "value": "News & Insights",
       "target": "pages.blog.hero.title",
@@ -2790,7 +2790,7 @@
     },
     {
       "id": "blog.hero.description",
-      "source": "app/blog/page.tsx:26",
+      "source": "app/(site)/blog/page.tsx:26",
       "kind": "text",
       "value": "Security tips, company news and advice from the Security Partners team.",
       "target": "pages.blog.hero.description",
@@ -3255,7 +3255,7 @@
     },
     {
       "id": "article.meta.titleTemplate",
-      "source": "app/blog/[slug]/page.tsx:26",
+      "source": "app/(site)/blog/[slug]/page.tsx:26",
       "kind": "meta",
       "value": "{title} | Security Partners Ltd.",
       "target": "settings.seo.defaults.titleTemplate",
@@ -3266,7 +3266,7 @@
     },
     {
       "id": "article.meta.description",
-      "source": "app/blog/[slug]/page.tsx:27",
+      "source": "app/(site)/blog/[slug]/page.tsx:27",
       "kind": "meta",
       "value": "{excerpt}",
       "target": "articles[].excerpt",
@@ -3276,7 +3276,7 @@
     },
     {
       "id": "article.related.eyebrow",
-      "source": "app/blog/[slug]/page.tsx:52",
+      "source": "app/(site)/blog/[slug]/page.tsx:52",
       "kind": "text",
       "value": "Keep reading",
       "target": "settings.microcopy.article.relatedEyebrow",
@@ -3286,7 +3286,7 @@
     },
     {
       "id": "article.related.heading",
-      "source": "app/blog/[slug]/page.tsx:52",
+      "source": "app/(site)/blog/[slug]/page.tsx:52",
       "kind": "text",
       "value": "Related Articles",
       "target": "settings.microcopy.article.relatedHeading",
@@ -3498,7 +3498,7 @@
     },
     {
       "id": "contact.meta.title",
-      "source": "app/contact/page.tsx:12",
+      "source": "app/(site)/contact/page.tsx:12",
       "kind": "meta",
       "value": "Contact Us | Security Partners Ltd.",
       "target": "pages.contact.seo.title",
@@ -3508,7 +3508,7 @@
     },
     {
       "id": "contact.meta.description",
-      "source": "app/contact/page.tsx:13",
+      "source": "app/(site)/contact/page.tsx:13",
       "kind": "meta",
       "value": "Get in touch with our team. For urgent matters, our 24 Hour Number is {phone24h}.",
       "target": "pages.contact.seo.description",
@@ -3519,7 +3519,7 @@
     },
     {
       "id": "contact.hero.image",
-      "source": "app/contact/page.tsx:22",
+      "source": "app/(site)/contact/page.tsx:22",
       "kind": "image",
       "value": "/images/hero.jpg",
       "target": "pages.contact.hero.image",
@@ -3529,7 +3529,7 @@
     },
     {
       "id": "contact.hero.crumb",
-      "source": "app/contact/page.tsx:23",
+      "source": "app/(site)/contact/page.tsx:23",
       "kind": "text",
       "value": "Contact",
       "target": "pages.contact.hero.crumb",
@@ -3539,7 +3539,7 @@
     },
     {
       "id": "contact.hero.title",
-      "source": "app/contact/page.tsx:25",
+      "source": "app/(site)/contact/page.tsx:25",
       "kind": "text",
       "value": "Contact Us",
       "target": "pages.contact.hero.title",
@@ -3549,7 +3549,7 @@
     },
     {
       "id": "contact.hero.description",
-      "source": "app/contact/page.tsx:26",
+      "source": "app/(site)/contact/page.tsx:26",
       "kind": "text",
       "value": "Get in touch with our team. For urgent matters, our 24 Hour Number is {phone24h}.",
       "target": "pages.contact.hero.description",

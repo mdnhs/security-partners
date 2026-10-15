@@ -20,4 +20,5 @@ export const PUBLIC_URLS = [
   "/blog/key-holding-explained",
   "/blog/loss-prevention-trained-retail-officers",
   "/blog/open-up-lock-up-keeps-staff-safe",
+  "/this-page-does-not-exist",
 ] as const
