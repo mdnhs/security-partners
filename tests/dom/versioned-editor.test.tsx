@@ -37,7 +37,10 @@ const json = (status: number, body: unknown) =>
     headers: { "content-type": "application/json" },
   })
 
-let routes: Record<string, (init?: RequestInit) => Response>
+let routes: Record<
+  string,
+  (init?: RequestInit) => Response | Promise<Response>
+>
 const fetchMock = vi.fn(
   async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
@@ -229,5 +232,219 @@ describe("page editor (master 4.4)", () => {
       )
     )
     expect(confirm).toHaveBeenCalledTimes(1)
+  })
+  const saveStatus = () => screen.getByRole("status", { name: /^Save status/ })
+  const conflictBody = (heading: string) => ({
+    error: {
+      code: "CONFLICT",
+      message: "Changed",
+      current: dto(5, heading),
+      requestId: "r",
+    },
+  })
+  type PutBody = { draft: { hero: { heading: string } }; version: number }
+  const bodyOf = (init?: RequestInit) =>
+    JSON.parse(String(init?.body)) as PutBody
+
+  /** A PUT that answers only when `release()` is called. */
+  function deferredPut() {
+    const bodies: PutBody[] = []
+    let release: () => void = () => undefined
+    routes["PUT /api/v1/admin/pages/home/draft"] = (init) => {
+      const body = bodyOf(init)
+      bodies.push(body)
+      return new Promise<Response>((resolve) => {
+        release = () =>
+          resolve(
+            json(200, {
+              ...dto(body.version + 1, body.draft.hero.heading),
+              draft: body.draft,
+            })
+          )
+      })
+    }
+    return { bodies, release: () => release() }
+  }
+
+  function publishRoute() {
+    const versions: number[] = []
+    routes["POST /api/v1/admin/pages/home/publish"] = (init) => {
+      const { version } = JSON.parse(String(init?.body)) as { version: number }
+      versions.push(version)
+      if (version !== 2)
+        return json(409, conflictBody("Stale publish"))
+      const published = { ...home, hero: { ...home.hero, heading: "Queued" } }
+      return json(200, { ...dto(3, "Queued", published), dirty: false })
+    }
+    return versions
+  }
+
+  it("a 409 from publish closes the publish dialog and opens the conflict dialog", async () => {
+    const user = userEvent.setup()
+    routes["POST /api/v1/admin/pages/home/publish"] = () =>
+      json(409, conflictBody("Their heading"))
+    renderEditor()
+    await headingInput()
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Publish changes?",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Publish now" })
+    )
+    const conflict = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Publish changes?",
+          hidden: true,
+        })
+      ).toBeNull()
+    )
+    await user.click(
+      within(conflict).getByRole("button", { name: "Reload their version" })
+    )
+    await waitFor(async () =>
+      expect(await headingInput()).toHaveValue("Their heading")
+    )
+  })
+
+  it("a 409 on the pre-publish save closes the publish dialog (conflict dialog only)", async () => {
+    const user = userEvent.setup()
+    routes["PUT /api/v1/admin/pages/home/draft"] = () =>
+      json(409, conflictBody("Their heading"))
+    const publish = vi.fn(() => json(200, dto(9, "x")))
+    routes["POST /api/v1/admin/pages/home/publish"] = publish
+    renderEditor()
+    const heading = await headingInput()
+    await user.type(heading, " mine")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Publish changes?",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Publish now" })
+    )
+    await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Publish changes?",
+          hidden: true,
+        })
+      ).toBeNull()
+    )
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it("publishing during an in-flight autosave waits for it: one PUT, then publish with its version", async () => {
+    const user = userEvent.setup()
+    const put = deferredPut()
+    const versions = publishRoute()
+    renderEditor()
+    const heading = await headingInput()
+    await user.clear(heading)
+    await user.type(heading, "Queued")
+    await waitFor(() => expect(saveStatus()).toHaveTextContent("Saving…"), {
+      timeout: 3000,
+    })
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Publish changes?",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Publish now" })
+    )
+    put.release()
+    await waitFor(() => expect(versions).toEqual([2]))
+    expect(put.bodies).toHaveLength(1)
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Publish changes?" })
+      ).toBeNull()
+    )
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("⌘S twice and Publish during one in-flight save: one PUT, no self-409", async () => {
+    const user = userEvent.setup()
+    const put = deferredPut()
+    const versions = publishRoute()
+    renderEditor()
+    const heading = await headingInput()
+    await user.clear(heading)
+    await user.type(heading, "Queued")
+    await user.keyboard("{Control>}s{/Control}")
+    await user.keyboard("{Meta>}s{/Meta}")
+    expect(saveStatus()).toHaveTextContent("Saving…")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Publish changes?",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Publish now" })
+    )
+    put.release()
+    await waitFor(() => expect(versions).toEqual([2]))
+    expect(put.bodies).toHaveLength(1)
+    expect(put.bodies[0].version).toBe(1)
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    await waitFor(() => expect(saveStatus()).toHaveTextContent("Saved"))
+  })
+
+  it("overwrite with mine re-sends my draft with their version", async () => {
+    const user = userEvent.setup()
+    const bodies: PutBody[] = []
+    routes["PUT /api/v1/admin/pages/home/draft"] = (init) => {
+      const body = bodyOf(init)
+      bodies.push(body)
+      if (body.version !== 5) return json(409, conflictBody("Their heading"))
+      return json(200, { ...dto(6, body.draft.hero.heading), draft: body.draft })
+    }
+    renderEditor()
+    const heading = await headingInput()
+    await user.type(heading, " mine")
+    await user.keyboard("{Control>}s{/Control}")
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Overwrite with mine" })
+    )
+    await waitFor(() => expect(bodies).toHaveLength(2))
+    expect(bodies[1].version).toBe(5)
+    expect(bodies[1].draft.hero.heading).toBe(`${home.hero.heading} mine`)
+    await waitFor(() => expect(saveStatus()).toHaveTextContent("Saved"))
+    expect(heading).toHaveValue(`${home.hero.heading} mine`)
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("copy mine puts my draft on the clipboard, then loads theirs", async () => {
+    const user = userEvent.setup()
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined)
+    routes["PUT /api/v1/admin/pages/home/draft"] = () =>
+      json(409, conflictBody("Their heading"))
+    renderEditor()
+    const heading = await headingInput()
+    await user.type(heading, " mine")
+    await user.keyboard("{Control>}s{/Control}")
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Copy mine, then reload" })
+    )
+    await waitFor(async () =>
+      expect(await headingInput()).toHaveValue("Their heading")
+    )
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText.mock.calls[0][0]).toContain(`${home.hero.heading} mine`)
+    expect(saveStatus()).toHaveTextContent("Saved")
   })
 })

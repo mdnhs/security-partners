@@ -9,6 +9,12 @@ export const UNSAVED_MESSAGE =
  * Warns before leaving with unsaved changes (spec §8.2): the browser's
  * beforeunload prompt for reloads/closing, and a confirm() for in-app
  * links (App Router has no navigation-blocking API).
+ *
+ * Limits: browser back/forward inside the app (client-side popstate) and
+ * programmatic `router.push()`/`router.replace()` are NOT intercepted —
+ * only clicks on same-origin `<a href>` links and full unloads. Code that
+ * navigates programmatically from an editor must check for unsaved
+ * changes itself.
  */
 export function UnsavedGuard({ when }: { when: boolean }) {
   useEffect(() => {

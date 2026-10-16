@@ -104,15 +104,15 @@ test("a stale preview cookie without a session shows only published content", as
   ])
   await expect(preview.getByText("Draft-only tagline")).toBeVisible()
   // Copy only the draft-mode + preview cookies (no session) to a fresh visitor.
-  const cookies = (await page.context().cookies()).filter(
-    (c) => !c.name.startsWith("sp.")
+  const previewCookies = (await page.context().cookies()).filter((c) =>
+    ["__prerender_bypass", "sp.preview"].includes(c.name)
   )
-  expect(cookies.map((c) => c.name)).toContain("__prerender_bypass")
-  const visitor = await browser.newContext()
-  await visitor.addCookies([
-    ...cookies,
-    ...(await page.context().cookies()).filter((c) => c.name === "sp.preview"),
+  expect(previewCookies.map((c) => c.name).sort()).toEqual([
+    "__prerender_bypass",
+    "sp.preview",
   ])
+  const visitor = await browser.newContext()
+  await visitor.addCookies(previewCookies)
   const other = await visitor.newPage()
   await other.goto("/")
   await expect(other.locator("[data-hero-title]")).toBeVisible()

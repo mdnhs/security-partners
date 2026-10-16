@@ -146,6 +146,8 @@ export function RevisionDrawer({
                   await onRestore(confirm)
                   setConfirm(null)
                   onOpenChange(false)
+                } catch {
+                  // onRestore reports the failure; keep the dialog open to retry.
                 } finally {
                   setPending(false)
                 }

@@ -35,30 +35,33 @@ export function useAutosave<T>({
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState<ApiError | null>(null)
   const [error, setError] = useState<unknown>(null)
-  const latest = useRef({ value, savedValue, save, isValid })
+  const latest = useRef({ value, save, isValid })
   useEffect(() => {
-    latest.current = { value, savedValue, save, isValid }
+    latest.current = { value, save, isValid }
   })
   const inFlight = useRef<Promise<boolean> | null>(null)
+  // What the server holds now. Updated synchronously when a save succeeds
+  // (the parent's `savedValue` only catches up on its next render), so a
+  // flush queued behind an in-flight save never sends the same value twice.
+  const lastSaved = useRef(savedValue)
+  useEffect(() => {
+    lastSaved.current = savedValue
+  }, [savedValue])
 
   const dirty = !isDeepEqual(value, savedValue)
   const valid = isValid(value)
 
   const flush = useCallback(async (): Promise<boolean> => {
-    if (inFlight.current) await inFlight.current
-    const {
-      value: current,
-      savedValue: saved,
-      save: run,
-      isValid: check,
-    } = latest.current
-    if (isDeepEqual(current, saved)) return true
+    while (inFlight.current) await inFlight.current
+    const { value: current, save: run, isValid: check } = latest.current
+    if (isDeepEqual(current, lastSaved.current)) return true
     if (!check(current)) return false
     const attempt = (async () => {
       setSaving(true)
       setError(null)
       try {
         await run(current)
+        lastSaved.current = current
         return true
       } catch (err) {
         if (err instanceof ApiError && err.isConflict) setConflict(err)
@@ -72,7 +75,7 @@ export function useAutosave<T>({
     try {
       return await attempt
     } finally {
-      inFlight.current = null
+      if (inFlight.current === attempt) inFlight.current = null
     }
   }, [])
 

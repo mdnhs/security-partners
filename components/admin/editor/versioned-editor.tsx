@@ -125,6 +125,11 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     setBase(next)
     setRecord(dto)
     queryClient.setQueryData(props.queryKey, dto)
+    // The list screen (e.g. ["pages"]) shows status badges: refetch it next time.
+    void queryClient.invalidateQueries({
+      queryKey: props.queryKey.slice(0, 1),
+      exact: true,
+    })
   }
   // Until the user interacts with the form, whatever it emits is its own
   // normalization of the loaded draft (e.g. a composed stat value): that is
@@ -148,9 +153,22 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     setResetKey((k) => k + 1)
   }
 
+  // The 409 of the latest draft save (if any): a publish whose pre-save hit
+  // it is already handled by the autosave conflict dialog.
+  const saveConflict = useRef<ApiError | null>(null)
+  // A 409 from the publish call itself (someone saved after our last save).
+  const [publishConflict, setPublishConflict] = useState<ApiError | null>(
+    null
+  )
+  // "Overwrite with mine" saves once the new base has rendered (the
+  // autosave hook compares against it).
+  const [flushRequest, setFlushRequest] = useState(0)
+
   const save = useMutation({
-    mutationFn: (value: unknown) =>
-      props.saveDraft(value, baseRef.current.version),
+    mutationFn: (value: unknown) => {
+      saveConflict.current = null
+      return props.saveDraft(value, baseRef.current.version)
+    },
     onMutate: async (value) => {
       await queryClient.cancelQueries({ queryKey: props.queryKey })
       const previous = queryClient.getQueryData<Dto>(props.queryKey)
@@ -163,6 +181,8 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         queryClient.setQueryData(props.queryKey, context.previous)
       if (error instanceof ApiError && error.status === 422)
         setFieldErrors(error.fieldErrors)
+      if (error instanceof ApiError && error.isConflict)
+        saveConflict.current = error
     },
     onSuccess: (dto, value) => {
       accept(dto, value)
@@ -179,6 +199,10 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     isValid: (value) => props.schema.safeParse(value).success,
     enabled: props.canEdit,
   })
+  const { flush } = autosave
+  useEffect(() => {
+    if (flushRequest > 0) void flush()
+  }, [flushRequest, flush])
 
   const showAllErrors = () => {
     const result = props.schema.safeParse(draft)
@@ -194,7 +218,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   // ⌘S / Ctrl+S saves now.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey))
+      if (event.key?.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey))
         return
       event.preventDefault()
       if (!props.canEdit || showAllErrors()) return
@@ -206,8 +230,12 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
 
   const publish = useMutation({
     mutationFn: async () => {
+      saveConflict.current = null
       if (!(await autosave.flush()))
-        throw new Error("Save your changes before publishing.")
+        throw (
+          saveConflict.current ??
+          new Error("Save your changes before publishing.")
+        )
       return props.publish(baseRef.current.version)
     },
     onSuccess: (dto) => {
@@ -228,13 +256,22 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
       })
     },
     onError: (error) => {
-      if (error instanceof ApiError && error.isConflict) return
+      if (error instanceof ApiError && error.isConflict) {
+        // Resolve the conflict first; the conflict dialog takes over.
+        setPublishOpen(false)
+        if (error !== saveConflict.current) setPublishConflict(error)
+        return
+      }
       toast.error("Not published", { description: errorMessage(error) })
     },
   })
 
-  const conflict = autosave.conflict
+  const conflict = autosave.conflict ?? publishConflict
   const current = (conflict?.current ?? null) as Dto | null
+  const resolveConflict = () => {
+    autosave.resolveConflict()
+    setPublishConflict(null)
+  }
 
   return (
     <>
@@ -348,15 +385,17 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         updatedAt={current?.updatedAt ?? null}
         onReload={() => {
           if (current) replaceDraft(current)
-          autosave.resolveConflict()
+          resolveConflict()
         }}
         onOverwrite={() => {
+          // Their record becomes the base; saving mine over it sends their
+          // version, so the server accepts it.
           if (current) {
-            baseRef.current = { ...baseRef.current, version: current.version }
+            baseRef.current = { version: current.version, saved: current.draft }
             setBase(baseRef.current)
           }
-          autosave.resolveConflict()
-          void autosave.flush()
+          resolveConflict()
+          setFlushRequest((n) => n + 1)
         }}
         onCopyMine={async () => {
           try {
@@ -366,7 +405,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             toast.error("Could not copy to the clipboard")
           }
           if (current) replaceDraft(current)
-          autosave.resolveConflict()
+          resolveConflict()
         }}
       />
     </>
