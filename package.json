@@ -41,6 +41,7 @@
     "@tanstack/react-table": "9.3.1",
     "@tiptap/core": "3.32.0",
     "@tiptap/extension-blockquote": "3.32.0",
+    "@tiptap/extension-link": "3.32.0",
     "@tiptap/extension-list": "3.32.0",
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",

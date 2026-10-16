@@ -1,6 +1,16 @@
 import "server-only"
 
-import { and, eq, inArray } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  like,
+  or,
+} from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { media, mediaUsages } from "@/server/db/schema"
@@ -68,4 +78,42 @@ export function listMediaUsagesFor(
       )
     )
     .orderBy(mediaUsages.field)
+}
+
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
+
+/** Paginated library rows (picker). `q` matches alt text or file key. */
+export async function listMediaRows(
+  db: DbOrTx,
+  opts: {
+    q?: string
+    imagesOnly: boolean
+    sort: { field: "createdAt" | "alt"; dir: "asc" | "desc" }
+    page: number
+    pageSize: number
+  }
+) {
+  const pattern = opts.q ? `%${escapeLike(opts.q)}%` : null
+  const where = and(
+    opts.imagesOnly ? like(media.mime, "image/%") : undefined,
+    pattern
+      ? or(ilike(media.alt, pattern), ilike(media.key, pattern))
+      : undefined
+  )
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(media)
+    .where(where)
+  const column = opts.sort.field === "alt" ? media.alt : media.createdAt
+  const rows = await db
+    .select()
+    .from(media)
+    .where(where)
+    .orderBy(
+      opts.sort.dir === "asc" ? asc(column) : desc(column),
+      asc(media.key)
+    )
+    .limit(opts.pageSize)
+    .offset((opts.page - 1) * opts.pageSize)
+  return { rows, total }
 }
