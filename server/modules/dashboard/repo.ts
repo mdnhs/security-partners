@@ -24,14 +24,17 @@ import {
 
 const OPEN = ["new", "contacted", "qualified"] as const
 
-export async function countLeadsSince(
+const irishDay = sql<string>`to_char(${leads.createdAt} at time zone 'Europe/Dublin', 'YYYY-MM-DD')`
+
+/** Non-spam leads created on or after the Irish calendar day `day` ("2026-09-20"). */
+export async function countLeadsFromDay(
   db: DbOrTx,
-  since: Date
+  day: string
 ): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(leads)
-    .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
+    .where(and(gte(irishDay, day), ne(leads.status, "spam")))
   return row.n
 }
 
@@ -53,12 +56,11 @@ export async function countUnassignedNewLeads(db: DbOrTx): Promise<number> {
 
 /** Non-spam leads per calendar day in Irish time since `since`. */
 export function leadsPerDay(db: DbOrTx, since: Date) {
-  const day = sql<string>`to_char(${leads.createdAt} at time zone 'Europe/Dublin', 'YYYY-MM-DD')`
   return db
-    .select({ date: day, n: count() })
+    .select({ date: irishDay, n: count() })
     .from(leads)
     .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
-    .groupBy(day)
+    .groupBy(irishDay)
 }
 
 export async function publishedCounts(db: DbOrTx) {

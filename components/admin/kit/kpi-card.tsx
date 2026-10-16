@@ -51,7 +51,7 @@ export function KpiCard({
             href={href}
             aria-label={`Open ${label}`}
             className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-3",
+              "flex size-11 shrink-0 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-3",
               hero
                 ? "bg-hero-chip text-hero-chip-foreground hover:bg-hero-chip/85 focus-visible:ring-white/60"
                 : "ring-1 ring-foreground/70 hover:bg-muted focus-visible:ring-ring/50"

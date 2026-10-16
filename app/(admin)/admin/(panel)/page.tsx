@@ -12,7 +12,16 @@ export const metadata: Metadata = { title: "Dashboard" }
 /** Dashboard (master 4.7) in the JW layout: greeting, KPIs, trend, Next up. */
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
+    <Suspense
+      fallback={
+        <>
+          <p role="status" className="sr-only">
+            Loading dashboard…
+          </p>
+          <DashboardSkeleton />
+        </>
+      }
+    >
       <Welcome />
     </Suspense>
   )

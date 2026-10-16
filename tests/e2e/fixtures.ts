@@ -29,6 +29,9 @@ export function readFixtures(): E2EFixtures {
 
 /** The dashboard's h1: "Good morning, Edith" (time of day in Ireland, first name). */
 export function greeting(name: string): RegExp {
-  const first = name.trim().split(/\s+/)[0]
+  const first = name
+    .trim()
+    .split(/\s+/)[0]!
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
   return new RegExp(`^Good (morning|afternoon|evening), ${first}$`)
 }

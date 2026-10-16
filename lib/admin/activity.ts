@@ -20,6 +20,7 @@ const FIXED: Record<string, ActivitySummary> = {
     status: { label: "Failed", tone: "danger" },
   },
   "auth.password_reset": { text: "reset their password" },
+  "auth.password_change": { text: "changed their password" },
   "user.invite": {
     text: "invited a user",
     status: { label: "Invited", tone: "info" },

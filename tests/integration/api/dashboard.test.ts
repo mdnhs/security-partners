@@ -44,9 +44,19 @@ describe("dashboard (master 4.7)", () => {
         lead(40, "new"),
         lead(2, "spam"),
       ])
+    // The 30-day figure is calendar-aligned (Europe/Dublin), like the trend:
+    // noon UTC on the first day of the window counts, the day before does not.
+    const [firstDay] = trendDays(new Date(now), 30)
+    const dayBefore = trendDays(new Date(now), 31)[0]
+    await getDb()
+      .insert(leads)
+      .values([
+        { ...lead(0, "won"), createdAt: new Date(`${firstDay}T12:00:00Z`) },
+        { ...lead(0, "won"), createdAt: new Date(`${dayBefore}T12:00:00Z`) },
+      ])
     const { cookie } = await signedInUser(["admin"])
     const dto = await dashboard(cookie)
-    expect(dto.kpis.leads30d).toBe(3)
+    expect(dto.kpis.leads30d).toBe(4)
     expect(dto.kpis.openLeads).toBe(3)
     expect(dto.kpis.published).toEqual({
       pages: 8,
@@ -56,7 +66,7 @@ describe("dashboard (master 4.7)", () => {
     expect(dto.kpis.published!.articles).toBeGreaterThan(0)
     expect(dto.kpis.inReview).toBe(0)
     expect(dto.leadsTrend).toHaveLength(90)
-    expect(dto.leadsTrend!.reduce((sum, d) => sum + d.count, 0)).toBe(4)
+    expect(dto.leadsTrend!.reduce((sum, d) => sum + d.count, 0)).toBe(6)
     expect(dto.leadsTrend!.at(-1)!.count).toBeGreaterThanOrEqual(1)
   })
 

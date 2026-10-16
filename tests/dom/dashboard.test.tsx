@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -186,6 +187,85 @@ describe("dashboard (JW layout)", () => {
     await screen.findAllByRole("article")
     expect(screen.queryByRole("link", { name: "New service" })).toBeNull()
     expect(screen.queryByRole("region", { name: "Team activity" })).toBeNull()
+  })
+
+  it("a failed dashboard load is an alert whose Try again refetches", async () => {
+    let fail = true
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard") && fail)
+          return Response.json(
+            { error: { code: "FORBIDDEN", message: "Not allowed" } },
+            { status: 403 }
+          )
+        if (path.endsWith("/dashboard")) return Response.json(dto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("The dashboard didn't load")
+    expect(alert).toHaveTextContent("Not allowed")
+    fail = false
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Try again" })
+    )
+    expect(await screen.findAllByRole("article")).toHaveLength(4)
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("team activity: loading is announced, a failed load is an alert with Try again", async () => {
+    let fail = true
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard")) return Response.json(dto)
+        if (fail)
+          return Response.json(
+            { error: { code: "FORBIDDEN", message: "Not allowed" } },
+            { status: 403 }
+          )
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    const feed = await screen.findByRole("region", { name: "Team activity" })
+    const alert = await within(feed).findByRole("alert")
+    expect(alert).toHaveTextContent("Team activity didn't load")
+    fail = false
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Try again" })
+    )
+    expect(await within(feed).findByText("Edith Editor")).toBeInTheDocument()
+    expect(within(feed).queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("the quiet chart hides its overlay from assistive tech and says so in text", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard"))
+          return Response.json({
+            ...dto,
+            leadsTrend: dto.leadsTrend!.map((d) => ({ ...d, count: 0 })),
+          } satisfies DashboardDto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    const card = await screen.findByRole("region", {
+      name: "Enquiries, last 90 days",
+    })
+    expect(
+      within(card).getByText("No enquiries yet").closest("[aria-hidden]")
+    ).not.toBeNull()
+    expect(
+      within(card).getByText("No enquiries in the last 90 days.")
+    ).toHaveClass("sr-only")
   })
 
   it("omits parts the API returned as null and keeps Next up when empty", async () => {

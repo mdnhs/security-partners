@@ -1,8 +1,9 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, type UseQueryResult } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 import { ActivityFeed } from "@/components/admin/kit/activity-feed"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
@@ -10,6 +11,7 @@ import { EmptyState } from "@/components/admin/kit/empty-state"
 import { formatNumber } from "@/components/admin/kit/format"
 import { KpiCard } from "@/components/admin/kit/kpi-card"
 import { PillBarChart } from "@/components/admin/kit/pill-bar-chart"
+import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import {
   LINK_PRIMARY,
   LINK_SECONDARY,
@@ -142,17 +144,75 @@ export function Dashboard({
           dto={query.data}
           kpis={kpisFor(query.data, canReadPages)}
           activity={
-            canReadAudit
-              ? {
-                  pending: activity.isPending,
-                  items: activity.data?.items ?? [],
-                }
-              : null
+            canReadAudit ? (
+              <TeamActivity
+                query={activity}
+                // Relative times count from the fetch, not the page render.
+                now={activity.dataUpdatedAt || Date.parse(renderedAt)}
+              />
+            ) : null
           }
-          now={Date.parse(renderedAt)}
         />
       )}
     </div>
+  )
+}
+
+type ActivityRow = {
+  id: string
+  action: string
+  entityType: string | null
+  entityId: string | null
+  actor: { name: string | null; email: string | null } | null
+  createdAt: string
+}
+
+function TeamActivity({
+  query,
+  now,
+}: {
+  query: UseQueryResult<{ items: ActivityRow[] }>
+  now: number
+}) {
+  if (query.isPending)
+    return (
+      <>
+        <p role="status" className="sr-only">
+          Loading activity…
+        </p>
+        <CardSkeleton className="h-40" />
+      </>
+    )
+  if (query.isError)
+    return (
+      <EmptyState
+        role="alert"
+        title="Team activity didn't load"
+        description={errorMessage(query.error)}
+        action={
+          <Button className={PRIMARY_ACTION} onClick={() => query.refetch()}>
+            Try again
+          </Button>
+        }
+      />
+    )
+  return (
+    <ActivityFeed
+      label="Team activity list"
+      now={now}
+      emptyTitle="No activity yet"
+      emptyDescription="Publishing, edits and sign-ins by your team will show here."
+      entries={query.data.items.map((row) => {
+        const summary = describeActivity(row)
+        return {
+          id: row.id,
+          name: row.actor?.name ?? row.actor?.email ?? "System",
+          description: summary.text,
+          at: row.createdAt,
+          status: summary.status,
+        }
+      })}
+    />
   )
 }
 
@@ -160,22 +220,11 @@ function Body({
   dto,
   kpis,
   activity,
-  now,
 }: {
   dto: DashboardDto
   kpis: Kpi[]
-  activity: {
-    pending: boolean
-    items: {
-      id: string
-      action: string
-      entityType: string | null
-      entityId: string | null
-      actor: { name: string | null; email: string | null } | null
-      createdAt: string
-    }[]
-  } | null
-  now: number
+  /** The Team activity card's body; null when the role may not read the audit log. */
+  activity: ReactNode
 }) {
   const weeks = dto.leadsTrend ? weeklyBuckets(dto.leadsTrend) : null
   const quiet = weeks?.every((week) => week.current === 0) ?? false
@@ -213,13 +262,20 @@ function Body({
                 data={weeks}
               />
               {quiet ? (
-                <div className="pointer-events-none absolute inset-x-0 top-0 flex h-64 flex-col items-center justify-center gap-1 text-center">
-                  <p className="text-base font-semibold">No enquiries yet</p>
-                  <p className="max-w-xs text-sm text-muted-foreground">
-                    Each week&apos;s enquiries from the contact form will show
-                    here.
-                  </p>
-                </div>
+                <>
+                  {/* The table already lists the zeros; the overlay is decoration. */}
+                  <p className="sr-only">No enquiries in the last 90 days.</p>
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 flex h-64 flex-col items-center justify-center gap-1 text-center"
+                  >
+                    <p className="text-base font-semibold">No enquiries yet</p>
+                    <p className="max-w-xs text-sm text-muted-foreground">
+                      Each week&apos;s enquiries from the contact form will show
+                      here.
+                    </p>
+                  </div>
+                </>
               ) : null}
             </div>
           </DashboardCard>
@@ -227,26 +283,7 @@ function Body({
         <NextUp items={dto.nextUp} />
       </div>
       {activity ? (
-        <DashboardCard title="Team activity">
-          <ActivityFeed
-            label="Team activity list"
-            now={now}
-            emptyTitle={
-              activity.pending ? "Loading activity…" : "No activity yet"
-            }
-            emptyDescription="Publishing, edits and sign-ins by your team will show here."
-            entries={activity.items.map((row) => {
-              const summary = describeActivity(row)
-              return {
-                id: row.id,
-                name: row.actor?.name ?? row.actor?.email ?? "System",
-                description: summary.text,
-                at: row.createdAt,
-                status: summary.status,
-              }
-            })}
-          />
-        </DashboardCard>
+        <DashboardCard title="Team activity">{activity}</DashboardCard>
       ) : null}
     </>
   )

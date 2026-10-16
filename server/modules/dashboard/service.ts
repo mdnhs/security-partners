@@ -40,7 +40,11 @@ export async function getDashboard(
     can({ service: ["read"] }) ||
     can({ article: ["read"] })
   const canArticles = can({ article: ["read"] })
+  const isOwnerOrAdmin =
+    actor.roles.includes("owner") || actor.roles.includes("admin")
   const days = trendDays(now)
+  // The 30-day KPI is calendar-aligned like the trend: the last 30 Irish days.
+  const [firstKpiDay] = trendDays(now, 30)
   // A day wider than the chart: days outside `days` fall off in the map below.
   const since = new Date(now.getTime() - (TREND_DAYS + 1) * DAY)
 
@@ -54,9 +58,7 @@ export async function getDashboard(
     configured,
     twoFactor,
   ] = await Promise.all([
-    canLeads
-      ? repo.countLeadsSince(db, new Date(now.getTime() - 30 * DAY))
-      : null,
+    canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
     canLeads ? repo.countOpenLeads(db) : null,
     canLeads ? repo.leadsPerDay(db, since) : null,
     canContent ? repo.publishedCounts(db) : null,
@@ -65,7 +67,7 @@ export async function getDashboard(
     can({ integration: ["read"] })
       ? repo.existingSettingsKeys(db, ["integrations.smtp", "integrations.r2"])
       : null,
-    repo.twoFactorEnabled(db, actor.userId),
+    isOwnerOrAdmin ? repo.twoFactorEnabled(db, actor.userId) : null,
   ])
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
@@ -89,7 +91,7 @@ export async function getDashboard(
       done: configured.has("integrations.r2"),
     })
   }
-  if (actor.roles.includes("owner") || actor.roles.includes("admin"))
+  if (twoFactor !== null)
     nextUp.push({
       id: "two-factor",
       title: "Turn on two-factor authentication",
