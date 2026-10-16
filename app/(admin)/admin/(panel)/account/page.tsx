@@ -66,7 +66,7 @@ async function Account() {
             <FormCard
               id="account-appearance"
               title="Appearance"
-              description="Light, dark, or follow this device. Only the admin changes."
+              description="Light, dark, or whatever your system uses. Only the admin changes."
             >
               <ThemePreference />
             </FormCard>
