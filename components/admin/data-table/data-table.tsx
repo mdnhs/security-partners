@@ -16,6 +16,7 @@ import { type ReactNode, useId, useState } from "react"
 
 import { DataTablePagination } from "@/components/admin/data-table/data-table-pagination"
 import { EmptyState } from "@/components/admin/kit/empty-state"
+import { NowProvider } from "@/components/admin/kit/relative-time"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
@@ -70,6 +71,7 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   initialSort,
   searchPlaceholder = "Search",
   empty,
+  emptyDescription,
   emptyAction,
 }: {
   /** Accessible name (table caption, list label). */
@@ -81,7 +83,10 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   renderCard: (row: T) => ReactNode
   initialSort?: SortingState
   searchPlaceholder?: string
-  empty: ReactNode
+  /** Empty-list title, e.g. "No categories yet". */
+  empty: string
+  /** Optional hint under it (where records appear, how to add one). */
+  emptyDescription?: ReactNode
   /** Call to action in the empty state (e.g. "Add category"); omit for read-only users. */
   emptyAction?: ReactNode
 }) {
@@ -234,104 +239,110 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
         <EmptyState
           icon={Inbox}
           role={q ? "status" : undefined}
-          title={q ? "No matches" : `No ${label.toLowerCase()} yet`}
-          description={q ? `Nothing matches “${q}”.` : empty}
+          title={q ? "No matches" : empty}
+          description={q ? `Nothing matches “${q}”.` : emptyDescription}
           action={q ? undefined : emptyAction}
         />
       ) : (
-        <div
-          aria-busy={query.isPlaceholderData || undefined}
-          className={cn(
-            "flex flex-col gap-3 transition-opacity",
-            query.isPlaceholderData && "opacity-60"
-          )}
-        >
+        // Relative dates count from the last fetch (moves on with refetches).
+        <NowProvider now={query.dataUpdatedAt}>
           <div
-            data-slot="table-card"
+            aria-busy={query.isPlaceholderData || undefined}
             className={cn(
-              "rounded-card hidden overflow-x-auto bg-card sm:block",
-              onCard && "border"
+              "flex flex-col gap-3 transition-opacity",
+              query.isPlaceholderData && "opacity-60"
             )}
           >
-            <table className="w-full text-sm">
-              <caption className="sr-only">{label}</caption>
-              <thead className="border-b text-left text-muted-foreground">
-                {table.getHeaderGroups().map((group) => (
-                  <tr key={group.id}>
-                    {group.headers.map((header) => {
-                      const sortable = header.column.getCanSort()
-                      const dir = header.column.getIsSorted()
-                      return (
-                        <th
-                          key={header.id}
-                          scope="col"
-                          aria-sort={
-                            dir === "asc"
-                              ? "ascending"
-                              : dir === "desc"
-                                ? "descending"
-                                : sortable
-                                  ? "none"
-                                  : undefined
-                          }
-                          className="h-12 px-4 font-medium"
-                        >
-                          {header.isPlaceholder ? null : sortable ? (
-                            <button
-                              type="button"
-                              onClick={header.column.getToggleSortingHandler()}
-                              className="inline-flex items-center gap-1 rounded-md outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
+            <div
+              data-slot="table-card"
+              className={cn(
+                "rounded-card hidden overflow-x-auto bg-card sm:block",
+                onCard && "border"
+              )}
+            >
+              <table className="w-full text-sm">
+                <caption className="sr-only">{label}</caption>
+                <thead className="border-b text-left text-muted-foreground">
+                  {table.getHeaderGroups().map((group) => (
+                    <tr key={group.id}>
+                      {group.headers.map((header) => {
+                        const sortable = header.column.getCanSort()
+                        const dir = header.column.getIsSorted()
+                        return (
+                          <th
+                            key={header.id}
+                            scope="col"
+                            aria-sort={
+                              dir === "asc"
+                                ? "ascending"
+                                : dir === "desc"
+                                  ? "descending"
+                                  : sortable
+                                    ? "none"
+                                    : undefined
+                            }
+                            className="h-12 px-4 font-medium"
+                          >
+                            {header.isPlaceholder ? null : sortable ? (
+                              <button
+                                type="button"
+                                onClick={header.column.getToggleSortingHandler()}
+                                className="inline-flex items-center gap-1 rounded-md outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                              >
+                                <table.FlexRender header={header} />
+                                {dir === "asc" ? (
+                                  <ArrowUp aria-hidden className="size-3.5" />
+                                ) : dir === "desc" ? (
+                                  <ArrowDown aria-hidden className="size-3.5" />
+                                ) : (
+                                  <ArrowUpDown
+                                    aria-hidden
+                                    className="size-3.5 opacity-50"
+                                  />
+                                )}
+                              </button>
+                            ) : (
                               <table.FlexRender header={header} />
-                              {dir === "asc" ? (
-                                <ArrowUp aria-hidden className="size-3.5" />
-                              ) : dir === "desc" ? (
-                                <ArrowDown aria-hidden className="size-3.5" />
-                              ) : (
-                                <ArrowUpDown
-                                  aria-hidden
-                                  className="size-3.5 opacity-50"
-                                />
-                              )}
-                            </button>
-                          ) : (
-                            <table.FlexRender header={header} />
-                          )}
-                        </th>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </thead>
-              <tbody className="divide-y">
-                {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-muted/40">
-                    {row.getAllCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-3 align-middle">
-                        <table.FlexRender cell={cell} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            )}
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody className="divide-y">
+                  {table.getRowModel().rows.map((row) => (
+                    <tr key={row.id} className="hover:bg-muted/40">
+                      {row.getAllCells().map((cell) => (
+                        <td key={cell.id} className="px-4 py-3 align-middle">
+                          <table.FlexRender cell={cell} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul aria-label={label} className="flex flex-col gap-3 sm:hidden">
+              {rows.map((row) => (
+                <li key={row.id}>{renderCard(row as T)}</li>
+              ))}
+            </ul>
           </div>
-          <ul aria-label={label} className="flex flex-col gap-3 sm:hidden">
-            {rows.map((row) => (
-              <li key={row.id}>{renderCard(row as T)}</li>
-            ))}
-          </ul>
-        </div>
+        </NowProvider>
       )}
 
-      <DataTablePagination
-        page={pagination.pageIndex + 1}
-        pageSize={pagination.pageSize}
-        total={total}
-        onPageChange={(next) =>
-          setPagination((p) => ({ ...p, pageIndex: next - 1 }))
-        }
-      />
+      {query.isPending || query.isError ? null : (
+        <DataTablePagination
+          page={pagination.pageIndex + 1}
+          pageSize={pagination.pageSize}
+          total={total}
+          disabled={query.isPlaceholderData}
+          onPageChange={(next) =>
+            setPagination((p) => ({ ...p, pageIndex: next - 1 }))
+          }
+        />
+      )}
     </div>
   )
 }

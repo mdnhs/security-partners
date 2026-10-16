@@ -15,11 +15,14 @@ export function DataTablePagination({
   pageSize,
   total,
   onPageChange,
+  disabled = false,
 }: {
   page: number
   pageSize: number
   total: number
   onPageChange: (page: number) => void
+  /** While the requested page is still loading (no double steps). */
+  disabled?: boolean
 }) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const page = Math.min(requested, pageCount)
@@ -41,7 +44,7 @@ export function DataTablePagination({
           variant="outline"
           className={PAGE_BUTTON}
           aria-label="Previous page"
-          disabled={page <= 1}
+          disabled={disabled || page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
           <ChevronLeft aria-hidden />
@@ -51,7 +54,7 @@ export function DataTablePagination({
           variant="outline"
           className={PAGE_BUTTON}
           aria-label="Next page"
-          disabled={page >= pageCount}
+          disabled={disabled || page >= pageCount}
           onClick={() => onPageChange(page + 1)}
         >
           <ChevronRight aria-hidden />

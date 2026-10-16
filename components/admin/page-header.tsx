@@ -26,15 +26,26 @@ export function PageHeader({
   actions,
   breadcrumbs,
   titleTestId,
+  stacked = false,
 }: {
   title: ReactNode
   description?: ReactNode
   actions?: ReactNode
   breadcrumbs?: ReactNode
   titleTestId?: string
+  /**
+   * Actions in one row under the title, never beside it: for a header on a
+   * section tab's card, too narrow for title and actions side by side.
+   */
+  stacked?: boolean
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <header
+      className={cn(
+        "mb-6 flex flex-col gap-4",
+        !stacked && "lg:flex-row lg:items-end lg:justify-between"
+      )}
+    >
       <div className="flex min-w-0 flex-col gap-2">
         {breadcrumbs}
         <h1 className="text-title text-balance" data-testid={titleTestId}>

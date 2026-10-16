@@ -18,7 +18,8 @@ import {
   type GroupCompanyItem,
   type TeamItem,
 } from "@/lib/schemas/api/collections"
-import { formatDateTime } from "@/lib/format"
+
+import { RelativeTime } from "@/components/admin/kit/relative-time"
 
 import { MediaThumb } from "./media-thumb"
 
@@ -42,7 +43,10 @@ export type CollectionConfig = {
   blank: () => unknown
   /** Record → form value (drops id/sortOrder/updatedAt/articleCount). */
   toForm: (item: AnyItem) => unknown
+  /** Empty-list title. */
   empty: string
+  /** Where records appear once added (shown under the empty title). */
+  emptyDescription: string
 }
 
 const team = columnsFor<TeamItem & Record<string, unknown>>()
@@ -51,7 +55,9 @@ const groups = columnsFor<GroupCompanyItem & Record<string, unknown>>()
 const categories = columnsFor<CategoryItem & Record<string, unknown>>()
 
 const updated = (value: string) => (
-  <span className="text-muted-foreground">{formatDateTime(value)}</span>
+  <span className="text-muted-foreground">
+    <RelativeTime iso={value} />
+  </span>
 )
 const pick = (item: AnyItem, keys: string[]) =>
   Object.fromEntries(keys.map((k) => [k, item[k]]))
@@ -107,7 +113,9 @@ export const COLLECTION_CONFIGS: Record<CollectionName, CollectionConfig> = {
     itemLabel: (item) => String(item.name),
     blank: () => emptyValue(collectionSchemas.team),
     toForm: (item) => pick(item, ["name", "role", "bio", "email", "photo"]),
-    empty: "No team members yet.",
+    empty: "No team members yet",
+    emptyDescription:
+      "People added here appear on the Team page and the home page.",
   },
   clients: {
     title: "Clients",
@@ -152,7 +160,8 @@ export const COLLECTION_CONFIGS: Record<CollectionName, CollectionConfig> = {
     itemLabel: (item) => String(item.name),
     blank: () => emptyValue(collectionSchemas.clients),
     toForm: (item) => pick(item, ["name", "logo", "url"]),
-    empty: "No clients yet.",
+    empty: "No clients yet",
+    emptyDescription: "Logos added here appear in the clients strip.",
   },
   "group-companies": {
     title: "Group companies",
@@ -202,7 +211,9 @@ export const COLLECTION_CONFIGS: Record<CollectionName, CollectionConfig> = {
     itemLabel: (item) => String(item.name),
     blank: () => emptyValue(collectionSchemas["group-companies"]),
     toForm: (item) => pick(item, ["name", "phone", "site", "logo"]),
-    empty: "No group companies yet.",
+    empty: "No group companies yet",
+    emptyDescription:
+      "Companies added here appear in the footer under “Other services in the group”.",
   },
   categories: {
     title: "Categories",
@@ -255,6 +266,7 @@ export const COLLECTION_CONFIGS: Record<CollectionName, CollectionConfig> = {
     itemLabel: (item) => String(item.name),
     blank: () => emptyValue(collectionSchemas.categories),
     toForm: (item) => pick(item, ["slug", "name", "showInFilter"]),
-    empty: "No categories yet.",
+    empty: "No categories yet",
+    emptyDescription: "Categories group articles on the blog.",
   },
 }

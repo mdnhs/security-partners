@@ -19,7 +19,7 @@ export function EmptyState({
   role,
 }: {
   title: string
-  description: ReactNode
+  description?: ReactNode
   action?: ReactNode
   icon?: LucideIcon
   /** "alert" for a failed load, "status" for a quiet result (e.g. no search hits). */
@@ -34,7 +34,9 @@ export function EmptyState({
           </EmptyMedia>
         ) : null}
         <EmptyTitle className="text-base font-semibold">{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
+        {description ? (
+          <EmptyDescription>{description}</EmptyDescription>
+        ) : null}
       </EmptyHeader>
       {action ? <EmptyContent>{action}</EmptyContent> : null}
     </Empty>

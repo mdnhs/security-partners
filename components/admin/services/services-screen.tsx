@@ -14,6 +14,7 @@ import {
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
 import { ContentStatusPills } from "@/components/admin/kit/content-status"
+import { RelativeTime } from "@/components/admin/kit/relative-time"
 import {
   LINK_PRIMARY,
   PageHeader,
@@ -22,7 +23,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { api, unwrap } from "@/lib/api-client"
-import { formatDateTime } from "@/lib/format"
 import type { ServiceListItem } from "@/lib/schemas/api/services"
 
 type Row = ServiceListItem & Record<string, unknown>
@@ -65,7 +65,7 @@ const columns = ch.columns([
     header: "Updated",
     cell: (info) => (
       <span className="text-muted-foreground">
-        {formatDateTime(info.getValue())}
+        <RelativeTime iso={info.getValue()} />
       </span>
     ),
   }),
@@ -172,7 +172,8 @@ export function ServicesScreen() {
               />
             </Link>
           )}
-          empty="No services yet."
+          empty="No services yet"
+          emptyDescription="Each service added here gets a card on /services and its own page."
           emptyAction={
             canCreate ? (
               <Link href="/admin/services/new" className={LINK_PRIMARY}>

@@ -3,11 +3,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { FileText } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
 
 import { ContentStatusPills } from "@/components/admin/kit/content-status"
 import { EmptyState } from "@/components/admin/kit/empty-state"
-import { relativeTime } from "@/components/admin/kit/format"
+import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
@@ -19,18 +18,19 @@ const stateOf = (page: PageListItem) => ({
   dirty: page.dirty,
 })
 
+/** Relative to the last fetch, so it moves on with every refetch. */
 function Updated({ page, now }: { page: PageListItem; now: number }) {
   return (
-    <time dateTime={page.updatedAt} className="whitespace-nowrap">
-      {relativeTime(page.updatedAt, now)}
-      {page.updatedBy ? ` · ${page.updatedBy.name}` : ""}
-    </time>
+    <RelativeTime
+      iso={page.updatedAt}
+      now={now}
+      suffix={page.updatedBy ? ` · ${page.updatedBy.name}` : undefined}
+    />
   )
 }
 
 /** The eight fixed pages (JW pages list): card table ≥ 640 px, cards below. */
 export function PagesList() {
-  const [now] = useState(() => Date.now())
   const pages = useQuery({
     queryKey: ["pages"],
     queryFn: () => unwrap(api.pages.$get()),
@@ -60,6 +60,7 @@ export function PagesList() {
       />
     )
   const items = pages.data.items
+  const now = pages.dataUpdatedAt
   if (items.length === 0)
     return (
       <EmptyState
@@ -121,11 +122,11 @@ export function PagesList() {
       </div>
       <ul aria-label="Pages" className="flex flex-col gap-3 sm:hidden">
         {items.map((page) => (
-          <li key={page.key} className="rounded-card bg-card p-4">
+          <li key={page.key} className="rounded-card relative bg-card p-4">
             <div className="flex flex-col gap-2 text-sm">
               <Link
                 href={`/admin/pages/${page.key}`}
-                className="font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="after:rounded-card font-semibold outline-none after:absolute after:inset-0 focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
               >
                 {page.label}
               </Link>

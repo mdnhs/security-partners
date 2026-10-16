@@ -177,6 +177,37 @@ describe("collection screen + data table (master 4.6)", () => {
     expect(cards[0]).toHaveClass("rounded-card", "border")
   })
 
+  it("stacks the header actions in one row under the title on a tab card", async () => {
+    renderScreen(["editor"], { inTabs: true })
+    await screen.findByRole("table", { name: "Categories" })
+    const header = screen
+      .getByRole("heading", { name: "Categories", level: 1 })
+      .closest("header")!
+    expect(header).not.toHaveClass("lg:flex-row")
+    const actions = screen.getByRole("button", {
+      name: "Add category",
+    }).parentElement!
+    expect(actions).toHaveClass("flex-wrap", "gap-3")
+    expect(
+      within(actions).getByRole("button", { name: "Change order" })
+    ).toBeInTheDocument()
+  })
+
+  it("hides the pager while loading and when the list fails", async () => {
+    let fail = true
+    route((url, method) =>
+      method === "GET" && url.pathname === "/api/v1/admin/categories" && fail
+        ? json(403, { error: { code: "FORBIDDEN", message: "Not allowed" } })
+        : undefined
+    )
+    renderScreen()
+    expect(screen.queryByRole("navigation", { name: "Pagination" })).toBeNull()
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("The categories didn't load")
+    expect(screen.queryByRole("navigation", { name: "Pagination" })).toBeNull()
+    fail = false
+  })
+
   it("keeps the borderless white card table on the grey panel", async () => {
     renderScreen()
     const table = await screen.findByRole("table", { name: "Categories" })
@@ -275,7 +306,12 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     empty()
     const user = userEvent.setup()
     renderScreen()
-    expect(await screen.findByText("No categories yet.")).toBeInTheDocument()
+    const title = await screen.findByText("No categories yet")
+    // The title says it once; the description adds a hint, not the same words.
+    expect(screen.getAllByText(/No categories yet/)).toHaveLength(1)
+    expect(title.parentElement).toHaveTextContent(
+      "No categories yetCategories group articles on the blog."
+    )
     const adds = screen.getAllByRole("button", { name: "Add category" })
     expect(adds).toHaveLength(2)
     await user.click(adds[1])
@@ -287,7 +323,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
   it("shows only the empty text to viewers", async () => {
     empty()
     renderScreen(["viewer"])
-    expect(await screen.findByText("No categories yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No categories yet")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Add category" })).toBeNull()
   })
 

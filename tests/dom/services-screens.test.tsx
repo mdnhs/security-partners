@@ -101,6 +101,11 @@ describe("services screens (master 4.6)", () => {
     const link = within(table).getByRole("link", { name: dto.title })
     expect(link).toHaveAttribute("href", `/admin/services/${ID}`)
     expect(within(table).getByText(`/services/${dto.slug}`)).toBeInTheDocument()
+    // Relative time on one line, the exact time on hover (same as Pages).
+    const updated = table.querySelector(`time[datetime="${dto.updatedAt}"]`)
+    expect(updated).toHaveAttribute("dateTime", dto.updatedAt)
+    expect(updated).toHaveAttribute("title")
+    expect(updated).toHaveClass("whitespace-nowrap")
     expect(screen.getByRole("link", { name: "New service" })).toHaveAttribute(
       "href",
       "/admin/services/new"
@@ -110,11 +115,12 @@ describe("services screens (master 4.6)", () => {
   it("empty list: New service action for editors, text only for viewers", async () => {
     listItems = []
     const { unmount } = renderWith(<ServicesScreen />)
-    expect(await screen.findByText("No services yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No services yet")).toBeInTheDocument()
+    expect(screen.getAllByText(/No services yet/)).toHaveLength(1)
     expect(screen.getAllByRole("link", { name: "New service" })).toHaveLength(2)
     unmount()
     renderWith(<ServicesScreen />, ["viewer"])
-    expect(await screen.findByText("No services yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No services yet")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "New service" })).toBeNull()
   })
 

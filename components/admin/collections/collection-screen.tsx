@@ -128,6 +128,7 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
   return (
     <>
       <PageHeader
+        stacked={onCard}
         title={config.title}
         description={config.description}
         actions={
@@ -208,6 +209,7 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
             )
           }
           empty={config.empty}
+          emptyDescription={config.emptyDescription}
           emptyAction={
             canCreate ? (
               <Button
