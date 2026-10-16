@@ -34,7 +34,6 @@ describe("ThemePreference", () => {
 describe("panel error boundary", () => {
   it("says what happened, shows the digest and retries", async () => {
     const retry = vi.fn()
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined)
     const user = userEvent.setup()
     render(
       <PanelError
@@ -50,7 +49,6 @@ describe("panel error boundary", () => {
     expect(alert).not.toHaveTextContent("boom")
     await user.click(within(alert).getByRole("button", { name: "Try again" }))
     expect(retry).toHaveBeenCalled()
-    spy.mockRestore()
   })
 })
 

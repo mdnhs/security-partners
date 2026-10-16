@@ -14,11 +14,16 @@ export const PREVIEW_DEVICES = {
 } as const
 type Device = keyof typeof PREVIEW_DEVICES
 
+/** How long a load may take before the pane offers a new tab instead. */
+const LOAD_TIMEOUT_MS = 10_000
+
 /**
  * The public site in draft mode, scaled to the pane (JW page builder).
- * `refreshKey` is the saved draft version: each autosave reloads the frame
- * (same origin, so the reload keeps its scroll position). Only mount it
- * where it is wanted: the preview route turns draft mode on for the user.
+ * `refreshKey` is the saved draft version: each autosave sends the frame
+ * back to the record's preview URL (not merely a reload, so a link clicked
+ * inside the frame — "Exit preview", the nav — never leaves the pane
+ * showing something else). Only mount it where it is wanted: the preview
+ * route turns draft mode on for the user.
  */
 export function PreviewPane({
   src,
@@ -32,6 +37,7 @@ export function PreviewPane({
   const [device, setDevice] = useState<Device>("desktop")
   const [box, setBox] = useState({ width: 0, height: 0 })
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const shownKey = useRef(refreshKey)
@@ -55,11 +61,29 @@ export function PreviewPane({
   useEffect(() => {
     if (shownKey.current === refreshKey) return
     shownKey.current = refreshKey
-    const win = frame.current?.contentWindow
-    if (!win) return
+    const el = frame.current
+    if (!el) return
     setLoading(true)
-    win.location.reload()
-  }, [refreshKey])
+    setFailed(false)
+    // Reassigning src (even the same value) navigates the frame afresh.
+    el.src = src
+  }, [refreshKey, src])
+
+  // A frame that never fires load (blocked, offline, a hung route) would
+  // spin forever: after a while say so and point at the new tab.
+  useEffect(() => {
+    if (!loading) return
+    const timer = window.setTimeout(() => {
+      setLoading(false)
+      setFailed(true)
+    }, LOAD_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [loading])
+
+  const onLoad = () => {
+    setLoading(false)
+    setFailed(false)
+  }
 
   return (
     <section
@@ -85,6 +109,7 @@ export function PreviewPane({
             aria-label="Preview size"
             variant="outline"
             size="lg"
+            className="[&_[data-slot=toggle-group-item]]:pointer-coarse:h-11 [&_[data-slot=toggle-group-item]]:pointer-coarse:min-w-11"
           >
             <ToggleGroupItem value="desktop" aria-label="Desktop">
               <Monitor aria-hidden />
@@ -101,7 +126,7 @@ export function PreviewPane({
             target="_blank"
             rel="noreferrer"
             aria-label="Open the preview in a new tab"
-            className="flex size-9 items-center justify-center rounded-lg border border-input text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex size-9 items-center justify-center rounded-lg border border-input text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:size-11"
           >
             <ExternalLink aria-hidden className="size-4" />
           </a>
@@ -113,11 +138,34 @@ export function PreviewPane({
         ref={boxRef}
         className="relative h-[calc(var(--main-h,80svh)-2*var(--main-pad,0px)-var(--section-tabs-top,0px)-6.5rem)] min-h-112 overflow-hidden rounded-xl bg-muted"
       >
+        {failed ? (
+          <p
+            role="status"
+            aria-label="Preview didn't load"
+            className="absolute inset-x-4 top-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-sm shadow-xs"
+          >
+            <span>
+              <span className="font-semibold">Preview didn&apos;t load.</span>{" "}
+              <span className="text-muted-foreground">
+                It will try again after the next save.
+              </span>
+            </span>
+            <a
+              href={src}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Open it in a new tab
+            </a>
+          </p>
+        ) : null}
         <iframe
           ref={frame}
           title="Page preview"
           src={src}
-          onLoad={() => setLoading(false)}
+          referrerPolicy="same-origin"
+          onLoad={onLoad}
           className={cn(
             "absolute top-0 border-0 bg-white transition-opacity",
             box.width === 0 && "opacity-0",

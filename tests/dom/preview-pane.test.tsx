@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -23,6 +24,11 @@ import { settingsFixture } from "@/server/db/seed/fixtures/settings"
 
 const SRC = "/api/v1/admin/preview?entity=page&id=home"
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
+
 describe("PreviewPane (JW live preview)", () => {
   it("frames the draft preview with a title and a new-tab link", () => {
     render(<PreviewPane src={SRC} refreshKey={1} />)
@@ -30,11 +36,50 @@ describe("PreviewPane (JW live preview)", () => {
     const frame = within(region).getByTitle("Page preview")
     expect(frame.tagName).toBe("IFRAME")
     expect(frame).toHaveAttribute("src", SRC)
+    expect(frame).toHaveAttribute("referrerpolicy", "same-origin")
+    const link = within(region).getByRole("link", {
+      name: "Open the preview in a new tab",
+    })
+    expect(link).toHaveAttribute("href", SRC)
+    // 44 px targets on touch (WCAG 2.5.8 / JW): device toggles and the link.
+    expect(link).toHaveClass("pointer-coarse:size-11")
+    const group = within(region).getByRole("group", { name: "Preview size" })
+    expect(group.className).toContain(
+      "[&_[data-slot=toggle-group-item]]:pointer-coarse:h-11"
+    )
+    expect(group.className).toContain(
+      "[&_[data-slot=toggle-group-item]]:pointer-coarse:min-w-11"
+    )
+  })
+
+  it("returns the frame to the record's preview URL on refresh, wherever it navigated", () => {
+    const { rerender } = render(<PreviewPane src={SRC} refreshKey={1} />)
+    const frame = screen.getByTitle("Page preview") as HTMLIFrameElement
+    fireEvent.load(frame)
+    // The user clicked a link inside the frame (e.g. "Exit preview").
+    frame.src = "/terms"
+    expect(frame.getAttribute("src")).toBe("/terms")
+    rerender(<PreviewPane src={SRC} refreshKey={2} />)
+    expect(frame.getAttribute("src")).toBe(SRC)
+  })
+
+  it("gives up after 10 s and offers the new tab instead", () => {
+    vi.useFakeTimers()
+    render(<PreviewPane src={SRC} refreshKey={1} />)
+    expect(screen.getByLabelText("Refreshing")).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    expect(screen.queryByLabelText("Refreshing")).toBeNull()
+    const notice = screen.getByRole("status", { name: "Preview didn't load" })
     expect(
-      within(region).getByRole("link", {
-        name: "Open the preview in a new tab",
-      })
+      within(notice).getByRole("link", { name: "Open it in a new tab" })
     ).toHaveAttribute("href", SRC)
+    // A late load clears the notice.
+    fireEvent.load(screen.getByTitle("Page preview"))
+    expect(
+      screen.queryByRole("status", { name: "Preview didn't load" })
+    ).toBeNull()
   })
 
   it("switches the frame width by device", async () => {
@@ -52,15 +97,18 @@ describe("PreviewPane (JW live preview)", () => {
     const { rerender } = render(<PreviewPane src={SRC} refreshKey={1} />)
     const frame = screen.getByTitle("Page preview") as HTMLIFrameElement
     fireEvent.load(frame)
-    const reload = vi.fn()
-    Object.defineProperty(frame, "contentWindow", {
+    const setSrc = vi.fn()
+    Object.defineProperty(frame, "src", {
       configurable: true,
-      value: { location: { reload } },
+      get: () => SRC,
+      set: setSrc,
     })
     rerender(<PreviewPane src={SRC} refreshKey={1} />)
-    expect(reload).not.toHaveBeenCalled()
+    expect(setSrc).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText("Refreshing")).toBeNull()
     rerender(<PreviewPane src={SRC} refreshKey={2} />)
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(setSrc).toHaveBeenCalledTimes(1)
+    expect(setSrc).toHaveBeenCalledWith(SRC)
     expect(screen.getByLabelText("Refreshing")).toBeInTheDocument()
   })
 })
@@ -175,6 +223,33 @@ describe("live preview toggle in the editor", () => {
       expect(screen.queryByRole("region", { name: "Live preview" })).toBeNull()
     )
     expect(localStorage.getItem("sp-admin-live-preview:user-7")).toBe("off")
+  })
+
+  it("keeps the choice for the session when storage is unavailable", async () => {
+    const user = userEvent.setup()
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError")
+      })
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError")
+      })
+    try {
+      renderEditor(1600)
+      await screen.findByRole("heading", { level: 1, name: "Contact details" })
+      const toggle = screen.getByRole("switch", { name: "Live preview" })
+      await user.click(toggle)
+      expect(toggle).toHaveAttribute("aria-checked", "true")
+      expect(
+        await screen.findByRole("region", { name: "Live preview" })
+      ).toBeInTheDocument()
+    } finally {
+      setItem.mockRestore()
+      getItem.mockRestore()
+    }
   })
 
   it("starts on when the user turned it on before", async () => {

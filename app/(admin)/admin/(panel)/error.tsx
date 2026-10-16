@@ -1,7 +1,5 @@
 "use client"
 
-import { useEffect } from "react"
-
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 
@@ -13,9 +11,7 @@ export default function PanelError({
   error: Error & { digest?: string }
   retry: () => void
 }) {
-  useEffect(() => {
-    console.error(error)
-  }, [error])
+  // Next already reports the error (digest); nothing is logged twice here.
   return (
     <section
       role="alert"

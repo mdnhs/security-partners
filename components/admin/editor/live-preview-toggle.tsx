@@ -11,18 +11,25 @@ export const livePreviewKey = (userId: string) =>
 // Our own writes do not fire "storage" in the same window: announce them.
 const CHANGE_EVENT = "sp-admin-live-preview"
 
+// The session's own memory of the choice: what localStorage would say, kept
+// when storage is unavailable (private mode, blocked, full) so the switch
+// still holds for this visit.
+const memory = new Map<string, boolean>()
+
 function read(key: string): boolean {
   try {
-    return localStorage.getItem(key) === "on"
+    const stored = localStorage.getItem(key)
+    if (stored !== null) return stored === "on"
   } catch {
-    return false
+    // Unreadable storage: fall through to the session memory.
   }
+  return memory.get(key) ?? false
 }
 
 /**
  * The editor's live preview choice (ruling D9): off until turned on,
- * remembered per user in localStorage. Storage may be unavailable
- * (private mode, blocked): then it is simply off each visit.
+ * remembered per user in localStorage (for the session only where
+ * storage is unavailable).
  */
 export function useLivePreview(
   userId: string
@@ -43,10 +50,11 @@ export function useLivePreview(
   )
   const setOn = useCallback(
     (next: boolean) => {
+      memory.set(key, next)
       try {
         localStorage.setItem(key, next ? "on" : "off")
       } catch {
-        // Nothing to remember it in; the pane follows the switch while it exists.
+        // Nothing durable to remember it in; the session memory holds it.
       }
       window.dispatchEvent(new Event(CHANGE_EVENT))
     },
