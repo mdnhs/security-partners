@@ -114,10 +114,18 @@ const TEXT_PAIRS: [text: string, surface: string][] = [
   ["success", "success-soft"],
   ["warning", "warning-soft"],
   ["danger", "danger-soft"],
+  ["success", "card"],
+  ["danger", "card"],
   ["hero-foreground", "hero-to"],
   ["hero-delta", "hero-to"],
   ["hero-chip-foreground", "hero-chip"],
   ["promo-foreground", "promo-to"],
+]
+
+// Chart marks the reader must perceive (WCAG 1.4.11): bars and swatches.
+const NON_TEXT_PAIRS: [mark: string, surface: string][] = [
+  ["chart-2", "card"],
+  ["hatch", "card"],
 ]
 
 describe.each([
@@ -130,6 +138,19 @@ describe.each([
 
   it.each(TEXT_PAIRS)("--%s on --%s meets 4.5:1", (text, surface) => {
     expect(contrast(tokens[text], tokens[surface])).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each(NON_TEXT_PAIRS)("--%s on --%s meets 3:1", (mark, surface) => {
+    expect(contrast(tokens[mark], tokens[surface])).toBeGreaterThanOrEqual(3)
+  })
+
+  it("--hatch differs in hue from --chart-2 (comparison vs current)", () => {
+    const greenDominant = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+      return g > r && g > b
+    }
+    expect(greenDominant(tokens["chart-2"])).toBe(true)
+    expect(greenDominant(tokens.hatch)).toBe(false)
   })
 
   // WCAG 1.4.11: control edges and the focus ring on every surface.

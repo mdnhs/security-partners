@@ -33,6 +33,14 @@ describe("kit format helpers", () => {
     expect(relativeTime("2026-10-15T12:00:00Z", NOW)).toBe("yesterday")
   })
 
+  it("says when a future time is, and never throws on a bad date", () => {
+    expect(relativeTime("2026-10-16T12:00:20Z", NOW)).toBe("just now")
+    expect(relativeTime("2026-10-16T15:00:00Z", NOW)).toBe("in 3 hours")
+    expect(relativeTime("2026-10-17T12:00:00Z", NOW)).toBe("tomorrow")
+    expect(relativeTime("not a date", NOW)).toBe("at an unknown time")
+    expect(relativeTime("", NOW)).toBe("at an unknown time")
+  })
+
   it("finds the busiest bar (first on ties, -1 when empty)", () => {
     expect(peakIndex([1, 4, 4, 2])).toBe(1)
     expect(peakIndex([])).toBe(-1)
@@ -53,6 +61,9 @@ describe("kit format helpers", () => {
 
   it("describes a versioned record as JW status pills", () => {
     expect(contentStatus({ published: null, dirty: true })).toEqual([
+      { label: "Draft", tone: "neutral" },
+    ])
+    expect(contentStatus({ published: undefined, dirty: false })).toEqual([
       { label: "Draft", tone: "neutral" },
     ])
     expect(contentStatus({ published: {}, dirty: false })).toEqual([

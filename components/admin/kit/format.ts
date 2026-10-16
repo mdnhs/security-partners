@@ -37,7 +37,9 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 
 /** "5 minutes ago"; `now` is passed in so server and browser agree. */
 export function relativeTime(iso: string, now: number): string {
-  const seconds = Math.round((Date.parse(iso) - now) / 1000)
+  const at = Date.parse(iso)
+  if (Number.isNaN(at) || !Number.isFinite(now)) return "at an unknown time"
+  const seconds = Math.round((at - now) / 1000)
   if (Math.abs(seconds) < 45) return "just now"
   for (const [unit, size] of UNITS) {
     if (Math.abs(seconds) >= size) {

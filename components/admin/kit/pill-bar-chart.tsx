@@ -98,6 +98,8 @@ export function PillBarChart({
             <Bar
               dataKey="previous"
               fill={`url(#${hatchId})`}
+              stroke="var(--color-previous)"
+              strokeWidth={1.5}
               radius={999}
               isAnimationActive={!reduced}
             />
@@ -126,8 +128,8 @@ export function PillBarChart({
           {data.map((datum) => (
             <tr key={datum.key}>
               <th scope="row">{datum.label}</th>
-              <td>{datum.current}</td>
-              {compare ? <td>{datum.previous ?? 0}</td> : null}
+              <td>{formatNumber(datum.current)}</td>
+              {compare ? <td>{formatNumber(datum.previous ?? 0)}</td> : null}
             </tr>
           ))}
         </tbody>
@@ -139,7 +141,10 @@ export function PillBarChart({
         </span>
         {compare ? (
           <span className="flex items-center gap-2">
-            <span aria-hidden className="bg-hatch size-3 rounded-full" />
+            <span
+              aria-hidden
+              className="bg-hatch size-3 rounded-full border-[1.5px] border-(--hatch)"
+            />
             {previousLabel}
           </span>
         ) : null}

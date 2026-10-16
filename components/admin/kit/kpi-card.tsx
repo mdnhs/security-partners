@@ -14,6 +14,7 @@ export function KpiCard({
   delta,
   href,
   variant = "default",
+  headingLevel = 3,
 }: {
   label: string
   value: string
@@ -21,8 +22,11 @@ export function KpiCard({
   delta?: Delta | null
   href?: string
   variant?: "hero" | "default"
+  /** 3 under a page h1 + section h2 (default); 2 when the row sits directly under the h1. */
+  headingLevel?: 2 | 3
 }) {
   const hero = variant === "hero"
+  const Heading = headingLevel === 2 ? "h2" : "h3"
   return (
     <article
       data-variant={variant}
@@ -39,7 +43,9 @@ export function KpiCard({
         />
       ) : null}
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-[15px] leading-snug font-semibold">{label}</h3>
+        <Heading className="text-[15px] leading-snug font-semibold">
+          {label}
+        </Heading>
         {href ? (
           <Link
             href={href}

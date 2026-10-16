@@ -82,8 +82,9 @@ html[data-admin] {
   --danger-soft: #fee2e2;
   /* Loading placeholders, visible on panels and cards. */
   --skeleton: #dde3ec;
-  /* Comparison-period stripes in charts and legends. */
-  --hatch: #a7d98a;
+  /* Comparison-period stripes in charts and legends: slate, so the hue
+     differs from the green current series; 3:1 on cards (WCAG 1.4.11). */
+  --hatch: #6b7a95;
   /* Hero KPI card and the auth brand panel (navy, like the public hero). */
   --hero-from: #0d1b36;
   --hero-to: #1b3566;
@@ -137,7 +138,7 @@ html[data-admin].dark {
   --danger: #f87171;
   --danger-soft: #3a1414;
   --skeleton: #2a3550;
-  --hatch: #3f6b25;
+  --hatch: #8fa0bf;
 }
 
 @utility bg-hatch {

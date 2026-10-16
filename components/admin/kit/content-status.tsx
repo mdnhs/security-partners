@@ -6,7 +6,8 @@ export type ContentState = { published: unknown; dirty: boolean }
 export function contentStatus(
   record: ContentState
 ): { label: string; tone: StatusTone }[] {
-  if (record.published === null) return [{ label: "Draft", tone: "neutral" }]
+  // null or undefined: never published.
+  if (record.published == null) return [{ label: "Draft", tone: "neutral" }]
   const pills: { label: string; tone: StatusTone }[] = [
     { label: "Published", tone: "success" },
   ]

@@ -11,10 +11,12 @@ vi.mock("next/link", () => ({
 }))
 
 import { ActivityFeed } from "@/components/admin/kit/activity-feed"
+import { ContentStatusPills } from "@/components/admin/kit/content-status"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { KpiCard } from "@/components/admin/kit/kpi-card"
 import { PillBarChart } from "@/components/admin/kit/pill-bar-chart"
+import { CardSkeleton, KpiRowSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import { PageHeader } from "@/components/admin/page-header"
 
@@ -172,5 +174,65 @@ describe("admin kit", () => {
       />
     )
     expect(screen.getByText("No activity yet")).toBeInTheDocument()
+  })
+
+  it("KpiCard heading is h3 by default and h2 on request", () => {
+    const { rerender } = render(
+      <KpiCard label="Pages" value="12" caption="published" />
+    )
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Pages" })
+    ).toBeInTheDocument()
+    rerender(
+      <KpiCard label="Pages" value="12" caption="published" headingLevel={2} />
+    )
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Pages" })
+    ).toBeInTheDocument()
+  })
+
+  it("PillBarChart hides the SVG container and formats table numbers", () => {
+    const { container } = render(
+      <PillBarChart
+        title="Views"
+        currentLabel="This week"
+        previousLabel="Last week"
+        data={[{ key: "mon", label: "Mon", current: 12345, previous: 2000 }]}
+      />
+    )
+    expect(container.querySelector('[data-slot="chart"]')).toHaveAttribute(
+      "aria-hidden",
+      "true"
+    )
+    const table = screen.getByRole("table", { name: "Views" })
+    expect(
+      within(table)
+        .getAllByRole("cell")
+        .map((c) => c.textContent)
+    ).toEqual(["12,345", "2,000"])
+  })
+
+  it("ContentStatusPills shows Published plus Unpublished changes", () => {
+    render(<ContentStatusPills record={{ published: {}, dirty: true }} />)
+    expect(screen.getByText("Published")).toHaveAttribute(
+      "data-tone",
+      "success"
+    )
+    expect(screen.getByText("Unpublished changes")).toHaveAttribute(
+      "data-tone",
+      "warning"
+    )
+  })
+
+  it("skeletons are hidden from assistive tech", () => {
+    const { container } = render(
+      <>
+        <KpiRowSkeleton />
+        <CardSkeleton />
+      </>
+    )
+    const roots = [...container.children]
+    expect(roots).toHaveLength(2)
+    roots.forEach((node) => expect(node).toHaveAttribute("aria-hidden", "true"))
   })
 })
