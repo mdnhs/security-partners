@@ -48,11 +48,39 @@ export function toFormValues<T>(schema: z.ZodType, value: T): T {
   return copy
 }
 
-/** Copy of form state with null optional (non-nullable) keys removed. */
+/**
+ * Form state without null optional (non-nullable) keys. Runs per keystroke
+ * (emit + validation), so instead of a deep clone it copies the objects and
+ * arrays the schema describes — exactly the containers react-hook-form
+ * mutates in place — and shares the leaves (strings, rich-text nodes, which
+ * the widgets only ever replace).
+ */
 export function fromFormValues<T>(schema: z.ZodType, value: T): T {
-  const copy = structuredClone(value)
-  walk(schema, copy, (object, key, { optional, nullable }) => {
-    if (optional && !nullable && object[key] === null) delete object[key]
-  })
-  return copy
+  return strip(schema, value) as T
+}
+
+function strip(schema: z.ZodType, value: unknown): unknown {
+  const { inner } = unwrapSchema(schema)
+  const type = typeOf(inner)
+  if (type === "object" && isRecord(value)) {
+    const shape = (inner as z.ZodObject).shape as Record<string, z.ZodType>
+    const out: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(value)) {
+      const field = shape[key]
+      if (!field) {
+        out[key] = value[key]
+        continue
+      }
+      const { optional, nullable } = unwrapSchema(field)
+      if (child === undefined) continue
+      if (child === null && optional && !nullable) continue
+      out[key] = strip(field, child)
+    }
+    return out
+  }
+  if (type === "array" && Array.isArray(value)) {
+    const element = (inner as z.ZodArray<z.ZodType>).element
+    return value.map((item) => strip(element, item))
+  }
+  return value
 }

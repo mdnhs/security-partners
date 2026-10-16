@@ -24,7 +24,13 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from "lucide-react"
 import { useId, useRef, useState } from "react"
-import { useController, useFormContext, useWatch } from "react-hook-form"
+import {
+  get,
+  useController,
+  useFormContext,
+  useFormState,
+  useWatch,
+} from "react-hook-form"
 import type { z } from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -34,11 +40,46 @@ import { emptyValue } from "../empty-value"
 import { toFormValues } from "../optional-values"
 import { Field } from "../field"
 import { arrayBounds } from "../resolve-widget"
-import { errorText } from "./field-shell"
+import { deepErrorText, describedBy, errorText } from "./field-shell"
+
+/**
+ * Errors a group shows itself: one on the group path (e.g. a server message
+ * for "hero") and ones on keys no child widget renders.
+ */
+function useGroupErrors(path: string, shape: Record<string, z.ZodType>) {
+  const { errors } = useFormState({ name: path, disabled: !path })
+  if (!path) return []
+  const own = get(errors, path) as unknown
+  if (!own || typeof own !== "object") return []
+  const messages: string[] = []
+  const self = errorText(own)
+  if (self) messages.push(self)
+  for (const [key, child] of Object.entries(own))
+    if (!["message", "type", "ref", "root", "types"].includes(key))
+      if (!Object.hasOwn(shape, key)) {
+        const text = deepErrorText(child)
+        if (text) messages.push(text)
+      }
+  return messages
+}
+
+function GroupErrors({ id, messages }: { id: string; messages: string[] }) {
+  if (!messages.length) return null
+  return (
+    <div id={id} role="alert" className="flex flex-col gap-1">
+      {messages.map((message) => (
+        <p key={message} className="text-sm text-destructive">
+          {message}
+        </p>
+      ))}
+    </div>
+  )
+}
 
 export function GroupWidget({ field, path }: WidgetProps) {
   const { idPrefix } = useSchemaForm()
   const shape = (field.schema as z.ZodObject).shape as Record<string, z.ZodType>
+  const groupErrors = useGroupErrors(path, shape)
   const children = Object.entries(shape).map(([key, child]) => (
     <Field
       key={key}
@@ -48,15 +89,24 @@ export function GroupWidget({ field, path }: WidgetProps) {
     />
   ))
   if (!path) return <div className="flex flex-col gap-6">{children}</div>
+  const id = fieldId(idPrefix, path)
+  const errorId = `${id}-error`
+  const errors = <GroupErrors id={errorId} messages={groupErrors} />
+  const errorRef = groupErrors.length ? errorId : undefined
   // A list item's object: the item card already titles it.
   if (/\.\d+$/.test(path))
-    return <div className="flex flex-col gap-4">{children}</div>
-  const id = fieldId(idPrefix, path)
+    return (
+      <div className="flex flex-col gap-4">
+        {errors}
+        {children}
+      </div>
+    )
   const section = field.meta.section ?? !path.includes(".")
   if (section)
     return (
       <section
         aria-labelledby={`${id}-title`}
+        aria-describedby={errorRef}
         className="flex flex-col gap-5 rounded-xl border bg-card p-4 shadow-xs sm:p-6"
       >
         <header className="flex flex-col gap-1">
@@ -67,15 +117,20 @@ export function GroupWidget({ field, path }: WidgetProps) {
             <p className="text-sm text-muted-foreground">{field.meta.help}</p>
           ) : null}
         </header>
+        {errors}
         {children}
       </section>
     )
   return (
-    <fieldset className="flex flex-col gap-4 rounded-lg border border-dashed p-4">
+    <fieldset
+      aria-describedby={errorRef}
+      className="flex flex-col gap-4 rounded-lg border border-dashed p-4"
+    >
       <legend className="px-1 text-sm font-semibold">{field.label}</legend>
       {field.meta.help ? (
         <p className="-mt-2 text-sm text-muted-foreground">{field.meta.help}</p>
       ) : null}
+      {errors}
       {children}
     </fieldset>
   )
@@ -92,7 +147,7 @@ function fitKeys(keys: string[], length: number): string[] {
 
 export function ListWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()
-  const { trigger } = useFormContext()
+  const { trigger, getValues, getFieldState, clearErrors } = useFormContext()
   const { field: f, fieldState } = useController({ name: path })
   const items = Array.isArray(f.value) ? (f.value as unknown[]) : []
   // Stable React keys per item, moved together with the items.
@@ -107,37 +162,72 @@ export function ListWidget({ field, path }: WidgetProps) {
   const dndId = useId()
   const listRef = useRef<HTMLOListElement>(null)
 
-  /** Keyboard users keep their place: focus moves with the item. */
-  function focusLater(focusKey: string) {
-    requestAnimationFrame(() =>
-      listRef.current
-        ?.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)
-        ?.focus()
-    )
+  /**
+   * Keyboard users keep their place: focus the first of `targets` that is
+   * enabled after React re-renders (a moved item's Move button may now be
+   * disabled at the top/bottom of the list).
+   */
+  function focusLater(...targets: string[]) {
+    requestAnimationFrame(() => {
+      for (const target of targets) {
+        const element = target.startsWith("#")
+          ? document.getElementById(target.slice(1))
+          : listRef.current?.querySelector<HTMLElement>(
+              `[data-focus-key="${target}"]`
+            )
+        if (element && !(element as HTMLButtonElement).disabled) {
+          element.focus()
+          return
+        }
+      }
+    })
+  }
+  /**
+   * The array as it is now. useController only re-renders on changes to the
+   * array itself, so `items` from render can predate edits inside the items.
+   */
+  function current(): unknown[] {
+    const value = getValues(path) as unknown
+    return Array.isArray(value) ? value : []
   }
   function commit(nextItems: unknown[], nextKeys: string[]) {
+    // Re-check the list (min/max, moved items) but only show item errors
+    // the user had already been shown; a new or untouched item stays quiet.
+    const shown = new Set(
+      keys.filter((_, i) => getFieldState(`${path}.${i}`).invalid)
+    )
     setKeys(nextKeys)
     f.onChange(nextItems)
-    void trigger(path)
+    void trigger(path).then(() =>
+      nextKeys.forEach((key, i) => {
+        if (!shown.has(key)) clearErrors(`${path}.${i}`)
+      })
+    )
   }
   function add() {
     const key = newKey()
     commit(
-      [...items, toFormValues(element, emptyValue(element))],
+      [...current(), toFormValues(element, emptyValue(element))],
       [...keys, key]
     )
     focusLater(`${key}:first`)
   }
   function remove(index: number) {
+    const nextKeys = keys.filter((_, i) => i !== index)
     commit(
-      items.filter((_, i) => i !== index),
-      keys.filter((_, i) => i !== index)
+      current().filter((_, i) => i !== index),
+      nextKeys
     )
+    const neighbour = nextKeys[index] ?? nextKeys[index - 1]
+    focusLater(...(neighbour ? [`${neighbour}:handle`] : []), `#${id}-add`)
   }
   function move(from: number, to: number) {
-    if (to < 0 || to >= items.length) return
-    commit(arrayMove(items, from, to), arrayMove(keys, from, to))
-    focusLater(`${keys[from]}:${to < from ? "up" : "down"}`)
+    const now = current()
+    if (from < 0 || to < 0 || to >= now.length || from === to) return
+    commit(arrayMove(now, from, to), arrayMove(keys, from, to))
+    const [toward, away] = to < from ? ["up", "down"] : ["down", "up"]
+    const key = keys[from]
+    focusLater(`${key}:${toward}`, `${key}:${away}`, `${key}:handle`)
   }
 
   const sensors = useSensors(
@@ -163,11 +253,13 @@ export function ListWidget({ field, path }: WidgetProps) {
     move(keys.indexOf(String(active.id)), keys.indexOf(String(over.id)))
   }
   const error = errorText(fieldState.error)
+  const help = field.meta.help
 
   return (
     <div
       role="group"
       aria-labelledby={`${id}-label`}
+      aria-describedby={describedBy(id, { help, error })}
       className="flex flex-col gap-3"
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -178,8 +270,10 @@ export function ListWidget({ field, path }: WidgetProps) {
           {items.length} {items.length === 1 ? "item" : "items"}
         </span>
       </div>
-      {field.meta.help ? (
-        <p className="-mt-2 text-sm text-muted-foreground">{field.meta.help}</p>
+      {help ? (
+        <p id={`${id}-help`} className="-mt-2 text-sm text-muted-foreground">
+          {help}
+        </p>
       ) : null}
       <DndContext
         id={dndId}
@@ -217,12 +311,13 @@ export function ListWidget({ field, path }: WidgetProps) {
         </SortableContext>
       </DndContext>
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
+        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}
       <div>
         <Button
+          id={`${id}-add`}
           type="button"
           variant="outline"
           size="sm"
@@ -290,6 +385,7 @@ function ListItem({
         <button
           type="button"
           ref={setActivatorNodeRef}
+          data-focus-key={`${sortId}:handle`}
           {...attributes}
           {...listeners}
           aria-label={`Drag to reorder ${position}`}

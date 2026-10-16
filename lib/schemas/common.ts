@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { isSafeHref } from "../href"
+import { linkPlaceholderProblems } from "../link-rules"
 
 // Building blocks shared by settings, template and collection schemas.
 // Strings are never trimmed or normalised: seeded copy must render
@@ -29,7 +30,16 @@ export const href = z
     "Use /path, #anchor, https://…, tel:, mailto: or {placeholder}"
   )
 
-export const link = z.object({ label: text, href })
+/**
+ * Button/link copy and destination. {placeholders} must be Settings › Contact
+ * names, and a whole-value href must be a URL one (lib/link-rules.ts).
+ */
+export const link = z
+  .object({ label: text, href })
+  .superRefine((value, ctx) => {
+    for (const [key, message] of Object.entries(linkPlaceholderProblems(value)))
+      ctx.addIssue({ code: "custom", path: [key], message })
+  })
 
 /** Absolute http(s) URL only (never javascript:, data:, ftp:…). */
 export const httpUrl = z.url({ protocol: /^https?$/ })

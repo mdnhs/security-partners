@@ -1,4 +1,5 @@
 import { isSafeHref, WHOLE_PLACEHOLDER } from "@/lib/href"
+import { TEL_FIELDS } from "@/lib/link-rules"
 import type { ContactSettings } from "@/lib/schemas/settings/contact"
 
 export type Placeholders = Record<string, string | number>
@@ -86,8 +87,8 @@ export function telHref(phone: string): string {
 export function contactPlaceholders(contact: ContactSettings): Placeholders {
   return {
     ...contact,
-    phone24hHref: telHref(contact.phone24h),
-    officeHref: telHref(contact.office),
-    operationsMobileHref: telHref(contact.operationsMobile),
+    ...Object.fromEntries(
+      TEL_FIELDS.map((name) => [`${name}Href`, telHref(contact[name])])
+    ),
   }
 }

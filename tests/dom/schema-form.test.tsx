@@ -71,7 +71,9 @@ describe("SchemaForm (master 4.3)", () => {
       "Security Partners Ltd."
     )
     expect(
-      within(hero).getByRole("button", { name: "Change: Background image" })
+      within(hero).getByRole("button", {
+        name: "Change image: Background image",
+      })
     ).toBeInTheDocument()
     expect(
       within(hero).getByRole("group", { name: "Primary button" })

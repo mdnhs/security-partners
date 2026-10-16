@@ -200,7 +200,7 @@ export function NumberWidget({ field, path }: WidgetProps) {
 export function ToggleWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()
   const {
-    field: { value, onChange, onBlur },
+    field: { value, onChange, onBlur, ref },
     fieldState,
   } = useController({ name: path })
   const id = fieldId(idPrefix, path)
@@ -229,8 +229,10 @@ export function ToggleWidget({ field, path }: WidgetProps) {
       </div>
       <Switch
         id={id}
+        ref={ref}
         checked={!!value}
         disabled={disabled}
+        aria-invalid={!!error}
         aria-describedby={describedBy(id, { help, error })}
         onCheckedChange={(checked) => onChange(checked)}
         onBlur={onBlur}
@@ -242,7 +244,7 @@ export function ToggleWidget({ field, path }: WidgetProps) {
 export function SelectWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()
   const {
-    field: { value, onChange, onBlur },
+    field: { value, onChange, onBlur, ref },
     fieldState,
   } = useController({ name: path })
   const id = fieldId(idPrefix, path)
@@ -265,6 +267,7 @@ export function SelectWidget({ field, path }: WidgetProps) {
         disabled={disabled}
         invalid={!!error}
         describedBy={describedBy(id, { help, error })}
+        selectRef={ref}
         onChange={(value) => onChange(value === "" ? null : value)}
         onBlur={onBlur}
       >
@@ -290,6 +293,7 @@ export function NativeSelect({
   disabled,
   invalid,
   describedBy: ariaDescribedBy,
+  selectRef,
   children,
 }: {
   id: string
@@ -299,11 +303,14 @@ export function NativeSelect({
   disabled?: boolean
   invalid?: boolean
   describedBy?: string
+  /** react-hook-form field ref (focus on error). */
+  selectRef?: React.Ref<HTMLSelectElement>
   children: React.ReactNode
 }) {
   return (
     <select
       id={id}
+      ref={selectRef}
       value={value}
       disabled={disabled}
       aria-invalid={invalid || undefined}

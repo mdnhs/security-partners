@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { ImageIcon, Link2 } from "lucide-react"
 import { useState } from "react"
-import { useController } from "react-hook-form"
+import { get, useController, useFormState } from "react-hook-form"
 
 import { MediaPickerDialog } from "@/components/admin/media/picker-dialog"
 import { useMediaItem } from "@/components/admin/media/use-media-item"
@@ -28,7 +28,12 @@ import type { OptionCollection, OptionItem } from "@/lib/schemas/api/search"
 
 import { fieldId, useSchemaForm, type WidgetProps } from "../context"
 import { NativeSelect } from "./basic"
-import { describedBy, errorText, FieldShell } from "./field-shell"
+import {
+  deepErrorText,
+  describedBy,
+  errorText,
+  FieldShell,
+} from "./field-shell"
 
 function useOptions(collection: OptionCollection | undefined, enabled = true) {
   return useQuery({
@@ -53,42 +58,80 @@ const grouped = (items: OptionItem[]) =>
 /** Label + destination; "Pick" lists internal pages, services and articles. */
 export function LinkWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()
-  const label = useController({ name: `${path}.label` })
-  const href = useController({ name: `${path}.href` })
+  const {
+    field: {
+      name: labelName,
+      value: labelValue,
+      onChange: onLabelChange,
+      onBlur: onLabelBlur,
+      ref: labelRef,
+    },
+    fieldState: labelState,
+  } = useController({ name: `${path}.label` })
+  const {
+    field: {
+      name: hrefName,
+      value: hrefValue,
+      onChange: onHrefChange,
+      onBlur: onHrefBlur,
+      ref: hrefRef,
+    },
+    fieldState: hrefState,
+  } = useController({ name: `${path}.href` })
   const [open, setOpen] = useState(false)
   const options = useOptions("links", open)
   const id = fieldId(idPrefix, path)
-  const labelError = errorText(label.fieldState.error)
-  const hrefError = errorText(href.fieldState.error)
+  const labelError = errorText(labelState.error)
+  const hrefError = errorText(hrefState.error)
+  // An error on the link as a whole (e.g. a server message for "hero.cta").
+  const { errors } = useFormState({ name: path, exact: true })
+  const ownError = errorText(get(errors, path))
   return (
-    <fieldset className="flex flex-col gap-3 rounded-lg border p-3">
+    <fieldset
+      className="flex flex-col gap-3 rounded-lg border p-3"
+      aria-describedby={describedBy(id, {
+        help: field.meta.help,
+        error: ownError,
+      })}
+    >
       <legend className="px-1 text-sm font-semibold">{field.label}</legend>
       {field.meta.help ? (
-        <p className="-mt-1 text-sm text-muted-foreground">{field.meta.help}</p>
+        <p id={`${id}-help`} className="-mt-1 text-sm text-muted-foreground">
+          {field.meta.help}
+        </p>
+      ) : null}
+      {ownError ? (
+        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+          {ownError}
+        </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FieldShell id={`${id}-label`} label="Text" error={labelError}>
           <Input
             id={`${id}-label`}
-            value={(label.field.value as string) ?? ""}
+            name={labelName}
+            ref={labelRef}
+            value={(labelValue as string) ?? ""}
             disabled={disabled}
             aria-invalid={!!labelError}
             aria-describedby={describedBy(`${id}-label`, { error: labelError })}
-            onChange={(event) => label.field.onChange(event.target.value)}
-            onBlur={label.field.onBlur}
+            onChange={(event) => onLabelChange(event.target.value)}
+            onBlur={onLabelBlur}
           />
         </FieldShell>
         <FieldShell id={`${id}-href`} label="Link to" error={hrefError}>
           <div className="flex gap-2">
             <Input
               id={`${id}-href`}
-              value={(href.field.value as string) ?? ""}
+              name={hrefName}
+              ref={hrefRef}
+              value={(hrefValue as string) ?? ""}
               placeholder="/contact, https://…, tel:…"
               disabled={disabled}
               aria-invalid={!!hrefError}
               aria-describedby={describedBy(`${id}-href`, { error: hrefError })}
-              onChange={(event) => href.field.onChange(event.target.value)}
-              onBlur={href.field.onBlur}
+              onChange={(event) => onHrefChange(event.target.value)}
+              onBlur={onHrefBlur}
             />
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger
@@ -124,7 +167,7 @@ export function LinkWidget({ field, path }: WidgetProps) {
                               key={item.value}
                               value={`${item.label} ${item.value}`}
                               onSelect={() => {
-                                href.field.onChange(item.value)
+                                onHrefChange(item.value)
                                 setOpen(false)
                               }}
                             >
@@ -174,6 +217,7 @@ export function CollectionWidget({ field, path }: WidgetProps) {
         disabled={disabled || options.isPending}
         invalid={!!error}
         describedBy={describedBy(id, { help, error })}
+        selectRef={f.ref}
         onChange={(next) => f.onChange(next === "" ? null : next)}
         onBlur={f.onBlur}
       >
@@ -194,17 +238,21 @@ export function CollectionWidget({ field, path }: WidgetProps) {
 /** Library image: thumbnail, "Choose…" (picker dialog) and "Remove" when optional. */
 export function MediaWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()
-  const { field: f, fieldState } = useController({ name: path })
+  const {
+    field: { value, onChange, ref },
+    fieldState,
+  } = useController({ name: path })
   const [open, setOpen] = useState(false)
-  const ref = f.value as { mediaId: string } | null | undefined
-  const item = useMediaItem(ref?.mediaId)
+  const chosen = value as { mediaId: string } | null | undefined
+  const item = useMediaItem(chosen?.mediaId)
   const id = fieldId(idPrefix, path)
   const error = fieldState.error
-    ? ref
-      ? errorText(fieldState.error)
+    ? chosen
+      ? deepErrorText(fieldState.error)
       : "Choose an image"
     : undefined
   const help = field.meta.help
+  const action = chosen ? "Change image" : "Choose image"
   return (
     <FieldShell
       id={id}
@@ -213,11 +261,7 @@ export function MediaWidget({ field, path }: WidgetProps) {
       error={error}
       optional={field.optional || field.nullable}
     >
-      <div
-        id={id}
-        tabIndex={-1}
-        className="flex flex-wrap items-center gap-3 outline-none"
-      >
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-[repeating-conic-gradient(var(--muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px]">
           {item.data ? (
             // eslint-disable-next-line @next/next/no-img-element -- admin thumbnail
@@ -232,7 +276,7 @@ export function MediaWidget({ field, path }: WidgetProps) {
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <p className="truncate text-sm text-muted-foreground">
-            {ref
+            {chosen
               ? item.data
                 ? item.data.alt || item.data.url
                 : item.isError
@@ -242,24 +286,28 @@ export function MediaWidget({ field, path }: WidgetProps) {
           </p>
           <div className="flex gap-2">
             <Button
+              id={id}
+              ref={ref}
               type="button"
               variant="outline"
               size="sm"
               disabled={disabled}
-              aria-label={`${ref ? "Change" : "Choose"}: ${field.label}`}
+              // Starts with the visible text (WCAG 2.5.3 label in name).
+              aria-label={`${action}: ${field.label}`}
+              aria-invalid={!!error}
               aria-describedby={describedBy(id, { help, error })}
               onClick={() => setOpen(true)}
             >
-              {ref ? "Change image" : "Choose image"}
+              {action}
             </Button>
-            {ref && (field.nullable || field.optional) ? (
+            {chosen && (field.nullable || field.optional) ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 disabled={disabled}
                 aria-label={`Remove: ${field.label}`}
-                onClick={() => f.onChange(null)}
+                onClick={() => onChange(null)}
               >
                 Remove
               </Button>
@@ -270,9 +318,9 @@ export function MediaWidget({ field, path }: WidgetProps) {
       <MediaPickerDialog
         open={open}
         onOpenChange={setOpen}
-        selectedId={ref?.mediaId}
+        selectedId={chosen?.mediaId}
         title={`Choose: ${field.label}`}
-        onSelect={(chosen) => f.onChange({ mediaId: chosen.id })}
+        onSelect={(picked) => onChange({ mediaId: picked.id })}
       />
     </FieldShell>
   )
@@ -283,7 +331,7 @@ export function RichTextWidget({ field, path }: WidgetProps) {
   const { field: f, fieldState } = useController({ name: path })
   const id = fieldId(idPrefix, path)
   const error =
-    errorText(fieldState.error) ??
+    deepErrorText(fieldState.error) ??
     (fieldState.error ? "Check the formatting of this text" : undefined)
   const help = field.meta.help
   return (

@@ -68,3 +68,19 @@ export function errorText(error: unknown): string | undefined {
   const e = error as { message?: string; root?: { message?: string } }
   return e.message || e.root?.message || undefined
 }
+
+/**
+ * The field's own message, else the first message nested inside it — for
+ * widgets that edit a whole object (media `{ mediaId }`, rich text) where a
+ * server error may name an inner path ("hero.image.mediaId").
+ */
+export function deepErrorText(error: unknown): string | undefined {
+  const own = errorText(error)
+  if (own || !error || typeof error !== "object") return own
+  for (const [key, child] of Object.entries(error))
+    if (key !== "ref" && key !== "type" && typeof child === "object") {
+      const nested = deepErrorText(child)
+      if (nested) return nested
+    }
+  return undefined
+}
