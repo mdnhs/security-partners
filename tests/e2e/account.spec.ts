@@ -33,11 +33,11 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
     "aria-selected",
     "true"
   )
-  await sections.getByRole("tab", { name: "Sessions" }).click()
+  await sections.getByRole("tab", { name: "Devices" }).click()
   await expect(page).toHaveURL(/\?tab=sessions$/)
   await expect(page.getByText("This device")).toBeVisible()
 
-  await sections.getByRole("tab", { name: "Two-factor" }).click()
+  await sections.getByRole("tab", { name: "Security" }).click()
   await page.getByLabel("Your password").fill(E2E_PASSWORD)
   await page
     .getByRole("button", { name: "Set up two-factor authentication" })

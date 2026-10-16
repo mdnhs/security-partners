@@ -263,7 +263,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     const res = await page.goto("/admin/does-not-exist")
     expect(res?.status()).toBe(404)
     await expect(
-      page.getByRole("heading", { name: "Page not found" })
+      page.getByRole("heading", { name: "That page doesn't exist" })
     ).toBeVisible()
     // Admin root layout (lang en-IE), not the public site's (lang en).
     await expect(page.locator("html")).toHaveAttribute("lang", "en-IE")

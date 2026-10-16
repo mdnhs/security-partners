@@ -1,19 +1,20 @@
 import Link from "next/link"
 
+import { LINK_FORM } from "@/components/admin/page-header"
+
 /** 404 for /admin/* (admin root layout, not the public site's). */
 export default function AdminNotFound() {
   return (
-    <main className="flex min-h-svh items-center justify-center px-4">
-      <div className="flex max-w-sm flex-col gap-3 text-center">
-        <h1 className="text-xl font-bold">Page not found</h1>
+    <main className="flex min-h-svh items-center justify-center bg-background p-4">
+      <section className="rounded-card flex max-w-md flex-col items-center gap-4 bg-sidebar px-8 py-12 text-center">
+        <h1 className="text-card-title">That page doesn&apos;t exist</h1>
         <p className="text-sm text-muted-foreground">
-          This admin page does not exist. Check the address or go back to the
-          dashboard.
+          Check the address, or go back to the dashboard and use the menu.
         </p>
-        <Link href="/admin" className="text-sm underline underline-offset-4">
+        <Link href="/admin" className={LINK_FORM}>
           Back to the dashboard
         </Link>
-      </div>
+      </section>
     </main>
   )
 }
