@@ -12,7 +12,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-import { isActiveItem, type NavBadges, navItems } from "./nav"
+import { isActiveItem, menuSections, type NavBadges } from "./nav"
 import { NavEntry } from "./nav-entry"
 
 /** The permission-filtered admin navigation, one labelled group per section. */
@@ -25,8 +25,8 @@ export function NavMain({ badges = {} }: { badges?: NavBadges }) {
   const onNavigate = isMobile ? () => setOpenMobile(false) : undefined
   return (
     <nav aria-label="Admin">
-      {navItems(roles).map((section) => {
-        const labelId = `${idPrefix}-${section.label}`
+      {menuSections(roles).map((section, index) => {
+        const labelId = `${idPrefix}-section-${index}`
         return (
           <SidebarGroup key={section.label}>
             <SidebarGroupLabel

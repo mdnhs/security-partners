@@ -33,7 +33,7 @@ import { usePermission } from "@/hooks/use-permission"
 import { api, unwrap } from "@/lib/api-client"
 import type { SearchType } from "@/lib/schemas/api/search"
 
-import { navItems } from "./nav"
+import { navDestinations } from "./nav"
 
 const TYPE_ICONS: Record<SearchType, typeof FileText> = {
   page: FileText,
@@ -106,9 +106,12 @@ export function CommandPalette() {
   })
 
   const needle = trimmed.toLowerCase()
-  const sections = navItems(roles)
-    .flatMap((section) => section.items)
-    .filter((item) => !needle || item.label.toLowerCase().includes(needle))
+  const sections = navDestinations(roles).filter(
+    (item) =>
+      !needle ||
+      item.label.toLowerCase().includes(needle) ||
+      item.parent?.toLowerCase().includes(needle)
+  )
   const actions = [
     canEditPages && {
       id: "edit-home",
@@ -218,6 +221,11 @@ export function CommandPalette() {
                     >
                       <Icon aria-hidden />
                       {item.label}
+                      {item.parent ? (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {item.parent}
+                        </span>
+                      ) : null}
                     </CommandItem>
                   )
                 })}

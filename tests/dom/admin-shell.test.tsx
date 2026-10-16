@@ -97,7 +97,7 @@ describe("AdminShell (master 4.1)", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent)
-    ).toEqual(["Dashboard", "Account"])
+    ).toEqual(["Dashboard"])
     expect(screen.getByRole("main")).toHaveTextContent("Body")
   })
 
@@ -427,7 +427,7 @@ describe("AdminShell (master 4.1)", () => {
         .getAllByRole("list")
         .map((list) => list.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id!)?.textContent)
-    ).toEqual(["Overview", "Content", "Configuration", "You"])
+    ).toEqual(["Overview", "Content", "Configuration"])
     expect(
       within(screen.getByRole("banner")).getByRole("link", {
         name: "View site (opens in new tab)",
