@@ -56,3 +56,19 @@ export function replaceMediaRefs<T>(
   }
   return walk(value) as WithMedia<T>
 }
+
+/** A `{ mediaId }` found in a value, with its dot path ("hero.image", "items.0.icon"). */
+export type MediaField = { mediaId: string; field: string }
+
+/** Every media reference in `value` with where it sits (media_usages rows). */
+export function collectMediaFields(value: unknown, path = ""): MediaField[] {
+  if (isMediaRef(value)) return [{ mediaId: value.mediaId, field: path }]
+  const join = (key: string | number) => (path ? `${path}.${key}` : String(key))
+  if (Array.isArray(value))
+    return value.flatMap((v, i) => collectMediaFields(v, join(i)))
+  if (value && typeof value === "object" && !(value instanceof Date))
+    return Object.entries(value).flatMap(([k, v]) =>
+      collectMediaFields(v, join(k))
+    )
+  return []
+}
