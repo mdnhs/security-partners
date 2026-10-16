@@ -58,6 +58,7 @@ export function EditorLayout({
   saveState,
   actions,
   aside,
+  preview,
   children,
 }: {
   /** Omit when the editor sits in route tabs (the rail is the way back). */
@@ -70,6 +71,8 @@ export function EditorLayout({
   saveState: ReactNode
   actions: ReactNode
   aside?: ReactNode
+  /** Live preview pane (Task 8): a sticky column beside the form from 2xl. */
+  preview?: ReactNode
   children: ReactNode
 }) {
   const inTabs = useInSectionTabs()
@@ -77,6 +80,7 @@ export function EditorLayout({
   const contentRef = useRef<HTMLDivElement>(null)
   const barHeight = useHeight(barRef)
   useKeepFocusBelow(barRef, contentRef)
+  useScrollPaddingBelow(barRef, barHeight)
   return (
     <div
       className="flex flex-col gap-6"
@@ -128,23 +132,42 @@ export function EditorLayout({
         </div>
       </header>
       {/* The form has its own section tabs: the side panel joins it as a
-          column only from 2xl and sits above it before that. */}
-      <div
-        ref={contentRef}
-        className={cn(
-          "grid w-full gap-6 2xl:grid-cols-[minmax(0,1fr)_18rem]",
-          inTabs ? "max-w-240" : "max-w-304"
-        )}
-      >
-        <div data-slot="editor-form" className="min-w-0">
-          {children}
+          column only from 2xl and sits above it before that. With the live
+          preview (2xl only) the preview takes that column, sticky under the
+          bar, and the side panel stays above the form. */}
+      {preview ? (
+        <div
+          ref={contentRef}
+          className="grid w-full gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]"
+        >
+          <div data-slot="editor-form" className="flex min-w-0 flex-col gap-6">
+            {aside ? (
+              <aside className="flex flex-col gap-4">{aside}</aside>
+            ) : null}
+            {children}
+          </div>
+          <div className="min-w-0 2xl:sticky 2xl:top-(--section-tabs-top) 2xl:self-start">
+            {preview}
+          </div>
         </div>
-        {aside ? (
-          <aside className="order-first flex flex-col gap-4 2xl:order-0">
-            {aside}
-          </aside>
-        ) : null}
-      </div>
+      ) : (
+        <div
+          ref={contentRef}
+          className={cn(
+            "grid w-full gap-6 2xl:grid-cols-[minmax(0,1fr)_18rem]",
+            inTabs ? "max-w-240" : "max-w-304"
+          )}
+        >
+          <div data-slot="editor-form" className="min-w-0">
+            {children}
+          </div>
+          {aside ? (
+            <aside className="order-first flex flex-col gap-4 2xl:order-0">
+              {aside}
+            </aside>
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }
@@ -162,6 +185,25 @@ function useHeight(ref: RefObject<HTMLElement | null>): number {
     return () => observer.disconnect()
   }, [ref])
   return height
+}
+
+/**
+ * The content panel (main) scrolls behind the stuck bar: its scroll
+ * padding follows the bar's height, so anything scrolled into view by the
+ * browser (an anchor, scrollIntoView) lands below the bar (WCAG 2.4.11).
+ */
+function useScrollPaddingBelow(
+  barRef: RefObject<HTMLElement | null>,
+  barHeight: number
+) {
+  useEffect(() => {
+    const scroller = barRef.current?.closest("main")
+    if (!scroller || barHeight === 0) return
+    scroller.style.scrollPaddingTop = `${barHeight + GAP}px`
+    return () => {
+      scroller.style.removeProperty("scroll-padding-top")
+    }
+  }, [barRef, barHeight])
 }
 
 /**

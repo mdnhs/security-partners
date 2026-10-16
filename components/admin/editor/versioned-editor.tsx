@@ -15,8 +15,13 @@ import { useAutosave } from "@/hooks/use-autosave"
 import { ApiError, errorMessage } from "@/lib/api-client"
 import type { RevisionEntity, VersionedDto } from "@/lib/schemas/api/content"
 
+import { useAdminSession } from "@/components/admin/session-provider"
+import { useMediaQuery } from "@/hooks/use-media-query"
+
 import { ConflictDialog } from "./conflict-dialog"
 import { EDITOR_ACTION, EditorLayout } from "./editor-layout"
+import { LivePreviewToggle, useLivePreview } from "./live-preview-toggle"
+import { PreviewPane } from "./preview-pane"
 import { PublishDialog } from "./publish-dialog"
 import { RevisionDrawer } from "./revision-drawer"
 import { SaveStateIndicator } from "./save-state"
@@ -114,6 +119,12 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   })
   const [record, setRecord] = useState<Dto>(initial)
   const [resetKey, setResetKey] = useState(0)
+  // Live preview (ruling D9): an opt-in switch, only where the pane fits
+  // (2xl). Never a hidden pane: the preview route switches draft mode on.
+  const { user } = useAdminSession()
+  const [livePreview, setLivePreview] = useLivePreview(user.id)
+  const wide = useMediaQuery("(min-width: 1536px)")
+  const paneAvailable = !!props.previewHref && wide
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, string[]> | undefined
   >()
@@ -298,6 +309,12 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         actions={
           <>
             {props.actions}
+            {paneAvailable ? (
+              <LivePreviewToggle
+                checked={livePreview}
+                onCheckedChange={setLivePreview}
+              />
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -338,6 +355,11 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
           </>
         }
         aside={props.aside}
+        preview={
+          paneAvailable && livePreview ? (
+            <PreviewPane src={props.previewHref!} refreshKey={base.version} />
+          ) : undefined
+        }
       >
         <div
           onKeyDownCapture={markTouched}
