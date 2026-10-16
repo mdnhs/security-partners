@@ -1,13 +1,12 @@
-import { draftMode } from "next/headers"
+import { isPreviewing } from "@/server/modules/preview/guard"
 
 /**
  * Admin-only bar while previewing drafts (spec §5.6; global constraint:
- * the one allowed addition to public pages). Renders nothing outside
- * draft mode, so the public markup is unchanged.
+ * the one allowed addition to public pages). Renders nothing unless the
+ * request is a verified preview, so the public markup is unchanged.
  */
 export async function PreviewBar() {
-  const { isEnabled } = await draftMode()
-  if (!isEnabled) return null
+  if (!(await isPreviewing())) return null
   return (
     <div
       role="region"

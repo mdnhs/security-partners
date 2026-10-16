@@ -2,6 +2,7 @@ import "server-only"
 
 import { createHmac, timingSafeEqual } from "node:crypto"
 
+import { getEnv } from "@/server/env"
 import { deriveKey } from "@/server/lib/crypto"
 
 /** Signed, short-lived proof that a signed-in admin opened a preview (spec §5.6). */
@@ -42,4 +43,14 @@ export function verifyPreviewToken(
     return null
   if (expires * 1000 <= now) return null
   return { userId }
+}
+
+/** Attributes shared by setting and clearing the cookie (Secure on https). */
+export function previewCookieOptions() {
+  return {
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax" as const,
+    secure: getEnv().BETTER_AUTH_URL.startsWith("https:"),
+  }
 }

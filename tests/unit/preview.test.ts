@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const { draft, jar, session, redirect } = vi.hoisted(() => ({
   draft: { isEnabled: false },
   jar: new Map<string, string>(),
-  session: { current: null as null | { actor: { userId: string } } },
+  session: {
+    current: null as null | { actor: { userId: string; roles: string[] } },
+  },
   redirect: vi.fn((url: string) => {
     throw new Error(`NEXT_REDIRECT ${url}`)
   }),
@@ -20,11 +22,15 @@ vi.mock("@/server/auth/session", () => ({
   getSessionContext: async () => session.current,
 }))
 
-import { assertPreviewAccess } from "@/server/modules/preview/guard"
+import {
+  assertPreviewAccess,
+  isPreviewing,
+} from "@/server/modules/preview/guard"
 import { safeReturnPath } from "@/server/modules/preview/service"
 import {
   PREVIEW_COOKIE,
   PREVIEW_TTL_SECONDS,
+  previewCookieOptions,
   signPreviewToken,
   verifyPreviewToken,
 } from "@/server/modules/preview/token"
@@ -87,21 +93,63 @@ describe("assertPreviewAccess (draft content only for the signed-in previewer)",
   it("allows draft mode with a valid cookie for the signed-in user", async () => {
     draft.isEnabled = true
     jar.set(PREVIEW_COOKIE, signPreviewToken("user-1"))
-    session.current = { actor: { userId: "user-1" } }
+    session.current = { actor: { userId: "user-1", roles: ["editor"] } }
     await expect(assertPreviewAccess()).resolves.toBeUndefined()
+    await expect(isPreviewing()).resolves.toBe(true)
+  })
+
+  it("isPreviewing is false outside draft mode, even with a valid cookie", async () => {
+    jar.set(PREVIEW_COOKIE, signPreviewToken("user-1"))
+    session.current = { actor: { userId: "user-1", roles: ["editor"] } }
+    await expect(isPreviewing()).resolves.toBe(false)
   })
 
   it.each([
-    ["no preview cookie", null, "user-1"],
-    ["no session (signed out)", "user-1", null],
-    ["cookie of another user", "user-2", "user-1"],
-  ])("exits preview with %s", async (_case, cookieUser, sessionUser) => {
+    ["no preview cookie", null, "user-1", ["editor"]],
+    ["no session (signed out)", "user-1", null, ["editor"]],
+    ["cookie of another user", "user-2", "user-1", ["editor"]],
+    [
+      "a user demoted to a role without read access",
+      "user-1",
+      "user-1",
+      ["intake"],
+    ],
+  ])("exits preview with %s", async (_case, cookieUser, sessionUser, roles) => {
     draft.isEnabled = true
     if (cookieUser) jar.set(PREVIEW_COOKIE, signPreviewToken(cookieUser))
-    session.current = sessionUser ? { actor: { userId: sessionUser } } : null
+    session.current = sessionUser
+      ? { actor: { userId: sessionUser, roles } }
+      : null
+    await expect(isPreviewing()).resolves.toBe(false)
     await expect(assertPreviewAccess()).rejects.toThrow(
       "NEXT_REDIRECT /api/v1/preview/exit"
     )
+  })
+
+  it("exits preview with an expired cookie", async () => {
+    draft.isEnabled = true
+    const issued = Date.now() - (PREVIEW_TTL_SECONDS + 1) * 1000
+    jar.set(PREVIEW_COOKIE, signPreviewToken("user-1", issued))
+    session.current = { actor: { userId: "user-1", roles: ["editor"] } }
+    await expect(assertPreviewAccess()).rejects.toThrow(
+      "NEXT_REDIRECT /api/v1/preview/exit"
+    )
+  })
+})
+
+describe("previewCookieOptions", () => {
+  it("is HttpOnly, Lax, Path=/ and not Secure on http", () => {
+    expect(previewCookieOptions()).toEqual({
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: false,
+    })
+  })
+
+  it("is Secure when BETTER_AUTH_URL is https", () => {
+    process.env.BETTER_AUTH_URL = "https://security-partners.example"
+    expect(previewCookieOptions()).toMatchObject({ path: "/", secure: true })
   })
 })
 
@@ -112,6 +160,8 @@ describe("safeReturnPath", () => {
     ["http://localhost:3000/", "/"],
     ["https://evil.example/about", "/"],
     ["http://localhost:3000/admin/pages", "/"],
+    ["http://localhost:3000//evil.example/x", "/"],
+    ["http://localhost:3000/\\evil.example/x", "/"],
     ["not a url", "/"],
     [undefined, "/"],
   ])("%s → %s", (referer, expected) => {

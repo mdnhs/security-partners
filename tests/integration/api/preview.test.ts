@@ -21,7 +21,7 @@ import {
 } from "@/server/modules/preview/token"
 
 import { resetDb } from "../db"
-import { adminRequest, ORIGIN, signedInUser } from "../helpers/auth"
+import { ORIGIN, signedInUser } from "../helpers/auth"
 
 let editor: { cookie: string; user: { id: string } }
 let intake: string
@@ -38,12 +38,24 @@ beforeEach(() => {
   disable.mockClear()
 })
 
+/** The preview link as a browser opens it from the admin (new tab). */
+function openPreview(
+  query: string,
+  opts: { cookie?: string; site?: string | null } = {}
+) {
+  const headers: Record<string, string> = {}
+  if (opts.cookie) headers.cookie = opts.cookie
+  const site = opts.site === undefined ? "same-origin" : opts.site
+  if (site !== null) headers["sec-fetch-site"] = site
+  return app.request(`/api/v1/admin/preview?${query}`, { headers })
+}
+
 const previewCookie = (res: Response) =>
   res.headers.getSetCookie().find((c) => c.startsWith(`${PREVIEW_COOKIE}=`))
 
 describe("preview (master 4.4)", () => {
   it("enables draft mode, sets a signed cookie for the user and redirects to the page", async () => {
-    const res = await adminRequest("/preview?entity=page&id=about", {
+    const res = await openPreview("entity=page&id=about", {
       cookie: editor.cookie,
     })
     expect(res.status).toBe(302)
@@ -53,6 +65,8 @@ describe("preview (master 4.4)", () => {
     expect(cookie).toMatch(/HttpOnly/i)
     expect(cookie).toMatch(/SameSite=Lax/i)
     expect(cookie).toMatch(/Max-Age=3600/)
+    expect(cookie).toMatch(/Path=\//)
+    expect(cookie).not.toMatch(/Secure/i)
     const token = decodeURIComponent(cookie.split(";")[0].split("=")[1])
     expect(verifyPreviewToken(token)).toEqual({ userId: editor.user.id })
   })
@@ -62,39 +76,65 @@ describe("preview (master 4.4)", () => {
       .select()
       .from(services)
       .where(eq(services.slug, "static-security"))
-    const one = await adminRequest(`/preview?entity=service&id=${service.id}`, {
+    const one = await openPreview(`entity=service&id=${service.id}`, {
       cookie: editor.cookie,
     })
     expect(one.headers.get("location")).toBe("/services/static-security")
-    const settings = await adminRequest("/preview?entity=settings&id=footer", {
+    const settings = await openPreview("entity=settings&id=footer", {
       cookie: editor.cookie,
     })
     expect(settings.headers.get("location")).toBe("/")
   })
 
   it("requires a session and read permission", async () => {
-    expect((await adminRequest("/preview?entity=page&id=home")).status).toBe(
-      401
-    )
+    expect((await openPreview("entity=page&id=home")).status).toBe(401)
     expect(
-      (await adminRequest("/preview?entity=page&id=home", { cookie: intake }))
-        .status
+      (await openPreview("entity=page&id=home", { cookie: intake })).status
     ).toBe(403)
     expect(
       (
-        await adminRequest("/preview?entity=page&id=nope", {
+        await openPreview("entity=page&id=nope", {
           cookie: editor.cookie,
         })
       ).status
     ).toBe(404)
     expect(
       (
-        await adminRequest("/preview?entity=service&id=nope", {
+        await openPreview("entity=service&id=nope", {
           cookie: editor.cookie,
         })
       ).status
     ).toBe(404)
     expect(enable).not.toHaveBeenCalled()
+  })
+
+  it("refuses to enable preview from a cross-site navigation", async () => {
+    for (const site of ["cross-site", "same-site", null]) {
+      const res = await openPreview("entity=page&id=about", {
+        cookie: editor.cookie,
+        site,
+      })
+      expect(res.status).toBe(403)
+      expect(previewCookie(res)).toBeUndefined()
+    }
+    const typed = await openPreview("entity=page&id=about", {
+      cookie: editor.cookie,
+      site: "none",
+    })
+    expect(typed.status).toBe(302)
+    expect(enable).toHaveBeenCalledTimes(1)
+  })
+
+  it("marks the cookie Secure when the app runs on https", async () => {
+    const previous = process.env.BETTER_AUTH_URL
+    process.env.BETTER_AUTH_URL = "https://security-partners.example"
+    try {
+      const res = await app.request("/api/v1/preview/exit")
+      expect(previewCookie(res)).toMatch(/Secure/)
+      expect(previewCookie(res)).toMatch(/Path=\//)
+    } finally {
+      process.env.BETTER_AUTH_URL = previous
+    }
   })
 
   it("exit disables draft mode, clears the cookie and returns to the page", async () => {

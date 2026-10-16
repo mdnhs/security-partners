@@ -9,11 +9,21 @@ import type { AppEnv } from "@/server/api/context"
 import { actorOf } from "@/server/api/middleware/auth"
 import { zv } from "@/server/api/validate"
 import { getEnv } from "@/server/env"
+import { forbidden } from "@/server/lib/errors"
 
 import { previewPath, safeReturnPath } from "./service"
-import { PREVIEW_COOKIE, PREVIEW_TTL_SECONDS, signPreviewToken } from "./token"
+import {
+  PREVIEW_COOKIE,
+  PREVIEW_TTL_SECONDS,
+  previewCookieOptions,
+  signPreviewToken,
+} from "./token"
 
-const secure = () => getEnv().BETTER_AUTH_URL.startsWith("https:")
+/**
+ * The preview link is opened from the admin (same-origin) or typed/pasted
+ * (none). A cross-site navigation must not switch on draft mode.
+ */
+const OPENED_BY = new Set(["same-origin", "none"])
 
 /**
  * GET /api/v1/admin/preview?entity&id — signed-in only (admin chain):
@@ -24,15 +34,13 @@ export const adminPreviewRoutes = new Hono<AppEnv>().get(
   "/",
   zv("query", previewQuery),
   async (c) => {
+    if (!OPENED_BY.has(c.req.header("sec-fetch-site") ?? "")) throw forbidden()
     const actor = actorOf(c)
     const { entity, id } = c.req.valid("query")
     const path = await previewPath(actor, entity, id)
     ;(await draftMode()).enable()
     setCookie(c, PREVIEW_COOKIE, signPreviewToken(actor.userId), {
-      path: "/",
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: secure(),
+      ...previewCookieOptions(),
       maxAge: PREVIEW_TTL_SECONDS,
     })
     return c.redirect(path, 302)
@@ -48,8 +56,7 @@ export const previewExitRoutes = new Hono<AppEnv>().get("/exit", async (c) => {
   // Next re-serializes Set-Cookie when it appends the draft-mode cookie and
   // drops `Max-Age=0`; an epoch `Expires` survives, so the cookie is cleared.
   deleteCookie(c, PREVIEW_COOKIE, {
-    path: "/",
-    secure: secure(),
+    ...previewCookieOptions(),
     expires: new Date(0),
   })
   const origin = new URL(getEnv().BETTER_AUTH_URL).origin

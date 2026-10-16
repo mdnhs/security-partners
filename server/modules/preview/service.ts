@@ -3,7 +3,7 @@ import "server-only"
 import { z } from "zod"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
-import type { PreviewEntity } from "@/lib/schemas/api/preview"
+import { PREVIEW_ENTITIES, type PreviewEntity } from "@/lib/schemas/api/preview"
 import { isSettingsKey } from "@/lib/schemas/settings"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
@@ -15,6 +15,11 @@ const READ: Record<PreviewEntity, PermissionRequest> = {
   page: { page: ["read"] },
   service: { service: ["read"] },
   settings: { settings: ["read"] },
+}
+
+/** May preview drafts at all: read permission on some previewable entity. */
+export function canPreview(roles: readonly string[]): boolean {
+  return PREVIEW_ENTITIES.some((entity) => hasPermission(roles, READ[entity]))
 }
 
 /**
@@ -57,6 +62,8 @@ export function safeReturnPath(
     return "/"
   }
   if (url.origin !== appOrigin) return "/"
+  // "//host" or "/\\host" would leave the site as a protocol-relative URL.
+  if (!/^\/(?![/\\])/.test(url.pathname)) return "/"
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/api"))
     return "/"
   return `${url.pathname}${url.search}`
