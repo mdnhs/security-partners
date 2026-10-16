@@ -13,7 +13,7 @@ import {
   Wrench,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { useAdminSession } from "@/components/admin/session-provider"
 import { Button } from "@/components/ui/button"
@@ -74,26 +74,38 @@ export function CommandPalette() {
   const canEditPages = usePermission({ page: ["update"] })
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const q = useDebouncedValue(query.trim(), 200)
+  const trimmed = query.trim()
+  const q = useDebouncedValue(trimmed, 200)
+
+  /** Every open/close goes through here: a closed palette forgets its query. */
+  const setPaletteOpen = useCallback((next: boolean) => {
+    setOpen(next)
+    if (!next) setQuery("")
+  }, [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (!isPaletteShortcut(event)) return
+      // A focused widget that handles Mod-K itself (e.g. the rich-text
+      // editor's link shortcut) prevents the default: it wins.
+      if (event.defaultPrevented || !isPaletteShortcut(event)) return
       event.preventDefault()
-      setOpen((value) => !value)
+      setPaletteOpen(!open)
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
+  }, [open, setPaletteOpen])
 
+  // Records need 2+ characters; the input (not only the debounced value)
+  // must ask for them, so a quickly reopened palette shows no stale results.
+  const wantsRecords = trimmed.length >= 2
   const results = useQuery({
     queryKey: ["search", q],
     queryFn: () => unwrap(api.search.$get({ query: { q } })),
-    enabled: open && q.length >= 2,
+    enabled: open && wantsRecords && q.length >= 2,
     staleTime: 10_000,
   })
 
-  const needle = query.trim().toLowerCase()
+  const needle = trimmed.toLowerCase()
   const sections = navItems(roles)
     .flatMap((section) => section.items)
     .filter((item) => !needle || item.label.toLowerCase().includes(needle))
@@ -122,20 +134,21 @@ export function CommandPalette() {
   )
 
   function go(run: () => void) {
-    setOpen(false)
-    setQuery("")
+    setPaletteOpen(false)
     run()
   }
 
-  const records = results.data?.items ?? []
-  const searching = q.length >= 2 && results.isFetching
+  const records = (wantsRecords && results.data?.items) || []
+  // The debounce window counts as searching: no flash of "No results".
+  const searching = wantsRecords && (trimmed !== q || results.isFetching)
+  const failed = wantsRecords && !searching && results.isError
 
   return (
     <>
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={() => setPaletteOpen(true)}
         className="w-full max-w-sm justify-start gap-2 text-muted-foreground max-sm:w-auto max-sm:border-transparent"
       >
         <Search aria-hidden />
@@ -144,24 +157,34 @@ export function CommandPalette() {
       </Button>
       <CommandDialog
         open={open}
-        onOpenChange={(next) => {
-          setOpen(next)
-          if (!next) setQuery("")
-        }}
+        onOpenChange={setPaletteOpen}
         title="Search the admin"
         description="Jump to a section, run an action or find a page, service or team member."
       >
-        {/* Server results are already filtered: cmdk must not filter again. */}
-        <Command shouldFilter={false} label="Search">
+        {/*
+         * Server results are already filtered: cmdk must not filter again.
+         * No vim bindings: cmdk's Ctrl+K ("previous item") would claim the
+         * shortcut that closes the palette.
+         */}
+        <Command shouldFilter={false} vimBindings={false} label="Search">
           <CommandInput
             value={query}
             onValueChange={setQuery}
             placeholder="Search pages, services, team… or type a section"
           />
           <CommandList>
-            <CommandEmpty>
-              {searching ? "Searching…" : `No results for “${query.trim()}”.`}
-            </CommandEmpty>
+            {failed ? (
+              <p
+                role="alert"
+                className="px-2 py-3 text-center text-sm text-destructive"
+              >
+                Search failed — try again
+              </p>
+            ) : (
+              <CommandEmpty>
+                {searching ? "Searching…" : `No results for “${trimmed}”.`}
+              </CommandEmpty>
+            )}
             {records.length > 0 ? (
               <CommandGroup heading="Records">
                 {records.map((record) => {

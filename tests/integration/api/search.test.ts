@@ -10,6 +10,7 @@ import { adminRequest, signedInUser } from "../helpers/auth"
 let editor: string
 let intake: string
 let marketer: string
+let viewer: string
 
 beforeAll(async () => {
   await resetDb()
@@ -17,6 +18,7 @@ beforeAll(async () => {
   editor = (await signedInUser(["editor"])).cookie
   intake = (await signedInUser(["intake"])).cookie
   marketer = (await signedInUser(["marketer"])).cookie
+  viewer = (await signedInUser(["viewer"])).cookie
 })
 
 async function search(cookie: string, q: string) {
@@ -58,14 +60,30 @@ describe("GET /api/v1/admin/search (⌘K, master 4.1)", () => {
     expect((await search(marketer, "alarm")).map((r) => r.type)).toEqual([
       "service",
     ])
+    // viewer reads pages, services and collections (read-only role)
+    expect((await search(viewer, "alarm")).map((r) => r.type)).toEqual([
+      "service",
+      "category",
+    ])
+    expect((await search(viewer, "moran")).map((r) => r.type)).toEqual(["team"])
   })
 
-  it("treats LIKE wildcards literally and caps each type", async () => {
+  it("treats LIKE wildcards and the escape character literally", async () => {
     expect(await search(editor, "%")).toEqual([])
+    // Unescaped, "_" would match the "-" in the slug "alarm-responses".
+    expect(await search(editor, "alarm_responses")).toEqual([])
+    expect(await search(editor, "_")).toEqual([])
+    // A lone backslash is a literal character, not a broken escape.
+    expect(await search(editor, "\\")).toEqual([])
+    expect(await search(editor, "alarm\\")).toEqual([])
+  })
+
+  it("caps each type at five results", async () => {
+    // All six seeded services contain an "s".
     const services = (await search(editor, "s")).filter(
       (r) => r.type === "service"
     )
-    expect(services.length).toBeLessThanOrEqual(5)
+    expect(services).toHaveLength(5)
   })
 
   it("rejects an empty query and anonymous requests", async () => {
@@ -104,6 +122,39 @@ describe("GET /api/v1/admin/search/options/:collection (SchemaForm pickers)", ()
         "/blog/18-years-of-watching-over-ireland",
       ])
     )
+  })
+
+  it("lists pages and links by URL path, services by slug, categories by id", async () => {
+    const pages = await options(editor, "pages")
+    expect(pages.status).toBe(200)
+    expect(pages.items).toHaveLength(8)
+    expect(pages.items[0]).toEqual({
+      value: "/",
+      label: "Home",
+      group: "Pages",
+    })
+    expect(pages.items).toContainEqual({
+      value: "/privacy",
+      label: "Privacy policy",
+      group: "Pages",
+    })
+
+    const services = await options(editor, "services")
+    expect(services.status).toBe(200)
+    expect(services.items).toHaveLength(6)
+    expect(services.items).toContainEqual({
+      value: "alarm-responses",
+      label: "Alarm Responses",
+      group: "Services",
+    })
+
+    const categories = await options(editor, "categories")
+    expect(categories.status).toBe(200)
+    expect(categories.items).toContainEqual({
+      value: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      label: "Alarm Response",
+      group: "Categories",
+    })
   })
 
   it("enforces read permission per collection", async () => {

@@ -114,4 +114,126 @@ describe("⌘K command palette (master 4.1)", () => {
         .map((o) => o.textContent)
     ).toEqual(["Account"])
   })
+
+  it("offers the editor's quick actions", async () => {
+    const user = userEvent.setup()
+    renderShell(["editor"])
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    const actions = within(
+      within(dialog).getByRole("group", { name: "Actions" })
+    )
+      .getAllByRole("option")
+      .map((o) => o.textContent)
+    expect(actions).toEqual([
+      "Edit the home page",
+      "New service",
+      "Open the public site",
+    ])
+    await user.click(
+      within(dialog).getByRole("option", { name: "New service" })
+    )
+    expect(push).toHaveBeenCalledWith("/admin/services/new")
+  })
+
+  it("leaves Mod-K to a focused widget that handles it", async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const claim = (event: KeyboardEvent) => event.preventDefault()
+    document.body.addEventListener("keydown", claim)
+    try {
+      await user.keyboard("{Control>}k{/Control}")
+      expect(
+        screen.queryByRole("dialog", { name: "Search the admin" })
+      ).toBeNull()
+    } finally {
+      document.body.removeEventListener("keydown", claim)
+    }
+    await user.keyboard("{Control>}k{/Control}")
+    expect(
+      await screen.findByRole("dialog", { name: "Search the admin" })
+    ).toBeTruthy()
+  })
+
+  it("forgets the query whenever it closes", async () => {
+    const user = userEvent.setup()
+    renderShell()
+    const reopen = async () => {
+      await user.keyboard("{Control>}k{/Control}")
+      const dialog = await screen.findByRole("dialog", {
+        name: "Search the admin",
+      })
+      return within(dialog).getByRole("combobox", { name: "Search" })
+    }
+    const closed = () =>
+      waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Search the admin" })
+        ).toBeNull()
+      )
+
+    // ⌘K toggles it closed
+    await user.type(await reopen(), "acc")
+    await user.keyboard("{Control>}k{/Control}")
+    await closed()
+    const input = await reopen()
+    expect(input).toHaveValue("")
+    // Escape
+    await user.type(input, "set")
+    await user.keyboard("{Escape}")
+    await closed()
+    expect(await reopen()).toHaveValue("")
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("shows Searching… until the input settles (no flash of no results)", async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+    )
+    const user = userEvent.setup()
+    renderShell()
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.type(within(dialog).getByRole("combobox"), "zzz")
+    // Still inside the 200 ms debounce: nothing fetched yet.
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(within(dialog).getByText("Searching…")).toBeTruthy()
+    expect(within(dialog).queryByText(/No results/)).toBeNull()
+    expect(
+      await within(dialog).findByText("No results for “zzz”.")
+    ).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("reports a failed search as an alert, not as no results", async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: "VALIDATION", message: "Bad query" },
+          }),
+          { status: 422, headers: { "content-type": "application/json" } }
+        )
+    )
+    const user = userEvent.setup()
+    renderShell()
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.type(within(dialog).getByRole("combobox"), "zzz")
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Search failed — try again"
+    )
+    expect(within(dialog).queryByText(/No results/)).toBeNull()
+    expect(within(dialog).queryByText("Searching…")).toBeNull()
+  })
 })
