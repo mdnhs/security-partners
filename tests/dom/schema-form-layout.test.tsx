@@ -158,10 +158,47 @@ describe("SchemaForm layout (JW field groups)", () => {
       "aria-required",
       "true"
     )
-    const extra = screen.getByRole("group", { name: /Extra/ })
+    // An optional link says so on its legend, not on its two inputs.
+    const extra = screen.getByRole("group", { name: "Extra (optional)" })
     expect(
       within(extra).getByRole("textbox", { name: "Link to" })
     ).not.toHaveAttribute("aria-required")
+    expect(
+      within(extra).getByRole("textbox", { name: "Text" })
+    ).not.toHaveAttribute("aria-required")
+    expect(
+      document.querySelector(
+        `label[for="${within(extra).getByRole("textbox", { name: "Text" }).id}"]`
+      )
+    ).not.toHaveTextContent("optional")
+  })
+
+  it("keeps root card ids unique across section tabs", () => {
+    renderSchema(
+      z.object({
+        a: z.string(),
+        hero: z.object({ h: z.string() }),
+      }),
+      {
+        fields: {},
+        groups: {
+          "": [
+            { title: "Text", fields: ["a"] },
+            { title: "Text", fields: ["hero"] },
+          ],
+        },
+      },
+      { a: "x", hero: { h: "y" } },
+      { sectionTabs: "Sections" }
+    )
+    // Both tabs stay mounted; each card's heading id must be its own.
+    const ids = [
+      ...document.querySelectorAll('[data-slot="form-card"] > header > h2'),
+    ]
+      .map((heading) => heading.id)
+      .filter((id) => id.startsWith("sf-group-"))
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
   })
 
   it("shows icons in phone and email inputs", () => {

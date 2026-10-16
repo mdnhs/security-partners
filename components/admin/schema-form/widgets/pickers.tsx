@@ -127,6 +127,15 @@ export function LinkWidget({ field, path }: WidgetProps) {
         )}
       >
         {field.label}
+        {/* An optional link is marked on its legend; its inputs are not required. */}
+        {linkRequired ? null : (
+          <>
+            {" "}
+            <span className="font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </>
+        )}
       </legend>
       {field.meta.help ? (
         <div className="-mt-3">

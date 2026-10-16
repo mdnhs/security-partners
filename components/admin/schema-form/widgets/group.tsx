@@ -152,17 +152,30 @@ const slug = (text: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
 
+export type RootCardIds = { groups: string[]; blocks: string[] }
+
+/** The cards of one root (or one root tab): meta groups, then sections and runs. */
+export function rootCardPlan(
+  meta: EditorMeta,
+  shape: Record<string, z.ZodType>,
+  keys: string[]
+): { split: Split | null; blocks: Block[] } {
+  const split = splitGroups(meta, "", keys)
+  return { split, blocks: blocksOf(shape, keys, split, meta) }
+}
+
 /**
  * Stable, readable ids for the root cards: the group title as a slug (else
- * the first field key), made unique within the form (two tabs never share
- * a slug: "-2", "-3" …).
+ * the first field key), made unique within the form ("-2", "-3" …). Form
+ * tabs pass one `taken` set through every tab, so two tabs never share an
+ * id either.
  */
 export function groupCardIds(
   idPrefix: string,
   groups: { title: string; fields: string[] }[],
-  blocks: Block[]
-): { groups: string[]; blocks: string[] } {
-  const taken = new Set<string>()
+  blocks: Block[],
+  taken: Set<string> = new Set()
+): RootCardIds {
   const unique = (base: string) => {
     let id = `${idPrefix}-group-${base}`
     for (let n = 2; taken.has(id); n++) id = `${idPrefix}-group-${base}-${n}`
@@ -183,14 +196,16 @@ export function groupCardIds(
 export function RootFields({
   shape,
   keys,
+  ids: given,
 }: {
   shape: Record<string, z.ZodType>
   keys: string[]
+  /** Ids planned across every tab (FormTabs); alone, the root plans its own. */
+  ids?: RootCardIds
 }) {
   const { meta, idPrefix } = useSchemaForm()
-  const split = splitGroups(meta, "", keys)
-  const blocks = blocksOf(shape, keys, split, meta)
-  const ids = groupCardIds(idPrefix, split?.groups ?? [], blocks)
+  const { split, blocks } = rootCardPlan(meta, shape, keys)
+  const ids = given ?? groupCardIds(idPrefix, split?.groups ?? [], blocks)
   return (
     <div className="flex flex-col gap-6">
       {split?.groups.map((group, i) => (

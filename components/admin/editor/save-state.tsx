@@ -1,17 +1,10 @@
 "use client"
 
-import {
-  AlertTriangle,
-  Check,
-  CircleDashed,
-  CloudOff,
-  GitMerge,
-  Loader2,
-} from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import type { SaveState } from "@/hooks/use-autosave"
 import { cn } from "@/lib/utils"
+
+import { EDITOR_ACTION } from "./editor-layout"
 
 const LABELS: Record<SaveState, string> = {
   saved: "Saved",
@@ -22,26 +15,31 @@ const LABELS: Record<SaveState, string> = {
   error: "Not saved",
 }
 
-const ICONS = {
-  saved: Check,
-  saving: Loader2,
-  unsaved: CircleDashed,
-  invalid: AlertTriangle,
-  conflict: GitMerge,
-  error: CloudOff,
-} satisfies Record<SaveState, unknown>
-
-/** Text and icon colour per state (soft pill in the editor header). */
-const TONE: Record<SaveState, string> = {
-  saved: "bg-muted text-muted-foreground [&_svg]:text-success",
-  saving: "bg-muted text-muted-foreground [&_svg]:text-primary",
-  unsaved: "bg-warning-soft text-warning",
-  invalid: "bg-danger-soft text-danger",
-  conflict: "bg-danger-soft text-danger",
-  error: "bg-danger-soft text-danger",
+/** The dot's colour per state (JW save indicator). */
+const DOT: Record<SaveState, string> = {
+  saved: "bg-success",
+  saving: "bg-primary motion-safe:animate-pulse",
+  unsaved: "bg-warning",
+  invalid: "bg-danger",
+  conflict: "bg-danger",
+  error: "bg-danger",
 }
 
-/** Live save status in the editor header (announced politely). */
+/** Text colour: muted unless something needs doing (not colour alone: the text says so). */
+const TEXT: Record<SaveState, string> = {
+  saved: "text-muted-foreground",
+  saving: "text-muted-foreground",
+  unsaved: "text-warning",
+  invalid: "text-danger",
+  conflict: "text-danger",
+  error: "text-danger",
+}
+
+/**
+ * Live save status in the editor header (announced politely): a pill on
+ * the bar's white card with a coloured dot, JW style. The label stays
+ * exactly "Saved" (the e2e page-editor spec asserts it).
+ */
 export function SaveStateIndicator({
   state,
   onRetry,
@@ -49,7 +47,6 @@ export function SaveStateIndicator({
   state: SaveState
   onRetry?: () => void
 }) {
-  const Icon = ICONS[state]
   return (
     <div className="flex items-center gap-2">
       <p
@@ -58,13 +55,13 @@ export function SaveStateIndicator({
         aria-label={`Save status: ${LABELS[state]}`}
         data-save-state={state}
         className={cn(
-          "inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap",
-          TONE[state]
+          "inline-flex h-10 items-center gap-2 rounded-full bg-muted px-3.5 text-[13px] font-semibold whitespace-nowrap",
+          TEXT[state]
         )}
       >
-        <Icon
+        <span
           aria-hidden
-          className={cn("size-4", state === "saving" && "animate-spin")}
+          className={cn("size-2 shrink-0 rounded-full", DOT[state])}
         />
         {LABELS[state]}
       </p>
@@ -72,7 +69,7 @@ export function SaveStateIndicator({
         <Button
           type="button"
           variant="outline"
-          className="h-10 rounded-xl px-4 font-semibold pointer-coarse:h-11"
+          className={EDITOR_ACTION}
           onClick={onRetry}
         >
           Retry

@@ -24,6 +24,7 @@ export function PageEditor({ pageKey }: { pageKey: PageKey }) {
       title={PAGE_LABELS[pageKey]}
       backHref="/admin/pages"
       backLabel="All pages"
+      path={PAGE_PATHS[pageKey]}
       queryKey={["pages", pageKey]}
       load={() => unwrap(api.pages[":key"].$get({ param }))}
       saveDraft={(draft, version) =>

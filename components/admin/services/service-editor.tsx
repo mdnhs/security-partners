@@ -64,6 +64,7 @@ export function ServiceEditor({ id }: { id: string }) {
       title={record.data?.title ?? "Service"}
       backHref="/admin/services"
       backLabel="All services"
+      path={record.data ? `/services/${record.data.slug}` : undefined}
       queryKey={queryKey}
       load={() => unwrap(api.services[":id"].$get({ param }))}
       saveDraft={(draft, version) =>

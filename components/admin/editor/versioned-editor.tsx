@@ -39,6 +39,8 @@ export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
   /** Omit inside route tabs (Settings): the tab rail is the way back. */
   backHref?: string
   backLabel?: string
+  /** Public path shown in the header (e.g. "/services/x"). */
+  path?: string
   queryKey: readonly unknown[]
   load: () => Promise<Dto>
   saveDraft: (draft: unknown, version: number) => Promise<Dto>
@@ -280,6 +282,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         backHref={props.backHref}
         backLabel={props.backLabel}
         title={props.title}
+        path={props.path}
         status={{
           published: record.published,
           dirty: autosave.dirty || record.dirty,

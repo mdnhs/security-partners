@@ -10,9 +10,10 @@ import {
   useTabParam,
 } from "@/components/admin/section-tabs/section-tabs"
 
+import { useSchemaForm } from "./context"
 import { type EditorMeta, metaFor } from "./editor-meta"
 import { resolveWidget } from "./resolve-widget"
-import { RootFields } from "./widgets/group"
+import { groupCardIds, rootCardPlan, RootFields } from "./widgets/group"
 
 export type FormTab = { id: string; label: string; keys: string[] }
 
@@ -132,22 +133,25 @@ export function FormTabs({
     error: hasErrors(formErrors, tab.keys),
   }))
 
-  // Panels only depend on the schema: switching tabs or a new error must not
-  // re-render every widget.
-  const panels = useMemo(
-    () =>
-      tabs.map((tab) => (
+  // Panels only depend on the schema (and meta): switching tabs or a new
+  // error must not re-render every widget. Card ids are planned here, over
+  // one `taken` set, so no two tabs share one.
+  const { meta, idPrefix } = useSchemaForm()
+  const panels = useMemo(() => {
+    const shape = schema.shape as Record<string, z.ZodType>
+    const taken = new Set<string>()
+    return tabs.map((tab) => {
+      const { split, blocks } = rootCardPlan(meta, shape, tab.keys)
+      const ids = groupCardIds(idPrefix, split?.groups ?? [], blocks, taken)
+      return (
         <SectionTabsPanel key={tab.id} id={tab.id}>
           <div data-form-tab={tab.id}>
-            <RootFields
-              shape={schema.shape as Record<string, z.ZodType>}
-              keys={tab.keys}
-            />
+            <RootFields shape={shape} keys={tab.keys} ids={ids} />
           </div>
         </SectionTabsPanel>
-      )),
-    [tabs, schema]
-  )
+      )
+    })
+  }, [tabs, schema, meta, idPrefix])
   return (
     <div ref={rootRef} className="contents">
       <SectionTabs

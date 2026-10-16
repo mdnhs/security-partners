@@ -19,17 +19,6 @@ import {
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { cn } from "@/lib/utils"
 
-/** Status badge text for a versioned record (list screens). */
-export function statusLabel(record: { published: unknown; dirty: boolean }): {
-  text: string
-  variant: "default" | "secondary" | "outline"
-} {
-  if (record.published === null)
-    return { text: "Not published", variant: "outline" }
-  if (record.dirty) return { text: "Unpublished changes", variant: "secondary" }
-  return { text: "Published", variant: "default" }
-}
-
 /** Header buttons (History, Preview, Publish, Delete): 40 px, 44 on touch. */
 export const EDITOR_ACTION =
   "h-10 gap-2 rounded-xl px-3 font-semibold sm:px-4 pointer-coarse:h-11"
@@ -52,18 +41,20 @@ const STICKY =
   "@container/bar sticky z-20 top-[calc(0.75rem-var(--main-pad,0px))] lg:top-0 [--strip-h:0.75rem] lg:[--strip-h:var(--main-pad)]"
 
 /**
- * Editor frame: a sticky header card (back link where a parent list exists,
- * title, status pills, save state, actions), then the form. Inside section
- * tabs (Settings) the header is the opaque, full-width top of the tab's
- * white card (padding --card-pad); elsewhere it is a card of its own.
- * Sets --section-tabs-top so the form's sticky tab rail stops below the
- * bar, and keeps a focused field from hiding under it (WCAG 2.4.11).
+ * Editor frame (JW page builder): a sticky header card (back link where a
+ * parent list exists, title, public path, status pills, save state,
+ * actions), then the form. Inside section tabs (Settings) the header is
+ * the opaque, full-width top of the tab's white card (padding --card-pad);
+ * elsewhere it is a card of its own. Sets --section-tabs-top so the form's
+ * sticky tab rail stops below the bar, and keeps a focused field from
+ * hiding under it (WCAG 2.4.11).
  */
 export function EditorLayout({
   backHref,
   backLabel,
   title,
   status,
+  path,
   saveState,
   actions,
   aside,
@@ -74,6 +65,8 @@ export function EditorLayout({
   backLabel?: string
   title: string
   status: ContentState
+  /** Public path of the record ("/services/cctv"), shown beside the pills. */
+  path?: string
   saveState: ReactNode
   actions: ReactNode
   aside?: ReactNode
@@ -120,6 +113,11 @@ export function EditorLayout({
               <h1 className="xl:text-title min-w-0 truncate text-2xl font-bold tracking-tight">
                 {title}
               </h1>
+              {path ? (
+                <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-foreground">
+                  {path}
+                </code>
+              ) : null}
               <ContentStatusPills record={status} />
             </div>
           </div>
@@ -138,9 +136,11 @@ export function EditorLayout({
           inTabs ? "max-w-240" : "max-w-304"
         )}
       >
-        <div className="min-w-0">{children}</div>
+        <div data-slot="editor-form" className="min-w-0">
+          {children}
+        </div>
         {aside ? (
-          <aside className="order-first flex flex-col gap-4 2xl:order-none">
+          <aside className="order-first flex flex-col gap-4 2xl:order-0">
             {aside}
           </aside>
         ) : null}
