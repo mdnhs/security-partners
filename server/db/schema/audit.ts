@@ -5,7 +5,10 @@ import { index, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core"
 import { id, tsz } from "./_shared"
 import { users } from "./auth"
 
-/** Append-only audit trail (spec §5.5, §6). Rows are never updated. */
+/**
+ * Append-only audit trail (spec §5.5, §6). Rows are never deleted; the only
+ * update is the diff of a coalesced draft-save row (writeCoalescedAudit).
+ */
 export const auditLog = pgTable(
   "audit_log",
   {

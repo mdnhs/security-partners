@@ -9,12 +9,33 @@ import {
 } from "@/server/modules/media/repo"
 
 import { AppError } from "./errors"
+import { FOREIGN_KEY_VIOLATION, pgErrorCode } from "./pg-errors"
+
+const MISSING_MESSAGE =
+  "This image is no longer in the media library. Choose another."
+
+function missingMedia(usages: MediaField[]): AppError {
+  const fieldErrors: Record<string, string[]> = {}
+  for (const usage of usages) fieldErrors[usage.field] = [MISSING_MESSAGE]
+  return new AppError("VALIDATION_FAILED", "Some images are missing", {
+    fieldErrors,
+  })
+}
+
+/** The media id named by an FK violation's detail: `Key (media_id)=(<id>) …`. */
+function mediaIdOfFkError(err: unknown): string | undefined {
+  const e = err as { detail?: unknown; cause?: { detail?: unknown } } | null
+  const detail = e?.cause?.detail ?? e?.detail
+  if (typeof detail !== "string") return undefined
+  return /\(media_id\)=\(([^)]+)\)/.exec(detail)?.[1]
+}
 
 /**
  * Rewrites the media_usages rows of one entity from the values it stores
  * (e.g. draft + published), inside the caller's transaction. media_usages
  * restricts deleting media in use (ledger ruling), so every save keeps
- * these rows exact. A reference to a missing media row → 422 on its field.
+ * these rows exact. A reference to a missing media row → 422 on its field,
+ * also when the row is deleted between the check and the insert (FK 23503).
  */
 export async function syncMediaUsages(
   tx: DbOrTx,
@@ -31,17 +52,17 @@ export async function syncMediaUsages(
     ...new Set(usages.map((u) => u.mediaId)),
   ])
   const missing = usages.filter((u) => !found.has(u.mediaId))
-  if (missing.length > 0) {
-    const fieldErrors: Record<string, string[]> = {}
-    for (const usage of missing)
-      fieldErrors[usage.field] = [
-        "This image is no longer in the media library. Choose another.",
-      ]
-    throw new AppError("VALIDATION_FAILED", "Some images are missing", {
-      fieldErrors,
-    })
+  if (missing.length > 0) throw missingMedia(missing)
+  try {
+    await replaceMediaUsages(tx, entityType, entityId, usages)
+  } catch (err) {
+    if (pgErrorCode(err) !== FOREIGN_KEY_VIOLATION) throw err
+    // Deleted by someone else after the check: the transaction is aborted,
+    // so name the fields from the error instead of querying again.
+    const gone = mediaIdOfFkError(err)
+    const affected = usages.filter((u) => u.mediaId === gone)
+    throw missingMedia(affected.length > 0 ? affected : usages)
   }
-  await replaceMediaUsages(tx, entityType, entityId, usages)
   return usages
 }
 

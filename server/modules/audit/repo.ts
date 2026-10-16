@@ -23,6 +23,43 @@ export async function insertAudit(db: DbOrTx, row: NewAuditRow): Promise<void> {
   await db.insert(auditLog).values(row)
 }
 
+/** Newest row about one entity since `since` (draft-save coalescing). */
+export async function findLatestEntityAudit(
+  db: DbOrTx,
+  entityType: string,
+  entityId: string,
+  since: Date
+) {
+  const [row] = await db
+    .select({
+      id: auditLog.id,
+      action: auditLog.action,
+      actorId: auditLog.actorId,
+      impersonatorId: auditLog.impersonatorId,
+      diff: auditLog.diff,
+    })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.entityType, entityType),
+        eq(auditLog.entityId, entityId),
+        gte(auditLog.createdAt, since)
+      )
+    )
+    .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
+    .limit(1)
+  return row ?? null
+}
+
+/** Rewrites the diff of one row (coalesced draft saves only; createdAt is kept). */
+export async function updateAuditDiff(
+  db: DbOrTx,
+  id: string,
+  diff: unknown
+): Promise<void> {
+  await db.update(auditLog).set({ diff }).where(eq(auditLog.id, id))
+}
+
 export type AuditFilters = {
   actorId?: string
   action?: string

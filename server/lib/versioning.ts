@@ -12,10 +12,11 @@ import {
 } from "@/server/modules/revisions/repo"
 
 import type { Actor } from "./actor"
-import { writeAudit } from "./audit"
+import { writeAudit, writeCoalescedAudit } from "./audit"
 import { invalidate } from "./cache-tags"
 import { AppError, conflict, fieldErrorsFromIssues, notFound } from "./errors"
 import { syncMediaUsages } from "./media-usages"
+import { pgErrorCode, UNIQUE_VIOLATION } from "./pg-errors"
 
 export type { ContentStatus }
 
@@ -121,6 +122,19 @@ async function staleOrMissing<T, R extends VersionedRecord<T>>(
 }
 
 /**
+ * Stale `version` → 409 with the current state before anything else is
+ * checked, so a client holding old data never gets validation errors about
+ * it. The versioned UPDATE still guards against races after this read.
+ */
+function assertCurrentVersion<T, R extends VersionedRecord<T>>(
+  store: VersionedStore<T, R>,
+  record: R,
+  version: number
+): void {
+  if (record.version !== version) throw conflict(store.present(record))
+}
+
+/**
  * Autosave target: validates `draft`, writes it if `version` is current
  * (version + 1), keeps media_usages exact and audits. Never touches the
  * public site (no cache invalidation: drafts are read only in draft mode).
@@ -134,6 +148,7 @@ export async function saveDraft<T, R extends VersionedRecord<T>>(
 ): Promise<R> {
   return db.transaction(async (tx) => {
     const existing = await requireRecord(store, tx, id)
+    assertCurrentVersion(store, existing, input.version)
     const draft = validateContent(store.schema(existing), input.draft)
     const updated = await store.update(tx, id, input.version, {
       draft,
@@ -147,7 +162,7 @@ export async function saveDraft<T, R extends VersionedRecord<T>>(
       updated.draft,
       updated.published
     )
-    await writeAudit(tx, actor, {
+    await writeCoalescedAudit(tx, actor, {
       action: `${store.entityType}.draft_saved`,
       entityType: store.entityType,
       entityId: id,
@@ -172,24 +187,22 @@ export async function publish<T, R extends VersionedRecord<T>>(
   try {
     published = await publishInTx(db, store, actor, id, input)
   } catch (err) {
-    // The version check serialises publishes of one record (row lock), so a
-    // revisions (entity, version) clash means the record moved on or a stale
-    // revision row exists: answer like a stale version, never 500.
-    if (isUniqueViolation(err)) return staleOrMissing(store, db, id)
+    if (pgErrorCode(err) === UNIQUE_VIOLATION) {
+      // The versioned UPDATE serialises publishes of one record (row lock).
+      // If the record moved on, this was a lost race: 409 like any stale
+      // version. Otherwise a leftover revision row holds this version — a
+      // data fault, not a conflict the editor can resolve: log and 500.
+      const current = await requireRecord(store, db, id)
+      if (current.version !== input.version)
+        throw conflict(store.present(current))
+      console.error(
+        `[versioning] ${store.entityType}/${id}: revision ${input.version + 1} already exists; publish rolled back`
+      )
+    }
     throw err
   }
   invalidate(...store.tags(published))
   return published
-}
-
-/** Postgres unique violation (23505); Drizzle wraps the pg error in `cause`. */
-function isUniqueViolation(err: unknown): boolean {
-  let current: unknown = err
-  for (let depth = 0; current && depth < 5; depth++) {
-    if ((current as { code?: unknown }).code === "23505") return true
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
 }
 
 function publishInTx<T, R extends VersionedRecord<T>>(
@@ -201,6 +214,7 @@ function publishInTx<T, R extends VersionedRecord<T>>(
 ): Promise<R> {
   return db.transaction(async (tx) => {
     const existing = await requireRecord(store, tx, id)
+    assertCurrentVersion(store, existing, input.version)
     const data = validateContent(store.schema(existing), existing.draft)
     const updated = await store.update(tx, id, input.version, {
       draft: data,
@@ -244,6 +258,7 @@ export async function restoreRevision<T, R extends VersionedRecord<T>>(
 ): Promise<R> {
   return db.transaction(async (tx) => {
     const existing = await requireRecord(store, tx, id)
+    assertCurrentVersion(store, existing, input.version)
     const revision = await findRevision(tx, input.revisionId)
     if (
       !revision ||
@@ -255,7 +270,7 @@ export async function restoreRevision<T, R extends VersionedRecord<T>>(
     if (!parsed.success)
       throw new AppError(
         "VALIDATION_FAILED",
-        "This version no longer fits the page's fields and cannot be restored",
+        `This version no longer fits the ${store.label.toLowerCase()}'s fields and cannot be restored`,
         { fieldErrors: fieldErrorsFromIssues(parsed.error.issues) }
       )
     const updated = await store.update(tx, id, input.version, {

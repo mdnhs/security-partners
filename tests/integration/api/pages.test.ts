@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
   cacheTag: vi.fn(),
 }))
 
+import { collectMediaFields } from "@/lib/media"
 import type { PageDto, RevisionSummary } from "@/lib/schemas/api/content"
 import { getDb } from "@/server/db/client"
 import { auditLog, media, pages, revisions } from "@/server/db/schema"
@@ -229,21 +230,26 @@ describe("pages API + versioning (master 4.2)", () => {
     expect(revs.map((r) => r.version)).toEqual([3])
   })
 
-  it("a clashing revision row (unique entity+version) → 409, not 500", async () => {
+  it("a leftover revision row at the publish version → logged 500, rolled back", async () => {
     const home = await getHome()
     await saveDraft(editor, withHeading(home, "Clash"), 1)
-    // A leftover revision already holds the version the publish would write.
+    // A leftover revision already holds the version the publish would write;
+    // the page itself did not move on, so this is a data fault, not a race.
     await getDb()
       .insert(revisions)
       .values({ entityType: "page", entityId: "home", version: 3, data: {} })
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {})
     const res = await adminRequest("/pages/home/publish", {
       cookie: editor,
       method: "POST",
       json: { version: 2 },
     })
-    expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: { current: PageDto } }
-    expect(body.error.current.version).toBe(2)
+    expect(res.status).toBe(500)
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringContaining("page/home: revision 3 already exists")
+    )
+    errors.mockRestore()
+    expect(revalidateTag).not.toHaveBeenCalled()
     const [row] = await getDb()
       .select()
       .from(pages)
@@ -325,5 +331,165 @@ describe("pages API + versioning (master 4.2)", () => {
       (await adminRequest("/revisions/settings/site", { cookie: marketer }))
         .status
     ).toBe(403)
+    const author = (await signedInUser(["author"])).cookie
+    expect((await adminRequest("/pages", { cookie: author })).status).toBe(403)
+  })
+})
+
+describe("fix round 1: audit coalescing, version-first checks, usages", () => {
+  const draftAudits = () =>
+    getDb()
+      .select({ actorId: auditLog.actorId, diff: auditLog.diff })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "page.draft_saved"),
+          eq(auditLog.entityId, "home")
+        )
+      )
+      .orderBy(auditLog.createdAt)
+
+  it("coalesces rapid draft saves by one actor into one audit row", async () => {
+    const home = await getHome()
+    for (const [i, version] of [1, 2, 3].entries())
+      expect(
+        (await saveDraft(editor, withHeading(home, `Save ${i}`), version))
+          .status
+      ).toBe(200)
+    let rows = await draftAudits()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].diff).toMatchObject({ saves: 3, version: 4 })
+    expect(typeof (rows[0].diff as { lastSavedAt: unknown }).lastSavedAt).toBe(
+      "string"
+    )
+
+    // Another editor's save starts its own row.
+    const other = await signedInUser(["editor"])
+    expect(
+      (await saveDraft(other.cookie, withHeading(home, "Other"), 4)).status
+    ).toBe(200)
+    rows = await draftAudits()
+    expect(rows).toHaveLength(2)
+    expect(rows[1]).toMatchObject({
+      actorId: other.user.id,
+      diff: { saves: 1, version: 5 },
+    })
+  })
+
+  it("a publish in between starts a new draft_saved row", async () => {
+    const home = await getHome()
+    await saveDraft(editor, withHeading(home, "One"), 1)
+    await adminRequest("/pages/home/publish", {
+      cookie: editor,
+      method: "POST",
+      json: { version: 2 },
+    })
+    await saveDraft(editor, withHeading(home, "Two"), 3)
+    const rows = await draftAudits()
+    expect(rows.map((r) => (r.diff as { saves: number }).saves)).toEqual([1, 1])
+  })
+
+  it("checks the version before validating (save and publish)", async () => {
+    const home = await getHome()
+    await saveDraft(editor, withHeading(home, "Newer"), 1)
+    // Stale and invalid → 409, not 422.
+    const stale = await saveDraft(editor, { hero: {} }, 1)
+    expect(stale.status).toBe(409)
+    expect(
+      ((await stale.json()) as { error: { current: PageDto } }).error.current
+        .version
+    ).toBe(2)
+
+    // An invalid stored draft: a stale publish still answers 409 first.
+    await getDb()
+      .update(pages)
+      .set({ draft: { hero: {} } })
+      .where(eq(pages.key, "home"))
+    const stalePublish = await adminRequest("/pages/home/publish", {
+      cookie: editor,
+      method: "POST",
+      json: { version: 1 },
+    })
+    expect(stalePublish.status).toBe(409)
+    const currentPublish = await adminRequest("/pages/home/publish", {
+      cookie: editor,
+      method: "POST",
+      json: { version: 2 },
+    })
+    expect(currentPublish.status).toBe(422)
+  })
+
+  it("restore: stale version → 409; a revision the schema rejects → 422", async () => {
+    const [bad] = await getDb()
+      .insert(revisions)
+      .values({
+        entityType: "page",
+        entityId: "home",
+        version: 99,
+        data: { hero: {} },
+      })
+      .returning({ id: revisions.id })
+    const restore = (version: number) =>
+      adminRequest("/pages/home/restore", {
+        cookie: editor,
+        method: "POST",
+        json: { revisionId: bad.id, version },
+      })
+    const stale = await restore(7)
+    expect(stale.status).toBe(409)
+    expect(
+      ((await stale.json()) as { error: { current: PageDto } }).error.current
+        .version
+    ).toBe(1)
+    const invalid = await restore(1)
+    expect(invalid.status).toBe(422)
+    const body = (await invalid.json()) as {
+      error: { fieldErrors: Record<string, string[]> }
+    }
+    expect(Object.keys(body.error.fieldErrors)).toContain("hero.heading")
+    expect((await getHome()).version).toBe(1)
+  })
+
+  it("media_usages is exactly draft ∪ published; a replaced image drops its row", async () => {
+    const db = getDb()
+    const [hero] = await db
+      .select()
+      .from(media)
+      .where(eq(media.key, "/images/hero.jpg"))
+    const [banner] = await db
+      .select()
+      .from(media)
+      .where(eq(media.key, "/images/banner.png"))
+    const fieldsOf = (...values: unknown[]) =>
+      [
+        ...new Set(
+          values
+            .flatMap((v) => collectMediaFields(v))
+            .map((u) => `${u.mediaId} ${u.field}`)
+        ),
+      ].sort()
+    const usagesNow = async () =>
+      (await listMediaUsagesFor(db, "page", "home"))
+        .map((u) => `${u.mediaId} ${u.field}`)
+        .sort()
+
+    const home = await getHome()
+    const draft = withHeading(home, "New image")
+    draft.hero.backgroundImage = { mediaId: banner.id }
+    const saved = (await (await saveDraft(editor, draft, 1)).json()) as PageDto
+    // Draft uses the banner, the live page still uses the hero image.
+    expect(await usagesNow()).toEqual(fieldsOf(saved.draft, saved.published))
+    expect(await usagesNow()).toContain(`${hero.id} hero.backgroundImage`)
+    expect(await usagesNow()).toContain(`${banner.id} hero.backgroundImage`)
+
+    const published = (await (
+      await adminRequest("/pages/home/publish", {
+        cookie: editor,
+        method: "POST",
+        json: { version: 2 },
+      })
+    ).json()) as PageDto
+    expect(await usagesNow()).toEqual(fieldsOf(published.published))
+    expect(await usagesNow()).not.toContain(`${hero.id} hero.backgroundImage`)
   })
 })
