@@ -16,3 +16,8 @@ export async function findServiceBySlug(db: DbOrTx, slug: string) {
   const [row] = await db.select().from(services).where(eq(services.slug, slug))
   return row ?? null
 }
+
+export async function findServiceById(db: DbOrTx, id: string) {
+  const [row] = await db.select().from(services).where(eq(services.id, id))
+  return row ?? null
+}

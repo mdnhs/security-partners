@@ -12,6 +12,7 @@ import {
 import { resolveMedia } from "@/server/modules/media/queries"
 import { getPage } from "@/server/modules/pages/queries"
 import { listServices } from "@/server/modules/services/queries"
+import { assertPreviewAccess } from "@/server/modules/preview/guard"
 import { getSettings } from "@/server/modules/settings/queries"
 import { PAGE_KEYS } from "@/templates/registry"
 import type { SiteSources } from "@/templates/shared/sources"
@@ -31,6 +32,8 @@ function required<T>(value: T | null, what: string): T {
  * `await connection()` inside <Suspense> (no database at build time).
  */
 export async function loadSiteSources(): Promise<SiteSources> {
+  // Draft mode without a valid preview cookie + session → exit preview.
+  await assertPreviewAccess()
   const [
     settingsValues,
     pageRecords,

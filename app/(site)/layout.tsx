@@ -1,7 +1,9 @@
 import { Geist_Mono, Lato } from "next/font/google"
+import { Suspense } from "react"
 
 import "../globals.css"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
+import { PreviewBar } from "@/components/preview-bar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +46,10 @@ export default function RootLayout({
       <body>
         <SmoothScroll />
         <ThemeProvider>{children}</ThemeProvider>
+        {/* Draft-mode only (admins); renders nothing for visitors. */}
+        <Suspense fallback={null}>
+          <PreviewBar />
+        </Suspense>
       </body>
     </html>
   )
