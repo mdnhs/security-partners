@@ -18,6 +18,7 @@ import { ImpersonationBanner } from "./impersonation-banner"
 import type { NavBadges } from "./nav"
 import { CommandPaletteProvider } from "./palette-context"
 import { ShellSignOutProvider } from "./sign-out-context"
+import { SiteInfoProvider } from "./site-context"
 import { Topbar } from "./topbar"
 
 /**
@@ -89,7 +90,7 @@ export function AdminShell({
                   tabIndex={-1}
                   className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-(--main-pad) outline-none [--main-pad:1rem] sm:[--main-pad:1.5rem] lg:[--main-pad:2rem]"
                 >
-                  {children}
+                  <SiteInfoProvider value={site}>{children}</SiteInfoProvider>
                 </main>
               </div>
             </SidebarProvider>

@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test"
 import { URI } from "otpauth"
 
 import { BASE_URL } from "./env"
-import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
+import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 
 /** The signed-in user's menu in the topbar (holds "Sign out"). */
 async function openUserMenu(page: Page, name: string) {
@@ -88,7 +88,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await signIn(page, invitee.email, password)
     await expect(page).toHaveURL(/\/admin$/)
     await expect(
-      page.getByRole("heading", { name: `Welcome, ${invitee.name}` })
+      page.getByRole("heading", { name: greeting(invitee.name) })
     ).toBeVisible()
 
     await page.goto(invitee.inviteUrl)
@@ -123,7 +123,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await page.getByRole("button", { name: "Verify" }).click()
     await expect(page).toHaveURL(/\/admin$/)
     await expect(
-      page.getByRole("heading", { name: `Welcome, ${twoFactor.name}` })
+      page.getByRole("heading", { name: greeting(twoFactor.name) })
     ).toBeVisible()
   })
 
@@ -134,7 +134,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await page.goto("/admin/sign-in")
     await signIn(page, editor.email, E2E_PASSWORD)
     await expect(
-      page.getByRole("heading", { name: `Welcome, ${editor.name}` })
+      page.getByRole("heading", { name: greeting(editor.name) })
     ).toBeVisible()
     await openUserMenu(page, editor.name)
     await page.getByRole("menuitem", { name: "Sign out" }).click()
@@ -150,7 +150,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await page.goto("/admin/sign-in")
     await signIn(page, editor.email, E2E_PASSWORD)
     await expect(
-      page.getByRole("heading", { name: `Welcome, ${editor.name}` })
+      page.getByRole("heading", { name: greeting(editor.name) })
     ).toBeVisible()
 
     await page.route("**/api/auth/sign-out", (route) =>
@@ -257,7 +257,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await page.goto("/admin/sign-in")
     await signIn(page, editor.email, E2E_PASSWORD)
     await expect(
-      page.getByRole("heading", { name: `Welcome, ${editor.name}` })
+      page.getByRole("heading", { name: greeting(editor.name) })
     ).toBeVisible()
 
     const res = await page.goto("/admin/does-not-exist")

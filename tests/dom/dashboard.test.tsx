@@ -11,6 +11,9 @@ vi.mock("next/link", () => ({
 
 import { Dashboard } from "@/components/admin/dashboard/dashboard"
 import { makeQueryClient } from "@/components/admin/providers"
+import { AdminSessionProvider } from "@/components/admin/session-provider"
+import { SiteInfoProvider } from "@/components/admin/shell/site-context"
+import type { Role } from "@/lib/auth/roles"
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 
 const dto: DashboardDto = {
@@ -28,7 +31,7 @@ const dto: DashboardDto = {
     {
       id: "smtp",
       title: "Set up email (SMTP)",
-      description: "d",
+      description: "So enquiries and invites reach people.",
       href: "/admin/settings",
       done: false,
     },
@@ -42,80 +45,173 @@ const dto: DashboardDto = {
   ],
 }
 
-function renderDashboard() {
+const audit = {
+  items: [
+    {
+      id: "a1",
+      action: "page.published",
+      entityType: "page",
+      entityId: "home",
+      actor: { id: "u1", name: "Edith Editor", email: "e@example.test" },
+      impersonatorId: null,
+      ip: null,
+      userAgent: null,
+      diff: null,
+      createdAt: "2026-10-16T10:00:00Z",
+    },
+  ],
+  page: 1,
+  pageSize: 6,
+  total: 1,
+}
+
+function renderDashboard(roles: Role[]) {
   return render(
-    <QueryClientProvider client={makeQueryClient()}>
-      <Dashboard />
-    </QueryClientProvider>
+    <AdminSessionProvider
+      value={{
+        user: {
+          id: "u1",
+          name: "Edith Editor",
+          email: "e@example.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles,
+        impersonatedBy: null,
+      }}
+    >
+      <SiteInfoProvider
+        value={{ url: "https://example.test", env: "production" }}
+      >
+        <QueryClientProvider client={makeQueryClient()}>
+          <Dashboard firstName="Edith" renderedAt="2026-10-16T08:30:00Z" />
+        </QueryClientProvider>
+      </SiteInfoProvider>
+    </AdminSessionProvider>
   )
 }
 
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(
-      async () =>
-        new Response(JSON.stringify(dto), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })
-    )
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input), "http://localhost").pathname
+      if (path.endsWith("/dashboard")) return Response.json(dto)
+      if (path.endsWith("/audit")) return Response.json(audit)
+      return Response.json(
+        { error: { code: "NOT_FOUND", message: "x" } },
+        { status: 404 }
+      )
+    })
   )
 })
 
-describe("dashboard (master 4.7)", () => {
-  it("announces loading with the skeletons hidden from assistive tech", () => {
-    renderDashboard()
-    expect(screen.getByRole("status")).toHaveTextContent("Loading dashboard")
-    expect(screen.queryByRole("heading")).not.toBeInTheDocument()
+describe("dashboard (JW layout)", () => {
+  it("greets, offers the button pair and shows the KPI row with the hero first", async () => {
+    renderDashboard(["owner"])
+    expect(screen.getByTestId("greeting")).toHaveTextContent(
+      "Good morning, Edith"
+    )
+    expect(screen.getByRole("link", { name: "New service" })).toHaveAttribute(
+      "href",
+      "/admin/services/new"
+    )
+    expect(
+      screen.getByRole("link", { name: "View site (opens in a new tab)" })
+    ).toHaveAttribute("href", "https://example.test")
+    const cards = await screen.findAllByRole("article")
+    expect(cards.map((c) => c.getAttribute("data-variant"))).toEqual([
+      "hero",
+      "default",
+      "default",
+      "default",
+    ])
+    expect(cards[0]).toHaveTextContent("New enquiries")
+    expect(cards[0]).toHaveTextContent("7")
+    expect(cards[2]).toHaveTextContent("22")
+    expect(cards[2]).toHaveTextContent("8 pages · 6 services · 8 articles")
+    expect(
+      within(cards[2]).getByRole("link", { name: "Open Published content" })
+    ).toHaveAttribute("href", "/admin/pages")
   })
 
-  it("shows KPIs, the trend summary and the Next up checklist", async () => {
-    renderDashboard()
+  it("announces loading with the skeletons hidden from assistive tech", () => {
+    renderDashboard(["owner"])
+    expect(screen.getByRole("status")).toHaveTextContent("Loading dashboard")
+    expect(screen.queryByRole("article")).not.toBeInTheDocument()
+  })
+
+  it("draws the 90-day trend as weekly pills with a data table", async () => {
+    renderDashboard(["owner"])
+    const card = await screen.findByRole("region", {
+      name: "Enquiries, last 90 days",
+    })
+    const table = within(card).getByRole("table", {
+      name: "Enquiries, last 90 days",
+    })
+    expect(within(table).getAllByRole("row")).toHaveLength(14)
     expect(
-      await screen.findByRole("heading", { level: 2, name: "Enquiries (30 days)" })
+      within(table).getByRole("rowheader", { name: "10 Oct" })
     ).toBeInTheDocument()
-    expect(screen.getByText("7")).toBeInTheDocument()
-    expect(screen.getByText("22")).toBeInTheDocument()
+  })
+
+  it("Next up: headline, checklist with states and the call to action", async () => {
+    renderDashboard(["owner"])
+    const next = await screen.findByRole("region", { name: "Next up" })
+    expect(next).toHaveTextContent("Set up email (SMTP)")
+    expect(next).toHaveTextContent("So enquiries and invites reach people.")
+    const list = within(next).getByRole("list", { name: "Setup checklist" })
     expect(
-      screen.getByText("8 pages · 6 services · 8 articles")
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("img", {
-        name: /^7 enquiries in the last 90 days\. Busiest day: 16 Oct with 4\.$/,
-      })
-    ).toBeInTheDocument()
-    const next = screen.getByRole("region", { name: "Next up" })
-    expect(next).toHaveTextContent("1 to do")
-    expect(
-      within(next).getByRole("link", {
+      within(list).getByRole("link", {
         name: /Set up email \(SMTP\).*\(to do\)/,
       })
     ).toHaveAttribute("href", "/admin/settings")
     expect(
-      within(next).getByRole("link", { name: /two-factor.*\(done\)/ })
+      within(list).getByRole("link", { name: /two-factor.*\(done\)/ })
     ).toBeInTheDocument()
+    expect(
+      within(next).getByRole("link", { name: "Get started" })
+    ).toHaveAttribute("href", "/admin/settings")
   })
 
-  it("omits parts the API returned as null and the checklist when empty", async () => {
+  it("team activity for audit readers only", async () => {
+    renderDashboard(["owner"])
+    const feed = await screen.findByRole("region", { name: "Team activity" })
+    expect(await within(feed).findByText("Edith Editor")).toBeInTheDocument()
+    expect(feed).toHaveTextContent("published the home page")
+  })
+
+  it("hides what the role may not see", async () => {
+    renderDashboard(["viewer"])
+    await screen.findAllByRole("article")
+    expect(screen.queryByRole("link", { name: "New service" })).toBeNull()
+    expect(screen.queryByRole("region", { name: "Team activity" })).toBeNull()
+  })
+
+  it("omits parts the API returned as null and keeps Next up when empty", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         Response.json({
-          kpis: { leads30d: null, openLeads: null, published: null, inReview: 0 },
+          kpis: {
+            leads30d: null,
+            openLeads: null,
+            published: null,
+            inReview: 0,
+          },
           leadsTrend: null,
           nextUp: [],
         } satisfies DashboardDto)
       )
     )
-    renderDashboard()
+    renderDashboard(["viewer"])
+    const cards = await screen.findAllByRole("article")
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toHaveTextContent("Drafts in review")
     expect(
-      await screen.findByRole("heading", { level: 2, name: "Drafts in review" })
-    ).toBeInTheDocument()
-    expect(screen.queryByText("Enquiries (30 days)")).not.toBeInTheDocument()
-    expect(screen.queryByRole("img")).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("region", { name: "Next up" })
+      screen.queryByRole("region", { name: "Enquiries, last 90 days" })
     ).not.toBeInTheDocument()
+    const next = screen.getByRole("region", { name: "Next up" })
+    expect(next).toHaveTextContent("You're all set")
   })
 })

@@ -17,7 +17,9 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD)
   await page.getByRole("button", { name: "Sign in" }).click()
-  await expect(page.getByRole("heading", { name: /^Welcome, / })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: /^Good (morning|afternoon|evening), / })
+  ).toBeVisible()
 }
 
 async function openHomeEditor(page: Page) {

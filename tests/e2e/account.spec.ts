@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test"
 import { Secret, TOTP } from "otpauth"
 
-import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
+import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
@@ -22,7 +22,7 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   const { account } = readFixtures()
   await signIn(page, account.email)
   await expect(
-    page.getByRole("heading", { name: `Welcome, ${account.name}` })
+    page.getByRole("heading", { name: greeting(account.name) })
   ).toBeVisible()
   await page.getByRole("link", { name: "Account" }).click()
   await expect(
@@ -67,6 +67,6 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   await page.getByLabel("Backup code").fill(backupCodes[0])
   await page.getByRole("button", { name: "Verify" }).click()
   await expect(
-    page.getByRole("heading", { name: `Welcome, ${account.name}` })
+    page.getByRole("heading", { name: greeting(account.name) })
   ).toBeVisible()
 })

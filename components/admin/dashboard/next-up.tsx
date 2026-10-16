@@ -1,70 +1,60 @@
-import { CheckCircle2, ChevronRight, Circle } from "lucide-react"
+import { Circle, CircleCheck } from "lucide-react"
 import Link from "next/link"
 
+import { DashboardCard } from "@/components/admin/kit/dashboard-card"
+import { LINK_PRIMARY } from "@/components/admin/page-header"
 import type { NextUpItem } from "@/lib/schemas/api/dashboard"
 import { cn } from "@/lib/utils"
 
-/** Checklist computed from the platform's state (spec §8.1 "Next up"). */
+/** JW "Next up": the first open step as a headline, the checklist, one CTA. */
 export function NextUp({ items }: { items: NextUpItem[] }) {
-  if (items.length === 0) return null
-  const open = items.filter((i) => !i.done).length
+  const next = items.find((item) => !item.done)
   return (
-    <section
-      aria-labelledby="next-up"
-      className="rounded-card flex min-w-0 flex-col gap-3 bg-card p-5 text-card-foreground sm:p-6"
-    >
-      <header className="flex items-baseline justify-between gap-2">
-        <h2 id="next-up" className="text-card-title">
-          Next up
-        </h2>
-        <span className="text-sm text-muted-foreground">
-          {open === 0 ? "All done" : `${open} to do`}
-        </span>
-      </header>
-      <ul className="flex flex-col divide-y">
-        {items.map((item) => (
-          <li key={item.id}>
-            <Link
-              href={item.href}
-              className="flex items-start gap-3 py-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              {item.done ? (
-                <CheckCircle2
-                  aria-hidden
-                  className="mt-0.5 size-5 shrink-0 text-success"
-                />
-              ) : (
-                <Circle
-                  aria-hidden
-                  className="mt-0.5 size-5 shrink-0 text-muted-foreground"
-                />
-              )}
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span
-                  className={cn(
-                    "text-sm font-medium",
-                    item.done && "text-muted-foreground line-through"
-                  )}
+    <DashboardCard title="Next up">
+      <div className="flex flex-1 flex-col justify-between gap-6">
+        <div className="flex flex-col gap-3">
+          <p className="text-2xl leading-tight font-semibold text-primary">
+            {next ? next.title : "You're all set"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {next
+              ? next.description
+              : "Every setup step is done. New suggestions appear here as the site grows."}
+          </p>
+        </div>
+        {items.length > 1 ? (
+          <ul aria-label="Setup checklist" className="flex flex-col gap-1">
+            {items.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={item.href}
+                  className="flex min-h-11 items-center gap-2 rounded-md text-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  {item.title}
+                  {item.done ? (
+                    <CircleCheck aria-hidden className="text-success size-4" />
+                  ) : (
+                    <Circle
+                      aria-hidden
+                      className="size-4 text-muted-foreground"
+                    />
+                  )}
+                  <span className={cn(item.done && "text-muted-foreground")}>
+                    {item.title}
+                  </span>
                   <span className="sr-only">
                     {item.done ? " (done)" : " (to do)"}
                   </span>
-                </span>
-                {!item.done ? (
-                  <span className="text-xs text-muted-foreground">
-                    {item.description}
-                  </span>
-                ) : null}
-              </span>
-              <ChevronRight
-                aria-hidden
-                className="mt-0.5 size-4 text-muted-foreground"
-              />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {next ? (
+          <Link href={next.href} className={LINK_PRIMARY}>
+            Get started
+          </Link>
+        ) : null}
+      </div>
+    </DashboardCard>
   )
 }

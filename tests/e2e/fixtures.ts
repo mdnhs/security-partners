@@ -26,3 +26,9 @@ export function clientIpFor(testTitle: string): string {
 export function readFixtures(): E2EFixtures {
   return JSON.parse(readFileSync(FIXTURES_FILE, "utf8")) as E2EFixtures
 }
+
+/** The dashboard's h1: "Good morning, Edith" (time of day in Ireland, first name). */
+export function greeting(name: string): RegExp {
+  const first = name.trim().split(/\s+/)[0]
+  return new RegExp(`^Good (morning|afternoon|evening), ${first}$`)
+}

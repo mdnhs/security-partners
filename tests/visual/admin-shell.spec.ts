@@ -21,9 +21,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill(VISUAL_ADMIN.email)
   await page.getByLabel("Password", { exact: true }).fill(VISUAL_ADMIN.password)
   await page.getByRole("button", { name: "Sign in" }).click()
-  await expect(
-    page.getByRole("heading", { name: `Welcome, ${VISUAL_ADMIN.name}` })
-  ).toBeVisible()
+  await expect(page.getByTestId("greeting")).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 }
 
