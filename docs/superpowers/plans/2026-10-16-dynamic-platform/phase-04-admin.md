@@ -16249,3 +16249,3656 @@ git commit -m "feat: add admin dashboard with KPIs, lead trend and next steps
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
+
+---
+
+### Task 12: Users and Audit log screens (spec §8.1 gap)
+
+> **Addendum (controller ruling, ledger Phase 4):** the master plan has no task for the spec §8.1 **Users** and **Audit log** screens (risk (1) above). This task adds them as admin UI over the **existing** Phase 2 APIs (`server/modules/users/*`, `server/modules/audit/*` — no server change). Run it **after Task 11**. It touches files earlier tasks created: `components/admin/shell/nav.ts` + `tests/unit/admin/nav.test.ts` (Task 1), `components/admin/data-table/data-table.tsx` (Task 10, additive props), and it **re-baselines** the Task 2 admin shell screenshots (the visual admin is an `admin`, so the sidebar gains "Users" and "Audit log"). It ends with the full phase gate again (Task 11 Step 6 is no longer the last gate).
+
+**Files:**
+- Create: `lib/admin/user-roles.ts`, `lib/admin/audit-filters.ts`, `components/admin/filter-field.tsx`
+- Create: `components/admin/users/{types.ts,copy-link.tsx,roles-field.tsx,user-badges.tsx,invite-dialog.tsx,users-screen.tsx,user-detail.tsx}`, `components/admin/audit/{types.ts,audit-detail-sheet.tsx,audit-screen.tsx}`
+- Create: `app/(admin)/admin/(panel)/users/page.tsx`, `app/(admin)/admin/(panel)/users/[id]/page.tsx`, `app/(admin)/admin/(panel)/audit/page.tsx`
+- Modify: `components/admin/shell/nav.ts` (new "Administration" section), `components/admin/data-table/data-table.tsx` (optional `toolbar` + `filterKey` props), `tests/e2e/fixtures.ts`, `tests/e2e/seed.ts` (owner + admin users)
+- Modify (re-baseline): `tests/visual/__screenshots__/admin-shell-desktop.png`, `tests/visual/__screenshots__/admin-shell-nav-mobile.png`
+- Test: `tests/unit/admin/nav.test.ts` (modify), `tests/unit/admin/user-roles.test.ts`, `tests/unit/admin/audit-filters.test.ts`, `tests/dom/users.test.tsx`, `tests/dom/audit.test.tsx`, `tests/e2e/users-audit.spec.ts`
+
+**Interfaces:**
+- Consumes (Phase 2, unchanged, all under `/api/v1/admin`): `GET /users?page&pageSize&sort=(createdAt|name|email):dir&q&role&status` → `Paginated<UserItem>`; `POST /users/invite {email,name,title?,roles}` → 201 `{ user, inviteUrl, emailDelivered }`; `GET|PATCH /users/:id` (`{name?, title?}`); `PUT /users/:id/roles {roles}`; `POST /users/:id/ban {reason?, expiresInDays?}` / `DELETE /users/:id/ban`; `GET /users/:id/sessions` → `{ items: UserSessionItem[] }`; `DELETE /users/:id/sessions` → `{ revoked }`; `POST /users/:id/password-link` → `{ url, emailDelivered }`; `POST /users/:id/impersonate` (sets cookies); `GET /audit?page&pageSize&sort=(createdAt|action):dir&q&actor&action&entityType&from&to` → `Paginated<AuditItem>`. Server rules mirrored (not replaced) in the UI: owner targets and the `owner` role need `owner:manage`; no self-ban; no self-impersonation; no impersonation while impersonating or of a banned user; password links refused for banned users. Schemas `inviteUserInput`, `banUserInput`, `USER_STATUSES` (`lib/schemas/api/users.ts`), `ROLES`/`Role`, `hasPermission`, `formatDateTime`/`describeUserAgent`/`SITE_TIME_ZONE` (`lib/format.ts`).
+- Consumes (this phase): Task 1 `api`/`unwrap`/`ApiError`/`errorMessage`, `useAdminSession`, `usePermission`, `AdminProviders`/`makeQueryClient`, `PageHeader`, `NAV_SECTIONS`/`navItems`, `ImpersonationBanner` (already rendered by `AdminShell` whenever `session.impersonatedBy` is set — "View as" only has to reload into the impersonated session); Task 2 `useDebouncedValue`, `tests/visual/admin-shell.spec.ts`; Task 10 `DataTable`/`columnsFor`/`DataTableColumns`; shadcn `dialog`, `alert-dialog`, `sheet`, `field`, `badge`, `skeleton`, `textarea`; RHF + `zodResolver`; `sonner`.
+- Produces:
+
+```ts
+// lib/admin/user-roles.ts (isomorphic)
+export type UserStatus = "active" | "invited" | "banned"
+export const ROLE_INFO: Record<Role, { label: string; description: string }>
+export const STATUS_INFO: Record<UserStatus, { label: string; variant: "secondary" | "outline" | "destructive" }>
+export function managesOwners(actorRoles: readonly string[]): boolean
+export function assignableRoles(actorRoles: readonly string[]): Role[]
+export function mayManageUser(actorRoles: readonly string[], targetRoles: readonly string[]): boolean
+export function roleLabels(roles: readonly Role[]): string
+// lib/admin/audit-filters.ts (isomorphic)
+export type AuditFilters = { actor: string; action: string; entityType: string; from: string; to: string }  // "" = off; from/to "YYYY-MM-DD" Irish days
+export const EMPTY_AUDIT_FILTERS: AuditFilters
+export const AUDIT_ACTION_SUGGESTIONS: readonly string[]; export const AUDIT_ENTITY_TYPES: readonly string[]
+export function dublinMidnightUtc(day: string, addDays?: number): Date
+export function auditFilterQuery(filters: AuditFilters): { actor?; action?; entityType?; from?: string /* ISO UTC */; to?: string }
+export function hasAuditFilters(filters: AuditFilters): boolean
+// components/admin/data-table/data-table.tsx (additive)
+DataTable props += { toolbar?: ReactNode; filterKey?: string }   // new filterKey → page 1
+// components/admin/filter-field.tsx
+export function FilterSelect(props: { id; label; value: string; onChange(value: string): void; children }): JSX.Element
+export function FilterInput(props: { id; label; value: string; onChange(value: string): void; type?: "text" | "date"; suggestions?: readonly string[]; placeholder? }): JSX.Element
+// components/admin/users/*
+export type UserItem; export type UserSessionItem; export type InviteResult; export type PasswordLinkResult   // InferResponseType of the Hono routes
+export function CopyLink(props: { id; label; url; emailDelivered: boolean; email; expiry: string }): JSX.Element
+export function RolesField(props: { id; options: readonly Role[]; value: readonly Role[]; onChange(roles: Role[]): void; error?; disabled? }): JSX.Element
+export function UserStatusBadge(props: { status: UserStatus }); export function TwoFactorIndicator(props: { enabled: boolean })
+export function InviteUserDialog(): JSX.Element
+export function UsersScreen(): JSX.Element
+export function UserDetail(props: { id: string }): JSX.Element
+// components/admin/audit/*
+export type AuditItem
+export function AuditDiff(props: { diff: unknown }): JSX.Element
+export function AuditDetailSheet(props: { entry: AuditItem | null; impersonatorName: string | null; onOpenChange(open: boolean): void }): JSX.Element
+export function AuditScreen(): JSX.Element
+// Routes: /admin/users (user:read), /admin/users/[id] (user:read, uuid else 404), /admin/audit (audit:read)
+```
+
+Query keys: users list `["users", { role, status }, "list", params]`, user `["users", "detail", id]`, sessions `["users", "sessions", id]`, audit actors `["users", "audit-actors"]`, audit list `["audit", filterQuery, "list", params]`. Every user mutation writes the returned `UserItem` into `["users","detail",id]` and invalidates the other `["users", …]` queries.
+
+UI decisions (fixed here, nothing left to invent): user detail is a **page** (`/admin/users/[id]`, list rows link to it) with sections Profile, Roles, Access (ban/unban), Invitation link / Password reset, Sessions, and a "View as" header action behind an `AlertDialog`. When the target is an owner and the viewer is not, the page shows only a read-only summary and the note "Only an owner can change an owner's account." (no forms, no sessions request — that endpoint answers 403 for them). The "Owner" role checkbox exists only for owners. Ban durations: until unbanned / 1 / 7 / 30 / 90 days. Copyable links always show (spec §6: works without SMTP) with the email delivery state in a `role="status"` line. Audit dates are shown with `formatDateTime` (Europe/Dublin) and the From/To day filters are Irish calendar days converted to UTC instants (`to` inclusive to 23:59:59.999 Irish time). The audit diff drawer shows "Before"/"After" side by side when the entry's `diff` has `from` and `to`, otherwise the raw JSON ("Details"). The actor filter lists the first 100 users by name (owners/admins hold `user:read`; the filter is hidden without it). Text filters are debounced 250 ms.
+
+- [ ] **Step 1: Write the failing tests**
+
+`tests/unit/admin/nav.test.ts` (full file — replaces Task 1's version: owners and admins now also see "Users" and "Audit log"; editors and viewers do not):
+
+```ts
+import { describe, expect, it } from "vitest"
+
+import type { Role } from "@/lib/auth/roles"
+import {
+  isActiveItem,
+  NAV_SECTIONS,
+  navItems,
+} from "@/components/admin/shell/nav"
+
+const labels = (roles: Role[]) =>
+  navItems(roles).flatMap((section) => section.items.map((i) => i.label))
+
+const CONTENT = [
+  "Dashboard",
+  "Pages",
+  "Services",
+  "Team",
+  "Clients",
+  "Group companies",
+  "Categories",
+  "Settings",
+  "Account",
+]
+
+const ALL = [
+  "Dashboard",
+  "Pages",
+  "Services",
+  "Team",
+  "Clients",
+  "Group companies",
+  "Categories",
+  "Settings",
+  "Users",
+  "Audit log",
+  "Account",
+]
+
+describe("navItems(roles) — sidebar filtered by read permission (master 4.1)", () => {
+  it.each<[Role, string[]]>([
+    ["owner", ALL],
+    ["admin", ALL],
+    ["editor", CONTENT],
+    ["viewer", CONTENT],
+    ["marketer", ["Dashboard", "Pages", "Services", "Account"]],
+    ["author", ["Dashboard", "Account"]],
+    ["intake", ["Dashboard", "Account"]],
+  ])("%s sees %j", (role, expected) => {
+    expect(labels([role])).toEqual(expected)
+  })
+
+  it("unions multiple roles and drops empty sections", () => {
+    expect(labels(["author", "marketer"])).toEqual([
+      "Dashboard",
+      "Pages",
+      "Services",
+      "Account",
+    ])
+    expect(navItems(["intake"]).map((s) => s.label)).toEqual([
+      "Overview",
+      "You",
+    ])
+  })
+
+  it("unknown roles see only the items without a permission", () => {
+    expect(labels(["nope" as Role])).toEqual(["Dashboard", "Account"])
+  })
+
+  it("every item links inside /admin", () => {
+    for (const section of NAV_SECTIONS)
+      for (const item of section.items)
+        expect(item.href.startsWith("/admin")).toBe(true)
+  })
+
+  it("Users and Audit log sit in their own Administration section (spec §8.1)", () => {
+    const section = navItems(["admin"]).find(
+      (s) => s.label === "Administration"
+    )
+    expect(section?.items.map((i) => [i.label, i.href])).toEqual([
+      ["Users", "/admin/users"],
+      ["Audit log", "/admin/audit"],
+    ])
+    expect(navItems(["editor"]).some((s) => s.label === "Administration")).toBe(
+      false
+    )
+  })
+})
+
+describe("isActiveItem", () => {
+  const [dashboard] = NAV_SECTIONS[0].items
+  const pages = NAV_SECTIONS[1].items[0]
+  const users = NAV_SECTIONS.flatMap((s) => s.items).find(
+    (i) => i.label === "Users"
+  )!
+
+  it("matches the dashboard exactly", () => {
+    expect(isActiveItem(dashboard, "/admin")).toBe(true)
+    expect(isActiveItem(dashboard, "/admin/pages")).toBe(false)
+  })
+
+  it("matches a section and its sub-pages only", () => {
+    expect(isActiveItem(pages, "/admin/pages")).toBe(true)
+    expect(isActiveItem(pages, "/admin/pages/home")).toBe(true)
+    expect(isActiveItem(pages, "/admin/pages-archive")).toBe(false)
+    expect(
+      isActiveItem(users, "/admin/users/0190f0e0-0000-7000-8000-000000000001")
+    ).toBe(true)
+  })
+})
+```
+
+`tests/unit/admin/user-roles.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest"
+
+import {
+  assignableRoles,
+  mayManageUser,
+  roleLabels,
+} from "@/lib/admin/user-roles"
+import { ROLES } from "@/lib/auth/roles"
+
+describe("owner rules in the users UI (mirror of the users service)", () => {
+  it("only owners may grant the owner role", () => {
+    expect(assignableRoles(["owner"])).toEqual([...ROLES])
+    expect(assignableRoles(["admin"])).toEqual([
+      "admin",
+      "editor",
+      "author",
+      "marketer",
+      "intake",
+      "viewer",
+    ])
+  })
+
+  it("only owners may manage owner accounts", () => {
+    expect(mayManageUser(["admin"], ["owner", "editor"])).toBe(false)
+    expect(mayManageUser(["admin"], ["admin"])).toBe(true)
+    expect(mayManageUser(["owner"], ["owner"])).toBe(true)
+  })
+
+  it("lists roles in matrix order", () => {
+    expect(roleLabels(["viewer", "owner", "editor"])).toBe(
+      "Owner, Editor, Viewer"
+    )
+  })
+})
+```
+
+`tests/unit/admin/audit-filters.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest"
+
+import {
+  auditFilterQuery,
+  dublinMidnightUtc,
+  EMPTY_AUDIT_FILTERS,
+  hasAuditFilters,
+} from "@/lib/admin/audit-filters"
+
+describe("dublinMidnightUtc — Irish calendar days to UTC instants", () => {
+  it.each([
+    ["2026-01-15", 0, "2026-01-15T00:00:00.000Z"], // GMT
+    ["2026-07-01", 0, "2026-06-30T23:00:00.000Z"], // IST (UTC+1)
+    ["2026-03-29", 0, "2026-03-29T00:00:00.000Z"], // clocks go forward at 01:00 UTC
+    ["2026-03-29", 1, "2026-03-29T23:00:00.000Z"],
+    ["2026-10-25", 0, "2026-10-24T23:00:00.000Z"], // clocks go back at 01:00 UTC
+    ["2026-10-25", 1, "2026-10-26T00:00:00.000Z"],
+    ["2026-12-31", 1, "2027-01-01T00:00:00.000Z"],
+  ])("%s (+%i days) → %s", (day, add, iso) => {
+    expect(dublinMidnightUtc(day, add).toISOString()).toBe(iso)
+  })
+})
+
+describe("auditFilterQuery", () => {
+  it("omits empty filters", () => {
+    expect(auditFilterQuery(EMPTY_AUDIT_FILTERS)).toEqual({
+      actor: undefined,
+      action: undefined,
+      entityType: undefined,
+      from: undefined,
+      to: undefined,
+    })
+    expect(hasAuditFilters(EMPTY_AUDIT_FILTERS)).toBe(false)
+  })
+
+  it("sends whole Irish days, inclusive, as UTC (API from/to)", () => {
+    const filters = {
+      actor: "0190f0e0-0000-7000-8000-000000000001",
+      action: " user.invite ",
+      entityType: "user",
+      from: "2026-07-01",
+      to: "2026-07-01",
+    }
+    expect(auditFilterQuery(filters)).toEqual({
+      actor: "0190f0e0-0000-7000-8000-000000000001",
+      action: "user.invite",
+      entityType: "user",
+      from: "2026-06-30T23:00:00.000Z",
+      to: "2026-07-01T22:59:59.999Z",
+    })
+    expect(hasAuditFilters(filters)).toBe(true)
+  })
+})
+```
+
+`tests/dom/users.test.tsx`:
+
+```tsx
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import type { ReactNode } from "react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const { replace, refresh } = vi.hoisted(() => ({
+  replace: vi.fn(),
+  refresh: vi.fn(),
+}))
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/users",
+  useRouter: () => ({ push: vi.fn(), replace, refresh }),
+  useSearchParams: () => new URLSearchParams(),
+}))
+
+import { AdminProviders, makeQueryClient } from "@/components/admin/providers"
+import { AdminSessionProvider } from "@/components/admin/session-provider"
+import { UserDetail } from "@/components/admin/users/user-detail"
+import { UsersScreen } from "@/components/admin/users/users-screen"
+import type { Role } from "@/lib/auth/roles"
+
+const ME = "0190f0e0-0000-7000-8000-000000000000"
+const OWNER = "0190f0e0-0000-7000-8000-000000000001"
+const EDITOR = "0190f0e0-0000-7000-8000-000000000002"
+const INVITED = "0190f0e0-0000-7000-8000-000000000003"
+const INVITE_URL = "http://localhost:3000/admin/set-password?token=abc"
+const RESET_URL = "http://localhost:3000/admin/reset-password?token=def"
+
+const person = (over: Record<string, unknown>) => ({
+  id: EDITOR,
+  name: "Edith Editor",
+  email: "edith@example.test",
+  title: null,
+  roles: ["editor"],
+  status: "active",
+  banReason: null,
+  banExpires: null,
+  twoFactorEnabled: false,
+  createdAt: "2026-10-16T09:00:00.000Z",
+  ...over,
+})
+
+const PEOPLE = [
+  person({
+    id: OWNER,
+    name: "Olive Owner",
+    email: "olive@example.test",
+    roles: ["owner"],
+    twoFactorEnabled: true,
+  }),
+  person({}),
+  person({
+    id: INVITED,
+    name: "Ivy Invitee",
+    email: "ivy@example.test",
+    roles: ["viewer"],
+    status: "invited",
+  }),
+]
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  })
+
+const fetchMock = vi.fn()
+const calls = (method: string, path: string) =>
+  fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      (init?.method ?? "GET") === method &&
+      new URL(String(input), "http://localhost").pathname === path
+  )
+const bodyOf = (method: string, path: string) =>
+  JSON.parse(String(calls(method, path).at(-1)![1].body))
+const lastListUrl = () =>
+  new URL(
+    String(calls("GET", "/api/v1/admin/users").at(-1)![0]),
+    "http://localhost"
+  )
+
+beforeEach(() => {
+  replace.mockReset()
+  refresh.mockReset()
+  fetchMock.mockReset()
+  fetchMock.mockImplementation(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost")
+      const method = init?.method ?? "GET"
+      const path = url.pathname.replace("/api/v1/admin/users", "")
+      if (method === "GET" && path === "")
+        return json(200, {
+          items: PEOPLE,
+          page: Number(url.searchParams.get("page")),
+          pageSize: Number(url.searchParams.get("pageSize")),
+          total: PEOPLE.length,
+        })
+      if (method === "POST" && path === "/invite") {
+        const body = JSON.parse(String(init?.body))
+        return json(201, {
+          user: person({ id: ME, ...body, status: "invited" }),
+          inviteUrl: INVITE_URL,
+          emailDelivered: false,
+        })
+      }
+      const [, id, action] = path.split("/")
+      const target = PEOPLE.find((p) => p.id === id) ?? person({ id })
+      if (method === "GET" && !action) return json(200, target)
+      if (method === "GET" && action === "sessions")
+        return json(200, {
+          items: [
+            {
+              id: "s1",
+              ipAddress: "203.0.113.9",
+              userAgent:
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+              createdAt: "2026-10-16T08:00:00.000Z",
+              expiresAt: "2026-10-23T08:00:00.000Z",
+              impersonatedBy: null,
+            },
+          ],
+        })
+      if (method === "DELETE" && action === "sessions")
+        return json(200, { revoked: 1 })
+      if (method === "POST" && action === "ban")
+        return json(
+          200,
+          person({
+            ...target,
+            status: "banned",
+            banReason: "Left the company",
+            banExpires: "2026-10-23T09:00:00.000Z",
+          })
+        )
+      if (method === "POST" && action === "password-link")
+        return json(200, { url: RESET_URL, emailDelivered: false })
+      if (method === "POST" && action === "impersonate")
+        return json(200, { user: target, expiresAt: "2026-10-16T10:00:00Z" })
+      return json(404, { error: { code: "NOT_FOUND", message: "Not found" } })
+    }
+  )
+  vi.stubGlobal("fetch", fetchMock)
+})
+
+function renderAs(roles: Role[], ui: ReactNode, id = ME) {
+  return render(
+    <AdminSessionProvider
+      value={{
+        user: {
+          id,
+          name: "Me",
+          email: "me@example.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles,
+        impersonatedBy: null,
+      }}
+    >
+      <AdminProviders client={makeQueryClient()}>{ui}</AdminProviders>
+    </AdminSessionProvider>
+  )
+}
+
+describe("users list (spec §8.1 Users)", () => {
+  it("shows status badges and 2FA, filters by role and status on the server", async () => {
+    const user = userEvent.setup()
+    renderAs(["admin"], <UsersScreen />)
+    const table = await screen.findByRole("table", { name: "Users" })
+    const olive = within(table).getByRole("row", { name: /Olive Owner/ })
+    expect(olive).toHaveTextContent("Active")
+    expect(olive).toHaveTextContent("2FA on")
+    expect(olive).toHaveTextContent("Owner")
+    expect(
+      within(table).getByRole("row", { name: /Ivy Invitee/ })
+    ).toHaveTextContent("Invited")
+    expect(
+      within(table).getByRole("link", { name: "Edith Editor" })
+    ).toHaveAttribute("href", `/admin/users/${EDITOR}`)
+
+    await user.selectOptions(screen.getByLabelText("Role"), "editor")
+    await waitFor(() =>
+      expect(lastListUrl().searchParams.get("role")).toBe("editor")
+    )
+    expect(lastListUrl().searchParams.get("page")).toBe("1")
+    await user.selectOptions(screen.getByLabelText("Status"), "invited")
+    await waitFor(() =>
+      expect(lastListUrl().searchParams.get("status")).toBe("invited")
+    )
+    expect(lastListUrl().searchParams.get("role")).toBe("editor")
+  })
+
+  it("hides the invite button without user:invite", async () => {
+    renderAs(["viewer"], <UsersScreen />)
+    await screen.findByRole("table", { name: "Users" })
+    expect(screen.queryByRole("button", { name: "Invite user" })).toBeNull()
+  })
+})
+
+describe("invite dialog", () => {
+  it("owner invites: validates, sends the roles and shows a copyable link", async () => {
+    const user = userEvent.setup()
+    renderAs(["owner"], <UsersScreen />)
+    await user.click(await screen.findByRole("button", { name: "Invite user" }))
+    const dialog = await screen.findByRole("dialog", { name: "Invite user" })
+    expect(
+      within(dialog).getByRole("checkbox", { name: "Owner" })
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Send invitation" })
+    )
+    expect(
+      await within(dialog).findByText("Choose at least one role")
+    ).toBeInTheDocument()
+    expect(calls("POST", "/api/v1/admin/users/invite")).toHaveLength(0)
+
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Email" }),
+      "Nia@Example.test"
+    )
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Name" }),
+      "Nia New"
+    )
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /Job title/ }),
+      "Guard"
+    )
+    await user.click(within(dialog).getByRole("checkbox", { name: "Editor" }))
+    await user.click(
+      within(dialog).getByRole("button", { name: "Send invitation" })
+    )
+
+    const done = await screen.findByRole("dialog", {
+      name: "Invitation created",
+    })
+    expect(bodyOf("POST", "/api/v1/admin/users/invite")).toEqual({
+      email: "nia@example.test",
+      name: "Nia New",
+      title: "Guard",
+      roles: ["editor"],
+    })
+    expect(within(done).getByRole("status")).toHaveTextContent(
+      "Email is not set up"
+    )
+    expect(
+      within(done).getByRole("textbox", { name: "Invitation link" })
+    ).toHaveValue(INVITE_URL)
+    await user.click(within(done).getByRole("button", { name: "Copy link" }))
+    expect(
+      await within(done).findByRole("button", { name: "Copied" })
+    ).toBeInTheDocument()
+    await expect(navigator.clipboard.readText()).resolves.toBe(INVITE_URL)
+  })
+
+  it("admins are not offered the Owner role", async () => {
+    const user = userEvent.setup()
+    renderAs(["admin"], <UsersScreen />)
+    await user.click(await screen.findByRole("button", { name: "Invite user" }))
+    const dialog = await screen.findByRole("dialog", { name: "Invite user" })
+    expect(
+      within(dialog).getByRole("checkbox", { name: "Admin" })
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByRole("checkbox", { name: "Owner" })).toBeNull()
+  })
+})
+
+describe("user detail", () => {
+  it("an admin viewing an owner gets no controls (owner-only)", async () => {
+    renderAs(["admin"], <UserDetail id={OWNER} />)
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Olive Owner" })
+    ).toBeInTheDocument()
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Only an owner can change an owner's account."
+    )
+    for (const name of [
+      "Save profile",
+      "Save roles",
+      "Ban user",
+      "View as",
+      "Create password reset link",
+      "Sign out everywhere",
+    ])
+      expect(screen.queryByRole("button", { name })).toBeNull()
+    expect(calls("GET", `/api/v1/admin/users/${OWNER}/sessions`)).toHaveLength(
+      0
+    )
+  })
+
+  it("an owner edits roles of an owner too", async () => {
+    renderAs(["owner"], <UserDetail id={OWNER} />)
+    expect(await screen.findByRole("checkbox", { name: "Owner" })).toBeChecked()
+    expect(screen.getByRole("button", { name: "View as" })).toBeInTheDocument()
+  })
+
+  it("bans an editor for 7 days after confirming", async () => {
+    const user = userEvent.setup()
+    renderAs(["owner"], <UserDetail id={EDITOR} />)
+    await user.type(
+      await screen.findByRole("textbox", { name: /Reason/ }),
+      "Left the company"
+    )
+    await user.selectOptions(screen.getByLabelText("Duration"), "7")
+    await user.click(screen.getByRole("button", { name: "Ban user" }))
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Ban Edith Editor?",
+    })
+    expect(confirm).toHaveTextContent("for 7 days")
+    await user.click(within(confirm).getByRole("button", { name: "Ban" }))
+    await waitFor(() =>
+      expect(bodyOf("POST", `/api/v1/admin/users/${EDITOR}/ban`)).toEqual({
+        reason: "Left the company",
+        expiresInDays: 7,
+      })
+    )
+    expect(
+      await screen.findByRole("button", { name: "Unban" })
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Left the company/)).toBeInTheDocument()
+  })
+
+  it("saves roles with PUT", async () => {
+    const user = userEvent.setup()
+    renderAs(["admin"], <UserDetail id={EDITOR} />)
+    const save = await screen.findByRole("button", { name: "Save roles" })
+    expect(save).toBeDisabled()
+    await user.click(screen.getByRole("checkbox", { name: "Author" }))
+    await user.click(save)
+    await waitFor(() =>
+      expect(bodyOf("PUT", `/api/v1/admin/users/${EDITOR}/roles`)).toEqual({
+        roles: ["editor", "author"],
+      })
+    )
+  })
+
+  it("creates a password link and signs the user out everywhere", async () => {
+    const user = userEvent.setup()
+    renderAs(["admin"], <UserDetail id={EDITOR} />)
+    await user.click(
+      await screen.findByRole("button", { name: "Create password reset link" })
+    )
+    expect(
+      await screen.findByRole("textbox", { name: "Password reset link" })
+    ).toHaveValue(RESET_URL)
+
+    const sessions = await screen.findByRole("list", { name: "Sessions" })
+    expect(sessions).toHaveTextContent("Chrome on macOS")
+    expect(sessions).toHaveTextContent("203.0.113.9")
+    await user.click(
+      screen.getByRole("button", { name: "Sign out everywhere" })
+    )
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Sign Edith Editor out everywhere?",
+    })
+    await user.click(
+      within(confirm).getByRole("button", { name: "Sign out everywhere" })
+    )
+    await waitFor(() =>
+      expect(
+        calls("DELETE", `/api/v1/admin/users/${EDITOR}/sessions`)
+      ).toHaveLength(1)
+    )
+  })
+
+  it("View as: confirm, start the impersonation, reload the admin", async () => {
+    const user = userEvent.setup()
+    renderAs(["admin"], <UserDetail id={EDITOR} />)
+    await user.click(await screen.findByRole("button", { name: "View as" }))
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "View the admin as Edith Editor?",
+    })
+    await user.click(
+      within(confirm).getByRole("button", { name: "Start viewing" })
+    )
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"))
+    expect(refresh).toHaveBeenCalled()
+    expect(
+      calls("POST", `/api/v1/admin/users/${EDITOR}/impersonate`)
+    ).toHaveLength(1)
+  })
+
+  it("never offers to ban or view as yourself", async () => {
+    renderAs(["admin"], <UserDetail id={EDITOR} />, EDITOR)
+    expect(
+      await screen.findByText("You cannot ban your own account.")
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "View as" })).toBeNull()
+  })
+})
+```
+
+`tests/dom/audit.test.tsx`:
+
+```tsx
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/audit",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}))
+
+import { AuditScreen } from "@/components/admin/audit/audit-screen"
+import { AdminProviders, makeQueryClient } from "@/components/admin/providers"
+import { AdminSessionProvider } from "@/components/admin/session-provider"
+
+const OWNER = "0190f0e0-0000-7000-8000-000000000001"
+const EDITOR = "0190f0e0-0000-7000-8000-000000000002"
+
+const entries = [
+  {
+    id: "0190f0e0-0000-7000-8000-0000000000a1",
+    action: "user.invite",
+    entityType: "user",
+    entityId: EDITOR,
+    actor: { id: OWNER, name: "Olive Owner", email: "olive@example.test" },
+    impersonatorId: null,
+    ip: "203.0.113.9",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0) Firefox/133.0",
+    diff: { email: "edith@example.test", roles: ["editor"], title: null },
+    createdAt: "2026-07-01T09:30:00.000Z",
+  },
+  {
+    id: "0190f0e0-0000-7000-8000-0000000000a2",
+    action: "user.update",
+    entityType: "user",
+    entityId: EDITOR,
+    actor: { id: EDITOR, name: "Edith Editor", email: "edith@example.test" },
+    impersonatorId: OWNER,
+    ip: null,
+    userAgent: null,
+    diff: {
+      from: { name: "Edith", title: null },
+      to: { name: "Edith Editor" },
+    },
+    createdAt: "2026-07-01T10:00:00.000Z",
+  },
+]
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  })
+
+const fetchMock = vi.fn()
+const lastAuditUrl = () =>
+  new URL(
+    String(
+      fetchMock.mock.calls
+        .map(([input]) => String(input))
+        .filter((u) => u.includes("/api/v1/admin/audit"))
+        .at(-1)
+    ),
+    "http://localhost"
+  )
+
+beforeEach(() => {
+  fetchMock.mockReset()
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/v1/admin/audit")
+      return json(200, { items: entries, page: 1, pageSize: 20, total: 2 })
+    if (url.pathname === "/api/v1/admin/users")
+      return json(200, {
+        items: [
+          { id: EDITOR, name: "Edith Editor" },
+          { id: OWNER, name: "Olive Owner" },
+        ],
+        page: 1,
+        pageSize: 100,
+        total: 2,
+      })
+    return json(404, { error: { code: "NOT_FOUND", message: "Not found" } })
+  })
+  vi.stubGlobal("fetch", fetchMock)
+})
+
+function renderScreen() {
+  return render(
+    <AdminSessionProvider
+      value={{
+        user: {
+          id: OWNER,
+          name: "Olive Owner",
+          email: "olive@example.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles: ["owner"],
+        impersonatedBy: null,
+      }}
+    >
+      <AdminProviders client={makeQueryClient()}>
+        <AuditScreen />
+      </AdminProviders>
+    </AdminSessionProvider>
+  )
+}
+
+describe("audit log (spec §8.1)", () => {
+  it("lists entries in Irish time with actor and impersonator", async () => {
+    renderScreen()
+    const table = await screen.findByRole("table", { name: "Audit log" })
+    const invite = within(table).getByRole("row", { name: /user\.invite/ })
+    // 09:30 UTC on 1 July = 10:30 in Dublin (IST).
+    expect(invite).toHaveTextContent("1 Jul 2026, 10:30")
+    expect(invite).toHaveTextContent("Olive Owner")
+    expect(
+      await within(table).findByText("viewed as by Olive Owner")
+    ).toBeInTheDocument()
+  })
+
+  it("filters by actor, action, record type and Irish dates", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Audit log" })
+    const who = screen.getByLabelText("Who")
+    await waitFor(() =>
+      expect(within(who).getAllByRole("option")).toHaveLength(3)
+    )
+    await user.selectOptions(who, OWNER)
+    await user.type(screen.getByLabelText("Action"), "user.invite")
+    await user.type(screen.getByLabelText("Record type"), "user")
+    await user.type(screen.getByLabelText("From"), "2026-07-01")
+    await user.type(screen.getByLabelText("To"), "2026-07-01")
+    await waitFor(() => {
+      const params = lastAuditUrl().searchParams
+      expect(Object.fromEntries(params)).toMatchObject({
+        page: "1",
+        actor: OWNER,
+        action: "user.invite",
+        entityType: "user",
+        from: "2026-06-30T23:00:00.000Z",
+        to: "2026-07-01T22:59:59.999Z",
+      })
+    })
+    await user.click(screen.getByRole("button", { name: "Clear filters" }))
+    expect(screen.getByLabelText("Action")).toHaveValue("")
+    expect(screen.getByLabelText("Who")).toHaveValue("")
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull()
+  })
+
+  it("opens the diff viewer with before/after JSON", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    const table = await screen.findByRole("table", { name: "Audit log" })
+    await user.click(
+      within(table).getByRole("button", { name: /^Details of user\.update/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "Audit entry" })
+    expect(within(sheet).getByLabelText("Before")).toHaveTextContent(
+      '"name": "Edith"'
+    )
+    expect(within(sheet).getByLabelText("After")).toHaveTextContent(
+      '"name": "Edith Editor"'
+    )
+    expect(sheet).toHaveTextContent("Viewed as by")
+    expect(sheet).toHaveTextContent("Unknown device")
+
+    await user.keyboard("{Escape}")
+    await user.click(
+      within(table).getByRole("button", { name: /^Details of user\.invite/ })
+    )
+    const invite = await screen.findByRole("dialog", { name: "Audit entry" })
+    expect(within(invite).getByLabelText("Details")).toHaveTextContent(
+      '"email": "edith@example.test"'
+    )
+    expect(invite).toHaveTextContent("Firefox on Windows")
+  })
+})
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `pnpm exec vitest run --project unit tests/unit/admin/nav.test.ts tests/unit/admin/user-roles.test.ts tests/unit/admin/audit-filters.test.ts`
+Expected: FAIL — `nav.test.ts`: 4 failed | 9 passed (`owner sees …` and `admin sees …` with `AssertionError: expected [ 'Dashboard', 'Pages', …(7) ] to deeply equal [ 'Dashboard', 'Pages', …(9) ]`, the Administration test with `expected undefined to deeply equal …`, `isActiveItem` with `TypeError: Cannot read properties of undefined (reading 'match')`); the other two files: `Failed to resolve import "@/lib/admin/user-roles"` / `"@/lib/admin/audit-filters"`.
+
+Run: `pnpm exec vitest run --project dom tests/dom/users.test.tsx tests/dom/audit.test.tsx`
+Expected: FAIL — `Failed to resolve import "@/components/admin/users/user-detail"` and `Failed to resolve import "@/components/admin/audit/audit-screen"`.
+
+- [ ] **Step 3: Pure helpers, navigation, data table filters**
+
+`lib/admin/user-roles.ts`:
+
+```ts
+import { hasPermission } from "@/lib/auth/permissions"
+import { ROLES, type Role } from "@/lib/auth/roles"
+import type { USER_STATUSES } from "@/lib/schemas/api/users"
+
+export type UserStatus = (typeof USER_STATUSES)[number]
+
+/** Names and one-line summaries of the spec §6.1 roles (admin UI copy). */
+export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
+  owner: {
+    label: "Owner",
+    description: "Everything, including other owners and custom code.",
+  },
+  admin: {
+    label: "Admin",
+    description: "Everything except custom code and owner accounts.",
+  },
+  editor: {
+    label: "Editor",
+    description:
+      "Pages, services, articles, collections, media, SEO and content settings.",
+  },
+  author: {
+    label: "Author",
+    description: "Writes articles and submits them for review.",
+  },
+  marketer: {
+    label: "Marketer",
+    description: "SEO, redirects, consent and tracking.",
+  },
+  intake: {
+    label: "Intake",
+    description: "Reads and follows up enquiries (leads).",
+  },
+  viewer: {
+    label: "Viewer",
+    description: "Read-only access to content and settings.",
+  },
+}
+
+export const STATUS_INFO: Record<
+  UserStatus,
+  { label: string; variant: "secondary" | "outline" | "destructive" }
+> = {
+  active: { label: "Active", variant: "secondary" },
+  invited: { label: "Invited", variant: "outline" },
+  banned: { label: "Banned", variant: "destructive" },
+}
+
+/** Owner accounts and the `owner` role are owner-only (users service rule). */
+export function managesOwners(actorRoles: readonly string[]): boolean {
+  return hasPermission(actorRoles, { owner: ["manage"] })
+}
+
+/** Roles the actor may grant: everything, minus `owner` for non-owners. */
+export function assignableRoles(actorRoles: readonly string[]): Role[] {
+  return managesOwners(actorRoles)
+    ? [...ROLES]
+    : ROLES.filter((role) => role !== "owner")
+}
+
+/** False when the target is an owner and the actor is not (server answers 403). */
+export function mayManageUser(
+  actorRoles: readonly string[],
+  targetRoles: readonly string[]
+): boolean {
+  return !targetRoles.includes("owner") || managesOwners(actorRoles)
+}
+
+/** "Owner, Editor" in ROLES order. */
+export function roleLabels(roles: readonly Role[]): string {
+  return ROLES.filter((role) => roles.includes(role))
+    .map((role) => ROLE_INFO[role].label)
+    .join(", ")
+}
+```
+
+`lib/admin/audit-filters.ts`:
+
+```ts
+import { SITE_TIME_ZONE } from "@/lib/format"
+
+/** Audit log filters as the screen holds them ("" = not filtered). */
+export type AuditFilters = {
+  /** User id. */
+  actor: string
+  /** Exact action, e.g. "user.invite". */
+  action: string
+  /** Exact entity type, e.g. "user". */
+  entityType: string
+  /** Irish calendar days "YYYY-MM-DD" (inclusive). */
+  from: string
+  to: string
+}
+
+export const EMPTY_AUDIT_FILTERS: AuditFilters = {
+  actor: "",
+  action: "",
+  entityType: "",
+  from: "",
+  to: "",
+}
+
+/** Suggestions for the action filter (the API filters on the exact text). */
+export const AUDIT_ACTION_SUGGESTIONS = [
+  "auth.sign_in",
+  "auth.sign_in_failed",
+  "auth.sign_out",
+  "auth.password_reset",
+  "auth.2fa_enable",
+  "user.invite",
+  "user.update",
+  "user.roles_change",
+  "user.ban",
+  "user.unban",
+  "user.sessions_revoke",
+  "user.password_link",
+  "user.impersonate_start",
+  "user.impersonate_stop",
+  "page.draft_saved",
+  "page.published",
+  "page.restored",
+  "settings.draft_saved",
+  "settings.published",
+  "settings.restored",
+  "service.created",
+  "service.draft_saved",
+  "service.published",
+  "service.restored",
+  "service.slug_changed",
+  "service.deleted",
+] as const
+
+/** Suggestions for the entity filter (Phases 2–4 write these types). */
+export const AUDIT_ENTITY_TYPES = [
+  "user",
+  "page",
+  "settings",
+  "service",
+  "team",
+  "client",
+  "groupCompany",
+  "category",
+] as const
+
+const wallClock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: SITE_TIME_ZONE,
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+})
+
+/** Irish wall-clock time minus UTC at `instant`, in ms (0 or 3 600 000). */
+function dublinOffsetMs(instant: number): number {
+  const p = Object.fromEntries(
+    wallClock.formatToParts(new Date(instant)).map((x) => [x.type, x.value])
+  )
+  const wall = Date.UTC(
+    Number(p.year),
+    Number(p.month) - 1,
+    Number(p.day),
+    Number(p.hour),
+    Number(p.minute),
+    Number(p.second)
+  )
+  return wall - instant
+}
+
+/**
+ * The UTC instant of 00:00 Irish time on `day` (+ `addDays`). Ireland is
+ * UTC+0 or UTC+1 and never changes clocks at midnight, so one correction
+ * from the UTC-midnight guess is exact.
+ */
+export function dublinMidnightUtc(day: string, addDays = 0): Date {
+  const [year, month, date] = day.split("-").map(Number)
+  const guess = Date.UTC(year, month - 1, date + addDays)
+  return new Date(guess - dublinOffsetMs(guess))
+}
+
+/** GET /api/v1/admin/audit filter params; days become UTC instants. */
+export function auditFilterQuery(filters: AuditFilters): {
+  actor?: string
+  action?: string
+  entityType?: string
+  from?: string
+  to?: string
+} {
+  const action = filters.action.trim()
+  const entityType = filters.entityType.trim()
+  return {
+    actor: filters.actor || undefined,
+    action: action || undefined,
+    entityType: entityType || undefined,
+    from: filters.from
+      ? dublinMidnightUtc(filters.from).toISOString()
+      : undefined,
+    // Inclusive: up to the last millisecond of that Irish day.
+    to: filters.to
+      ? new Date(dublinMidnightUtc(filters.to, 1).getTime() - 1).toISOString()
+      : undefined,
+  }
+}
+
+export function hasAuditFilters(filters: AuditFilters): boolean {
+  return Object.values(filters).some((value) => value.trim() !== "")
+}
+```
+
+`components/admin/shell/nav.ts` (full file — Task 1's file plus the `UserCog`/`ScrollText` imports and the "Administration" section between "Configuration" and "You"):
+
+```ts
+import {
+  Building2,
+  FileText,
+  LayoutDashboard,
+  type LucideIcon,
+  Settings,
+  ShieldCheck,
+  ScrollText,
+  Tags,
+  UserCog,
+  UserRound,
+  Users,
+  Wrench,
+} from "lucide-react"
+
+import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
+
+export type NavItem = {
+  label: string
+  href: string
+  icon: LucideIcon
+  /** null = every signed-in user. Items are hidden without read permission (spec §8.1). */
+  permission: PermissionRequest | null
+  /** "exact" for /admin (otherwise every admin URL would match). */
+  match: "exact" | "prefix"
+}
+
+export type NavSection = { label: string; items: NavItem[] }
+
+/**
+ * Admin IA (spec §8.1) for the screens that exist. Later phases add their
+ * items here (Articles, Media, Leads, SEO, Marketing).
+ */
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "Overview",
+    items: [
+      {
+        label: "Dashboard",
+        href: "/admin",
+        icon: LayoutDashboard,
+        permission: null,
+        match: "exact",
+      },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
+      {
+        label: "Pages",
+        href: "/admin/pages",
+        icon: FileText,
+        permission: { page: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Services",
+        href: "/admin/services",
+        icon: Wrench,
+        permission: { service: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Team",
+        href: "/admin/team",
+        icon: Users,
+        permission: { collection: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Clients",
+        href: "/admin/clients",
+        icon: ShieldCheck,
+        permission: { collection: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Group companies",
+        href: "/admin/group-companies",
+        icon: Building2,
+        permission: { collection: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Categories",
+        href: "/admin/categories",
+        icon: Tags,
+        permission: { collection: ["read"] },
+        match: "prefix",
+      },
+    ],
+  },
+  {
+    label: "Configuration",
+    items: [
+      {
+        label: "Settings",
+        href: "/admin/settings",
+        icon: Settings,
+        permission: { settings: ["read"] },
+        match: "prefix",
+      },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
+      {
+        label: "Users",
+        href: "/admin/users",
+        icon: UserCog,
+        permission: { user: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Audit log",
+        href: "/admin/audit",
+        icon: ScrollText,
+        permission: { audit: ["read"] },
+        match: "prefix",
+      },
+    ],
+  },
+  {
+    label: "You",
+    items: [
+      {
+        label: "Account",
+        href: "/admin/account",
+        icon: UserRound,
+        permission: null,
+        match: "prefix",
+      },
+    ],
+  },
+]
+
+/** The sections and items `roles` may see; empty sections are dropped. */
+export function navItems(roles: readonly string[]): NavSection[] {
+  return NAV_SECTIONS.map((section) => ({
+    label: section.label,
+    items: section.items.filter(
+      (item) =>
+        item.permission === null || hasPermission(roles, item.permission)
+    ),
+  })).filter((section) => section.items.length > 0)
+}
+
+/** True when `pathname` is this item's page (or below it, for "prefix"). */
+export function isActiveItem(item: NavItem, pathname: string): boolean {
+  if (item.match === "exact") return pathname === item.href
+  return pathname === item.href || pathname.startsWith(`${item.href}/`)
+}
+```
+
+`components/admin/data-table/data-table.tsx` (full file — Task 10's file plus the optional `toolbar` and `filterKey` props; existing callers are unchanged):
+
+```tsx
+"use client"
+
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import {
+  type ColumnDef,
+  createColumnHelper,
+  type PaginationState,
+  rowPaginationFeature,
+  rowSortingFeature,
+  type SortingState,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table"
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Search } from "lucide-react"
+import { type ReactNode, useState } from "react"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { errorMessage } from "@/lib/api-client"
+import type { Paginated } from "@/lib/schemas/api/list"
+import { cn } from "@/lib/utils"
+
+/**
+ * Server-side pagination + sorting (TanStack Table v9, notes §4.1): no
+ * sorted/paginated row models, so the table only renders what the API
+ * returned for the current page.
+ */
+export const dataTableFeatures = tableFeatures({
+  rowSortingFeature,
+  rowPaginationFeature,
+})
+export type DataTableFeatures = typeof dataTableFeatures
+
+/** Column helper bound to the admin table features. */
+export const columnsFor = <T extends Record<string, unknown>>() =>
+  createColumnHelper<DataTableFeatures, T>()
+
+export type DataTableColumns<T extends Record<string, unknown>> = ColumnDef<
+  DataTableFeatures,
+  T,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns of mixed value types
+  any
+>[]
+
+export type DataTableParams = {
+  page: number
+  pageSize: number
+  sort?: string
+  q?: string
+}
+
+const PAGE_SIZE = 20
+
+/**
+ * Admin list: search, sortable headers, pagination; a table from 640 px
+ * and cards below it (spec §8.2 "tables → cards on phones").
+ */
+export function DataTable<T extends Record<string, unknown> & { id: string }>({
+  label,
+  queryKey,
+  fetchPage,
+  columns,
+  renderCard,
+  initialSort,
+  searchPlaceholder = "Search",
+  empty,
+  toolbar,
+  filterKey = "",
+}: {
+  /** Accessible name (table caption, list label). */
+  label: string
+  queryKey: readonly unknown[]
+  fetchPage: (params: DataTableParams) => Promise<Paginated<T>>
+  /** Module-scope (stable) column definitions. */
+  columns: DataTableColumns<T>
+  renderCard: (row: T) => ReactNode
+  initialSort?: SortingState
+  searchPlaceholder?: string
+  empty: ReactNode
+  /** Extra filter controls shown next to the search box. */
+  toolbar?: ReactNode
+  /**
+   * Identity of the active extra filters ("" = none). The caller puts the
+   * filters into `queryKey` and `fetchPage`; a new key returns to page 1.
+   */
+  filterKey?: string
+}) {
+  const [sorting, setSorting] = useState<SortingState>(initialSort ?? [])
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: PAGE_SIZE,
+  })
+  const [search, setSearch] = useState("")
+  const [appliedFilterKey, setAppliedFilterKey] = useState(filterKey)
+  if (appliedFilterKey !== filterKey) {
+    // New filters: back to page 1 (state update during render, no effect).
+    setAppliedFilterKey(filterKey)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const q = useDebouncedValue(search.trim(), 250)
+  const sort = sorting[0]
+    ? `${sorting[0].id}:${sorting[0].desc ? "desc" : "asc"}`
+    : undefined
+  const params: DataTableParams = {
+    page: pagination.pageIndex + 1,
+    pageSize: pagination.pageSize,
+    sort,
+    q: q || undefined,
+  }
+
+  const query = useQuery({
+    queryKey: [...queryKey, "list", params],
+    queryFn: () => fetchPage(params),
+    placeholderData: keepPreviousData,
+  })
+  const rows = query.data?.items ?? EMPTY_ROWS
+  const table = useTable({
+    features: dataTableFeatures,
+    columns,
+    data: rows as T[],
+    rowCount: query.data?.total ?? 0,
+    getRowId: (row) => row.id,
+    manualPagination: true,
+    manualSorting: true,
+    state: { sorting, pagination },
+    onSortingChange: (updater) => {
+      setSorting(updater)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    },
+    onPaginationChange: setPagination,
+  })
+
+  const total = query.data?.total ?? 0
+  const from = total === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
+  const to = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize)
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="search"
+            aria-label={`Search ${label.toLowerCase()}`}
+            placeholder={searchPlaceholder}
+            className="pl-8"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPagination((p) => ({ ...p, pageIndex: 0 }))
+            }}
+          />
+        </div>
+        {toolbar}
+      </div>
+
+      {query.isError ? (
+        <div
+          role="alert"
+          className="flex flex-col items-start gap-3 rounded-xl border p-6"
+        >
+          <p className="text-sm">{errorMessage(query.error)}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => query.refetch()}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : query.isPending ? (
+        <div
+          className="flex flex-col gap-2"
+          aria-busy="true"
+          aria-label={`Loading ${label.toLowerCase()}`}
+        >
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={i} className="h-12 rounded-lg" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+          <Inbox aria-hidden className="size-6" />
+          {q
+            ? `Nothing matches “${q}”.`
+            : filterKey
+              ? "Nothing matches these filters."
+              : empty}
+        </div>
+      ) : (
+        <>
+          <div
+            className={cn(
+              "hidden overflow-x-auto rounded-xl border bg-card sm:block",
+              query.isPlaceholderData && "opacity-60"
+            )}
+          >
+            <table className="w-full text-sm">
+              <caption className="sr-only">{label}</caption>
+              <thead className="border-b bg-muted/50 text-left text-xs text-muted-foreground uppercase">
+                {table.getHeaderGroups().map((group) => (
+                  <tr key={group.id}>
+                    {group.headers.map((header) => {
+                      const sortable = header.column.getCanSort()
+                      const dir = header.column.getIsSorted()
+                      return (
+                        <th
+                          key={header.id}
+                          scope="col"
+                          aria-sort={
+                            dir === "asc"
+                              ? "ascending"
+                              : dir === "desc"
+                                ? "descending"
+                                : sortable
+                                  ? "none"
+                                  : undefined
+                          }
+                          className="px-4 py-3 font-semibold"
+                        >
+                          {header.isPlaceholder ? null : sortable ? (
+                            <button
+                              type="button"
+                              onClick={header.column.getToggleSortingHandler()}
+                              className="inline-flex items-center gap-1 rounded uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                            >
+                              <table.FlexRender header={header} />
+                              {dir === "asc" ? (
+                                <ArrowUp aria-hidden className="size-3.5" />
+                              ) : dir === "desc" ? (
+                                <ArrowDown aria-hidden className="size-3.5" />
+                              ) : (
+                                <ArrowUpDown
+                                  aria-hidden
+                                  className="size-3.5 opacity-50"
+                                />
+                              )}
+                            </button>
+                          ) : (
+                            <table.FlexRender header={header} />
+                          )}
+                        </th>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </thead>
+              <tbody className="divide-y">
+                {table.getRowModel().rows.map((row) => (
+                  <tr key={row.id} className="hover:bg-muted/40">
+                    {row.getAllCells().map((cell) => (
+                      <td key={cell.id} className="px-4 py-3 align-middle">
+                        <table.FlexRender cell={cell} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul aria-label={label} className="flex flex-col gap-2 sm:hidden">
+            {rows.map((row) => (
+              <li key={row.id}>{renderCard(row as T)}</li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <nav
+        aria-label="Pagination"
+        className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground"
+      >
+        <span aria-live="polite">
+          {total === 0 ? "No results" : `${from}–${to} of ${total}`}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
+          >
+            Next
+          </Button>
+        </div>
+      </nav>
+    </div>
+  )
+}
+
+const EMPTY_ROWS: never[] = []
+```
+
+`components/admin/filter-field.tsx`:
+
+```tsx
+"use client"
+
+import type { ReactNode } from "react"
+
+const control =
+  "h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+
+/** Labelled native <select> for list filters (keyboard and screen-reader friendly). */
+export function FilterSelect({
+  id,
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={control}
+      >
+        {children}
+      </select>
+    </div>
+  )
+}
+
+/** Labelled native <input> for list filters (text with suggestions, or date). */
+export function FilterInput({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+  suggestions,
+  placeholder,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: "text" | "date"
+  /** Shown as a <datalist>; any text is still accepted. */
+  suggestions?: readonly string[]
+  placeholder?: string
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        list={suggestions ? `${id}-options` : undefined}
+        onChange={(event) => onChange(event.target.value)}
+        className={`${control} w-44`}
+      />
+      {suggestions ? (
+        <datalist id={`${id}-options`}>
+          {suggestions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+      ) : null}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Users screens**
+
+`components/admin/users/types.ts`:
+
+```ts
+import type { InferResponseType } from "hono/client"
+
+import type { api } from "@/lib/api-client"
+
+// Response shapes of /api/v1/admin/users, inferred from the Hono routes
+// (server/modules/users/schema.ts) so the UI never imports server code.
+export type UserItem = InferResponseType<
+  typeof api.users.$get,
+  200
+>["items"][number]
+export type UserSessionItem = InferResponseType<
+  (typeof api.users)[":id"]["sessions"]["$get"],
+  200
+>["items"][number]
+export type InviteResult = InferResponseType<typeof api.users.invite.$post, 201>
+export type PasswordLinkResult = InferResponseType<
+  (typeof api.users)[":id"]["password-link"]["$post"],
+  200
+>
+```
+
+`components/admin/users/copy-link.tsx`:
+
+```tsx
+"use client"
+
+import { Check, Copy, MailCheck, MailX } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+
+/**
+ * A one-time link the admin can pass on (spec §6: the UI always shows it,
+ * so invites work without SMTP), plus whether the email went out.
+ */
+export function CopyLink({
+  id,
+  label,
+  url,
+  emailDelivered,
+  email,
+  expiry,
+}: {
+  id: string
+  label: string
+  url: string
+  emailDelivered: boolean
+  email: string
+  /** e.g. "in 7 days" */
+  expiry: string
+}) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="flex flex-col gap-3">
+      <p
+        role="status"
+        className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm"
+      >
+        {emailDelivered ? (
+          <>
+            <MailCheck aria-hidden className="mt-0.5 size-4 text-brand-green" />
+            <span>
+              We emailed this link to {email}. You can also copy it below.
+            </span>
+          </>
+        ) : (
+          <>
+            <MailX aria-hidden className="mt-0.5 size-4 text-destructive" />
+            <span>
+              Email is not set up, so nothing was sent to {email}. Copy the link
+              and send it yourself.
+            </span>
+          </>
+        )}
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </label>
+        <div className="flex gap-2">
+          <Input
+            id={id}
+            readOnly
+            value={url}
+            className="font-mono text-xs"
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(url)
+                setCopied(true)
+                toast.success("Link copied")
+              } catch {
+                toast.error("Could not copy", {
+                  description: "Select the link and copy it yourself.",
+                })
+              }
+            }}
+          >
+            {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+            {copied ? "Copied" : "Copy link"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The link works once and expires {expiry}. Creating a new link stops
+          the old one.
+        </p>
+      </div>
+    </div>
+  )
+}
+```
+
+`components/admin/users/roles-field.tsx`:
+
+```tsx
+"use client"
+
+import { ROLE_INFO } from "@/lib/admin/user-roles"
+import type { Role } from "@/lib/auth/roles"
+
+/**
+ * Role checkboxes (multi-select). Only `options` are offered: non-owners
+ * never see "Owner" (the API refuses it anyway).
+ */
+export function RolesField({
+  id,
+  options,
+  value,
+  onChange,
+  error,
+  disabled,
+}: {
+  id: string
+  options: readonly Role[]
+  value: readonly Role[]
+  onChange: (roles: Role[]) => void
+  error?: string
+  disabled?: boolean
+}) {
+  return (
+    <fieldset
+      className="flex flex-col gap-2"
+      aria-describedby={error ? `${id}-error` : undefined}
+      aria-invalid={error ? true : undefined}
+      disabled={disabled}
+    >
+      <legend className="mb-1 text-sm font-medium">Roles</legend>
+      {options.map((role) => {
+        const inputId = `${id}-${role}`
+        return (
+          <div key={role} className="flex items-start gap-2.5">
+            <input
+              id={inputId}
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              checked={value.includes(role)}
+              aria-describedby={`${inputId}-help`}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? options.filter((r) => r === role || value.includes(r))
+                    : value.filter((r) => r !== role)
+                )
+              }
+            />
+            <span className="flex flex-col">
+              <label htmlFor={inputId} className="text-sm font-medium">
+                {ROLE_INFO[role].label}
+              </label>
+              <span
+                id={`${inputId}-help`}
+                className="text-xs text-muted-foreground"
+              >
+                {ROLE_INFO[role].description}
+              </span>
+            </span>
+          </div>
+        )
+      })}
+      {error ? (
+        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
+  )
+}
+```
+
+`components/admin/users/user-badges.tsx`:
+
+```tsx
+import { ShieldCheck, ShieldOff } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { STATUS_INFO, type UserStatus } from "@/lib/admin/user-roles"
+
+export function UserStatusBadge({ status }: { status: UserStatus }) {
+  const info = STATUS_INFO[status]
+  return <Badge variant={info.variant}>{info.label}</Badge>
+}
+
+/** 2FA on/off with text (never colour or icon alone). */
+export function TwoFactorIndicator({ enabled }: { enabled: boolean }) {
+  return enabled ? (
+    <span className="inline-flex items-center gap-1 text-sm text-brand-green-dark">
+      <ShieldCheck aria-hidden className="size-4" />
+      2FA on
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+      <ShieldOff aria-hidden className="size-4" />
+      2FA off
+    </span>
+  )
+}
+```
+
+`components/admin/users/invite-dialog.tsx`:
+
+```tsx
+"use client"
+
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { UserPlus } from "lucide-react"
+import { useState } from "react"
+import { Controller, useForm } from "react-hook-form"
+import { toast } from "sonner"
+import type { z } from "zod"
+
+import { useAdminSession } from "@/components/admin/session-provider"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { assignableRoles } from "@/lib/admin/user-roles"
+import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
+import { inviteUserInput } from "@/lib/schemas/api/users"
+
+import { CopyLink } from "./copy-link"
+import { RolesField } from "./roles-field"
+import type { InviteResult } from "./types"
+
+type InviteFields = z.input<typeof inviteUserInput>
+type InviteValues = z.output<typeof inviteUserInput>
+
+const BLANK: InviteFields = { email: "", name: "", title: "", roles: [] }
+
+/** "Invite user" button + dialog: create the account, then show the link. */
+export function InviteUserDialog() {
+  const [open, setOpen] = useState(false)
+  const [result, setResult] = useState<InviteResult | null>(null)
+  return (
+    <>
+      <Button type="button" onClick={() => setOpen(true)}>
+        <UserPlus aria-hidden />
+        Invite user
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setResult(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {result ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Invitation created</DialogTitle>
+                <DialogDescription>
+                  {result.user.name} can choose a password with this link and
+                  then sign in.
+                </DialogDescription>
+              </DialogHeader>
+              <CopyLink
+                id="invite-link"
+                label="Invitation link"
+                url={result.inviteUrl}
+                emailDelivered={result.emailDelivered}
+                email={result.user.email}
+                expiry="in 7 days"
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    setResult(null)
+                  }}
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <InviteForm onCancel={() => setOpen(false)} onInvited={setResult} />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function InviteForm({
+  onCancel,
+  onInvited,
+}: {
+  onCancel: () => void
+  onInvited: (result: InviteResult) => void
+}) {
+  const { roles: actorRoles } = useAdminSession()
+  const queryClient = useQueryClient()
+  const form = useForm<InviteFields, unknown, InviteValues>({
+    resolver: zodResolver(inviteUserInput),
+    defaultValues: BLANK,
+    mode: "onTouched",
+  })
+  const { errors } = form.formState
+  const invite = useMutation({
+    mutationFn: (values: InviteValues) =>
+      unwrap(
+        api.users.invite.$post({
+          // A blank title parses to null; the API treats "no title" the same.
+          json: { ...values, title: values.title ?? undefined },
+        })
+      ),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["users"] })
+      toast.success(`${result.user.name} invited`)
+      onInvited(result)
+    },
+    onError: (error) => {
+      if (error instanceof ApiError)
+        for (const [path, messages] of Object.entries(error.fieldErrors))
+          form.setError(path as keyof InviteFields, { message: messages[0] })
+      if (error instanceof ApiError && error.isConflict)
+        form.setError("email", { message: error.message })
+      toast.error("Not invited", { description: errorMessage(error) })
+    },
+  })
+
+  return (
+    <form
+      noValidate
+      className="flex flex-col gap-4"
+      onSubmit={form.handleSubmit((values) => invite.mutate(values))}
+    >
+      <DialogHeader>
+        <DialogTitle>Invite user</DialogTitle>
+        <DialogDescription>
+          They get a link to choose a password. Nobody can sign up on their own.
+        </DialogDescription>
+      </DialogHeader>
+      <Field data-invalid={errors.email ? true : undefined}>
+        <FieldLabel htmlFor="invite-email">Email</FieldLabel>
+        <Input
+          id="invite-email"
+          type="email"
+          autoComplete="off"
+          aria-invalid={errors.email ? true : undefined}
+          aria-describedby={errors.email ? "invite-email-error" : undefined}
+          {...form.register("email")}
+        />
+        {errors.email ? (
+          <FieldError id="invite-email-error">
+            {errors.email.message}
+          </FieldError>
+        ) : null}
+      </Field>
+      <Field data-invalid={errors.name ? true : undefined}>
+        <FieldLabel htmlFor="invite-name">Name</FieldLabel>
+        <Input
+          id="invite-name"
+          autoComplete="off"
+          aria-invalid={errors.name ? true : undefined}
+          aria-describedby={errors.name ? "invite-name-error" : undefined}
+          {...form.register("name")}
+        />
+        {errors.name ? (
+          <FieldError id="invite-name-error">{errors.name.message}</FieldError>
+        ) : null}
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="invite-title">
+          Job title
+          <span className="font-normal text-muted-foreground">(optional)</span>
+        </FieldLabel>
+        <Input
+          id="invite-title"
+          autoComplete="off"
+          aria-describedby="invite-title-help"
+          {...form.register("title")}
+        />
+        <FieldDescription id="invite-title-help">
+          Shown under their name on articles they write.
+        </FieldDescription>
+      </Field>
+      <Controller
+        control={form.control}
+        name="roles"
+        render={({ field, fieldState }) => (
+          <RolesField
+            id="invite-roles"
+            options={assignableRoles(actorRoles)}
+            value={field.value}
+            onChange={field.onChange}
+            error={fieldState.error?.message}
+          />
+        )}
+      />
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={invite.isPending}>
+          Send invitation
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+```
+
+`components/admin/users/users-screen.tsx`:
+
+```tsx
+"use client"
+
+import Link from "next/link"
+import { useState } from "react"
+
+import {
+  columnsFor,
+  DataTable,
+  type DataTableColumns,
+} from "@/components/admin/data-table/data-table"
+import { FilterSelect } from "@/components/admin/filter-field"
+import { PageHeader } from "@/components/admin/page-header"
+import { Badge } from "@/components/ui/badge"
+import { usePermission } from "@/hooks/use-permission"
+import { ROLE_INFO, roleLabels, STATUS_INFO } from "@/lib/admin/user-roles"
+import { api, unwrap } from "@/lib/api-client"
+import { ROLES, type Role } from "@/lib/auth/roles"
+import { formatDateTime } from "@/lib/format"
+import { USER_STATUSES } from "@/lib/schemas/api/users"
+
+import { InviteUserDialog } from "./invite-dialog"
+import type { UserItem } from "./types"
+import { TwoFactorIndicator, UserStatusBadge } from "./user-badges"
+
+type Row = UserItem & Record<string, unknown>
+type Status = (typeof USER_STATUSES)[number]
+const ch = columnsFor<Row>()
+
+const columns = ch.columns([
+  ch.accessor("name", {
+    header: "Name",
+    cell: (info) => (
+      <span className="flex flex-col">
+        <Link
+          href={`/admin/users/${info.row.original.id}`}
+          className="font-medium hover:underline"
+        >
+          {info.getValue()}
+        </Link>
+        {info.row.original.title ? (
+          <span className="text-xs text-muted-foreground">
+            {info.row.original.title}
+          </span>
+        ) : null}
+      </span>
+    ),
+  }),
+  ch.accessor("email", {
+    header: "Email",
+    cell: (info) => (
+      <span className="text-muted-foreground">{info.getValue()}</span>
+    ),
+  }),
+  ch.display({
+    id: "roles",
+    header: "Roles",
+    cell: ({ row }) => (
+      <span className="flex flex-wrap gap-1">
+        {row.original.roles.map((role) => (
+          <Badge key={role} variant="outline">
+            {ROLE_INFO[role].label}
+          </Badge>
+        ))}
+      </span>
+    ),
+  }),
+  ch.display({
+    id: "status",
+    header: "Status",
+    cell: ({ row }) => <UserStatusBadge status={row.original.status} />,
+  }),
+  ch.display({
+    id: "twoFactor",
+    header: "Two-factor",
+    cell: ({ row }) => (
+      <TwoFactorIndicator enabled={row.original.twoFactorEnabled} />
+    ),
+  }),
+  ch.accessor("createdAt", {
+    header: "Added",
+    cell: (info) => (
+      <span className="text-muted-foreground">
+        {formatDateTime(info.getValue())}
+      </span>
+    ),
+  }),
+]) as unknown as DataTableColumns<Row>
+
+/** Users list (spec §8.1): search, role/status filters, invite. */
+export function UsersScreen() {
+  const canInvite = usePermission({ user: ["invite"] })
+  const [role, setRole] = useState<Role | "">("")
+  const [status, setStatus] = useState<Status | "">("")
+  const filters = { role: role || undefined, status: status || undefined }
+  const filterKey = role || status ? `${role}|${status}` : ""
+  return (
+    <>
+      <PageHeader
+        title="Users"
+        description="Everyone who can sign in to the admin. Invite people, change their roles, or block access."
+        actions={canInvite ? <InviteUserDialog /> : null}
+      />
+      <DataTable<Row>
+        label="Users"
+        queryKey={["users", filters]}
+        filterKey={filterKey}
+        searchPlaceholder="Search name or email"
+        toolbar={
+          <>
+            <FilterSelect
+              id="users-role"
+              label="Role"
+              value={role}
+              onChange={(value) => setRole(value as Role | "")}
+            >
+              <option value="">All roles</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_INFO[r].label}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              id="users-status"
+              label="Status"
+              value={status}
+              onChange={(value) => setStatus(value as Status | "")}
+            >
+              <option value="">All statuses</option>
+              {USER_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_INFO[s].label}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+        fetchPage={async (params) =>
+          (await unwrap(
+            api.users.$get({
+              query: {
+                page: String(params.page),
+                pageSize: String(params.pageSize),
+                sort: params.sort,
+                q: params.q,
+                ...filters,
+              },
+            })
+          )) as { items: Row[]; page: number; pageSize: number; total: number }
+        }
+        columns={columns}
+        renderCard={(user) => (
+          <Link
+            href={`/admin/users/${user.id}`}
+            className="flex flex-col gap-1.5 rounded-xl border bg-card p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="flex items-center justify-between gap-2">
+              <span className="truncate font-medium">{user.name}</span>
+              <UserStatusBadge status={user.status} />
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {user.email}
+            </span>
+            <span className="flex items-center justify-between gap-2 text-xs">
+              <span>{roleLabels(user.roles)}</span>
+              <TwoFactorIndicator enabled={user.twoFactorEnabled} />
+            </span>
+          </Link>
+        )}
+        empty="No users yet."
+      />
+    </>
+  )
+}
+```
+
+`components/admin/users/user-detail.tsx`:
+
+```tsx
+"use client"
+
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query"
+import { ArrowLeft, Eye, LockKeyhole } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { type ReactNode, useState } from "react"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+import { z } from "zod"
+
+import { PageHeader } from "@/components/admin/page-header"
+import { useAdminSession } from "@/components/admin/session-provider"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button, buttonClassName } from "@/components/ui/button"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
+import { usePermission } from "@/hooks/use-permission"
+import {
+  assignableRoles,
+  mayManageUser,
+  roleLabels,
+} from "@/lib/admin/user-roles"
+import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
+import type { Role } from "@/lib/auth/roles"
+import { describeUserAgent, formatDateTime } from "@/lib/format"
+import { banUserInput } from "@/lib/schemas/api/users"
+
+import { CopyLink } from "./copy-link"
+import { RolesField } from "./roles-field"
+import type { PasswordLinkResult, UserItem, UserSessionItem } from "./types"
+import { TwoFactorIndicator, UserStatusBadge } from "./user-badges"
+
+const userKey = (id: string) => ["users", "detail", id] as const
+
+const fetchUser = (id: string) =>
+  unwrap(api.users[":id"].$get({ param: { id } }))
+
+/** Puts a fresh user into the cache; refetches lists and sessions. */
+async function storeUser(queryClient: QueryClient, user: UserItem) {
+  queryClient.setQueryData(userKey(user.id), user)
+  await queryClient.invalidateQueries({
+    queryKey: ["users"],
+    predicate: (q) => q.queryKey[1] !== "detail",
+  })
+}
+
+/**
+ * One user (spec §8.1 Users): profile, roles, ban, sessions, password link
+ * and "View as". Controls follow usePermission and the owner rule; the API
+ * enforces the same rules again.
+ */
+export function UserDetail({ id }: { id: string }) {
+  const session = useAdminSession()
+  const query = useQuery({
+    queryKey: userKey(id),
+    queryFn: () => fetchUser(id),
+  })
+
+  if (query.isPending)
+    return (
+      <div
+        className="flex flex-col gap-4"
+        aria-busy="true"
+        aria-label="Loading user"
+      >
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 rounded-xl" />
+      </div>
+    )
+  if (query.isError)
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-xl border p-6"
+      >
+        <p className="text-sm">
+          {query.error instanceof ApiError && query.error.status === 404
+            ? "This user does not exist."
+            : errorMessage(query.error)}
+        </p>
+        <Link
+          href="/admin/users"
+          className={buttonClassName({ variant: "outline", size: "sm" })}
+        >
+          All users
+        </Link>
+      </div>
+    )
+
+  const user = query.data
+  const isSelf = user.id === session.user.id
+  const manageable = mayManageUser(session.roles, user.roles)
+  return (
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/admin/users"
+        className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft aria-hidden className="size-4" />
+        All users
+      </Link>
+      <PageHeader
+        title={user.name}
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            {user.email}
+            <UserStatusBadge status={user.status} />
+            <TwoFactorIndicator enabled={user.twoFactorEnabled} />
+          </span>
+        }
+        actions={
+          manageable && !isSelf && !session.impersonatedBy ? (
+            <ViewAsButton user={user} />
+          ) : null
+        }
+      />
+      {manageable ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ProfileSection user={user} />
+          <RolesSection user={user} />
+          <AccessSection user={user} isSelf={isSelf} />
+          <PasswordLinkSection user={user} />
+          <div className="lg:col-span-2">
+            <SessionsSection user={user} />
+          </div>
+        </div>
+      ) : (
+        <div
+          role="note"
+          className="flex items-start gap-3 rounded-xl border bg-card p-4 text-sm"
+        >
+          <LockKeyhole aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <p className="font-medium">
+              Only an owner can change an owner&apos;s account.
+            </p>
+            <p className="text-muted-foreground">
+              Roles: {roleLabels(user.roles)} · Added{" "}
+              {formatDateTime(user.createdAt)}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Section({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id: string
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <section
+      aria-labelledby={`${id}-title`}
+      className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:p-6"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id={`${id}-title`} className="text-base font-bold">
+          {title}
+        </h2>
+        {description ? (
+          <p className="text-sm text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+const profileForm = z.object({
+  name: z.string().trim().min(1, "Required").max(100),
+  title: z.string().trim().max(100),
+})
+
+function ProfileSection({ user }: { user: UserItem }) {
+  const canUpdate = usePermission({ user: ["update"] })
+  const queryClient = useQueryClient()
+  const form = useForm<
+    z.input<typeof profileForm>,
+    unknown,
+    z.output<typeof profileForm>
+  >({
+    resolver: zodResolver(profileForm),
+    defaultValues: { name: user.name, title: user.title ?? "" },
+  })
+  const { errors } = form.formState
+  const save = useMutation({
+    mutationFn: (values: z.output<typeof profileForm>) =>
+      unwrap(
+        api.users[":id"].$patch({
+          param: { id: user.id },
+          json: { name: values.name, title: values.title },
+        })
+      ),
+    onSuccess: async (saved) => {
+      await storeUser(queryClient, saved)
+      form.reset({ name: saved.name, title: saved.title ?? "" })
+      toast.success("Profile saved")
+    },
+    onError: (error) => {
+      if (error instanceof ApiError)
+        for (const [path, messages] of Object.entries(error.fieldErrors))
+          if (path === "name" || path === "title")
+            form.setError(path, { message: messages[0] })
+      toast.error("Not saved", { description: errorMessage(error) })
+    },
+  })
+  return (
+    <Section
+      id="profile"
+      title="Profile"
+      description="Name and job title as shown on articles."
+    >
+      <form
+        noValidate
+        className="flex flex-col gap-4"
+        onSubmit={form.handleSubmit((values) => save.mutate(values))}
+      >
+        <Field data-invalid={errors.name ? true : undefined}>
+          <FieldLabel htmlFor="user-name">Name</FieldLabel>
+          <Input
+            id="user-name"
+            disabled={!canUpdate}
+            aria-invalid={errors.name ? true : undefined}
+            aria-describedby={errors.name ? "user-name-error" : undefined}
+            {...form.register("name")}
+          />
+          {errors.name ? (
+            <FieldError id="user-name-error">{errors.name.message}</FieldError>
+          ) : null}
+        </Field>
+        <Field data-invalid={errors.title ? true : undefined}>
+          <FieldLabel htmlFor="user-title">
+            Job title
+            <span className="font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </FieldLabel>
+          <Input
+            id="user-title"
+            disabled={!canUpdate}
+            aria-invalid={errors.title ? true : undefined}
+            {...form.register("title")}
+          />
+          {errors.title ? (
+            <FieldError>{errors.title.message}</FieldError>
+          ) : null}
+        </Field>
+        {canUpdate ? (
+          <Button
+            type="submit"
+            className="self-start"
+            disabled={save.isPending || !form.formState.isDirty}
+          >
+            Save profile
+          </Button>
+        ) : null}
+      </form>
+    </Section>
+  )
+}
+
+function RolesSection({ user }: { user: UserItem }) {
+  const { roles: actorRoles } = useAdminSession()
+  const canUpdate = usePermission({ user: ["update"] })
+  const queryClient = useQueryClient()
+  const [roles, setRoles] = useState<Role[]>(user.roles)
+  const [error, setError] = useState<string | undefined>()
+  const changed =
+    roles.length !== user.roles.length ||
+    roles.some((role) => !user.roles.includes(role))
+  const save = useMutation({
+    mutationFn: () =>
+      unwrap(
+        api.users[":id"].roles.$put({ param: { id: user.id }, json: { roles } })
+      ),
+    onSuccess: async (saved) => {
+      await storeUser(queryClient, saved)
+      setRoles(saved.roles)
+      toast.success("Roles saved", {
+        description: "They apply on the user's next page load.",
+      })
+    },
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.fieldErrors.roles?.[0] : undefined)
+      toast.error("Roles not saved", { description: errorMessage(err) })
+    },
+  })
+  return (
+    <Section
+      id="roles"
+      title="Roles"
+      description="What this user may see and change."
+    >
+      <RolesField
+        id="user-roles"
+        options={assignableRoles(actorRoles)}
+        value={roles}
+        onChange={(next) => {
+          setRoles(next)
+          setError(next.length === 0 ? "Choose at least one role" : undefined)
+        }}
+        error={error}
+        disabled={!canUpdate}
+      />
+      {canUpdate ? (
+        <Button
+          type="button"
+          className="self-start"
+          disabled={!changed || roles.length === 0 || save.isPending}
+          onClick={() => save.mutate()}
+        >
+          Save roles
+        </Button>
+      ) : null}
+    </Section>
+  )
+}
+
+const BAN_DURATIONS = [
+  { value: "", label: "Until unbanned" },
+  { value: "1", label: "1 day" },
+  { value: "7", label: "7 days" },
+  { value: "30", label: "30 days" },
+  { value: "90", label: "90 days" },
+] as const
+
+function AccessSection({ user, isSelf }: { user: UserItem; isSelf: boolean }) {
+  const canBan = usePermission({ user: ["ban"] })
+  const queryClient = useQueryClient()
+  const [reason, setReason] = useState("")
+  const [days, setDays] = useState("")
+  const [confirming, setConfirming] = useState(false)
+  const ban = useMutation({
+    mutationFn: () =>
+      unwrap(
+        api.users[":id"].ban.$post({
+          param: { id: user.id },
+          json: banUserInput.parse({
+            reason: reason.trim() || undefined,
+            expiresInDays: days ? Number(days) : undefined,
+          }),
+        })
+      ),
+    onSuccess: async (saved) => {
+      setConfirming(false)
+      setReason("")
+      setDays("")
+      await storeUser(queryClient, saved)
+      toast.success(`${user.name} is banned`, {
+        description: "They were signed out everywhere.",
+      })
+    },
+    onError: (error) => {
+      setConfirming(false)
+      toast.error("Not banned", { description: errorMessage(error) })
+    },
+  })
+  const unban = useMutation({
+    mutationFn: () =>
+      unwrap(api.users[":id"].ban.$delete({ param: { id: user.id } })),
+    onSuccess: async (saved) => {
+      await storeUser(queryClient, saved)
+      toast.success(`${user.name} can sign in again`)
+    },
+    onError: (error) =>
+      toast.error("Not unbanned", { description: errorMessage(error) }),
+  })
+
+  if (!canBan) return null
+  return (
+    <Section
+      id="access"
+      title="Access"
+      description="A banned user is signed out everywhere and cannot sign in."
+    >
+      {user.status === "banned" ? (
+        <div className="flex flex-col items-start gap-3">
+          <p className="text-sm">
+            Banned{" "}
+            {user.banExpires
+              ? `until ${formatDateTime(user.banExpires)}`
+              : "until someone unbans them"}
+            {user.banReason ? ` — “${user.banReason}”` : ""}.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={unban.isPending}
+            onClick={() => unban.mutate()}
+          >
+            Unban
+          </Button>
+        </div>
+      ) : isSelf ? (
+        <p className="text-sm text-muted-foreground">
+          You cannot ban your own account.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="ban-reason">
+              Reason
+              <span className="font-normal text-muted-foreground">
+                (optional, kept in the audit log)
+              </span>
+            </FieldLabel>
+            <Textarea
+              id="ban-reason"
+              maxLength={200}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="ban-duration">Duration</FieldLabel>
+            <select
+              id="ban-duration"
+              value={days}
+              onChange={(event) => setDays(event.target.value)}
+              className="h-8 w-48 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            >
+              {BAN_DURATIONS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Button
+            type="button"
+            variant="destructive"
+            className="self-start"
+            onClick={() => setConfirming(true)}
+          >
+            Ban user
+          </Button>
+        </div>
+      )}
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ban {user.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They are signed out on every device and cannot sign in{" "}
+              {days
+                ? `for ${days} ${days === "1" ? "day" : "days"}`
+                : "until you unban them"}
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={ban.isPending}
+              onClick={() => ban.mutate()}
+            >
+              Ban
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Section>
+  )
+}
+
+function PasswordLinkSection({ user }: { user: UserItem }) {
+  const canUpdate = usePermission({ user: ["update"] })
+  const [link, setLink] = useState<PasswordLinkResult | null>(null)
+  const create = useMutation({
+    mutationFn: () =>
+      unwrap(
+        api.users[":id"]["password-link"].$post({ param: { id: user.id } })
+      ),
+    onSuccess: setLink,
+    onError: (error) =>
+      toast.error("No link created", { description: errorMessage(error) }),
+  })
+  if (!canUpdate) return null
+  const invited = user.status === "invited"
+  return (
+    <Section
+      id="password-link"
+      title={invited ? "Invitation link" : "Password reset"}
+      description={
+        invited
+          ? "Send a fresh invitation link if the first one expired or got lost."
+          : "Create a link that lets this user choose a new password."
+      }
+    >
+      {link ? (
+        <CopyLink
+          id="password-link-url"
+          label={invited ? "Invitation link" : "Password reset link"}
+          url={link.url}
+          emailDelivered={link.emailDelivered}
+          email={user.email}
+          expiry="in 24 hours"
+        />
+      ) : null}
+      {user.status === "banned" ? (
+        <p className="text-sm text-muted-foreground">
+          Unban this user before sending a password link.
+        </p>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start"
+          disabled={create.isPending}
+          onClick={() => create.mutate()}
+        >
+          {link
+            ? "Create another link"
+            : invited
+              ? "Create invitation link"
+              : "Create password reset link"}
+        </Button>
+      )}
+    </Section>
+  )
+}
+
+function SessionsSection({ user }: { user: UserItem }) {
+  const canRevoke = usePermission({ user: ["revokeSessions"] })
+  const queryClient = useQueryClient()
+  const [confirming, setConfirming] = useState(false)
+  const sessionsKey = ["users", "sessions", user.id] as const
+  const sessions = useQuery({
+    queryKey: sessionsKey,
+    queryFn: async () =>
+      (await unwrap(api.users[":id"].sessions.$get({ param: { id: user.id } })))
+        .items,
+  })
+  const revoke = useMutation({
+    mutationFn: () =>
+      unwrap(api.users[":id"].sessions.$delete({ param: { id: user.id } })),
+    onSuccess: async ({ revoked }) => {
+      setConfirming(false)
+      await queryClient.invalidateQueries({ queryKey: sessionsKey })
+      toast.success(
+        revoked === 1
+          ? "1 session signed out"
+          : `${revoked} sessions signed out`
+      )
+    },
+    onError: (error) => {
+      setConfirming(false)
+      toast.error("Not signed out", { description: errorMessage(error) })
+    },
+  })
+  const items: UserSessionItem[] = sessions.data ?? []
+  return (
+    <Section
+      id="sessions"
+      title="Sessions"
+      description="Devices where this user is signed in."
+    >
+      {sessions.isPending ? (
+        <Skeleton className="h-16 rounded-lg" />
+      ) : sessions.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {errorMessage(sessions.error)}
+        </p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Not signed in anywhere.</p>
+      ) : (
+        <ul aria-label="Sessions" className="divide-y rounded-lg border">
+          {items.map((s) => (
+            <li key={s.id} className="flex flex-col gap-0.5 p-3">
+              <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                {describeUserAgent(s.userAgent)}
+                {s.impersonatedBy ? (
+                  <Badge variant="outline">View as session</Badge>
+                ) : null}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {s.ipAddress ?? "Unknown IP"} · signed in{" "}
+                {formatDateTime(s.createdAt)} · expires{" "}
+                {formatDateTime(s.expiresAt)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {canRevoke && items.length > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start"
+          onClick={() => setConfirming(true)}
+        >
+          Sign out everywhere
+        </Button>
+      ) : null}
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Sign {user.name} out everywhere?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Every session ends now. They can sign in again with their
+              password.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={revoke.isPending}
+              onClick={() => revoke.mutate()}
+            >
+              Sign out everywhere
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Section>
+  )
+}
+
+/** "View as" (spec §6): confirm, start impersonation, reload the admin as them. */
+function ViewAsButton({ user }: { user: UserItem }) {
+  const canImpersonate = usePermission({ user: ["impersonate"] })
+  const queryClient = useQueryClient()
+  const router = useRouter()
+  const [confirming, setConfirming] = useState(false)
+  const start = useMutation({
+    mutationFn: () =>
+      unwrap(api.users[":id"].impersonate.$post({ param: { id: user.id } })),
+    onSuccess: () => {
+      // Every cached query belongs to the real user, not the viewed one.
+      queryClient.clear()
+      router.replace("/admin")
+      router.refresh()
+    },
+    onError: (error) => {
+      setConfirming(false)
+      toast.error("Could not view as this user", {
+        description: errorMessage(error),
+      })
+    },
+  })
+  if (!canImpersonate || user.status === "banned") return null
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setConfirming(true)}
+      >
+        <Eye aria-hidden />
+        View as
+      </Button>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>View the admin as {user.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              For up to one hour you see and can do exactly what {user.name}{" "}
+              can. Changes are recorded as {user.name}, with you as the
+              impersonator. Stop any time from the banner at the top.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              disabled={start.isPending}
+              onClick={() => start.mutate()}
+            >
+              Start viewing
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+```
+
+`app/(admin)/admin/(panel)/users/page.tsx`:
+
+```tsx
+import type { Metadata } from "next"
+import { Suspense } from "react"
+
+import { UsersScreen } from "@/components/admin/users/users-screen"
+import { requirePermission } from "@/server/auth/session"
+
+export const metadata: Metadata = { title: "Users" }
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <Screen />
+    </Suspense>
+  )
+}
+
+async function Screen() {
+  await requirePermission({ user: ["read"] })
+  return <UsersScreen />
+}
+```
+
+`app/(admin)/admin/(panel)/users/[id]/page.tsx`:
+
+```tsx
+import type { Metadata } from "next"
+import { notFound } from "next/navigation"
+import { Suspense } from "react"
+import { z } from "zod"
+
+import { UserDetail } from "@/components/admin/users/user-detail"
+import { requirePermission } from "@/server/auth/session"
+
+export const metadata: Metadata = { title: "User" }
+
+export default function UserPage({ params }: PageProps<"/admin/users/[id]">) {
+  return (
+    <Suspense fallback={null}>
+      <Screen params={params} />
+    </Suspense>
+  )
+}
+
+async function Screen({
+  params,
+}: Pick<PageProps<"/admin/users/[id]">, "params">) {
+  const { id } = await params
+  if (!z.uuid().safeParse(id).success) notFound()
+  await requirePermission({ user: ["read"] })
+  return <UserDetail id={id} />
+}
+```
+
+- [ ] **Step 5: Audit log screen**
+
+`components/admin/audit/types.ts`:
+
+```ts
+import type { InferResponseType } from "hono/client"
+
+import type { api } from "@/lib/api-client"
+
+/** One audit row as GET /api/v1/admin/audit returns it. */
+export type AuditItem = InferResponseType<
+  typeof api.audit.$get,
+  200
+>["items"][number]
+```
+
+`components/admin/audit/audit-detail-sheet.tsx`:
+
+```tsx
+"use client"
+
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { describeUserAgent, formatDateTime } from "@/lib/format"
+
+import type { AuditItem } from "./types"
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+function Json({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <h3 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
+        {label}
+      </h3>
+      <pre
+        aria-label={label}
+        tabIndex={0}
+        className="max-h-80 overflow-auto rounded-lg border bg-muted/40 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </div>
+  )
+}
+
+/** Diff viewer: "from"/"to" side by side when the entry has them, else raw JSON. */
+export function AuditDiff({ diff }: { diff: unknown }) {
+  if (diff === null || diff === undefined)
+    return <p className="text-sm text-muted-foreground">No details recorded.</p>
+  if (isRecord(diff) && "from" in diff && "to" in diff) {
+    const { from, to, ...rest } = diff
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Json label="Before" value={from} />
+          <Json label="After" value={to} />
+        </div>
+        {Object.keys(rest).length ? <Json label="Also" value={rest} /> : null}
+      </div>
+    )
+  }
+  return <Json label="Details" value={diff} />
+}
+
+/** Drawer with one audit entry: who, when, where from, and what changed. */
+export function AuditDetailSheet({
+  entry,
+  impersonatorName,
+  onOpenChange,
+}: {
+  entry: AuditItem | null
+  /** Name of entry.impersonatorId when known. */
+  impersonatorName: string | null
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Sheet open={entry !== null} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full gap-0 sm:max-w-2xl">
+        {entry ? (
+          <>
+            <SheetHeader className="border-b">
+              <SheetTitle>Audit entry</SheetTitle>
+              <SheetDescription>
+                <code className="font-mono">{entry.action}</code> ·{" "}
+                {formatDateTime(entry.createdAt)} (Irish time)
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+              <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-muted-foreground">Who</dt>
+                <dd>
+                  {entry.actor
+                    ? `${entry.actor.name ?? "Deleted user"}${entry.actor.email ? ` (${entry.actor.email})` : ""}`
+                    : "System"}
+                </dd>
+                {entry.impersonatorId ? (
+                  <>
+                    <dt className="text-muted-foreground">Viewed as by</dt>
+                    <dd>{impersonatorName ?? entry.impersonatorId}</dd>
+                  </>
+                ) : null}
+                <dt className="text-muted-foreground">Record</dt>
+                <dd className="break-all">
+                  {entry.entityType ?? "—"}
+                  {entry.entityId ? ` · ${entry.entityId}` : ""}
+                </dd>
+                <dt className="text-muted-foreground">IP address</dt>
+                <dd>{entry.ip ?? "Unknown"}</dd>
+                <dt className="text-muted-foreground">Device</dt>
+                <dd>{describeUserAgent(entry.userAgent)}</dd>
+              </dl>
+              <section aria-label="Changes" className="flex flex-col gap-2">
+                <h2 className="text-base font-bold">Changes</h2>
+                <AuditDiff diff={entry.diff} />
+              </section>
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  )
+}
+```
+
+`components/admin/audit/audit-screen.tsx`:
+
+```tsx
+"use client"
+
+import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
+
+import {
+  columnsFor,
+  DataTable,
+  type DataTableColumns,
+} from "@/components/admin/data-table/data-table"
+import { FilterInput, FilterSelect } from "@/components/admin/filter-field"
+import { PageHeader } from "@/components/admin/page-header"
+import { Button } from "@/components/ui/button"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { usePermission } from "@/hooks/use-permission"
+import {
+  AUDIT_ACTION_SUGGESTIONS,
+  AUDIT_ENTITY_TYPES,
+  type AuditFilters,
+  auditFilterQuery,
+  EMPTY_AUDIT_FILTERS,
+  hasAuditFilters,
+} from "@/lib/admin/audit-filters"
+import { api, unwrap } from "@/lib/api-client"
+import { formatDateTime } from "@/lib/format"
+
+import { AuditDetailSheet } from "./audit-detail-sheet"
+import type { AuditItem } from "./types"
+
+type Row = AuditItem & Record<string, unknown>
+
+const actorLabel = (row: AuditItem) =>
+  row.actor ? (row.actor.name ?? row.actor.email ?? "Deleted user") : "System"
+
+/** Audit log (spec §8.1): filter by actor, action, record type and Irish dates. */
+export function AuditScreen() {
+  const canListUsers = usePermission({ user: ["read"] })
+  const [filters, setFilters] = useState<AuditFilters>(EMPTY_AUDIT_FILTERS)
+  const [open, setOpen] = useState<AuditItem | null>(null)
+  // Typed filters wait for a pause; selects and dates apply at once anyway.
+  const applied = useDebouncedValue(filters, 250)
+  const query = auditFilterQuery(applied)
+  const filterKey = hasAuditFilters(applied) ? JSON.stringify(query) : ""
+
+  // Actor choices (and impersonator names) come from the users list.
+  const users = useQuery({
+    queryKey: ["users", "audit-actors"],
+    enabled: canListUsers,
+    queryFn: async () =>
+      (
+        await unwrap(
+          api.users.$get({
+            query: { page: "1", pageSize: "100", sort: "name:asc" },
+          })
+        )
+      ).items,
+  })
+  const nameOf = (id: string | null) =>
+    (id && users.data?.find((u) => u.id === id)?.name) || null
+
+  const set = (key: keyof AuditFilters) => (value: string) =>
+    setFilters((f) => ({ ...f, [key]: value }))
+
+  const ch = columnsFor<Row>()
+  const columns = ch.columns([
+    ch.accessor("createdAt", {
+      header: "When",
+      cell: (info) => (
+        <span className="whitespace-nowrap">
+          {formatDateTime(info.getValue())}
+        </span>
+      ),
+    }),
+    ch.display({
+      id: "actor",
+      header: "Who",
+      cell: ({ row }) => (
+        <span className="flex flex-col">
+          <span>{actorLabel(row.original)}</span>
+          {row.original.impersonatorId ? (
+            <span className="text-xs text-muted-foreground">
+              viewed as by {nameOf(row.original.impersonatorId) ?? "an admin"}
+            </span>
+          ) : null}
+        </span>
+      ),
+    }),
+    ch.accessor("action", {
+      header: "Action",
+      cell: (info) => (
+        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+          {info.getValue()}
+        </code>
+      ),
+    }),
+    ch.display({
+      id: "entity",
+      header: "Record",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.entityType ?? "—"}
+        </span>
+      ),
+    }),
+    ch.display({
+      id: "details",
+      header: () => <span className="sr-only">Details</span>,
+      cell: ({ row }) => (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={`Details of ${row.original.action} at ${formatDateTime(row.original.createdAt)}`}
+          onClick={() => setOpen(row.original)}
+        >
+          Details
+        </Button>
+      ),
+    }),
+  ]) as unknown as DataTableColumns<Row>
+
+  return (
+    <>
+      <PageHeader
+        title="Audit log"
+        description="Sign-ins, user changes and content changes, newest first. Times are Irish time."
+      />
+      <DataTable<Row>
+        label="Audit log"
+        queryKey={["audit", query]}
+        filterKey={filterKey}
+        searchPlaceholder="Search action, record or email"
+        toolbar={
+          <>
+            {canListUsers ? (
+              <FilterSelect
+                id="audit-actor"
+                label="Who"
+                value={filters.actor}
+                onChange={set("actor")}
+              >
+                <option value="">Anyone</option>
+                {(users.data ?? []).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            ) : null}
+            <FilterInput
+              id="audit-action"
+              label="Action"
+              value={filters.action}
+              onChange={set("action")}
+              suggestions={AUDIT_ACTION_SUGGESTIONS}
+              placeholder="e.g. user.invite"
+            />
+            <FilterInput
+              id="audit-entity"
+              label="Record type"
+              value={filters.entityType}
+              onChange={set("entityType")}
+              suggestions={AUDIT_ENTITY_TYPES}
+              placeholder="e.g. page"
+            />
+            <FilterInput
+              id="audit-from"
+              label="From"
+              type="date"
+              value={filters.from}
+              onChange={set("from")}
+            />
+            <FilterInput
+              id="audit-to"
+              label="To"
+              type="date"
+              value={filters.to}
+              onChange={set("to")}
+            />
+            {hasAuditFilters(filters) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setFilters(EMPTY_AUDIT_FILTERS)}
+              >
+                Clear filters
+              </Button>
+            ) : null}
+          </>
+        }
+        fetchPage={async (params) =>
+          (await unwrap(
+            api.audit.$get({
+              query: {
+                page: String(params.page),
+                pageSize: String(params.pageSize),
+                sort: params.sort,
+                q: params.q,
+                ...query,
+              },
+            })
+          )) as { items: Row[]; page: number; pageSize: number; total: number }
+        }
+        columns={columns}
+        renderCard={(row) => (
+          <button
+            type="button"
+            onClick={() => setOpen(row)}
+            className="flex w-full flex-col gap-1 rounded-xl border bg-card p-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <code className="font-mono text-xs">{row.action}</code>
+            <span className="text-sm">{actorLabel(row)}</span>
+            <span className="text-xs text-muted-foreground">
+              {formatDateTime(row.createdAt)}
+              {row.entityType ? ` · ${row.entityType}` : ""}
+            </span>
+          </button>
+        )}
+        empty="Nothing has been recorded yet."
+      />
+      <AuditDetailSheet
+        entry={open}
+        impersonatorName={nameOf(open?.impersonatorId ?? null)}
+        onOpenChange={(next) => !next && setOpen(null)}
+      />
+    </>
+  )
+}
+```
+
+`app/(admin)/admin/(panel)/audit/page.tsx`:
+
+```tsx
+import type { Metadata } from "next"
+import { Suspense } from "react"
+
+import { AuditScreen } from "@/components/admin/audit/audit-screen"
+import { requirePermission } from "@/server/auth/session"
+
+export const metadata: Metadata = { title: "Audit log" }
+
+export default function AuditPage() {
+  return (
+    <Suspense fallback={null}>
+      <Screen />
+    </Suspense>
+  )
+}
+
+async function Screen() {
+  await requirePermission({ audit: ["read"] })
+  return <AuditScreen />
+}
+```
+
+Format: `pnpm exec prettier --write lib/admin/user-roles.ts lib/admin/audit-filters.ts components/admin/shell/nav.ts components/admin/data-table/data-table.tsx components/admin/filter-field.tsx components/admin/users components/admin/audit "app/(admin)/admin/(panel)/users" "app/(admin)/admin/(panel)/audit" tests/unit/admin tests/dom/users.test.tsx tests/dom/audit.test.tsx`
+
+- [ ] **Step 6: Run the tests to verify they pass**
+
+Run: `pnpm exec next typegen && pnpm exec vitest run --project unit tests/unit/admin/nav.test.ts tests/unit/admin/user-roles.test.ts tests/unit/admin/audit-filters.test.ts`
+Expected: PASS (25 tests: nav 13, user-roles 3, audit-filters 9).
+
+Run: `pnpm exec vitest run --project dom tests/dom/users.test.tsx tests/dom/audit.test.tsx`
+Expected: PASS (14 tests: users 11, audit 3).
+
+Run: `pnpm exec vitest run --project dom`
+Expected: PASS — the Task 10 collections test is unaffected by the new optional DataTable props, the shell/palette tests by the new nav section (they use `intake`/`editor`).
+
+Run: `pnpm lint && pnpm typecheck`
+Expected: exit 0. (`components/admin/{users,audit}/types.ts` infer the response types from `api` with `InferResponseType` from `hono/client`, so no component imports `server/`.)
+
+- [ ] **Step 7: E2E — owner invite, admin limits, audit entry; re-baseline the shell**
+
+`tests/e2e/fixtures.ts`: in `type E2EFixtures`, after the `account` line, add:
+
+```ts
+  owner: { email: string; name: string }
+  admin: { email: string; name: string }
+```
+
+`tests/e2e/seed.ts`: replace the whole `const fixtures: E2EFixtures = { … }` statement with the following (two new users, then the extended object):
+
+```ts
+// Users + Audit log screens (Phase 4 Task 12): an owner and a plain admin.
+const owner = { email: "owner@e2e.test", name: "Olive Owner" }
+await auth.api.createUser({
+  body: { ...owner, role: ["owner"], password: E2E_PASSWORD },
+})
+const admin = { email: "admin@e2e.test", name: "Adam Admin" }
+await auth.api.createUser({
+  body: { ...admin, role: ["admin"], password: E2E_PASSWORD },
+})
+
+const fixtures: E2EFixtures = {
+  editor,
+  invitee: { ...invitee, inviteUrl },
+  twoFactor: { ...twoFactor, totpUri: enabled.totpURI },
+  account,
+  owner,
+  admin,
+}
+```
+
+(It sits right after the "Account page user (Task 2.6)" `createUser` call; the `mkdirSync`/`writeFileSync` lines that follow stay as they are.)
+
+`tests/e2e/users-audit.spec.ts`:
+
+```ts
+import { expect, type Page, test } from "@playwright/test"
+
+import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
+
+// Phase 4 Task 12 (spec §8.1 Users + Audit log). Serial on the seeded
+// sp_e2e: the audit test looks for the invitation the first test sends.
+test.describe.configure({ mode: "serial" })
+
+const invitee = {
+  email: `nora.new.${Date.now()}@e2e.test`,
+  name: "Nora New",
+}
+
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    "x-forwarded-for": clientIpFor(testInfo.title),
+  })
+})
+
+async function signIn(page: Page, email: string) {
+  await page.goto("/admin/sign-in")
+  await page.getByLabel("Email").fill(email)
+  await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD)
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await expect(page.getByRole("heading", { name: /^Welcome, / })).toBeVisible()
+}
+
+const sidebarLink = (page: Page, name: string) =>
+  page
+    .getByRole("navigation", { name: "Admin" })
+    .getByRole("link", { name, exact: true })
+
+test("owner invites a user and copies the invitation link", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  const { owner } = readFixtures()
+  await signIn(page, owner.email)
+  await sidebarLink(page, "Users").click()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Users" })
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "Invite user" }).click()
+  const dialog = page.getByRole("dialog", { name: "Invite user" })
+  await expect(
+    dialog.getByRole("checkbox", { name: "Owner", exact: true })
+  ).toBeVisible()
+  await dialog
+    .getByRole("textbox", { name: "Email", exact: true })
+    .fill(invitee.email)
+  await dialog
+    .getByRole("textbox", { name: "Name", exact: true })
+    .fill(invitee.name)
+  await dialog.getByRole("checkbox", { name: "Editor", exact: true }).check()
+  await dialog.getByRole("button", { name: "Send invitation" }).click()
+
+  const done = page.getByRole("dialog", { name: "Invitation created" })
+  // No SMTP in E2E: the link is the only way to pass the invitation on.
+  await expect(done.getByRole("status")).toContainText("Email is not set up")
+  const link = done.getByRole("textbox", { name: "Invitation link" })
+  await expect(link).toHaveValue(/\/admin\/set-password\?token=/)
+  await done.getByRole("button", { name: "Copy link" }).click()
+  await expect(done.getByRole("button", { name: "Copied" })).toBeVisible()
+  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  expect(copied).toBe(await link.inputValue())
+  await done.getByRole("button", { name: "Done" }).click()
+
+  await expect(
+    page
+      .getByRole("table", { name: "Users" })
+      .getByRole("row", { name: new RegExp(invitee.name) })
+  ).toContainText("Invited")
+})
+
+test("an admin sees no owner-only controls, and the API agrees", async ({
+  page,
+}) => {
+  const { admin, owner } = readFixtures()
+  await signIn(page, admin.email)
+  await sidebarLink(page, "Users").click()
+
+  await page.getByRole("button", { name: "Invite user" }).click()
+  const dialog = page.getByRole("dialog", { name: "Invite user" })
+  await expect(
+    dialog.getByRole("checkbox", { name: "Admin", exact: true })
+  ).toBeVisible()
+  await expect(
+    dialog.getByRole("checkbox", { name: "Owner", exact: true })
+  ).toHaveCount(0)
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+
+  await page.getByRole("searchbox", { name: "Search users" }).fill("Olive")
+  await page
+    .getByRole("table", { name: "Users" })
+    .getByRole("link", { name: owner.name })
+    .click()
+  await expect(
+    page.getByRole("heading", { level: 1, name: owner.name })
+  ).toBeVisible()
+  await expect(page.getByRole("note")).toContainText(
+    "Only an owner can change an owner's account."
+  )
+  for (const name of [
+    "Save profile",
+    "Save roles",
+    "Ban user",
+    "View as",
+    "Create password reset link",
+    "Sign out everywhere",
+  ])
+    await expect(page.getByRole("button", { name })).toHaveCount(0)
+
+  // Hidden is not the protection: the API refuses the owner ban (403).
+  const ownerId = new URL(page.url()).pathname.split("/").at(-1)
+  const status = await page.evaluate(
+    async (id) =>
+      (
+        await fetch(`/api/v1/admin/users/${id}/ban`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        })
+      ).status,
+    ownerId
+  )
+  expect(status).toBe(403)
+})
+
+test("the audit log shows the invitation", async ({ page }) => {
+  const { owner } = readFixtures()
+  await signIn(page, owner.email)
+  await sidebarLink(page, "Audit log").click()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Audit log" })
+  ).toBeVisible()
+
+  await page.getByLabel("Action", { exact: true }).fill("user.invite")
+  const row = page
+    .getByRole("table", { name: "Audit log" })
+    .getByRole("row", { name: /user\.invite/ })
+    .filter({ hasText: owner.name })
+  await expect(row).toHaveCount(1)
+  await row.getByRole("button", { name: /^Details of user\.invite/ }).click()
+  const sheet = page.getByRole("dialog", { name: "Audit entry" })
+  await expect(sheet.getByLabel("Details", { exact: true })).toContainText(
+    invitee.email
+  )
+  await expect(sheet).toContainText(owner.email)
+})
+```
+
+Port 3100 must be free and no other agent may be running Playwright or `next build`.
+
+Run: `pnpm exec playwright test tests/e2e/users-audit.spec.ts`
+Expected: `3 passed` (plus the `e2e-setup` project): the owner sees the "Owner" checkbox, the invite answers "Email is not set up", the copied clipboard text equals the `/admin/set-password?token=…` link and the new row is "Invited"; the admin gets no "Owner" checkbox, the owner's page shows only the note, and `POST /users/:ownerId/ban` from the browser answers 403; the audit log filtered to `user.invite` has exactly one row by Olive Owner whose details contain the invitee's email.
+
+Run: `pnpm exec playwright test tests/visual/admin-shell.spec.ts --update-snapshots=changed`
+Expected: `3 passed, 1 skipped`; exactly `tests/visual/__screenshots__/admin-shell-desktop.png` and `admin-shell-nav-mobile.png` are rewritten (`git status --short tests/visual` lists only those two). Open them: the sidebar/sheet now lists eleven items, with an "Administration" group (Users, Audit log) between "Configuration" and "You". `admin-shell-mobile.png` (sidebar hidden) is unchanged.
+
+- [ ] **Step 8: Phase gate (HARD GATE, replaces Task 11 Step 6 as the last gate)**
+
+Run: `pnpm lint && pnpm typecheck && pnpm test && env -u DATABASE_URL -u BETTER_AUTH_SECRET -u BETTER_AUTH_URL pnpm build`
+Expected: exit 0 (the three new routes build without a database: the session is read inside `<Suspense>`).
+
+Run (port 3100 free, no other agent running Playwright/build): `pnpm test:visual` (twice)
+Expected: `43 passed, 1 skipped` both times — 40 public baselines at 0 px, the re-baselined admin shell stable.
+
+Run: `pnpm test:e2e`
+Expected: every spec passes (Phase 2 auth/account, Phase 3 public site, Task 7 page editor, this task's users/audit). The Phase 2 specs still find exactly one "Account" link and "Sign out" in the banner.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add lib/admin/user-roles.ts lib/admin/audit-filters.ts components/admin/filter-field.tsx components/admin/shell/nav.ts components/admin/data-table/data-table.tsx components/admin/users components/admin/audit "app/(admin)/admin/(panel)/users" "app/(admin)/admin/(panel)/audit" tests/unit/admin/nav.test.ts tests/unit/admin/user-roles.test.ts tests/unit/admin/audit-filters.test.ts tests/dom/users.test.tsx tests/dom/audit.test.tsx tests/e2e/fixtures.ts tests/e2e/seed.ts tests/e2e/users-audit.spec.ts tests/visual/__screenshots__/admin-shell-desktop.png tests/visual/__screenshots__/admin-shell-nav-mobile.png
+git commit -m "feat: add admin users and audit log screens
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```

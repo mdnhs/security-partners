@@ -1,13 +1,17 @@
 // Gives the server under test (playwright.config.ts webServer) a database
 // with exactly the seeded content, so screenshots compare seed → Phase 0
-// baselines. Runs before `next start` on every Playwright run:
+// baselines, plus the admin the shell screenshots sign in as. Runs before
+// `next start` on every Playwright run:
 //   pnpm tsx:server tests/visual/seed.ts   (env from tests/e2e/env.ts)
+import { getAuth } from "@/server/auth/auth"
 import { closeDb, getDb } from "@/server/db/client"
 import { runMigrations } from "@/server/db/migrate"
 import { seedContent } from "@/server/db/seed"
 import { getEnv } from "@/server/env"
 
 import { resetDb } from "../integration/db"
+
+import { VISUAL_ADMIN } from "./admin-user"
 
 const { DATABASE_URL } = getEnv()
 const name = new URL(DATABASE_URL).pathname
@@ -17,7 +21,15 @@ if (!name.endsWith("_e2e"))
 await runMigrations(DATABASE_URL)
 await resetDb()
 const report = await seedContent(getDb())
+await getAuth().api.createUser({
+  body: {
+    email: VISUAL_ADMIN.email,
+    name: VISUAL_ADMIN.name,
+    role: ["admin"],
+    password: VISUAL_ADMIN.password,
+  },
+})
 await closeDb()
 console.log(
-  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages)`
+  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin)`
 )

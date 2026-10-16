@@ -15,6 +15,7 @@ import { sameOrigin } from "@/server/api/middleware/same-origin"
 import { getAuth } from "@/server/auth/auth"
 import { auditRoutes } from "@/server/modules/audit/routes"
 import { healthRoutes } from "@/server/modules/health/routes"
+import { searchRoutes } from "@/server/modules/search/routes"
 import { usersRoutes } from "@/server/modules/users/routes"
 
 /**
@@ -24,6 +25,7 @@ import { usersRoutes } from "@/server/modules/users/routes"
 export const adminRoutes = new Hono<AppEnv>()
   .route("/audit", auditRoutes)
   .route("/users", usersRoutes)
+  .route("/search", searchRoutes)
 export type AdminApi = typeof adminRoutes
 
 /** Builds the API. Mount order follows spec §7; Phase 2 adds Better Auth + session middleware. */

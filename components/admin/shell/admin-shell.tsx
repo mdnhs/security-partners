@@ -9,6 +9,7 @@ import {
   AdminSessionProvider,
 } from "@/components/admin/session-provider"
 
+import { CommandPalette } from "./command-palette"
 import { ImpersonationBanner } from "./impersonation-banner"
 import { Sidebar } from "./sidebar"
 import { Topbar } from "./topbar"
@@ -48,7 +49,7 @@ export function AdminShell({
               {session.impersonatedBy ? (
                 <ImpersonationBanner name={session.user.name} />
               ) : null}
-              <Topbar />
+              <Topbar search={<CommandPalette />} />
             </div>
             <main
               id="main"
