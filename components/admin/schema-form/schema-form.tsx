@@ -19,8 +19,8 @@ import { SchemaFormContext } from "./context"
 import type { EditorMeta } from "./editor-meta"
 import { FormTabs, formTabs } from "./form-tabs"
 import { fromFormValues, toFormValues } from "./optional-values"
-import { resolveWidget } from "./resolve-widget"
-import { GroupWidget } from "./widgets/structure"
+import { hasRequiredField, resolveWidget } from "./resolve-widget"
+import { GroupWidget } from "./widgets/group"
 
 export type SchemaFormProps<S extends z.ZodObject> = {
   schema: S
@@ -155,6 +155,7 @@ export function SchemaForm<S extends z.ZodObject>({
     () => (sectionTabs ? formTabs(schema, meta) : []),
     [sectionTabs, schema, meta]
   )
+  const requiredNote = useMemo(() => hasRequiredField(schema), [schema])
   const tree = useMemo(
     () => <GroupWidget field={resolveWidget(schema, {}, "", "")} path="" />,
     [schema]
@@ -163,6 +164,12 @@ export function SchemaForm<S extends z.ZodObject>({
     <FormProvider {...form}>
       <SchemaFormContext.Provider value={context}>
         <form noValidate onSubmit={(event) => event.preventDefault()}>
+          {/* WCAG 3.3.2: required is the default, said once (JW). */}
+          {requiredNote ? (
+            <p className="mb-4 text-xs text-muted-foreground">
+              All fields are required unless marked optional.
+            </p>
+          ) : null}
           <FormRootError id={`${idPrefix}-root-error`} />
           {sectionTabs && tabs.length > 1 ? (
             <FormTabs

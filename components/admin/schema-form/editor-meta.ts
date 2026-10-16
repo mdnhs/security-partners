@@ -33,6 +33,8 @@ export type FieldMeta = {
   collection?: OptionCollection
   /** list: singular noun for one item ("Stat" → "Add stat", "Stat 2"). */
   itemName?: string
+  /** list: plural of itemName where adding "s" is wrong ("Qualities"). */
+  itemNamePlural?: string
   /** list of objects: field whose value titles each item card. */
   itemLabel?: string
   /** group: render as a titled card (default for top-level groups). */

@@ -122,14 +122,13 @@ describe("settings editor (master 4.5)", () => {
     expect(bar).toHaveClass("bg-card", "rounded-t-card", "border-b")
     expect(bar).not.toHaveClass("backdrop-blur")
     // Sticky itself; offsets come from main's and the card's padding
-    // variables, and a ::before strip in main's grey fills above it.
+    // variables, and the strip above it (admin.css) is --strip-h tall.
     expect(bar).toHaveClass(
       "sticky",
       "lg:top-0",
       "-mx-(--card-pad,0px)",
       "-mt-(--card-pad,0px)",
-      "before:bg-sidebar",
-      "lg:before:h-(--main-pad)"
+      "lg:[--strip-h:var(--main-pad)]"
     )
     expect(bar?.closest('[data-slot="section-tabs-content"]')).toHaveClass(
       "bg-card"

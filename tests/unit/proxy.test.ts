@@ -53,6 +53,25 @@ describe("proxy.ts (optimistic /admin gate)", () => {
     }
   })
 
+  it("sends a signed-in /admin/settings to the first key with a 307", () => {
+    const res = proxy(request("/admin/settings", "sp.session_token=abc.def"))
+    expect(res.status).toBe(307)
+    const location = new URL(res.headers.get("location") ?? "")
+    expect(location.pathname).toBe("/admin/settings/site")
+    expect(location.search).toBe("")
+    expect(res.headers.get("x-robots-tag")).toBe("noindex")
+    // Only the exact path; keys and a signed-out visit are left alone.
+    expect(
+      proxy(
+        request("/admin/settings/contact", "sp.session_token=abc.def")
+      ).headers.get("location")
+    ).toBeNull()
+    const signedOut = new URL(
+      proxy(request("/admin/settings")).headers.get("location") ?? ""
+    )
+    expect(signedOut.pathname).toBe("/admin/sign-in")
+  })
+
   it("does not treat look-alike paths as auth pages", () => {
     expect(proxy(request("/admin/sign-in-later")).status).toBe(307)
   })

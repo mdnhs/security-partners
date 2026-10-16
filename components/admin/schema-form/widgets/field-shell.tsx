@@ -4,13 +4,9 @@ import { CircleAlert } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { cn } from "@/lib/utils"
 
 /** A field label: medium weight, small. */
 export const LABEL_CLASS = "text-sm font-medium"
-/** Required marker drawn by CSS, so it never joins the accessible name. */
-export const REQUIRED_MARK =
-  "after:-ml-1.5 after:text-destructive after:content-['*']"
 
 /** An error message with its icon (WCAG 1.4.1: not colour alone). */
 export function ErrorText({
@@ -69,10 +65,9 @@ export function FieldShell({
   return (
     <Field data-invalid={error ? true : undefined} className="gap-2">
       <div className="flex flex-col gap-0.5">
-        <FieldLabel
-          htmlFor={id}
-          className={cn(LABEL_CLASS, !optional && REQUIRED_MARK)}
-        >
+        {/* JW: required is the default (the form says so once and the
+            input has aria-required); only optional fields are marked. */}
+        <FieldLabel htmlFor={id} className={LABEL_CLASS}>
           {label}
           {optional ? (
             <span className="font-normal text-muted-foreground">

@@ -19,7 +19,8 @@ import {
   MediaWidget,
   RichTextWidget,
 } from "./widgets/pickers"
-import { GroupWidget, ListWidget } from "./widgets/structure"
+import { GroupWidget } from "./widgets/group"
+import { ListWidget } from "./widgets/list"
 
 export const WIDGETS: Record<WidgetKind, ComponentType<WidgetProps>> = {
   text: TextWidget,

@@ -104,6 +104,8 @@ export function LinkWidget({ field, path }: WidgetProps) {
   const { errors } = useFormState({ name: path, exact: true })
   const ownError = errorText(get(errors, path))
   const inItem = /\.\d+$/.test(path)
+  // Its two inputs are required only when the link itself is.
+  const linkRequired = !(field.optional || field.nullable) || undefined
   const kind = destinationKind((hrefValue as string | null) ?? "")
   const kindId = `${id}-href-kind`
   return (
@@ -141,7 +143,7 @@ export function LinkWidget({ field, path }: WidgetProps) {
             className={ADMIN_CONTROL}
             value={(labelValue as string) ?? ""}
             disabled={disabled}
-            aria-required
+            aria-required={linkRequired}
             aria-invalid={!!labelError}
             aria-describedby={describedBy(`${id}-label`, { error: labelError })}
             onChange={(event) => onLabelChange(event.target.value)}
@@ -174,7 +176,7 @@ export function LinkWidget({ field, path }: WidgetProps) {
                 value={(hrefValue as string) ?? ""}
                 placeholder="/contact, https://…, tel:…"
                 disabled={disabled}
-                aria-required
+                aria-required={linkRequired}
                 aria-invalid={!!hrefError}
                 aria-describedby={describedBy(`${id}-href`, {
                   error: hrefError,
@@ -398,8 +400,16 @@ export function MediaWidget({ field, path }: WidgetProps) {
 }
 
 /** "/media/2026/hero-banner.jpg" → "hero-banner.jpg". */
-const fileName = (url: string | undefined) =>
-  url ? decodeURIComponent(url.split(/[?#]/)[0].split("/").pop() || url) : ""
+export function fileName(url: string | undefined): string {
+  if (!url) return ""
+  const segment = url.split(/[?#]/)[0].split("/").pop() || url
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    // A malformed escape ("100%.jpg") is shown as it is.
+    return segment
+  }
+}
 
 export function RichTextWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()

@@ -19,6 +19,13 @@ export function proxy(request: NextRequest) {
     const signIn = new URL("/admin/sign-in", request.url)
     signIn.searchParams.set("next", `${pathname}${search}`)
     response = NextResponse.redirect(signIn)
+  } else if (pathname === "/admin/settings") {
+    // No settings overview: a real 307 to the first key (the page keeps a
+    // redirect for client-side navigation, which never reaches the proxy).
+    response = NextResponse.redirect(
+      new URL("/admin/settings/site", request.url),
+      307
+    )
   } else {
     response = NextResponse.next()
   }

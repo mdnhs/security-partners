@@ -4,16 +4,22 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { z } from "zod"
 
+import { link } from "@/lib/schemas/common"
+
 import { makeQueryClient } from "@/components/admin/providers"
 import { settingsEditorMeta } from "@/components/admin/settings/settings-meta"
 import { serviceEditorMeta } from "@/components/admin/services/service-meta"
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
-import { destinationKind } from "@/components/admin/schema-form/widgets/pickers"
 import {
-  itemSummary,
+  destinationKind,
+  fileName,
+} from "@/components/admin/schema-form/widgets/pickers"
+import {
+  groupCardIds,
   pairHalves,
-} from "@/components/admin/schema-form/widgets/structure"
+} from "@/components/admin/schema-form/widgets/group"
+import { itemSummary } from "@/components/admin/schema-form/widgets/list"
 import { EDITABLE_SETTINGS_KEYS } from "@/lib/admin/settings-keys"
 import { serviceContent } from "@/lib/schemas/content/service"
 import { settingsSchemas } from "@/lib/schemas/settings"
@@ -115,20 +121,62 @@ describe("SchemaForm layout (JW field groups)", () => {
     )
   })
 
-  it("marks required fields and shows icons for phone and email inputs", () => {
+  it("says once that fields are required; marks only optional ones", () => {
+    renderSchema(settingsSchemas.site, settingsEditorMeta.site, settings.site)
+    expect(
+      screen.getByText("All fields are required unless marked optional.")
+    ).toBeInTheDocument()
+    const name = screen.getByRole("textbox", { name: "Site name" })
+    expect(name).toHaveAttribute("aria-required", "true")
+    expect(
+      document.querySelector(`label[for="${name.id}"]`)
+    ).not.toHaveTextContent("optional")
+    const url = screen.getByRole("textbox", { name: /Production URL/ })
+    expect(url).not.toHaveAttribute("aria-required")
+    expect(document.querySelector(`label[for="${url.id}"]`)).toHaveTextContent(
+      "(optional)"
+    )
+  })
+
+  it("leaves the note out when nothing is required", () => {
+    renderSchema(
+      z.object({ note: z.string().optional(), on: z.boolean() }),
+      { fields: {} },
+      { on: false }
+    )
+    expect(screen.queryByText(/required unless marked optional/)).toBeNull()
+  })
+
+  it("requires a link's text and destination only when the link is", () => {
+    renderSchema(
+      z.object({ cta: link, extra: link.nullable() }),
+      { fields: {} },
+      { cta: { label: "Go", href: "/" }, extra: null }
+    )
+    const cta = screen.getByRole("group", { name: "Cta" })
+    expect(within(cta).getByRole("textbox", { name: "Text" })).toHaveAttribute(
+      "aria-required",
+      "true"
+    )
+    const extra = screen.getByRole("group", { name: /Extra/ })
+    expect(
+      within(extra).getByRole("textbox", { name: "Link to" })
+    ).not.toHaveAttribute("aria-required")
+  })
+
+  it("shows icons in phone and email inputs", () => {
     renderSchema(
       settingsSchemas.contact,
       settingsEditorMeta.contact,
       settings.contact
     )
     const phone = screen.getByRole("textbox", { name: "24-hour number" })
-    expect(phone).toHaveAttribute("aria-required", "true")
     expect(phone.parentElement?.querySelector("svg")).toHaveAttribute(
       "aria-hidden"
     )
-    // The star is CSS, so the label's text (its accessible name) is unchanged.
-    expect(document.querySelector(`label[for="${phone.id}"]`)).toHaveClass(
-      "after:content-['*']"
+    const email = screen.getByRole("textbox", { name: "Main email" })
+    expect(email.parentElement?.querySelector("svg")).toHaveAttribute(
+      "aria-hidden"
     )
   })
 
@@ -160,13 +208,31 @@ describe("SchemaForm layout (JW field groups)", () => {
     const first = within(stats).getByRole("listitem", { name: "Stat 1" })
     const [stat] = pages.home.data.hero.stats
     const toggle = within(first).getByRole("button", { expanded: true })
-    expect(toggle).toHaveTextContent(`Stat 1${stat.value} · ${stat.label}`)
+    // The naming field (itemLabel "label") leads the summary.
+    expect(toggle).toHaveTextContent(`Stat 1${stat.label} · ${stat.value}`)
     const label = within(first).getByRole("textbox", { name: "Label" })
     await user.click(toggle)
     expect(toggle).toHaveAttribute("aria-expanded", "false")
     expect(label).not.toBeVisible()
     await user.click(toggle)
     expect(label).toBeVisible()
+    // 44 px on touch screens (WCAG 2.5.8 / brief).
+    expect(toggle).toHaveClass("pointer-coarse:min-h-11")
+  })
+
+  it("keeps an item with errors open and says why", () => {
+    renderSchema(
+      templateSchemaFor("home"),
+      templateEditorMeta[PAGES.home],
+      pages.home.data,
+      { errors: { "hero.stats.0.label": ["Required"] } }
+    )
+    const first = within(
+      screen.getByRole("group", { name: "Stats" })
+    ).getByRole("listitem", { name: "Stat 1" })
+    const toggle = within(first).getByRole("button", { expanded: true })
+    expect(toggle).toBeDisabled()
+    expect(toggle).toHaveTextContent("fix its errors to collapse it")
   })
 
   it("offers a dashed Add button and an empty-list message", async () => {
@@ -182,6 +248,19 @@ describe("SchemaForm layout (JW field groups)", () => {
     expect(add).toHaveClass("border-dashed")
     await user.click(add)
     expect(screen.queryByText(/No tags yet/)).toBeNull()
+  })
+
+  it("uses the plural from meta where adding s is wrong", () => {
+    renderSchema(
+      z.object({ qualities: z.array(z.string()) }),
+      {
+        fields: {
+          qualities: { itemName: "Quality", itemNamePlural: "Qualities" },
+        },
+      },
+      { qualities: [] }
+    )
+    expect(screen.getByText(/No qualities yet/)).toBeInTheDocument()
   })
 
   it("focuses the first invalid control when the error has no input of its own", async () => {
@@ -243,10 +322,38 @@ describe("field layout helpers", () => {
     expect(itemSummary({ value: "18+", label: "Years", count: 18 })).toBe(
       "18+ · Years"
     )
+    expect(itemSummary({ href: "/blog", label: "Blog" }, "label")).toBe(
+      "Blog · /blog"
+    )
     expect(itemSummary({ a: "one", b: "two", title: "Name" }, "title")).toBe(
-      "one · Name"
+      "Name · one"
     )
     expect(itemSummary("text")).toBe("")
+  })
+
+  it("reads a file name from a URL, also a malformed one", () => {
+    expect(fileName("/media/2026/hero%20banner.jpg?v=2")).toBe(
+      "hero banner.jpg"
+    )
+    expect(fileName("/media/100%.jpg")).toBe("100%.jpg")
+    expect(fileName(undefined)).toBe("")
+  })
+
+  it("ids root cards by title slug, unique within the form", () => {
+    expect(
+      groupCardIds(
+        "sf",
+        [
+          { title: "Address & map", fields: ["a"] },
+          { title: "Address & map", fields: ["b"] },
+          { title: "!!", fields: ["c"] },
+        ],
+        [{ section: "hero" }, { run: ["d", "e"] }]
+      )
+    ).toEqual({
+      groups: ["sf-group-address-map", "sf-group-address-map-2", "sf-group-c"],
+      blocks: ["", "sf-group-d"],
+    })
   })
 
   it("describes where a link goes", () => {

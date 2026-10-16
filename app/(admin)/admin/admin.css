@@ -219,3 +219,36 @@ html[data-admin] .rich-text-content a {
 html[data-admin].dark .rich-text-content a {
   color: var(--ring);
 }
+
+/*
+ * The editor's sticky header (components/admin/editor/editor-layout.tsx):
+ * a strip in main's grey above it (--strip-h) and in the corners beside its
+ * rounded top, so content scrolled under it never shows through. Behind the
+ * bar's content (z -1 inside the bar's stacking context); the corner tiles
+ * are transparent inside the radius, so the bar's own fill stays white.
+ */
+html[data-admin] [data-slot="editor-bar"]::before {
+  --r: var(--radius-card);
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset-inline: calc(-1 * var(--bar-border, 0px));
+  bottom: calc(100% - var(--r) + var(--bar-border, 0px));
+  height: calc(var(--strip-h, 0px) + var(--r));
+  background:
+    linear-gradient(var(--sidebar), var(--sidebar)) top / 100%
+      var(--strip-h, 0px) no-repeat,
+    radial-gradient(
+        circle at 100% 100%,
+        transparent calc(var(--r) - 0.5px),
+        var(--sidebar) var(--r)
+      )
+      left bottom / var(--r) var(--r) no-repeat,
+    radial-gradient(
+        circle at 0 100%,
+        transparent calc(var(--r) - 0.5px),
+        var(--sidebar) var(--r)
+      )
+      right bottom / var(--r) var(--r) no-repeat;
+}

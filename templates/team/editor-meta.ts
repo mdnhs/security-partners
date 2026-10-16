@@ -25,6 +25,7 @@ export const teamEditorMeta: EditorMeta = {
     "officers.qualities": {
       label: "Qualities",
       itemName: "Quality",
+      itemNamePlural: "Qualities",
       itemLabel: "title",
     },
     "officers.qualities[].icon": { label: "Icon", aspect: "square" },

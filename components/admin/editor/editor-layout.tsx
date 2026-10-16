@@ -42,13 +42,14 @@ const GAP = 16
  * - The bar sticks 12 px below main's top edge (below lg) or at main's
  *   padding (from lg, level with the Settings rail), so `top` is that
  *   distance less the padding (sticky offsets count from the padding edge).
- * - A strip in main's grey (::before) fills the space above the stuck bar,
- *   so fields never show through there. It is only as tall as that space
- *   (12 px / --main-pad), which at rest is main's padding or the gap above
- *   the Settings card: it never covers the tab row.
+ * - A strip in main's grey (::before, drawn in admin.css) fills the space
+ *   above the stuck bar (--strip-h: 12 px / --main-pad) and the corners
+ *   beside its rounded top, so fields never show through there. That space
+ *   is at rest main's padding or the gap above the Settings card: the strip
+ *   never covers the tab row.
  */
 const STICKY =
-  "@container/bar sticky z-20 top-[calc(0.75rem-var(--main-pad,0px))] lg:top-0 before:pointer-events-none before:absolute before:h-3 before:bg-sidebar before:content-[''] lg:before:h-(--main-pad)"
+  "@container/bar sticky z-20 top-[calc(0.75rem-var(--main-pad,0px))] lg:top-0 [--strip-h:0.75rem] lg:[--strip-h:var(--main-pad)]"
 
 /**
  * Editor frame: a sticky header card (back link where a parent list exists,
@@ -96,14 +97,16 @@ export function EditorLayout({
           "bg-card",
           inTabs
             ? // The card's top: full width over its padding, a rule below.
-              "rounded-t-card -mx-(--card-pad,0px) -mt-(--card-pad,0px) border-b px-(--card-pad) py-4 before:inset-x-0 before:bottom-full"
+              "rounded-t-card -mx-(--card-pad,0px) -mt-(--card-pad,0px) border-b px-(--card-pad) py-4"
             : // A card of its own; the strip starts outside its 1 px border.
-              "rounded-card border px-4 py-4 shadow-xs before:-inset-x-px before:bottom-[calc(100%+1px)] sm:px-6"
+              "rounded-card border px-4 py-4 shadow-xs [--bar-border:1px] sm:px-6"
         )}
       >
-        {/* Side by side once the bar is wide enough for both (container). */}
-        <div className="flex flex-col gap-4 @4xl/bar:flex-row @4xl/bar:items-center @4xl/bar:justify-between">
-          <div className="flex min-w-0 flex-col gap-1.5">
+        {/* Side by side once the bar is wide enough (container query): the
+            title side can shrink (its pills wrap under the title), and the
+            actions only drop below it when they still do not fit. */}
+        <div className="flex flex-col gap-4 @2xl/bar:flex-row @2xl/bar:flex-wrap @2xl/bar:items-center @2xl/bar:justify-between">
+          <div className="flex min-w-0 flex-col gap-1.5 @2xl/bar:flex-[1_1_14rem]">
             {backHref ? (
               <Link
                 href={backHref}

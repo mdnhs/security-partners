@@ -12,7 +12,7 @@ import {
 
 import { type EditorMeta, metaFor } from "./editor-meta"
 import { resolveWidget } from "./resolve-widget"
-import { RootFields } from "./widgets/structure"
+import { RootFields } from "./widgets/group"
 
 export type FormTab = { id: string; label: string; keys: string[] }
 

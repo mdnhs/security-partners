@@ -37,6 +37,24 @@ export function unwrapSchema(schema: z.ZodType): {
   return { inner, optional, nullable }
 }
 
+/**
+ * True when some field the form shows must have a value (a non-optional
+ * leaf; on/off switches never count). Objects and list items are searched.
+ */
+export function hasRequiredField(schema: z.ZodType): boolean {
+  const { inner, optional, nullable } = unwrapSchema(schema)
+  const def = defOf(inner) as Def & {
+    shape?: Record<string, z.ZodType>
+    element?: z.ZodType
+  }
+  if (def.type === "object")
+    return Object.values(def.shape ?? {}).some(hasRequiredField)
+  if (def.type === "array")
+    return def.element ? hasRequiredField(def.element) : false
+  if (def.type === "boolean") return false
+  return !optional && !nullable
+}
+
 /** min/max item counts of a z.array (`.min(1)` etc.). */
 export function arrayBounds(schema: z.ZodType): { min: number; max: number } {
   let min = 0
