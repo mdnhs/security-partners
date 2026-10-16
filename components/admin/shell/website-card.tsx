@@ -37,7 +37,7 @@ export function WebsiteCard({
   const status = STATUS[site.env]
   const host = hostOf(site.url)
   return (
-    <div className="bg-promo relative isolate overflow-hidden rounded-[18px] p-5 group-data-[collapsible=icon]:hidden">
+    <div className="bg-promo rounded-card relative isolate overflow-hidden p-5 group-data-[collapsible=icon]:hidden">
       <Swirl className="absolute inset-0 -z-10 size-full" />
       <p className="flex items-center gap-2 text-xs font-medium opacity-80">
         <span aria-hidden className={cn("size-2 rounded-full", status.dot)} />

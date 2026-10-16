@@ -394,7 +394,7 @@ describe("AdminShell (master 4.1)", () => {
         name: "Notifications",
       })
     )
-    expect(await screen.findByText(/You're all caught up/)).toBeInTheDocument()
+    expect(await screen.findByText("No notifications yet")).toBeInTheDocument()
   })
 
   it("user menu in the topbar: identity, roles, Account, Security, theme, sign out", async () => {
@@ -526,6 +526,95 @@ describe("AdminShell (master 4.1)", () => {
       )
     )
     expect(clear).toHaveBeenCalled()
+  })
+
+  it("dock: a failed sign-out shows beside the dock, readable in the icon rail", async () => {
+    signOut.mockResolvedValue({ error: { message: "nope" } })
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])} defaultSidebarOpen={false}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const footer = document.querySelector(
+      '[data-slot="sidebar-footer"]'
+    ) as HTMLElement
+    const [, rail] = within(footer).getAllByRole("navigation", {
+      name: "Account",
+    })
+    await user.click(within(rail).getByRole("button", { name: "Log out" }))
+    const alert = await within(footer).findByRole("alert")
+    expect(alert).toHaveTextContent("Could not sign out.")
+    // Floats beside the rail instead of turning sr-only.
+    expect(alert.className).not.toMatch(/sr-only/)
+    expect(alert).toHaveClass("group-data-[collapsible=icon]:absolute")
+    // Only the control that failed shows it (not the topbar too).
+    expect(screen.getAllByRole("alert")).toHaveLength(1)
+    expect(router.replace).not.toHaveBeenCalled()
+  })
+
+  it("one sign-out at a time: a pending dock sign-out disables the menu's", async () => {
+    signOut.mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const footer = document.querySelector(
+      '[data-slot="sidebar-footer"]'
+    ) as HTMLElement
+    const [card] = within(footer).getAllByRole("navigation", {
+      name: "Account",
+    })
+    await user.click(within(card).getByRole("button", { name: "Log out" }))
+    expect(within(card).getByRole("button", { name: "Log out" })).toBeDisabled()
+    await user.click(
+      screen.getByRole("button", { name: "Account menu for Edith Editor" })
+    )
+    expect(
+      await screen.findByRole("menuitem", { name: "Sign out" })
+    ).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("starts each new page at the top of the scrolling content panel", () => {
+    const { rerender } = render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const main = screen.getByRole("main")
+    main.scrollTop = 400
+    expect(main.scrollTop).toBe(400)
+    pathname.current = "/admin/pages"
+    rerender(
+      <AdminShell session={session(["editor"])}>
+        <p>Pages</p>
+      </AdminShell>
+    )
+    expect(main.scrollTop).toBe(0)
+  })
+
+  it("leaves the scroll to the browser when the URL has a #fragment", () => {
+    const { rerender } = render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const main = screen.getByRole("main")
+    main.scrollTop = 400
+    window.location.hash = "#faq"
+    try {
+      pathname.current = "/admin/pages"
+      rerender(
+        <AdminShell session={session(["editor"])}>
+          <p>Pages</p>
+        </AdminShell>
+      )
+      expect(main.scrollTop).toBe(400)
+    } finally {
+      window.location.hash = ""
+    }
   })
 
   it("names each navigation group by its section label", () => {

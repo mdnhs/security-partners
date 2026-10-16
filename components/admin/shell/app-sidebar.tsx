@@ -1,10 +1,8 @@
 "use client"
 
-import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { useSignOut } from "@/components/admin/auth/sign-out-button"
 import { useAdminSession } from "@/components/admin/session-provider"
 import {
   Sidebar,
@@ -19,6 +17,7 @@ import type { SiteInfo } from "./constants"
 import { type DockProps, FooterDock } from "./footer-dock"
 import { dockItems, type NavBadges } from "./nav"
 import { NavMain } from "./nav-main"
+import { useShellSignOut } from "./sign-out-context"
 import { WebsiteCard } from "./website-card"
 
 /**
@@ -35,10 +34,9 @@ export function AppSidebar({
 }) {
   const { roles } = useAdminSession()
   const pathname = usePathname()
-  const queryClient = useQueryClient()
   const { isMobile, setOpenMobile } = useSidebar()
-  // The next user must never see this user's cached data.
-  const { signOut, pending, error } = useSignOut(() => queryClient.clear())
+  const { signOut, pending, error } = useShellSignOut()
+  const dockError = error?.source === "dock" ? error.message : null
   const onNavigate = () => {
     if (isMobile) setOpenMobile(false)
   }
@@ -46,7 +44,7 @@ export function AppSidebar({
     links: dockItems(roles),
     pathname,
     onNavigate,
-    onSignOut: () => void signOut(),
+    onSignOut: () => signOut("dock"),
     signingOut: pending,
   }
   return (
@@ -66,19 +64,20 @@ export function AppSidebar({
       </SidebarContent>
       {/* Pinned below the scrolling menu. The card (and its dock row) hides
           in the icon rail, where the dock stands alone as a column. */}
-      <SidebarFooter className="p-3 pt-2 group-data-[collapsible=icon]:px-1">
+      <SidebarFooter className="relative p-3 pt-2 group-data-[collapsible=icon]:px-1">
         <WebsiteCard site={site}>
           <FooterDock tone="card" {...dockProps} />
         </WebsiteCard>
         <div className="hidden group-data-[collapsible=icon]:block">
           <FooterDock tone="rail" {...dockProps} />
         </div>
-        {error ? (
+        {/* In the icon rail the failure floats beside the rail, readable. */}
+        {dockError ? (
           <p
             role="alert"
-            className="text-danger px-1 text-xs font-medium group-data-[collapsible=icon]:sr-only"
+            className="bg-danger-soft text-danger rounded-xl px-3 py-2 text-xs font-medium group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:bottom-3 group-data-[collapsible=icon]:left-full group-data-[collapsible=icon]:z-40 group-data-[collapsible=icon]:ml-3 group-data-[collapsible=icon]:w-56 group-data-[collapsible=icon]:shadow-lg"
           >
-            {error}
+            {dockError}
           </p>
         ) : null}
       </SidebarFooter>

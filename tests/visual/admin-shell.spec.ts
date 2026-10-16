@@ -45,6 +45,8 @@ test("admin sidebar collapsed to icons", async ({ page }, testInfo) => {
     "data-state",
     "collapsed"
   )
+  // The search pill slides under the pointer: no hover ring in the baseline.
+  await page.mouse.move(0, 0)
   await expect(page).toHaveScreenshot("admin-shell-collapsed.png", {
     mask: [page.getByRole("main")],
   })

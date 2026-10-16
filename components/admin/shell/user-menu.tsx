@@ -1,6 +1,5 @@
 "use client"
 
-import { useQueryClient } from "@tanstack/react-query"
 import {
   LogOut,
   Monitor,
@@ -12,7 +11,6 @@ import {
 import Link from "next/link"
 import { useTheme } from "next-themes"
 
-import { useSignOut } from "@/components/admin/auth/sign-out-button"
 import { initials } from "@/components/admin/kit/format"
 import { useAdminSession } from "@/components/admin/session-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -29,6 +27,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+import { useShellSignOut } from "./sign-out-context"
+
 const THEMES = [
   { value: "light", label: "Light", icon: Sun },
   { value: "dark", label: "Dark", icon: Moon },
@@ -42,12 +42,9 @@ const THEMES = [
  */
 export function UserMenu() {
   const { user, roles } = useAdminSession()
-  const queryClient = useQueryClient()
   const { theme, setTheme } = useTheme()
-  // The next user must never see this user's cached data.
-  const { signOut, pending, error, clearError } = useSignOut(() =>
-    queryClient.clear()
-  )
+  const { signOut, pending, error, clearError } = useShellSignOut()
+  const menuError = error?.source === "menu" ? error.message : null
   return (
     <div className="relative">
       <DropdownMenu
@@ -108,18 +105,18 @@ export function UserMenu() {
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={pending} onClick={() => void signOut()}>
+          <DropdownMenuItem disabled={pending} onClick={() => signOut("menu")}>
             <LogOut aria-hidden />
             Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {error ? (
+      {menuError ? (
         <p
           role="alert"
           className="bg-danger-soft text-danger absolute top-full right-0 z-40 mt-2 w-64 rounded-xl px-3 py-2 text-xs font-medium shadow-lg"
         >
-          {error}
+          {menuError}
         </p>
       ) : null}
     </div>

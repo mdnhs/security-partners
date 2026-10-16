@@ -13,7 +13,7 @@ import {
 
 import { ICON_BUTTON } from "./constants"
 
-/** The bell. Phase 7 fills it (new leads); until then it is honestly empty. */
+/** The bell. Phase 7 fills it (new leads); until then it is empty. */
 export function NotificationsButton() {
   return (
     <Popover>
@@ -35,8 +35,7 @@ export function NotificationsButton() {
         </PopoverHeader>
         <div className="max-h-80 overflow-y-auto">
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            You&apos;re all caught up. New enquiries and anything that needs
-            your attention will show here.
+            No notifications yet
           </p>
         </div>
       </PopoverContent>

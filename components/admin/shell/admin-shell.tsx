@@ -1,7 +1,8 @@
 "use client"
 
 import type { QueryClient } from "@tanstack/react-query"
-import type { CSSProperties, ReactNode } from "react"
+import { usePathname } from "next/navigation"
+import { type CSSProperties, type ReactNode, useEffect, useRef } from "react"
 
 import { AdminProviders } from "@/components/admin/providers"
 import {
@@ -16,6 +17,7 @@ import { DEFAULT_SITE, type SiteInfo } from "./constants"
 import { ImpersonationBanner } from "./impersonation-banner"
 import type { NavBadges } from "./nav"
 import { CommandPaletteProvider } from "./palette-context"
+import { ShellSignOutProvider } from "./sign-out-context"
 import { Topbar } from "./topbar"
 
 /**
@@ -23,6 +25,10 @@ import { Topbar } from "./topbar"
  * 72 px topbar panel and the content panel on a white canvas with 16 px
  * gutters. The content panel scrolls inside its own corners; --content-h is
  * its visible height for sticky panes inside (svh − gutters − topbar − gap).
+ * --content-h does not subtract the impersonation banner (its height wraps
+ * with the viewport): while impersonating, the panel is shorter by the
+ * banner plus a 12 px gap, so panes sized by it must also cap at the panel
+ * (e.g. max-h-full) rather than rely on it alone.
  */
 export function AdminShell({
   session,
@@ -42,49 +48,67 @@ export function AdminShell({
   /** Counts beside nav items (e.g. new leads, from Phase 7). */
   badges?: NavBadges
 }) {
+  const mainRef = useScrollTopOnNavigate()
   return (
     <AdminSessionProvider value={session}>
       <AdminProviders
         cacheKey={`${session.user.id}:${session.impersonatedBy ?? ""}`}
         client={queryClient}
       >
-        <CommandPaletteProvider>
-          <a
-            href="#main"
-            className="sr-only z-50 rounded-xl bg-card px-4 py-2 text-sm font-semibold shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:ring-3 focus:ring-ring/50"
-          >
-            Skip to content
-          </a>
-          <SidebarProvider
-            defaultOpen={defaultSidebarOpen}
-            style={{ "--sidebar-width": "20rem" } as CSSProperties}
-          >
-            <AppSidebar site={site} badges={badges} />
-            <div className="flex h-svh min-w-0 flex-1 flex-col gap-4 p-3 [--content-h:calc(100svh-112px)] sm:p-4 sm:[--content-h:calc(100svh-120px)] lg:pl-0">
-              {/* One header wrapper: the impersonation banner stacks above
+        <ShellSignOutProvider>
+          <CommandPaletteProvider>
+            <a
+              href="#main"
+              className="sr-only z-50 rounded-xl bg-card px-4 py-2 text-sm font-semibold shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:ring-3 focus:ring-ring/50"
+            >
+              Skip to content
+            </a>
+            <SidebarProvider
+              defaultOpen={defaultSidebarOpen}
+              style={{ "--sidebar-width": "20rem" } as CSSProperties}
+            >
+              <AppSidebar site={site} badges={badges} />
+              <div className="flex h-svh min-w-0 flex-1 flex-col gap-4 p-3 [--content-h:calc(100svh-112px)] sm:p-4 sm:[--content-h:calc(100svh-120px)] lg:pl-0">
+                {/* One header wrapper: the impersonation banner stacks above
                   the topbar instead of covering it; the sidebar sits beside
                   the column, never underneath (WCAG 2.2 SC 2.4.11). */}
-              <div
-                data-slot="admin-header"
-                className="flex shrink-0 flex-col gap-3"
-              >
-                {session.impersonatedBy ? (
-                  <ImpersonationBanner name={session.user.name} />
-                ) : null}
-                <Topbar />
+                <div
+                  data-slot="admin-header"
+                  className="flex shrink-0 flex-col gap-3"
+                >
+                  {session.impersonatedBy ? (
+                    <ImpersonationBanner name={session.user.name} />
+                  ) : null}
+                  <Topbar />
+                </div>
+                <main
+                  ref={mainRef}
+                  id="main"
+                  tabIndex={-1}
+                  className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-4 outline-none sm:p-6 lg:p-8"
+                >
+                  {children}
+                </main>
               </div>
-              <main
-                id="main"
-                tabIndex={-1}
-                className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-4 outline-none sm:p-6 lg:p-8"
-              >
-                {children}
-              </main>
-            </div>
-          </SidebarProvider>
-          <CommandPalette />
-        </CommandPaletteProvider>
+            </SidebarProvider>
+            <CommandPalette />
+          </CommandPaletteProvider>
+        </ShellSignOutProvider>
       </AdminProviders>
     </AdminSessionProvider>
   )
+}
+
+/**
+ * The content panel, not the document, scrolls, so Next's scroll-to-top on
+ * navigation never reaches it: a new page starts at the panel's top. A URL
+ * with a #fragment is left alone so the browser scrolls the target into view.
+ */
+function useScrollTopOnNavigate() {
+  const ref = useRef<HTMLElement>(null)
+  const pathname = usePathname()
+  useEffect(() => {
+    if (ref.current && !window.location.hash) ref.current.scrollTop = 0
+  }, [pathname])
+  return ref
 }
