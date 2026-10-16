@@ -184,5 +184,86 @@ describe("settings API (master 4.5)", () => {
       json: { draft: {}, version: 1 },
     })
     expect(res.status).toBe(404)
+    const restore = await adminRequest(`/settings/${key}/restore`, {
+      cookie: owner,
+      method: "POST",
+      json: { revisionId: crypto.randomUUID(), version: 1 },
+    })
+    expect(restore.status).toBe(404)
+  })
+
+  it("answers 409 (not 422) for a stale version with an invalid draft", async () => {
+    const { body } = await get(editor, "contact")
+    await adminRequest("/settings/contact/draft", {
+      cookie: editor,
+      method: "PUT",
+      json: { draft: body!.draft, version: 1 },
+    })
+    const res = await adminRequest("/settings/contact/draft", {
+      cookie: editor,
+      method: "PUT",
+      json: {
+        draft: { ...(body!.draft as object), email: "not-an-email" },
+        version: 1,
+      },
+    })
+    expect(res.status).toBe(409)
+    expect(
+      ((await res.json()) as { error: { current: SettingsDto } }).error.current
+        .version
+    ).toBe(2)
+  })
+
+  const publishedRevisionId = async (key: string) => {
+    const { body } = await get(editor, key)
+    await adminRequest(`/settings/${key}/publish`, {
+      cookie: editor,
+      method: "POST",
+      json: { version: body!.version },
+    })
+    const history = await adminRequest(`/revisions/settings/${key}`, {
+      cookie: editor,
+    })
+    const { items } = (await history.json()) as { items: { id: string }[] }
+    return items[0]!.id
+  }
+
+  it("restores a published revision into the draft", async () => {
+    const revisionId = await publishedRevisionId("contact")
+    const { body } = await get(editor, "contact")
+    const original = (body!.draft as { hours: string }).hours
+    const edited = await adminRequest("/settings/contact/draft", {
+      cookie: editor,
+      method: "PUT",
+      json: {
+        draft: { ...(body!.draft as object), hours: "Closed" },
+        version: body!.version,
+      },
+    })
+    const { version } = (await edited.json()) as SettingsDto
+
+    const res = await adminRequest("/settings/contact/restore", {
+      cookie: editor,
+      method: "POST",
+      json: { revisionId, version },
+    })
+    expect(res.status).toBe(200)
+    const dto = (await res.json()) as SettingsDto
+    expect(dto.version).toBe(version + 1)
+    expect((dto.draft as { hours: string }).hours).toBe(original)
+    expect(dto.dirty).toBe(false)
+    expect(revalidateTag).toHaveBeenCalledTimes(1) // the publish only
+  })
+
+  it("rejects restoring another key's revision with 404", async () => {
+    const revisionId = await publishedRevisionId("footer")
+    const { body } = await get(editor, "contact")
+    const res = await adminRequest("/settings/contact/restore", {
+      cookie: editor,
+      method: "POST",
+      json: { revisionId, version: body!.version },
+    })
+    expect(res.status).toBe(404)
+    expect((await get(editor, "contact")).body!.version).toBe(body!.version)
   })
 })
