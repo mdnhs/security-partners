@@ -8,6 +8,7 @@ import {
 import { Blockquote } from "@tiptap/extension-blockquote"
 import { Link } from "@tiptap/extension-link"
 import { ListItem, OrderedList } from "@tiptap/extension-list"
+import { Plugin } from "@tiptap/pm/state"
 import { StarterKit } from "@tiptap/starter-kit"
 
 import { isSafeHref, WHOLE_PLACEHOLDER } from "@/lib/href"
@@ -94,6 +95,29 @@ const StartOrderedList = OrderedList.extend({
         },
       },
     }
+  },
+  // Typing "0. " (input rule) or pasting a list numbered from 0 would set
+  // start 0; the stored schema needs ≥ 1, so every transaction is fixed up.
+  addProseMirrorPlugins() {
+    const type = this.type
+    return [
+      ...(this.parent?.() ?? []),
+      new Plugin({
+        appendTransaction: (transactions, _old, state) => {
+          if (!transactions.some((tr) => tr.docChanged)) return null
+          const tr = state.tr
+          state.doc.descendants((node, pos) => {
+            const start = node.attrs.start as unknown
+            if (
+              node.type === type &&
+              !(Number.isInteger(start) && (start as number) >= 1)
+            )
+              tr.setNodeAttribute(pos, "start", 1)
+          })
+          return tr.docChanged ? tr : null
+        },
+      }),
+    ]
   },
 })
 

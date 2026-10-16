@@ -44,17 +44,22 @@ export function MediaPickerDialog({
   const [chosen, setChosen] = useState<MediaItem | null>(null)
   // Each opening starts fresh: no stale search, page or choice.
   const [wasOpen, setWasOpen] = useState(open)
+  const [session, setSession] = useState(0)
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
+      setSession((n) => n + 1)
       setQuery("")
       setPage(1)
       setChosen(null)
     }
   }
-  const debounced = useDebouncedValue(query.trim(), 250)
-  // Clearing the search (or reopening) shows everything at once.
-  const q = query.trim() ? debounced : ""
+  // The debounced search is tagged with its opening, so a term typed in an
+  // earlier opening never leaks into this one. Clearing applies at once.
+  const tag = `${session}:`
+  const debounced = useDebouncedValue(tag + query.trim(), 250)
+  const q =
+    query.trim() && debounced.startsWith(tag) ? debounced.slice(tag.length) : ""
 
   const result = useQuery({
     queryKey: ["media", "list", { q, page }],

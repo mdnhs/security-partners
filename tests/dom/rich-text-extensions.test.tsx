@@ -151,4 +151,30 @@ describe("rich text editor schema = stored schema (spec §5.3)", () => {
       expect(richText.safeParse(doc).success).toBe(true)
     }
   })
+
+  it('typing "0. " starts a list at 1; "3. " keeps 3', () => {
+    for (const [typed, start] of [
+      ["0.", 1],
+      ["3.", 3],
+    ] as const) {
+      const editor = new Editor({
+        extensions: richTextExtensions("full"),
+        content: "<p></p>",
+      })
+      editors.push(editor)
+      editor.commands.insertContent(typed)
+      const { view } = editor
+      const { from, to } = view.state.selection
+      const handled = view.someProp("handleTextInput", (f) =>
+        f(view, from, to, " ", () => view.state.tr.insertText(" ", from, to))
+      )
+      expect(handled).toBe(true)
+      const doc = editor.getJSON()
+      expect(doc.content![0]).toMatchObject({
+        type: "orderedList",
+        attrs: { start },
+      })
+      expect(richText.safeParse(doc).success).toBe(true)
+    }
+  })
 })

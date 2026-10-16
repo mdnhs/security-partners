@@ -310,6 +310,47 @@ describe("RichTextEditor state and keyboard", () => {
     expect(bold.tabIndex).toBe(-1)
   })
 
+  it("leaves arrow, Home and End alone inside the link form and the image picker", async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    const toolbar = await screen.findByRole("toolbar", { name: "Formatting" })
+    const prevented: boolean[] = []
+    const spy = (event: KeyboardEvent) => prevented.push(event.defaultPrevented)
+    window.addEventListener("keydown", spy)
+    try {
+      await user.click(within(toolbar).getByRole("button", { name: "Link" }))
+      const address = await screen.findByRole("textbox", {
+        name: "Link address",
+      })
+      await user.type(address, "/contact")
+      await user.keyboard("{Home}")
+      expect(address).toHaveFocus()
+      expect((address as HTMLInputElement).selectionStart).toBe(0)
+      await user.keyboard("{ArrowRight}{ArrowRight}{End}{ArrowLeft}")
+      expect(address).toHaveFocus()
+      expect((address as HTMLInputElement).selectionStart).toBe(7)
+      await user.keyboard("{Escape}")
+
+      await user.click(
+        within(toolbar).getByRole("button", { name: "Insert image" })
+      )
+      const dialog = await screen.findByRole("dialog", {
+        name: "Choose an image",
+      })
+      const search = within(dialog).getByRole("searchbox", {
+        name: "Search images",
+      })
+      await user.type(search, "Team")
+      await user.keyboard("{Home}{ArrowRight}{End}{ArrowLeft}")
+      expect(search).toHaveFocus()
+      expect((search as HTMLInputElement).selectionStart).toBe(3)
+    } finally {
+      window.removeEventListener("keydown", spy)
+    }
+    expect(prevented.length).toBeGreaterThan(0)
+    expect(prevented.every((p) => !p)).toBe(true)
+  })
+
   it("names the link control by state and advertises its shortcut", async () => {
     renderEditor({
       value: {

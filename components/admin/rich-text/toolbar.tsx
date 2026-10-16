@@ -203,6 +203,14 @@ function LinkButton({
 function onToolbarKeyDown(event: KeyboardEvent<HTMLDivElement>) {
   const keys = ["ArrowLeft", "ArrowRight", "Home", "End"]
   if (!keys.includes(event.key)) return
+  // Only from a toolbar control: keys typed in the link form or the image
+  // picker (React portals bubble here) keep their caret/list behaviour.
+  const target = event.target as HTMLElement
+  if (
+    !target.matches("[data-toolbar-item]") ||
+    !event.currentTarget.contains(target)
+  )
+    return
   const items = [
     ...event.currentTarget.querySelectorAll<HTMLElement>(
       "[data-toolbar-item]:not(:disabled)"
