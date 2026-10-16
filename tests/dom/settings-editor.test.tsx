@@ -101,18 +101,39 @@ describe("settings editor (master 4.5)", () => {
     renderAs(["admin"])
     const nav = screen.getByRole("navigation", { name: "Settings" })
     const links = within(nav).getAllByRole("link")
-    expect(links[0]).toHaveTextContent("Overview")
-    expect(links[0]).toHaveAttribute("href", "/admin/settings")
-    expect(links).toHaveLength(12)
+    // No overview tab: /admin/settings redirects to the first key.
+    expect(links[0]).toHaveTextContent("Site")
+    expect(links[0]).toHaveAttribute("href", "/admin/settings/site")
+    expect(links).toHaveLength(11)
     expect(
       within(nav).getByRole("link", { name: "Enquiries" })
     ).toHaveAttribute("aria-current", "page")
-    expect(
-      within(nav).getByRole("link", { name: "Overview" })
-    ).not.toHaveAttribute("aria-current")
+    expect(within(nav).getByRole("link", { name: "Site" })).not.toHaveAttribute(
+      "aria-current"
+    )
+    // Inside the rail there is no back link to an overview.
+    expect(screen.queryByRole("link", { name: "All settings" })).toBeNull()
+    // The editor bar is the opaque, sticky top of the white content card.
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Enquiries",
+    })
+    const bar = heading.closest('[data-slot="editor-bar"]')
+    expect(bar).toHaveClass("bg-card", "rounded-t-card", "border-b")
+    expect(bar).not.toHaveClass("backdrop-blur")
+    // Its sticky wrapper covers main's top padding so nothing shows above it.
+    expect(bar?.parentElement).toHaveClass("sticky", "lg:-top-8", "bg-sidebar")
+    expect(bar?.closest('[data-slot="section-tabs-content"]')).toHaveClass(
+      "bg-card"
+    )
     // The editor sits in the tab content (no full-bleed header bar).
     expect(
       await screen.findByRole("heading", { level: 1, name: "Enquiries" })
     ).toBeVisible()
+  })
+
+  it("lists only the keys the user may read", () => {
+    renderAs(["author"])
+    expect(screen.queryByRole("navigation", { name: "Settings" })).toBeNull()
   })
 })

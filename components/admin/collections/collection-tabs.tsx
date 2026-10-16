@@ -20,7 +20,7 @@ export function CollectionTabs({ children }: { children: ReactNode }) {
   }))
   if (items.length === 0) return <>{children}</>
   return (
-    <SectionTabs ariaLabel="Collections" items={items}>
+    <SectionTabs ariaLabel="Collections" heading="Collections" items={items}>
       {children}
     </SectionTabs>
   )

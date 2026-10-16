@@ -224,3 +224,187 @@ describe("SectionTabs (route)", () => {
     )
   })
 })
+
+describe("SectionTabs (JW look)", () => {
+  it("JW look: active tab on the accent fill with a semibold label", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Account"
+        items={[
+          { id: "profile", label: "Profile" },
+          { id: "security", label: "Security" },
+        ]}
+        value="security"
+      >
+        <SectionTabsPanel id="profile">Profile body</SectionTabsPanel>
+        <SectionTabsPanel id="security">Security body</SectionTabsPanel>
+      </SectionTabs>
+    )
+    const active = screen.getByRole("tab", { name: "Security" })
+    expect(active).toHaveClass("bg-sidebar-accent", "font-semibold")
+    expect(screen.getByRole("tab", { name: "Profile" })).not.toHaveClass(
+      "bg-sidebar-accent"
+    )
+  })
+
+  it("shows the section caption above the list, hidden from assistive tech", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Settings"
+        heading="Settings"
+        items={[
+          { id: "a", label: "Site", href: "/admin/settings/site" },
+          { id: "b", label: "Footer", href: "/admin/settings/footer" },
+        ]}
+      >
+        <p>Body</p>
+      </SectionTabs>
+    )
+    const nav = screen.getByRole("navigation", { name: "Settings" })
+    const caption = within(nav).getByText("Settings", { selector: "p" })
+    expect(caption).toHaveAttribute("aria-hidden", "true")
+    expect(caption).toHaveClass("uppercase")
+  })
+
+  it("keeps the 13 rem column (JW lg:w-52)", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Settings"
+        items={[{ id: "a", label: "Site", href: "/admin/settings/site" }]}
+      >
+        <p>Body</p>
+      </SectionTabs>
+    )
+    expect(screen.getByRole("navigation", { name: "Settings" })).toHaveClass(
+      "lg:w-52"
+    )
+  })
+})
+
+describe("SectionTabs (Task 14 polish)", () => {
+  const desktopWidth = window.innerWidth
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: desktopWidth,
+    })
+    vi.restoreAllMocks()
+  })
+
+  it("reports a horizontal tablist below lg (the scrolling row)", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 800,
+    })
+    render(<InPage />)
+    expect(screen.getByRole("tablist")).toHaveAttribute(
+      "aria-orientation",
+      "horizontal"
+    )
+  })
+
+  it("nested tabs stay horizontal until xl", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Outer"
+        items={[{ id: "a", label: "A", href: "/admin/settings/contact" }]}
+      >
+        <InPage />
+      </SectionTabs>
+    )
+    expect(
+      screen.getByRole("tablist", { name: "Account sections" })
+    ).toHaveAttribute("aria-orientation", "horizontal")
+  })
+
+  it("pushes a history entry for a click, replaces it for arrow keys", async () => {
+    const user = userEvent.setup()
+    const push = vi.spyOn(window.history, "pushState")
+    const replace = vi.spyOn(window.history, "replaceState")
+    render(<InPage />)
+    await user.click(screen.getByRole("tab", { name: /^Password/ }))
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(window.location.search).toBe("?tab=password")
+    await user.keyboard("{ArrowDown}")
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(replace).toHaveBeenCalledTimes(1)
+    expect(window.location.search).toBe("?tab=sessions")
+  })
+
+  it("passes the replace hint to a controlled onValueChange for keys only", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<InPage value="profile" onValueChange={onValueChange} />)
+    screen.getByRole("tab", { name: "Profile" }).focus()
+    await user.keyboard("{ArrowDown}")
+    expect(onValueChange).toHaveBeenLastCalledWith("password", {
+      replace: true,
+    })
+  })
+})
+
+describe("SectionTabs (sticky rail)", () => {
+  it("keeps the rail in view from lg while the content scrolls", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Settings"
+        items={[{ id: "a", label: "Site", href: "/admin/settings/site" }]}
+      >
+        <p>Body</p>
+      </SectionTabs>
+    )
+    expect(screen.getByRole("navigation", { name: "Settings" })).toHaveClass(
+      "lg:sticky",
+      "lg:top-[var(--section-tabs-top,0px)]",
+      "lg:self-start",
+      "lg:overflow-y-auto"
+    )
+  })
+
+  it("nested rails stick from xl, below the editor bar", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Outer"
+        items={[{ id: "a", label: "A", href: "/admin/settings/contact" }]}
+      >
+        <InPage />
+      </SectionTabs>
+    )
+    const column = screen.getByRole("tablist", {
+      name: "Account sections",
+    }).parentElement
+    expect(column).toHaveClass(
+      "xl:sticky",
+      "xl:top-[var(--section-tabs-top,0px)]"
+    )
+    expect(column).not.toHaveClass("lg:sticky")
+  })
+})
+
+describe("SectionTabs (content surface)", () => {
+  it("puts the content on a white card beside the grey rail", () => {
+    render(<InPage />)
+    const panel = screen.getByRole("tabpanel")
+    expect(panel.closest('[data-slot="section-tabs-content"]')).toHaveClass(
+      "bg-card",
+      "rounded-card",
+      "p-4"
+    )
+  })
+
+  it("route mode too; a nested set does not nest a second card", () => {
+    render(
+      <SectionTabs
+        ariaLabel="Outer"
+        items={[{ id: "a", label: "A", href: "/admin/settings/contact" }]}
+      >
+        <InPage />
+      </SectionTabs>
+    )
+    const [outer, inner] = document.querySelectorAll(
+      '[data-slot="section-tabs-content"]'
+    )
+    expect(outer).toHaveClass("bg-card", "rounded-card")
+    expect(inner).not.toHaveClass("bg-card")
+  })
+})

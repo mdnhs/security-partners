@@ -28,16 +28,22 @@ export type SectionTabItem = {
   icon?: LucideIcon
 }
 
+/** `replace`: a keyboard or programmatic change (no new history entry). */
+export type TabChangeOptions = { replace?: boolean }
+
 export type SectionTabsProps = {
   items: SectionTabItem[]
   /** Selected tab (in-page) or current route (route mode); defaults to ?tab= / the path. */
   value?: string
-  onValueChange?: (id: string) => void
+  /** Called with `{ replace: true }` for keyboard moves, without options for clicks. */
+  onValueChange?: (id: string, options?: TabChangeOptions) => void
   /** In-page mode: <SectionTabsPanel>s. Route mode: the page. */
   children: ReactNode
   ariaLabel: string
   /** Search param holding the selected in-page tab. */
   param?: string
+  /** Small uppercase caption above the vertical list (JW section label); decorative. */
+  heading?: string
 }
 
 // How deep we are in SectionTabs: a nested set (an editor's groups inside
@@ -69,21 +75,26 @@ function subscribe(callback: () => void) {
   }
 }
 
-/** [current ?param value, select] — selecting pushes a history entry (Back returns). */
+/**
+ * [current ?param value, select] — a click pushes a history entry (Back
+ * returns); keyboard and programmatic changes pass `{ replace: true }` so
+ * arrowing through tabs or an error jump does not flood the history.
+ */
 export function useTabParam(
   param = "tab"
-): [string | undefined, (id: string) => void] {
+): [string | undefined, (id: string, options?: TabChangeOptions) => void] {
   const value = useSyncExternalStore(
     subscribe,
     () => new URLSearchParams(window.location.search).get(param) ?? undefined,
     () => undefined
   )
   const select = useCallback(
-    (id: string) => {
+    (id: string, options?: TabChangeOptions) => {
       const url = new URL(window.location.href)
       if (url.searchParams.get(param) === id) return
       url.searchParams.set(param, id)
-      window.history.pushState(null, "", url)
+      if (options?.replace) window.history.replaceState(null, "", url)
+      else window.history.pushState(null, "", url)
       window.dispatchEvent(new Event(URL_EVENT))
     },
     [param]
@@ -110,26 +121,78 @@ function useCurrentInView(
   }, [list, current])
 }
 
+/**
+ * From the breakpoint the rail stays put while the page scrolls (main is
+ * the scroll container): sticky at --section-tabs-top, which an editor
+ * sets below its own sticky header (0 elsewhere), capped to the visible
+ * panel and scrolling on its own when the list is long. -m-1/p-1 keep the
+ * focus ring clear of the rail's overflow clip. Below it the tabs are a
+ * plain row (a sticky row would collide with the editor's sticky header).
+ */
 const LAYOUT = {
   lg: {
     root: "flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8",
-    column: "lg:w-56 lg:shrink-0",
-    list: "lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0",
+    column:
+      "lg:w-52 lg:shrink-0 lg:sticky lg:top-[var(--section-tabs-top,0px)] lg:-m-1 lg:max-h-[calc(var(--content-h,100svh)-var(--section-tabs-top,0px))] lg:self-start lg:overflow-y-auto lg:p-1",
+    list: "lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0",
     tab: "lg:w-full",
     marker: "lg:block",
+    /** px where the list becomes a column (Tailwind lg / xl). */
+    columnFrom: 1024,
+    /** The selected content on a white card beside the grey rail. */
+    content: "min-w-0 flex-1 rounded-card bg-card p-4 sm:p-6",
   },
   xl: {
     root: "flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-8",
-    column: "xl:w-56 xl:shrink-0",
-    list: "xl:flex-col xl:overflow-visible xl:border-b-0 xl:pb-0",
+    column:
+      "xl:w-52 xl:shrink-0 xl:sticky xl:top-[var(--section-tabs-top,0px)] xl:-m-1 xl:max-h-[calc(var(--content-h,100svh)-var(--section-tabs-top,0px))] xl:self-start xl:overflow-y-auto xl:p-1",
+    list: "xl:flex-col xl:overflow-visible xl:px-0 xl:pb-0",
     tab: "xl:w-full",
     marker: "xl:block",
+    columnFrom: 1280,
+    // Nested sets already sit on their parent's card.
+    content: "min-w-0 flex-1",
   },
 } as const
 
 const TAB =
-  "relative flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-left text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-const TAB_ACTIVE = "bg-muted font-medium text-foreground"
+  "relative flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-left text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+const TAB_ACTIVE = "bg-sidebar-accent font-semibold text-foreground"
+
+/**
+ * aria-orientation follows the layout: a row below the breakpoint, a column
+ * from it (server and first hydration render assume the desktop column).
+ */
+function useIsColumn(minWidth: number): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const mql = window.matchMedia(`(min-width: ${minWidth}px)`)
+      mql.addEventListener("change", onChange)
+      return () => mql.removeEventListener("change", onChange)
+    },
+    [minWidth]
+  )
+  return useSyncExternalStore(
+    subscribe,
+    () => window.innerWidth >= minWidth,
+    () => true
+  )
+}
+
+function Caption({ text, marker }: { text?: string; marker: string }) {
+  if (!text) return null
+  return (
+    <p
+      aria-hidden
+      className={cn(
+        "mb-2 hidden px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase",
+        marker
+      )}
+    >
+      {text}
+    </p>
+  )
+}
 
 function TabContent({
   item,
@@ -147,7 +210,7 @@ function TabContent({
         <span
           aria-hidden
           className={cn(
-            "absolute top-1/2 left-0 hidden h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary",
+            "absolute top-1/2 left-0 hidden h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary",
             marker
           )}
         />
@@ -195,14 +258,14 @@ export function SectionTabs(props: SectionTabsProps) {
 }
 
 type Layout = (typeof LAYOUT)[keyof typeof LAYOUT]
-const LIST =
-  "relative -mx-1 flex gap-1 overflow-x-auto border-b px-1 pb-2 [scrollbar-width:thin]"
+const LIST = "-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]"
 
 function RouteTabs({
   items,
   value,
   children,
   ariaLabel,
+  heading,
   layout,
 }: SectionTabsProps & { layout: Layout }) {
   const pathname = usePathname()
@@ -219,6 +282,7 @@ function RouteTabs({
   return (
     <div className={layout.root}>
       <nav aria-label={ariaLabel} className={cn("min-w-0", layout.column)}>
+        <Caption text={heading} marker={layout.marker} />
         <ul ref={listRef} className={cn(LIST, layout.list)}>
           {items.map((item) => {
             const active = item.id === current
@@ -242,7 +306,9 @@ function RouteTabs({
           })}
         </ul>
       </nav>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div data-slot="section-tabs-content" className={layout.content}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -254,6 +320,7 @@ function InPageTabs({
   children,
   ariaLabel,
   param = "tab",
+  heading,
   layout,
 }: SectionTabsProps & { layout: Layout }) {
   const [fromUrl, selectInUrl] = useTabParam(param)
@@ -271,11 +338,13 @@ function InPageTabs({
   const refs = useRef(new Map<string, HTMLButtonElement>())
   const listRef = useRef<HTMLDivElement>(null)
   useCurrentInView(listRef, selected)
+  const isColumn = useIsColumn(layout.columnFrom)
 
-  const select = (id: string) => {
+  const select = (id: string, options?: TabChangeOptions) => {
     if (id === selected) return
-    onValueChange?.(id)
-    if (value === undefined) selectInUrl(id)
+    if (options) onValueChange?.(id, options)
+    else onValueChange?.(id)
+    if (value === undefined) selectInUrl(id, options)
   }
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = items.findIndex((item) => item.id === selected)
@@ -292,17 +361,18 @@ function InPageTabs({
     event.preventDefault()
     const item = items[next]
     refs.current.get(item.id)?.focus()
-    select(item.id)
+    select(item.id, { replace: true })
   }
 
   return (
     <div className={layout.root}>
       <div className={cn("min-w-0", layout.column)}>
+        <Caption text={heading} marker={layout.marker} />
         <div
           ref={listRef}
           role="tablist"
           aria-label={ariaLabel}
-          aria-orientation="vertical"
+          aria-orientation={isColumn ? "vertical" : "horizontal"}
           onKeyDown={onKeyDown}
           className={cn(LIST, layout.list)}
         >
@@ -336,7 +406,7 @@ function InPageTabs({
           })}
         </div>
       </div>
-      <div className="min-w-0 flex-1">
+      <div data-slot="section-tabs-content" className={layout.content}>
         <PanelContext.Provider value={{ selected, tabId, panelId }}>
           {children}
         </PanelContext.Provider>

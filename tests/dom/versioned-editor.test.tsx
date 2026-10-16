@@ -463,6 +463,12 @@ describe("page editor section tabs", () => {
     renderEditor()
     const heading = await headingInput()
     const tablist = screen.getByRole("tablist", { name: "Sections" })
+    // The sticky tab rail stops below the editor's sticky bar.
+    expect(
+      tablist
+        .closest<HTMLElement>("[style]")
+        ?.style.getPropertyValue("--section-tabs-top")
+    ).toMatch(/^\d+px$/)
     expect(
       within(tablist)
         .getAllByRole("tab")
@@ -495,6 +501,7 @@ describe("page editor section tabs", () => {
 
   it("marks tabs with errors and jumps to the first one on publish", async () => {
     const user = userEvent.setup()
+    const push = vi.spyOn(window.history, "pushState")
     renderEditor()
     const heading = await headingInput()
     await user.clear(heading)
@@ -509,6 +516,12 @@ describe("page editor section tabs", () => {
       within(tablist).getByRole("tab", { name: "Blog section" })
     ).toHaveAttribute("aria-selected", "false")
     expect(await headingInput()).toHaveAttribute("aria-invalid", "true")
+    // The jump lands on the first invalid field and replaces the history
+    // entry (it was not a click).
+    await waitFor(async () => expect(await headingInput()).toHaveFocus())
+    expect(window.location.search).toBe("?tab=hero")
+    expect(push).toHaveBeenCalledTimes(1) // the click on "Blog section"
+    push.mockRestore()
     expect(
       screen.queryByRole("dialog", { name: "Publish changes?" })
     ).toBeNull()

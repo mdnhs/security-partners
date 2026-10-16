@@ -1,4 +1,4 @@
-import type { PermissionRequest } from "@/lib/auth/permissions"
+import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { SettingsKey } from "@/lib/schemas/settings"
 
 /**
@@ -126,4 +126,20 @@ export function isEditableSettingsKey(
   value: string
 ): value is EditableSettingsKey {
   return Object.hasOwn(SETTINGS_ENTRIES, value)
+}
+
+/** The settings keys these roles may read, in tab order. */
+export function readableSettingsKeys(
+  roles: readonly string[]
+): EditableSettingsKey[] {
+  return EDITABLE_SETTINGS_KEYS.filter((key) =>
+    hasPermission(roles, SETTINGS_ENTRIES[key].read)
+  )
+}
+
+/** Where /admin/settings lands (it has no overview page of its own). */
+export function firstReadableSettingsKey(
+  roles: readonly string[]
+): EditableSettingsKey | undefined {
+  return readableSettingsKeys(roles)[0]
 }

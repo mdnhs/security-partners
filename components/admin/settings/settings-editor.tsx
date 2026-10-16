@@ -25,8 +25,6 @@ export function SettingsEditor({
   return (
     <VersionedEditor
       title={entry.label}
-      backHref="/admin/settings"
-      backLabel="All settings"
       queryKey={["settings", settingsKey]}
       load={() => unwrap(api.settings[":key"].$get({ param }))}
       saveDraft={(draft, version) =>

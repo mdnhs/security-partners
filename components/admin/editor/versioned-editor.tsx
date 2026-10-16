@@ -35,8 +35,9 @@ export function issuesToFieldErrors(
 
 export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
   title: string
-  backHref: string
-  backLabel: string
+  /** Omit inside route tabs (Settings): the tab rail is the way back. */
+  backHref?: string
+  backLabel?: string
   queryKey: readonly unknown[]
   load: () => Promise<Dto>
   saveDraft: (draft: unknown, version: number) => Promise<Dto>

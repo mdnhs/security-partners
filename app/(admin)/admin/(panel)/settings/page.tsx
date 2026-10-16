@@ -1,29 +1,24 @@
 import type { Metadata } from "next"
+import { forbidden, redirect } from "next/navigation"
 import { Suspense } from "react"
 
-import { PageHeader } from "@/components/admin/page-header"
-import { SettingsOverview } from "@/components/admin/settings/settings-overview"
+import { firstReadableSettingsKey } from "@/lib/admin/settings-keys"
 import { requirePermission } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Settings" }
 
+/** No overview: Settings opens on the first key the user may read. */
 export default function SettingsPage() {
   return (
     <Suspense fallback={null}>
-      <Settings />
+      <FirstKey />
     </Suspense>
   )
 }
 
-async function Settings() {
-  await requirePermission({ settings: ["read"] })
-  return (
-    <>
-      <PageHeader
-        title="Settings"
-        description="Site-wide details and the sections shared by several pages. Changes go live when you publish them."
-      />
-      <SettingsOverview />
-    </>
-  )
+async function FirstKey(): Promise<never> {
+  const actor = await requirePermission({ settings: ["read"] })
+  const key = firstReadableSettingsKey(actor.roles)
+  if (!key) forbidden()
+  redirect(`/admin/settings/${key}`)
 }

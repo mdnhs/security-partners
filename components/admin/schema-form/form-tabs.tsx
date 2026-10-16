@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
-import { type FieldErrors, useFormState } from "react-hook-form"
+import { type FieldErrors, useFormContext, useFormState } from "react-hook-form"
 import type { z } from "zod"
 
 import {
@@ -19,7 +19,8 @@ export type FormTab = { id: string; label: string; keys: string[] }
 /**
  * Top-level tabs for a schema: one per object group ("hero", "blog"); the
  * other top-level fields share one tab where the first of them appears
- * (named after the field when it is alone, else "General").
+ * (named after the field when it is alone, else "General"; its id never
+ * reuses a group's key, so a group named "general" keeps its own tab).
  */
 export function formTabs(schema: z.ZodObject, meta: EditorMeta): FormTab[] {
   const tabs: FormTab[] = []
@@ -42,7 +43,10 @@ export function formTabs(schema: z.ZodObject, meta: EditorMeta): FormTab[] {
     general.keys.push(key)
   }
   if (general && general.keys.length > 1) {
-    general.id = "general"
+    const taken = new Set(tabs.map((tab) => tab.id))
+    let id = "general"
+    for (let n = 2; taken.has(id); n++) id = `general-${n}`
+    general.id = id
     general.label = "General"
   }
   return tabs
@@ -55,7 +59,8 @@ const topKey = (path: string) => path.split(".")[0]
  * The form's top-level groups as section tabs. Every group stays mounted
  * (hidden panels), so react-hook-form keeps values, registration and
  * validation of the tabs not shown; tabs with errors are marked, and a new
- * set of errors (failed publish, 422) opens the first tab that has one.
+ * set of errors (failed publish, 422) opens the first tab that has one
+ * (replacing the history entry) and focuses its first invalid field.
  */
 export function FormTabs({
   tabs,
@@ -78,17 +83,32 @@ export function FormTabs({
     selectedRef.current = selected
   })
 
+  // After an error jump, focus the first invalid field once its panel shows.
+  const { setFocus } = useFormContext()
+  const pendingFocus = useRef<{ tab: string; path: string } | null>(null)
   useEffect(() => {
-    const keys = new Set(
-      Object.entries(errors ?? {})
-        .filter(([path, messages]) => path !== "_root" && messages[0])
-        .map(([path]) => topKey(path))
-    )
+    const pending = pendingFocus.current
+    if (!pending || pending.tab !== selected) return
+    pendingFocus.current = null
+    setFocus(pending.path)
+  })
+
+  useEffect(() => {
+    const paths = Object.entries(errors ?? {})
+      .filter(([path, messages]) => path !== "_root" && messages[0])
+      .map(([path]) => path)
+    const keys = new Set(paths.map(topKey))
     if (keys.size === 0) return
     const current = tabs.find((tab) => tab.id === selectedRef.current)
     if (current?.keys.some((key) => keys.has(key))) return
     const first = tabs.find((tab) => tab.keys.some((key) => keys.has(key)))
-    if (first) select(first.id)
+    if (!first) return
+    // First invalid field in the tab's field order.
+    const path = first.keys
+      .map((key) => paths.find((p) => topKey(p) === key))
+      .find((p) => p !== undefined)!
+    pendingFocus.current = { tab: first.id, path }
+    select(first.id, { replace: true })
   }, [errors, tabs, select])
 
   const { errors: formErrors } = useFormState()

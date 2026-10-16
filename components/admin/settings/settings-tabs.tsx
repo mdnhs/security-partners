@@ -1,36 +1,34 @@
 "use client"
 
-import { LayoutGrid } from "lucide-react"
-import type { ReactNode } from "react"
+import { type ReactNode, useMemo } from "react"
 
 import { SectionTabs } from "@/components/admin/section-tabs/section-tabs"
+import { useAdminSession } from "@/components/admin/session-provider"
 import {
-  EDITABLE_SETTINGS_KEYS,
+  readableSettingsKeys,
   SETTINGS_ENTRIES,
 } from "@/lib/admin/settings-keys"
 
-const ITEMS = [
-  {
-    id: "overview",
-    label: "Overview",
-    href: "/admin/settings",
-    icon: LayoutGrid,
-  },
-  ...EDITABLE_SETTINGS_KEYS.map((key) => ({
-    id: key,
-    label: SETTINGS_ENTRIES[key].label,
-    href: `/admin/settings/${key}`,
-  })),
-]
-
 /**
- * Settings keys as route tabs on the left (every key needs only
- * settings:read, which the pages check); the overview or a key's editor
- * on the right.
+ * Settings keys as route tabs on the left, each listed only when the user
+ * may read it (the key's own `read` permission, which its page also checks);
+ * the key's editor on the right. There is no overview: /admin/settings
+ * redirects to the first readable key.
  */
 export function SettingsTabs({ children }: { children: ReactNode }) {
+  const { roles } = useAdminSession()
+  const items = useMemo(
+    () =>
+      readableSettingsKeys(roles).map((key) => ({
+        id: key,
+        label: SETTINGS_ENTRIES[key].label,
+        href: `/admin/settings/${key}`,
+      })),
+    [roles]
+  )
+  if (items.length === 0) return <>{children}</>
   return (
-    <SectionTabs ariaLabel="Settings" items={ITEMS}>
+    <SectionTabs ariaLabel="Settings" heading="Settings" items={items}>
       {children}
     </SectionTabs>
   )
