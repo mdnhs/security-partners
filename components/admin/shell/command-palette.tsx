@@ -24,7 +24,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/components/ui/command"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
@@ -264,24 +263,23 @@ export function CommandPalette() {
               </CommandGroup>
             ) : null}
             {actions.length > 0 ? (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Actions">
-                  {actions.map((action) => {
-                    const Icon = action.icon
-                    return (
-                      <CommandItem
-                        key={action.id}
-                        value={`action:${action.id}`}
-                        onSelect={() => go(action.run)}
-                      >
-                        <Icon aria-hidden />
-                        {action.label}
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-              </>
+              // A rule above, not a CommandSeparator: a role="separator" is
+              // not an allowed child of the listbox (axe aria-required-children).
+              <CommandGroup heading="Actions" className="border-t">
+                {actions.map((action) => {
+                  const Icon = action.icon
+                  return (
+                    <CommandItem
+                      key={action.id}
+                      value={`action:${action.id}`}
+                      onSelect={() => go(action.run)}
+                    >
+                      <Icon aria-hidden />
+                      {action.label}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
             ) : null}
           </CommandList>
         </Command>

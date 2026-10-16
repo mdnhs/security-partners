@@ -55,7 +55,8 @@ html[data-admin] {
   --muted-foreground: #5a6478;
   --accent: #eef6e8;
   --accent-foreground: #2f5f14;
-  --destructive: #dc2626;
+  /* Soft destructive buttons set this on its own 10 % tint: 4.5:1 there too. */
+  --destructive: #b91c1c;
   --border: #e3e8f2;
   /* Control edges (WCAG 1.4.11): 3:1 on canvas, panels and cards. */
   --input: #7d8799;
@@ -114,7 +115,8 @@ html[data-admin].dark {
   --muted-foreground: #9aa6bb;
   --accent: #1f3318;
   --accent-foreground: #cfeab8;
-  --destructive: #f87171;
+  /* Soft destructive buttons set this on its own 20 % tint: 4.5:1 there too. */
+  --destructive: #fca5a5;
   --border: #26324a;
   --input: #6b7a95;
   --ring: #7cc84a;

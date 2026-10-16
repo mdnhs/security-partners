@@ -162,6 +162,29 @@ describe.each([
     }
   )
 
+  // Soft destructive buttons (components/ui/button.tsx): --destructive text on
+  // its own tint over the card (10 % light, 20 % dark). Axe flagged the old
+  // reds at 4.1:1 / 3.9:1 on the record sheet's Delete button.
+  it("--destructive on its own soft tint meets 4.5:1", () => {
+    const tint = (hex: string, over: string, alpha: number) =>
+      "#" +
+      [1, 3, 5]
+        .map((i) => {
+          const top = parseInt(hex.slice(i, i + 2), 16)
+          const under = parseInt(over.slice(i, i + 2), 16)
+          return Math.round(top * alpha + under * (1 - alpha))
+            .toString(16)
+            .padStart(2, "0")
+        })
+        .join("")
+    const alpha = tokens === light ? 0.1 : 0.2
+    const soft = tint(tokens.destructive, tokens.card, alpha)
+    expect(contrast(tokens.destructive, soft)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(tokens.destructive, tokens.card)).toBeGreaterThanOrEqual(
+      4.5
+    )
+  })
+
   // Floating panels stand off the canvas; cards stand off the panels.
   it.each([
     ["sidebar", "background"],

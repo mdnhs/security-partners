@@ -166,9 +166,10 @@ function SlugCard({
         </HelpText>
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative min-w-0 flex-1">
+            {/* Muted text on the dark input tint falls under 4.5:1 (axe): lifted. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground dark:text-foreground/80"
             >
               /services/
             </span>
