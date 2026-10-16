@@ -157,9 +157,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   // it is already handled by the autosave conflict dialog.
   const saveConflict = useRef<ApiError | null>(null)
   // A 409 from the publish call itself (someone saved after our last save).
-  const [publishConflict, setPublishConflict] = useState<ApiError | null>(
-    null
-  )
+  const [publishConflict, setPublishConflict] = useState<ApiError | null>(null)
   // "Overwrite with mine" saves once the new base has rendered (the
   // autosave hook compares against it).
   const [flushRequest, setFlushRequest] = useState(0)
@@ -347,6 +345,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             errors={fieldErrors}
             resetKey={resetKey}
             disabled={!props.canEdit}
+            sectionTabs="Sections"
           />
         </div>
       </EditorLayout>

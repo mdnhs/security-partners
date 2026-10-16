@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { SchemaFormContext } from "./context"
 import type { EditorMeta } from "./editor-meta"
+import { FormTabs, formTabs } from "./form-tabs"
 import { fromFormValues, toFormValues } from "./optional-values"
 import { resolveWidget } from "./resolve-widget"
 import { GroupWidget } from "./widgets/structure"
@@ -32,6 +33,11 @@ export type SchemaFormProps<S extends z.ZodObject> = {
   /** Change it to load `value` again (reload after a conflict, restore). */
   resetKey?: string | number
   idPrefix?: string
+  /**
+   * Show the top-level groups as section tabs (labelled by this text) when
+   * there are at least two; fields of hidden tabs stay mounted.
+   */
+  sectionTabs?: string
 }
 
 /**
@@ -81,6 +87,7 @@ export function SchemaForm<S extends z.ZodObject>({
   disabled = false,
   resetKey,
   idPrefix = "sf",
+  sectionTabs,
 }: SchemaFormProps<S>) {
   const [defaults] = useState(() => toFormValues(schema, value))
   const resolver = useMemo(() => emittedValuesResolver(schema), [schema])
@@ -144,6 +151,10 @@ export function SchemaForm<S extends z.ZodObject>({
   )
   // The field tree only depends on the schema (and the context above);
   // re-rendering SchemaForm per keystroke must not re-render every widget.
+  const tabs = useMemo(
+    () => (sectionTabs ? formTabs(schema, meta) : []),
+    [sectionTabs, schema, meta]
+  )
   const tree = useMemo(
     () => <GroupWidget field={resolveWidget(schema, {}, "", "")} path="" />,
     [schema]
@@ -153,7 +164,16 @@ export function SchemaForm<S extends z.ZodObject>({
       <SchemaFormContext.Provider value={context}>
         <form noValidate onSubmit={(event) => event.preventDefault()}>
           <FormRootError id={`${idPrefix}-root-error`} />
-          {tree}
+          {sectionTabs && tabs.length > 1 ? (
+            <FormTabs
+              tabs={tabs}
+              schema={schema}
+              ariaLabel={sectionTabs}
+              errors={errors}
+            />
+          ) : (
+            tree
+          )}
         </form>
       </SchemaFormContext.Provider>
     </FormProvider>

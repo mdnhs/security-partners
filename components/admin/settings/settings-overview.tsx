@@ -20,7 +20,7 @@ export function SettingsOverview() {
   if (list.isPending)
     return (
       <div
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3"
         aria-busy="true"
         aria-label="Loading settings"
       >
@@ -63,7 +63,7 @@ export function SettingsOverview() {
             >
               {group}
             </h2>
-            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <ul className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
               {items.map((item) => {
                 const status = statusLabel({
                   published: item.status === "published" ? true : null,

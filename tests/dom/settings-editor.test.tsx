@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({
 
 import { makeQueryClient } from "@/components/admin/providers"
 import { SettingsEditor } from "@/components/admin/settings/settings-editor"
+import { SettingsTabs } from "@/components/admin/settings/settings-tabs"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { Role } from "@/lib/auth/roles"
 
@@ -64,7 +65,9 @@ function renderAs(roles: Role[]) {
         impersonatedBy: null,
       }}
     >
-      <SettingsEditor settingsKey="leads" />
+      <SettingsTabs>
+        <SettingsEditor settingsKey="leads" />
+      </SettingsTabs>
     </AdminShell>
   )
 }
@@ -92,5 +95,24 @@ describe("settings editor (master 4.5)", () => {
         screen.getByRole("group", { name: "Notify these addresses" })
       ).getByRole("button", { name: "Add recipient" })
     ).toBeEnabled()
+  })
+
+  it("lists the settings keys as route tabs with the current one marked", async () => {
+    renderAs(["admin"])
+    const nav = screen.getByRole("navigation", { name: "Settings" })
+    const links = within(nav).getAllByRole("link")
+    expect(links[0]).toHaveTextContent("Overview")
+    expect(links[0]).toHaveAttribute("href", "/admin/settings")
+    expect(links).toHaveLength(12)
+    expect(
+      within(nav).getByRole("link", { name: "Enquiries" })
+    ).toHaveAttribute("aria-current", "page")
+    expect(
+      within(nav).getByRole("link", { name: "Overview" })
+    ).not.toHaveAttribute("aria-current")
+    // The editor sits in the tab content (no full-bleed header bar).
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Enquiries" })
+    ).toBeVisible()
   })
 })

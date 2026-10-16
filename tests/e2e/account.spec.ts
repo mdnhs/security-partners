@@ -28,8 +28,16 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   await expect(
     page.getByRole("heading", { name: "Account", exact: true })
   ).toBeVisible()
+  const sections = page.getByRole("tablist", { name: "Account sections" })
+  await expect(sections.getByRole("tab", { name: "Profile" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  )
+  await sections.getByRole("tab", { name: "Sessions" }).click()
+  await expect(page).toHaveURL(/\?tab=sessions$/)
   await expect(page.getByText("This device")).toBeVisible()
 
+  await sections.getByRole("tab", { name: "Two-factor" }).click()
   await page.getByLabel("Your password").fill(E2E_PASSWORD)
   await page
     .getByRole("button", { name: "Set up two-factor authentication" })
@@ -48,7 +56,10 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   ).toBeVisible()
   await expect(page.getByText("Two-factor authentication is on")).toBeVisible()
 
-  await page.locator('[data-slot="sidebar-footer"]').getByRole("button").click()
+  await page
+    .locator('[data-slot="sidebar-footer"]')
+    .getByRole("button", { name: account.name })
+    .click()
   await page.getByRole("menuitem", { name: "Sign out" }).click()
   await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
   await signIn(page, account.email)

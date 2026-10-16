@@ -25,6 +25,12 @@ async function openHomeEditor(page: Page) {
   await expect(
     page.getByRole("heading", { level: 1, name: "Home" })
   ).toBeVisible()
+  // The template's groups are section tabs; Hero is the first one.
+  const tab = page
+    .getByRole("tablist", { name: "Sections" })
+    .getByRole("tab", { name: "Hero" })
+  await tab.click()
+  await expect(tab).toHaveAttribute("aria-selected", "true")
   return page.getByRole("region", { name: "Hero" })
 }
 

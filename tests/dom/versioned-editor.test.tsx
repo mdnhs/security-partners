@@ -37,10 +37,7 @@ const json = (status: number, body: unknown) =>
     headers: { "content-type": "application/json" },
   })
 
-let routes: Record<
-  string,
-  (init?: RequestInit) => Response | Promise<Response>
->
+let routes: Record<string, (init?: RequestInit) => Response | Promise<Response>>
 const fetchMock = vi.fn(
   async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
@@ -54,6 +51,7 @@ const fetchMock = vi.fn(
 )
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/admin/pages/home")
   fetchMock.mockClear()
   vi.stubGlobal("fetch", fetchMock)
   routes = {
@@ -271,8 +269,7 @@ describe("page editor (master 4.4)", () => {
     routes["POST /api/v1/admin/pages/home/publish"] = (init) => {
       const { version } = JSON.parse(String(init?.body)) as { version: number }
       versions.push(version)
-      if (version !== 2)
-        return json(409, conflictBody("Stale publish"))
+      if (version !== 2) return json(409, conflictBody("Stale publish"))
       const published = { ...home, hero: { ...home.hero, heading: "Queued" } }
       return json(200, { ...dto(3, "Queued", published), dirty: false })
     }
@@ -403,7 +400,10 @@ describe("page editor (master 4.4)", () => {
       const body = bodyOf(init)
       bodies.push(body)
       if (body.version !== 5) return json(409, conflictBody("Their heading"))
-      return json(200, { ...dto(6, body.draft.hero.heading), draft: body.draft })
+      return json(200, {
+        ...dto(6, body.draft.hero.heading),
+        draft: body.draft,
+      })
     }
     renderEditor()
     const heading = await headingInput()
@@ -446,5 +446,71 @@ describe("page editor (master 4.4)", () => {
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(writeText.mock.calls[0][0]).toContain(`${home.hero.heading} mine`)
     expect(saveStatus()).toHaveTextContent("Saved")
+  })
+})
+
+describe("page editor section tabs", () => {
+  it("shows one template group per tab and keeps edits across tabs", async () => {
+    const user = userEvent.setup()
+    const put = vi.fn((init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { draft: typeof home }
+      return json(200, {
+        ...dto(2, body.draft.hero.heading),
+        draft: body.draft,
+      })
+    })
+    routes["PUT /api/v1/admin/pages/home/draft"] = put
+    renderEditor()
+    const heading = await headingInput()
+    const tablist = screen.getByRole("tablist", { name: "Sections" })
+    expect(
+      within(tablist)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent)
+    ).toEqual(["Hero", "Services section", "Team section", "Blog section"])
+    expect(within(tablist).getByRole("tab", { name: "Hero" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    expect(screen.queryByRole("region", { name: "Team section" })).toBeNull()
+
+    await user.clear(heading)
+    await user.type(heading, "Kept heading")
+    await user.click(within(tablist).getByRole("tab", { name: "Team section" }))
+    expect(window.location.search).toBe("?tab=team")
+    expect(screen.getByRole("region", { name: "Team section" })).toBeVisible()
+    expect(screen.queryByRole("region", { name: "Hero" })).toBeNull()
+    await user.click(within(tablist).getByRole("tab", { name: "Hero" }))
+    expect(await headingInput()).toHaveValue("Kept heading")
+
+    // The hidden groups still belong to the draft that is saved.
+    await user.keyboard("{Control>}s{/Control}")
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+    const sent = JSON.parse(String(put.mock.calls[0][0]?.body)) as {
+      draft: typeof home
+    }
+    expect(sent.draft.hero.heading).toBe("Kept heading")
+    expect(sent.draft.team).toEqual(home.team)
+  })
+
+  it("marks tabs with errors and jumps to the first one on publish", async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    const heading = await headingInput()
+    await user.clear(heading)
+    const tablist = screen.getByRole("tablist", { name: "Sections" })
+    await user.click(within(tablist).getByRole("tab", { name: "Blog section" }))
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    const hero = await within(tablist).findByRole("tab", {
+      name: "Hero, has errors",
+    })
+    expect(hero).toHaveAttribute("aria-selected", "true")
+    expect(
+      within(tablist).getByRole("tab", { name: "Blog section" })
+    ).toHaveAttribute("aria-selected", "false")
+    expect(await headingInput()).toHaveAttribute("aria-invalid", "true")
+    expect(
+      screen.queryByRole("dialog", { name: "Publish changes?" })
+    ).toBeNull()
   })
 })
