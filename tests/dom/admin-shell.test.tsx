@@ -514,7 +514,9 @@ describe("AdminShell (master 4.1)", () => {
       '[data-slot="sidebar-footer"]'
     ) as HTMLElement
     // The card's dock row and the icon rail's column (CSS shows one).
-    const docks = within(footer).getAllByRole("navigation", { name: "Account" })
+    const docks = within(footer).getAllByRole("navigation", {
+      name: "Administration",
+    })
     expect(docks).toHaveLength(2)
     expect(
       within(docks[0]).getByRole("link", { name: "Account" })
@@ -540,7 +542,7 @@ describe("AdminShell (master 4.1)", () => {
       '[data-slot="sidebar-footer"]'
     ) as HTMLElement
     const [, rail] = within(footer).getAllByRole("navigation", {
-      name: "Account",
+      name: "Administration",
     })
     await user.click(within(rail).getByRole("button", { name: "Log out" }))
     const alert = await within(footer).findByRole("alert")
@@ -565,7 +567,7 @@ describe("AdminShell (master 4.1)", () => {
       '[data-slot="sidebar-footer"]'
     ) as HTMLElement
     const [card] = within(footer).getAllByRole("navigation", {
-      name: "Account",
+      name: "Administration",
     })
     await user.click(within(card).getByRole("button", { name: "Log out" }))
     expect(within(card).getByRole("button", { name: "Log out" })).toBeDisabled()

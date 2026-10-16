@@ -306,6 +306,9 @@ function ProfileSection({
   )
 }
 
+/** The roles whose loss would lock the signed-in user out of this screen. */
+const ADMINISTRATIVE: readonly Role[] = ["owner", "admin"]
+
 function RolesSection({
   user,
   canUpdate,
@@ -313,19 +316,29 @@ function RolesSection({
   user: UserItem
   canUpdate: boolean
 }) {
-  const { roles: actorRoles } = useAdminSession()
+  const { roles: actorRoles, user: me } = useAdminSession()
   const queryClient = useQueryClient()
   const [roles, setRoles] = useState<Role[]>(user.roles)
   const [error, setError] = useState<string | undefined>()
+  const [confirming, setConfirming] = useState(false)
   const changed =
     roles.length !== user.roles.length ||
     roles.some((role) => !user.roles.includes(role))
+  // Your own owner/admin roles about to go: saving would lock you out of
+  // Users (and the role could only be given back by another owner/admin).
+  const dropping =
+    user.id === me.id
+      ? ADMINISTRATIVE.filter(
+          (role) => user.roles.includes(role) && !roles.includes(role)
+        )
+      : []
   const save = useMutation({
     mutationFn: () =>
       unwrap(
         api.users[":id"].roles.$put({ param: { id: user.id }, json: { roles } })
       ),
     onSuccess: async (saved) => {
+      setConfirming(false)
       await storeUser(queryClient, saved)
       setRoles(saved.roles)
       toast.success("Roles saved", {
@@ -333,6 +346,7 @@ function RolesSection({
       })
     },
     onError: (err) => {
+      setConfirming(false)
       setError(err instanceof ApiError ? err.fieldErrors.roles?.[0] : undefined)
       toast.error("Roles not saved", { description: errorMessage(err) })
     },
@@ -359,11 +373,39 @@ function RolesSection({
           type="button"
           className={cn(FORM_ACTION, "self-start")}
           disabled={!changed || roles.length === 0 || save.isPending}
-          onClick={() => save.mutate()}
+          onClick={() =>
+            dropping.length > 0 ? setConfirming(true) : save.mutate()
+          }
         >
           Save roles
         </Button>
       ) : null}
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remove your own {roleLabels(dropping)}{" "}
+              {dropping.length > 1 ? "roles" : "role"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You would lose access to Users and the audit log as soon as this
+              page reloads, and only another owner or admin could give the role
+              back. Make sure someone else can still manage the admin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep my roles</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={save.isPending}
+              onClick={() => save.mutate()}
+            >
+              Remove {dropping.length > 1 ? "roles" : "role"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </FormCard>
   )
 }

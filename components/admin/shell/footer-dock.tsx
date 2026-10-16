@@ -46,7 +46,7 @@ export function FooterDock({
     DOCK_BUTTON[tone]
   )
   return (
-    <nav aria-label="Account">
+    <nav aria-label="Administration">
       <ul
         className={cn(
           "flex items-center gap-1",

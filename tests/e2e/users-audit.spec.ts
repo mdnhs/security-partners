@@ -30,7 +30,7 @@ async function signIn(page: Page, email: string) {
 /** The footer dock (website card) holds Users and Audit log for admins. */
 const dockLink = (page: Page, name: string) =>
   page
-    .getByRole("navigation", { name: "Account" })
+    .getByRole("navigation", { name: "Administration" })
     .getByRole("link", { name, exact: true })
     .first()
 
@@ -224,20 +224,25 @@ test("an admin sees no owner-only controls, and the API agrees", async ({
   ])
     await expect(page.getByRole("button", { name })).toHaveCount(0)
 
-  // Hidden is not the protection: the API refuses the owner ban (403).
+  // Hidden is not the protection: the API refuses the owner ban (403). The
+  // body proves it is the owner rule (FORBIDDEN envelope), not the
+  // same-origin guard or a validation error.
   const ownerId = new URL(page.url()).pathname.split("/").at(-1)
-  const status = await page.evaluate(
-    async (id) =>
-      (
-        await fetch(`/api/v1/admin/users/${id}/ban`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: "{}",
-        })
-      ).status,
-    ownerId
-  )
-  expect(status).toBe(403)
+  const refused = await page.evaluate(async (id) => {
+    const res = await fetch(`/api/v1/admin/users/${id}/ban`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    })
+    return { status: res.status, body: (await res.json()) as unknown }
+  }, ownerId)
+  expect(refused.status).toBe(403)
+  expect(refused.body).toMatchObject({
+    error: {
+      code: "FORBIDDEN",
+      message: "You do not have permission to do this",
+    },
+  })
 })
 
 test("the audit log filters by action and person and shows the invitation", async ({

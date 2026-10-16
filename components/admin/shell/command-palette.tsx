@@ -165,8 +165,9 @@ export function CommandPalette() {
   const searching =
     wantsRecords &&
     (trimmed !== q || results.isFetching || (canReadUsers && people.isFetching))
-  const failed =
-    wantsRecords && !searching && (results.isError || people.isError)
+  // Only a failed record search is a failure; a failed People query drops
+  // that group alone (the records still show).
+  const failed = wantsRecords && !searching && results.isError
 
   return (
     <>

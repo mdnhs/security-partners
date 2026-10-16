@@ -58,6 +58,18 @@ describe("describeActivity", () => {
       undefined,
     ],
     [row("auth.sign_in_failed"), "failed to sign in", "Failed", "danger"],
+    [
+      row("auth.2fa_enable", "user", "u1"),
+      "turned on two-factor authentication",
+      undefined,
+      undefined,
+    ],
+    [
+      row("auth.2fa_disable", "user", "u1"),
+      "turned off two-factor authentication",
+      undefined,
+      undefined,
+    ],
     [row("user.invite", "user", "u2"), "invited a user", "Invited", "info"],
     [row("user.ban", "user", "u2"), "banned a user", "Banned", "danger"],
   ])("%o → %s", (item, text, label, tone) => {

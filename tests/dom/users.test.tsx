@@ -381,6 +381,11 @@ describe("user detail", () => {
       name: "Ban Edith Editor?",
     })
     expect(confirm).toHaveTextContent("for 7 days")
+    // Confirm buttons are 44 px on touch screens (WCAG 2.5.8), set once at
+    // the primitive so every alert dialog complies.
+    expect(
+      confirm.querySelector('[data-slot="alert-dialog-footer"]')
+    ).toHaveClass("pointer-coarse:**:data-[slot=button]:h-11")
     await user.click(within(confirm).getByRole("button", { name: "Ban" }))
     await waitFor(() =>
       expect(bodyOf("POST", `/api/v1/admin/users/${EDITOR}/ban`)).toEqual({
@@ -413,6 +418,39 @@ describe("user detail", () => {
       })
     )
     await waitFor(() => expect(save).toBeDisabled())
+  })
+
+  it("asks before you drop your own admin role (you would lock yourself out)", async () => {
+    const base = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init) => {
+      const url = new URL(String(input), "http://localhost")
+      if (
+        (init?.method ?? "GET") === "GET" &&
+        url.pathname === `/api/v1/admin/users/${ME}`
+      )
+        return json(200, person({ id: ME, name: "Me", roles: ["admin"] }))
+      return base(input, init)
+    })
+    const user = userEvent.setup()
+    renderAs(["admin"], <UserDetail id={ME} />)
+    await screen.findByRole("heading", { level: 1, name: "Me" })
+    await user.click(tab("Roles"))
+    await user.click(await screen.findByRole("checkbox", { name: "Editor" }))
+    await user.click(screen.getByRole("checkbox", { name: "Admin" }))
+    await user.click(screen.getByRole("button", { name: "Save roles" }))
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Remove your own Admin role?",
+    })
+    expect(confirm).toHaveTextContent(/lose access to Users/)
+    expect(calls("PUT", `/api/v1/admin/users/${ME}/roles`)).toHaveLength(0)
+    await user.click(
+      within(confirm).getByRole("button", { name: "Remove role" })
+    )
+    await waitFor(() =>
+      expect(bodyOf("PUT", `/api/v1/admin/users/${ME}/roles`)).toEqual({
+        roles: ["editor"],
+      })
+    )
   })
 
   it("creates a password link and signs the user out everywhere", async () => {

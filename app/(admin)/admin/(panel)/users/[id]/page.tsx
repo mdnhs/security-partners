@@ -20,7 +20,8 @@ async function Screen({
   params,
 }: Pick<PageProps<"/admin/users/[id]">, "params">) {
   const { id } = await params
-  if (!z.uuid().safeParse(id).success) notFound()
+  // Permission first: a 403 never leaks whether an id exists.
   await requirePermission({ user: ["read"] })
+  if (!z.uuid().safeParse(id).success) notFound()
   return <UserDetail id={id} />
 }

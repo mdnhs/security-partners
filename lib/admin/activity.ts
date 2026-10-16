@@ -21,6 +21,8 @@ const FIXED: Record<string, ActivitySummary> = {
   },
   "auth.password_reset": { text: "reset their password" },
   "auth.password_change": { text: "changed their password" },
+  "auth.2fa_enable": { text: "turned on two-factor authentication" },
+  "auth.2fa_disable": { text: "turned off two-factor authentication" },
   "user.invite": {
     text: "invited a user",
     status: { label: "Invited", tone: "info" },
