@@ -1,0 +1,374 @@
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Eye, History, Send } from "lucide-react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import type { z } from "zod"
+
+import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
+import { SchemaForm } from "@/components/admin/schema-form/schema-form"
+import { Button, buttonClassName } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useAutosave } from "@/hooks/use-autosave"
+import { ApiError, errorMessage } from "@/lib/api-client"
+import type { RevisionEntity, VersionedDto } from "@/lib/schemas/api/content"
+
+import { ConflictDialog } from "./conflict-dialog"
+import { EditorLayout, statusLabel } from "./editor-layout"
+import { PublishDialog } from "./publish-dialog"
+import { RevisionDrawer } from "./revision-drawer"
+import { SaveStateIndicator } from "./save-state"
+import { UnsavedGuard } from "./unsaved-guard"
+
+/** Zod issues → `{ "hero.heading": ["Required"] }` (client-side, before save/publish). */
+export function issuesToFieldErrors(
+  error: z.ZodError
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const issue of error.issues) {
+    const key = issue.path.length ? issue.path.map(String).join(".") : "_root"
+    ;(out[key] ??= []).push(issue.message)
+  }
+  return out
+}
+
+export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
+  title: string
+  backHref: string
+  backLabel: string
+  queryKey: readonly unknown[]
+  load: () => Promise<Dto>
+  saveDraft: (draft: unknown, version: number) => Promise<Dto>
+  publish: (version: number) => Promise<Dto>
+  restore: (revisionId: string, version: number) => Promise<Dto>
+  schema: z.ZodObject
+  meta: EditorMeta
+  revisions: { entity: RevisionEntity; id: string }
+  previewHref?: string
+  publicHref?: string
+  canEdit: boolean
+  canPublish: boolean
+  /** Extra header actions (e.g. delete a service). */
+  actions?: ReactNode
+  /** Side panel (e.g. a service's slug). */
+  aside?: ReactNode
+}
+
+/**
+ * Draft editor for any versioned record (spec §8.2): autosave (1.5 s),
+ * ⌘S, save-state, unsaved guard, publish with diff, history + restore,
+ * conflict dialog on 409, optimistic cache with rollback.
+ */
+export function VersionedEditor<Dto extends VersionedDto<unknown>>(
+  props: VersionedEditorProps<Dto>
+) {
+  const query = useQuery({
+    queryKey: props.queryKey,
+    queryFn: props.load,
+    staleTime: 0,
+  })
+  if (query.isPending)
+    return (
+      <div
+        className="flex flex-col gap-4"
+        aria-busy="true"
+        aria-label="Loading editor"
+      >
+        <Skeleton className="h-16 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
+    )
+  if (query.isError)
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-xl border p-6"
+      >
+        <p className="font-medium">This editor could not be loaded.</p>
+        <p className="text-sm text-muted-foreground">
+          {errorMessage(query.error)}
+        </p>
+        <Button type="button" variant="outline" onClick={() => query.refetch()}>
+          Try again
+        </Button>
+      </div>
+    )
+  return <LoadedEditor {...props} initial={query.data} />
+}
+
+function LoadedEditor<Dto extends VersionedDto<unknown>>({
+  initial,
+  ...props
+}: VersionedEditorProps<Dto> & { initial: Dto }) {
+  const queryClient = useQueryClient()
+  const [draft, setDraft] = useState<unknown>(initial.draft)
+  const [base, setBase] = useState({
+    version: initial.version,
+    saved: initial.draft,
+  })
+  const [record, setRecord] = useState<Dto>(initial)
+  const [resetKey, setResetKey] = useState(0)
+  const [fieldErrors, setFieldErrors] = useState<
+    Record<string, string[]> | undefined
+  >()
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  // The version to send next. Updated synchronously (a publish right after
+  // a save must use the version that save returned).
+  const baseRef = useRef(base)
+
+  const accept = (dto: Dto, savedDraft: unknown = dto.draft) => {
+    const next = { version: dto.version, saved: savedDraft }
+    baseRef.current = next
+    setBase(next)
+    setRecord(dto)
+    queryClient.setQueryData(props.queryKey, dto)
+  }
+  // Until the user interacts with the form, whatever it emits is its own
+  // normalization of the loaded draft (e.g. a composed stat value): that is
+  // the saved baseline, not an edit to autosave.
+  const touched = useRef(false)
+  const markTouched = () => {
+    touched.current = true
+  }
+  const onFormChange = (value: unknown) => {
+    if (!touched.current) {
+      baseRef.current = { ...baseRef.current, saved: value }
+      setBase(baseRef.current)
+    }
+    setDraft(value)
+  }
+  const replaceDraft = (dto: Dto) => {
+    touched.current = false
+    accept(dto)
+    setDraft(dto.draft)
+    setFieldErrors(undefined)
+    setResetKey((k) => k + 1)
+  }
+
+  const save = useMutation({
+    mutationFn: (value: unknown) =>
+      props.saveDraft(value, baseRef.current.version),
+    onMutate: async (value) => {
+      await queryClient.cancelQueries({ queryKey: props.queryKey })
+      const previous = queryClient.getQueryData<Dto>(props.queryKey)
+      if (previous)
+        queryClient.setQueryData(props.queryKey, { ...previous, draft: value })
+      return { previous }
+    },
+    onError: (error, _value, context) => {
+      if (context?.previous)
+        queryClient.setQueryData(props.queryKey, context.previous)
+      if (error instanceof ApiError && error.status === 422)
+        setFieldErrors(error.fieldErrors)
+    },
+    onSuccess: (dto, value) => {
+      accept(dto, value)
+      setFieldErrors(undefined)
+    },
+  })
+
+  const autosave = useAutosave({
+    value: draft,
+    savedValue: base.saved,
+    save: async (value) => {
+      await save.mutateAsync(value)
+    },
+    isValid: (value) => props.schema.safeParse(value).success,
+    enabled: props.canEdit,
+  })
+
+  const showAllErrors = () => {
+    const result = props.schema.safeParse(draft)
+    if (result.success) return false
+    const errors = issuesToFieldErrors(result.error)
+    setFieldErrors(errors)
+    toast.error(`Fix ${Object.keys(errors).length} field(s) first`, {
+      description: "The fields with problems are marked in red.",
+    })
+    return true
+  }
+
+  // ⌘S / Ctrl+S saves now.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey))
+        return
+      event.preventDefault()
+      if (!props.canEdit || showAllErrors()) return
+      void autosave.flush()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  })
+
+  const publish = useMutation({
+    mutationFn: async () => {
+      if (!(await autosave.flush()))
+        throw new Error("Save your changes before publishing.")
+      return props.publish(baseRef.current.version)
+    },
+    onSuccess: (dto) => {
+      accept(dto)
+      setPublishOpen(false)
+      void queryClient.invalidateQueries({
+        queryKey: ["revisions", props.revisions.entity, props.revisions.id],
+      })
+      toast.success("Published", {
+        description: "The site shows the new version now.",
+        action: props.publicHref
+          ? {
+              label: "View",
+              onClick: () =>
+                window.open(props.publicHref, "_blank", "noopener"),
+            }
+          : undefined,
+      })
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.isConflict) return
+      toast.error("Not published", { description: errorMessage(error) })
+    },
+  })
+
+  const conflict = autosave.conflict
+  const current = (conflict?.current ?? null) as Dto | null
+
+  return (
+    <>
+      <UnsavedGuard when={autosave.state !== "saved"} />
+      <EditorLayout
+        backHref={props.backHref}
+        backLabel={props.backLabel}
+        title={props.title}
+        status={statusLabel({
+          published: record.published,
+          dirty: autosave.dirty || record.dirty,
+        })}
+        saveState={
+          props.canEdit ? (
+            <SaveStateIndicator
+              state={autosave.state}
+              onRetry={() => void autosave.flush()}
+            />
+          ) : null
+        }
+        actions={
+          <>
+            {props.actions}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History aria-hidden />
+              History
+            </Button>
+            {props.previewHref ? (
+              <a
+                href={props.previewHref}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonClassName({ variant: "outline", size: "sm" })}
+              >
+                <Eye aria-hidden />
+                Preview
+              </a>
+            ) : null}
+            {props.canPublish ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (showAllErrors()) return
+                  setPublishOpen(true)
+                }}
+              >
+                <Send aria-hidden />
+                Publish
+              </Button>
+            ) : null}
+          </>
+        }
+        aside={props.aside}
+      >
+        <div
+          onKeyDownCapture={markTouched}
+          onPointerDownCapture={markTouched}
+          onInputCapture={markTouched}
+          onPasteCapture={markTouched}
+          onDropCapture={markTouched}
+        >
+          <SchemaForm
+            schema={props.schema}
+            meta={props.meta}
+            value={draft as never}
+            onChange={onFormChange}
+            errors={fieldErrors}
+            resetKey={resetKey}
+            disabled={!props.canEdit}
+          />
+        </div>
+      </EditorLayout>
+      <PublishDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        meta={props.meta}
+        published={record.published}
+        draft={draft}
+        pending={publish.isPending}
+        onConfirm={() => publish.mutate()}
+      />
+      <RevisionDrawer
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        entity={props.revisions.entity}
+        entityId={props.revisions.id}
+        canRestore={props.canEdit}
+        onRestore={async (revision) => {
+          try {
+            const dto = await props.restore(
+              revision.id,
+              baseRef.current.version
+            )
+            replaceDraft(dto)
+            toast.success(`Version ${revision.version} restored into the draft`)
+          } catch (error) {
+            toast.error("Not restored", { description: errorMessage(error) })
+            throw error
+          }
+        }}
+      />
+      <ConflictDialog
+        open={conflict !== null}
+        updatedBy={current?.updatedBy?.name ?? null}
+        updatedAt={current?.updatedAt ?? null}
+        onReload={() => {
+          if (current) replaceDraft(current)
+          autosave.resolveConflict()
+        }}
+        onOverwrite={() => {
+          if (current) {
+            baseRef.current = { ...baseRef.current, version: current.version }
+            setBase(baseRef.current)
+          }
+          autosave.resolveConflict()
+          void autosave.flush()
+        }}
+        onCopyMine={async () => {
+          try {
+            await navigator.clipboard.writeText(JSON.stringify(draft, null, 2))
+            toast.success("Your version is on the clipboard")
+          } catch {
+            toast.error("Could not copy to the clipboard")
+          }
+          if (current) replaceDraft(current)
+          autosave.resolveConflict()
+        }}
+      />
+    </>
+  )
+}
