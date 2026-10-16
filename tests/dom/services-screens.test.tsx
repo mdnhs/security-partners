@@ -142,7 +142,7 @@ describe("services screens (master 4.6)", () => {
     expect(
       await screen.findByRole("heading", { name: "Page address" })
     ).toBeInTheDocument()
-    expect(screen.getByRole("textbox", { name: "/services/…" })).toHaveValue(
+    expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
       dto.slug
     )
     expect(

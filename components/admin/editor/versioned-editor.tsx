@@ -9,13 +9,14 @@ import type { z } from "zod"
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
 import { Button, buttonClassName } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAutosave } from "@/hooks/use-autosave"
 import { ApiError, errorMessage } from "@/lib/api-client"
 import type { RevisionEntity, VersionedDto } from "@/lib/schemas/api/content"
 
 import { ConflictDialog } from "./conflict-dialog"
-import { EditorLayout, statusLabel } from "./editor-layout"
+import { EDITOR_ACTION, EditorLayout } from "./editor-layout"
 import { PublishDialog } from "./publish-dialog"
 import { RevisionDrawer } from "./revision-drawer"
 import { SaveStateIndicator } from "./save-state"
@@ -76,16 +77,16 @@ export function VersionedEditor<Dto extends VersionedDto<unknown>>(
         aria-busy="true"
         aria-label="Loading editor"
       >
-        <Skeleton className="h-16 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="bg-skeleton rounded-card h-20" />
+        <Skeleton className="bg-skeleton rounded-card h-64" />
+        <Skeleton className="bg-skeleton rounded-card h-64" />
       </div>
     )
   if (query.isError)
     return (
       <div
         role="alert"
-        className="flex flex-col items-start gap-3 rounded-xl border p-6"
+        className="rounded-card flex flex-col items-start gap-3 border bg-card p-6"
       >
         <p className="font-medium">This editor could not be loaded.</p>
         <p className="text-sm text-muted-foreground">
@@ -279,10 +280,10 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         backHref={props.backHref}
         backLabel={props.backLabel}
         title={props.title}
-        status={statusLabel({
+        status={{
           published: record.published,
           dirty: autosave.dirty || record.dirty,
-        })}
+        }}
         saveState={
           props.canEdit ? (
             <SaveStateIndicator
@@ -297,27 +298,31 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              className={EDITOR_ACTION}
               onClick={() => setHistoryOpen(true)}
             >
               <History aria-hidden />
-              History
+              {/* Icon only on phones; the name stays (WCAG 2.5.3). */}
+              <span className="max-sm:sr-only">History</span>
             </Button>
             {props.previewHref ? (
               <a
                 href={props.previewHref}
                 target="_blank"
                 rel="noreferrer"
-                className={buttonClassName({ variant: "outline", size: "sm" })}
+                className={cn(
+                  buttonClassName({ variant: "outline" }),
+                  EDITOR_ACTION
+                )}
               >
                 <Eye aria-hidden />
-                Preview
+                <span className="max-sm:sr-only">Preview</span>
               </a>
             ) : null}
             {props.canPublish ? (
               <Button
                 type="button"
-                size="sm"
+                className={EDITOR_ACTION}
                 onClick={() => {
                   if (showAllErrors()) return
                   setPublishOpen(true)

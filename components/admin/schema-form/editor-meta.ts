@@ -43,13 +43,42 @@ export type FieldMeta = {
    * joined ("count" 18 + "suffix" "+" → "18+").
    */
   composeFrom?: string[]
+  /**
+   * Column span in a two-column field grid (from 36rem of card width).
+   * Default: half for short inputs (text, number, select, toggle,
+   * collection), full for everything else (see defaultWidth).
+   */
+  width?: "half" | "full"
+  /** text: a leading icon (default: from the format or the field name). */
+  icon?: LeadingIcon
+  /** media: thumbnail shape (default "video"). */
+  aspect?: "video" | "square"
+}
+
+/** Leading icons a text input can show. */
+export type LeadingIcon = "phone" | "email" | "url" | "clock" | "map"
+
+/**
+ * Fields of one object shown as titled cards (at the form root) or titled
+ * subsections (inside a section card). Keys not listed in any group follow
+ * in an untitled card, so a field is never lost.
+ */
+export type FieldGroupMeta = {
+  title: string
+  description?: string
+  /** Child keys of the object, in display order. */
+  fields: string[]
 }
 
 /**
  * Field hints keyed by path, with [] for list items:
  * "hero.heading", "hero.stats[].value", "highlights[]".
  */
-export type EditorMeta = { fields: Record<string, FieldMeta> }
+export type EditorMeta = {
+  fields: Record<string, FieldMeta>
+  /** Groups per object path (meta key; "" is the form root, "hero" a section). */
+  groups?: Record<string, FieldGroupMeta[]>
+}
 
 export const EMPTY_META: EditorMeta = { fields: {} }
 
@@ -60,6 +89,13 @@ export function metaKey(path: string): string {
 
 export function metaFor(meta: EditorMeta, path: string): FieldMeta {
   return meta.fields[metaKey(path)] ?? {}
+}
+
+export function groupsFor(
+  meta: EditorMeta,
+  path: string
+): FieldGroupMeta[] | undefined {
+  return meta.groups?.[metaKey(path)]
 }
 
 /** "phone24hLabel" → "Phone24h label", "primaryCta" → "Primary cta". */

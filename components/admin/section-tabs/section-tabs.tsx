@@ -125,7 +125,8 @@ function useCurrentInView(
  * From the breakpoint the rail stays put while the page scrolls (main is
  * the scroll container): sticky at --section-tabs-top, which an editor
  * sets below its own sticky header (0 elsewhere), capped to the visible
- * panel and scrolling on its own when the list is long. -m-1/p-1 keep the
+ * panel (--main-h less main's padding, --main-pad, top and bottom) and
+ * scrolling on its own when the list is long. -m-1/p-1 keep the
  * focus ring clear of the rail's overflow clip. Below it the tabs are a
  * plain row (a sticky row would collide with the editor's sticky header).
  */
@@ -133,19 +134,23 @@ const LAYOUT = {
   lg: {
     root: "flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8",
     column:
-      "lg:w-52 lg:shrink-0 lg:sticky lg:top-[var(--section-tabs-top,0px)] lg:-m-1 lg:max-h-[calc(var(--content-h,100svh)-var(--section-tabs-top,0px))] lg:self-start lg:overflow-y-auto lg:p-1",
+      "lg:w-52 lg:shrink-0 lg:sticky lg:top-[var(--section-tabs-top,0px)] lg:-m-1 lg:max-h-[calc(var(--main-h,var(--content-h,100svh))-2*var(--main-pad,0px)-var(--section-tabs-top,0px))] lg:self-start lg:overflow-y-auto lg:p-1",
     list: "lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0",
     tab: "lg:w-full",
     marker: "lg:block",
     /** px where the list becomes a column (Tailwind lg / xl). */
     columnFrom: 1024,
-    /** The selected content on a white card beside the grey rail. */
-    content: "min-w-0 flex-1 rounded-card bg-card p-4 sm:p-6",
+    /**
+     * The selected content on a white card beside the grey rail; its padding
+     * is --card-pad (an editor's bar spans the card's full width with it).
+     */
+    content:
+      "min-w-0 flex-1 rounded-card bg-card p-(--card-pad) [--card-pad:1rem] sm:[--card-pad:1.5rem]",
   },
   xl: {
     root: "flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-8",
     column:
-      "xl:w-52 xl:shrink-0 xl:sticky xl:top-[var(--section-tabs-top,0px)] xl:-m-1 xl:max-h-[calc(var(--content-h,100svh)-var(--section-tabs-top,0px))] xl:self-start xl:overflow-y-auto xl:p-1",
+      "xl:w-52 xl:shrink-0 xl:sticky xl:top-[var(--section-tabs-top,0px)] xl:-m-1 xl:max-h-[calc(var(--main-h,var(--content-h,100svh))-2*var(--main-pad,0px)-var(--section-tabs-top,0px))] xl:self-start xl:overflow-y-auto xl:p-1",
     list: "xl:flex-col xl:overflow-visible xl:px-0 xl:pb-0",
     tab: "xl:w-full",
     marker: "xl:block",
@@ -164,17 +169,18 @@ const TAB_ACTIVE = "bg-sidebar-accent font-semibold text-foreground"
  * from it (server and first hydration render assume the desktop column).
  */
 function useIsColumn(minWidth: number): boolean {
+  const query = `(min-width: ${minWidth}px)`
   const subscribe = useCallback(
     (onChange: () => void) => {
-      const mql = window.matchMedia(`(min-width: ${minWidth}px)`)
+      const mql = window.matchMedia(query)
       mql.addEventListener("change", onChange)
       return () => mql.removeEventListener("change", onChange)
     },
-    [minWidth]
+    [query]
   )
   return useSyncExternalStore(
     subscribe,
-    () => window.innerWidth >= minWidth,
+    () => window.matchMedia(query).matches,
     () => true
   )
 }
@@ -342,8 +348,7 @@ function InPageTabs({
 
   const select = (id: string, options?: TabChangeOptions) => {
     if (id === selected) return
-    if (options) onValueChange?.(id, options)
-    else onValueChange?.(id)
+    onValueChange?.(id, options)
     if (value === undefined) selectInUrl(id, options)
   }
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

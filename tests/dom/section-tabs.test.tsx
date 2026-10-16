@@ -133,7 +133,8 @@ describe("SectionTabs (in-page)", () => {
       "true"
     )
     await user.click(screen.getByRole("tab", { name: "Profile" }))
-    expect(onValueChange).toHaveBeenCalledWith("profile")
+    // A click passes no replace hint.
+    expect(onValueChange).toHaveBeenCalledWith("profile", undefined)
     expect(window.location.search).toBe("")
   })
 
@@ -357,7 +358,10 @@ describe("SectionTabs (sticky rail)", () => {
       "lg:sticky",
       "lg:top-[var(--section-tabs-top,0px)]",
       "lg:self-start",
-      "lg:overflow-y-auto"
+      "lg:overflow-y-auto",
+      // Capped to the visible panel: its measured height (impersonation
+      // banner included) less main's padding top and bottom.
+      "lg:max-h-[calc(var(--main-h,var(--content-h,100svh))-2*var(--main-pad,0px)-var(--section-tabs-top,0px))]"
     )
   })
 
@@ -385,11 +389,10 @@ describe("SectionTabs (content surface)", () => {
   it("puts the content on a white card beside the grey rail", () => {
     render(<InPage />)
     const panel = screen.getByRole("tabpanel")
-    expect(panel.closest('[data-slot="section-tabs-content"]')).toHaveClass(
-      "bg-card",
-      "rounded-card",
-      "p-4"
-    )
+    const card = panel.closest('[data-slot="section-tabs-content"]')
+    expect(card).toHaveClass("bg-card", "rounded-card", "p-(--card-pad)")
+    // Its padding is a variable an editor bar spans with (no fixed offsets).
+    expect(card).toHaveClass("[--card-pad:1rem]", "sm:[--card-pad:1.5rem]")
   })
 
   it("route mode too; a nested set does not nest a second card", () => {

@@ -4,11 +4,14 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { FormError, FormNotice } from "@/components/admin/auth/form-messages"
+import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
+import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth/password"
 import { authClient, authErrorMessage } from "@/lib/auth-client"
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth/password"
+import { cn } from "@/lib/utils"
 
 export function ChangePasswordForm() {
   const router = useRouter()
@@ -66,6 +69,7 @@ export function ChangePasswordForm() {
       <div className="grid gap-2">
         <Label htmlFor="current-password">Current password</Label>
         <Input
+          className={ADMIN_CONTROL}
           id="current-password"
           name="currentPassword"
           type="password"
@@ -76,6 +80,7 @@ export function ChangePasswordForm() {
       <div className="grid gap-2">
         <Label htmlFor="new-password">New password</Label>
         <Input
+          className={ADMIN_CONTROL}
           id="new-password"
           name="newPassword"
           type="password"
@@ -88,6 +93,7 @@ export function ChangePasswordForm() {
       <div className="grid gap-2">
         <Label htmlFor="confirm-password">Repeat new password</Label>
         <Input
+          className={ADMIN_CONTROL}
           id="confirm-password"
           name="confirm"
           type="password"
@@ -97,7 +103,11 @@ export function ChangePasswordForm() {
           required
         />
       </div>
-      <Button type="submit" disabled={pending} className="self-start">
+      <Button
+        type="submit"
+        disabled={pending}
+        className={cn(FORM_ACTION, "self-start")}
+      >
         {pending ? "Changing…" : "Change password"}
       </Button>
     </form>

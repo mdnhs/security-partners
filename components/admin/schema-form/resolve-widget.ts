@@ -2,7 +2,12 @@ import type { z } from "zod"
 
 import { link, mediaRef, paragraphsText, richText } from "@/lib/schemas/common"
 
-import { type FieldMeta, humanize, type WidgetKind } from "./editor-meta"
+import {
+  type FieldMeta,
+  humanize,
+  type LeadingIcon,
+  type WidgetKind,
+} from "./editor-meta"
 
 type Def = {
   type: string
@@ -59,8 +64,43 @@ const LONG_TEXT = new Set([
   "bodyEndHtml",
 ])
 
+/** Text fields whose values are long lines: they take the full row. */
+const WIDE_TEXT = new Set(["heading", "title", "tagline", "copyright", "tiles"])
+
+/** Short controls share a row (two columns); the rest take the full row. */
+const HALF_KINDS = new Set<WidgetKind>([
+  "text",
+  "number",
+  "select",
+  "toggle",
+  "collection",
+])
+
+/** Column span of a field: meta.width, else by widget kind and name. */
+export function defaultWidth(kind: WidgetKind, name: string): "half" | "full" {
+  if (kind === "text" && WIDE_TEXT.has(name)) return "full"
+  return HALF_KINDS.has(kind) ? "half" : "full"
+}
+
+/** Leading icon of a text input: meta.icon, else from its format or name. */
+function leadingIcon(
+  meta: FieldMeta,
+  name: string,
+  format: string | null
+): LeadingIcon | null {
+  if (meta.icon) return meta.icon
+  if (format === "email" || /email$/i.test(name)) return "email"
+  if (format === "url" || /(href|url)$/i.test(name)) return "url"
+  if (/^phone|phone$|mobile$/i.test(name)) return "phone"
+  return null
+}
+
 export type ResolvedField = {
   kind: WidgetKind
+  /** Column span in the field grid. */
+  width: "half" | "full"
+  /** text only: icon inside the input, before the value. */
+  icon: LeadingIcon | null
   /** The unwrapped schema the widget edits. */
   schema: z.ZodType
   optional: boolean
@@ -95,29 +135,42 @@ export function resolveWidget(
     format: null as string | null,
     richTextMode: "full" as "full" | "paragraphs",
   }
-  if (meta.widget) return { ...base, kind: meta.widget }
-  if (inner === mediaRef) return { ...base, kind: "media" }
-  if (inner === richText) return { ...base, kind: "richText" }
+  const of = (
+    kind: WidgetKind,
+    extra: Partial<Pick<ResolvedField, "format" | "richTextMode">> = {}
+  ): ResolvedField => {
+    const format = extra.format ?? null
+    return {
+      ...base,
+      ...extra,
+      kind,
+      width: meta.width ?? defaultWidth(kind, name),
+      icon: kind === "text" ? leadingIcon(meta, name, format) : null,
+    }
+  }
+  const format =
+    defOf(inner).type === "string"
+      ? ((inner as unknown as { format?: string | null }).format ?? null)
+      : null
+  if (meta.widget) return of(meta.widget, { format })
+  if (inner === mediaRef) return of("media")
+  if (inner === richText) return of("richText")
   if (inner === paragraphsText)
-    return { ...base, kind: "richText", richTextMode: "paragraphs" }
-  if (inner === link) return { ...base, kind: "link" }
+    return of("richText", { richTextMode: "paragraphs" })
+  if (inner === link) return of("link")
   switch (defOf(inner).type) {
     case "object":
-      return { ...base, kind: "group" }
+      return of("group")
     case "array":
-      return { ...base, kind: "list" }
+      return of("list")
     case "boolean":
-      return { ...base, kind: "toggle" }
+      return of("toggle")
     case "number":
-      return { ...base, kind: "number" }
+      return of("number")
     case "enum":
-      return { ...base, kind: "select" }
-    case "string": {
-      const format =
-        (inner as unknown as { format?: string | null }).format ?? null
-      const kind = LONG_TEXT.has(name) ? "textarea" : "text"
-      return { ...base, kind, format }
-    }
+      return of("select")
+    case "string":
+      return of(LONG_TEXT.has(name) ? "textarea" : "text", { format })
     default:
       throw new Error(
         `No widget for field "${path || "(root)"}" (${defOf(inner).type})`

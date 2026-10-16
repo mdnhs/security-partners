@@ -22,8 +22,15 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from "lucide-react"
-import { useId, useRef, useState } from "react"
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  GripVertical,
+  Plus,
+  Trash2,
+} from "lucide-react"
+import { type ReactNode, useId, useRef, useState } from "react"
 import {
   get,
   useController,
@@ -33,14 +40,29 @@ import {
 } from "react-hook-form"
 import type { z } from "zod"
 
+import {
+  FIELD_GRID,
+  FormCard,
+  FormSubsection,
+  FULL_SPAN,
+} from "@/components/admin/form/form-ui"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 import { fieldId, useSchemaForm, type WidgetProps } from "../context"
+import { type EditorMeta, groupsFor, metaFor } from "../editor-meta"
 import { emptyValue } from "../empty-value"
 import { toFormValues } from "../optional-values"
 import { Field } from "../field"
-import { arrayBounds } from "../resolve-widget"
-import { deepErrorText, describedBy, errorText } from "./field-shell"
+import { arrayBounds, resolveWidget } from "../resolve-widget"
+import {
+  deepErrorText,
+  describedBy,
+  ErrorText,
+  errorText,
+  HelpText,
+  LABEL_CLASS,
+} from "./field-shell"
 
 /**
  * Errors a group shows itself: one on the group path (e.g. a server message
@@ -66,13 +88,173 @@ function useGroupErrors(path: string, shape: Record<string, z.ZodType>) {
 function GroupErrors({ id, messages }: { id: string; messages: string[] }) {
   if (!messages.length) return null
   return (
-    <div id={id} role="alert" className="flex flex-col gap-1">
+    <div id={id} className="flex flex-col gap-1">
       {messages.map((message) => (
-        <p key={message} className="text-sm text-destructive">
+        <ErrorText key={message} id={`${id}-${message}`}>
           {message}
-        </p>
+        </ErrorText>
       ))}
     </div>
+  )
+}
+
+const childPath = (path: string, key: string) => (path ? `${path}.${key}` : key)
+
+/**
+ * Final spans for a run of fields: half-width fields pair up in order; one
+ * left without a partner (next to a full-width field, or last) takes the
+ * whole row, so no row ends with an empty column.
+ */
+export function pairHalves(widths: ("half" | "full")[]): ("half" | "full")[] {
+  const out = [...widths]
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] !== "half") continue
+    if (out[i + 1] === "half") i++
+    else out[i] = "full"
+  }
+  return out
+}
+
+/** Fields of one object in the two-column grid (meta.width / kind). */
+function FieldGrid({
+  shape,
+  path,
+  keys,
+}: {
+  shape: Record<string, z.ZodType>
+  path: string
+  keys: string[]
+}) {
+  const { meta } = useSchemaForm()
+  const widths = pairHalves(
+    keys.map(
+      (key) =>
+        resolveWidget(
+          shape[key],
+          metaFor(meta, childPath(path, key)),
+          key,
+          childPath(path, key)
+        ).width
+    )
+  )
+  return (
+    <div className={FIELD_GRID}>
+      {keys.map((key, i) => (
+        <div
+          key={key}
+          data-width={widths[i]}
+          className={cn("min-w-0", widths[i] === "full" && FULL_SPAN)}
+        >
+          <Field schema={shape[key]} name={key} path={childPath(path, key)} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** meta groups of `path` limited to `keys`, plus the keys no group lists. */
+function splitGroups(meta: EditorMeta, path: string, keys: string[]) {
+  const groups = groupsFor(meta, path)
+  if (!groups) return null
+  const listed = new Set(groups.flatMap((group) => group.fields))
+  return {
+    groups: groups
+      .map((group) => ({
+        ...group,
+        fields: group.fields.filter((key) => keys.includes(key)),
+      }))
+      .filter((group) => group.fields.length > 0),
+    rest: keys.filter((key) => !listed.has(key)),
+  }
+}
+
+/**
+ * The fields of the form root (or one root tab) as cards: one titled card
+ * per meta group (editor-meta `groups[""]`), else sections render their own
+ * card and the other fields share an untitled one.
+ */
+export function RootFields({
+  shape,
+  keys,
+}: {
+  shape: Record<string, z.ZodType>
+  keys: string[]
+}) {
+  const { meta, idPrefix } = useSchemaForm()
+  const split = splitGroups(meta, "", keys)
+  const id = `${idPrefix}-group`
+  // Sections render their own card; runs of other fields share an untitled one.
+  const blocks: ({ section: string } | { run: string[] })[] = []
+  for (const key of split ? split.rest : keys) {
+    const field = resolveWidget(shape[key], metaFor(meta, key), key, key)
+    if (field.kind === "group" && (field.meta.section ?? true))
+      blocks.push({ section: key })
+    else {
+      const last = blocks.at(-1)
+      if (last && "run" in last) last.run.push(key)
+      else blocks.push({ run: [key] })
+    }
+  }
+  return (
+    <div className="flex flex-col gap-6">
+      {split?.groups.map((group, i) => (
+        <FormCard
+          key={group.title}
+          id={`${id}-${i}`}
+          title={group.title}
+          description={group.description}
+        >
+          <FieldGrid shape={shape} path="" keys={group.fields} />
+        </FormCard>
+      ))}
+      {blocks.map((block) =>
+        "section" in block ? (
+          <Field
+            key={block.section}
+            schema={shape[block.section]}
+            name={block.section}
+            path={block.section}
+          />
+        ) : (
+          <FormCard key={block.run[0]} id={`${id}-${block.run[0]}`}>
+            <FieldGrid shape={shape} path="" keys={block.run} />
+          </FormCard>
+        )
+      )}
+    </div>
+  )
+}
+
+/** Inside a section card: titled subsections per meta group, else a grid. */
+function SectionFields({
+  shape,
+  path,
+  id,
+}: {
+  shape: Record<string, z.ZodType>
+  path: string
+  id: string
+}) {
+  const { meta } = useSchemaForm()
+  const keys = Object.keys(shape)
+  const split = splitGroups(meta, path, keys)
+  if (!split) return <FieldGrid shape={shape} path={path} keys={keys} />
+  return (
+    <>
+      {split.groups.map((group, i) => (
+        <FormSubsection
+          key={group.title}
+          id={`${id}-g${i}`}
+          title={group.title}
+          description={group.description}
+        >
+          <FieldGrid shape={shape} path={path} keys={group.fields} />
+        </FormSubsection>
+      ))}
+      {split.rest.length ? (
+        <FieldGrid shape={shape} path={path} keys={split.rest} />
+      ) : null}
+    </>
   )
 }
 
@@ -80,15 +262,7 @@ export function GroupWidget({ field, path }: WidgetProps) {
   const { idPrefix } = useSchemaForm()
   const shape = (field.schema as z.ZodObject).shape as Record<string, z.ZodType>
   const groupErrors = useGroupErrors(path, shape)
-  const children = Object.entries(shape).map(([key, child]) => (
-    <Field
-      key={key}
-      schema={child}
-      name={key}
-      path={path ? `${path}.${key}` : key}
-    />
-  ))
-  if (!path) return <div className="flex flex-col gap-6">{children}</div>
+  if (!path) return <RootFields shape={shape} keys={Object.keys(shape)} />
   const id = fieldId(idPrefix, path)
   const errorId = `${id}-error`
   const errors = <GroupErrors id={errorId} messages={groupErrors} />
@@ -98,40 +272,35 @@ export function GroupWidget({ field, path }: WidgetProps) {
     return (
       <div className="flex flex-col gap-4">
         {errors}
-        {children}
+        <FieldGrid shape={shape} path={path} keys={Object.keys(shape)} />
       </div>
     )
   const section = field.meta.section ?? !path.includes(".")
   if (section)
     return (
-      <section
-        aria-labelledby={`${id}-title`}
+      <FormCard
+        id={id}
+        title={field.label}
+        description={field.meta.help}
         aria-describedby={errorRef}
-        className="flex flex-col gap-5 rounded-xl border bg-card p-4 shadow-xs sm:p-6"
       >
-        <header className="flex flex-col gap-1">
-          <h2 id={`${id}-title`} className="text-base font-bold">
-            {field.label}
-          </h2>
-          {field.meta.help ? (
-            <p className="text-sm text-muted-foreground">{field.meta.help}</p>
-          ) : null}
-        </header>
         {errors}
-        {children}
-      </section>
+        <SectionFields shape={shape} path={path} id={id} />
+      </FormCard>
     )
   return (
     <fieldset
       aria-describedby={errorRef}
-      className="flex flex-col gap-4 rounded-lg border border-dashed p-4"
+      className="flex min-w-0 flex-col gap-4 rounded-xl border bg-muted/30 p-4"
     >
-      <legend className="px-1 text-sm font-semibold">{field.label}</legend>
+      <legend className="float-left mb-1 w-full text-sm font-semibold">
+        {field.label}
+      </legend>
       {field.meta.help ? (
-        <p className="-mt-2 text-sm text-muted-foreground">{field.meta.help}</p>
+        <p className="-mt-2 text-xs text-muted-foreground">{field.meta.help}</p>
       ) : null}
       {errors}
-      {children}
+      <FieldGrid shape={shape} path={path} keys={Object.keys(shape)} />
     </fieldset>
   )
 }
@@ -262,17 +431,21 @@ export function ListWidget({ field, path }: WidgetProps) {
       aria-describedby={describedBy(id, { help, error })}
       className="flex flex-col gap-3"
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span id={`${id}-label`} className="text-sm font-medium">
-          {field.label}
-        </span>
-        <span className="text-xs text-muted-foreground">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span id={`${id}-label`} className={LABEL_CLASS}>
+            {field.label}
+          </span>
+          {help ? <HelpText id={`${id}-help`}>{help}</HelpText> : null}
+        </div>
+        <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
           {items.length} {items.length === 1 ? "item" : "items"}
         </span>
       </div>
-      {help ? (
-        <p id={`${id}-help`} className="-mt-2 text-sm text-muted-foreground">
-          {help}
+      {items.length === 0 ? (
+        <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+          No {itemName.toLowerCase()}s yet.
+          {disabled ? null : ` Add the first one below.`}
         </p>
       ) : null}
       <DndContext
@@ -310,19 +483,15 @@ export function ListWidget({ field, path }: WidgetProps) {
           </ol>
         </SortableContext>
       </DndContext>
-      {error ? (
-        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <ErrorText id={`${id}-error`}>{error}</ErrorText> : null}
       <div>
         <Button
           id={`${id}-add`}
           type="button"
           variant="outline"
-          size="sm"
           disabled={disabled || items.length >= max}
           onClick={add}
+          className="h-11 w-full rounded-xl border-dashed border-input font-semibold text-primary hover:border-primary hover:bg-accent hover:text-accent-foreground"
         >
           <Plus aria-hidden />
           Add {itemName.toLowerCase()}
@@ -366,22 +535,29 @@ function ListItem({
     transition,
     isDragging,
   } = useSortable({ id: sortId, disabled })
-  const title = useWatch({
-    name: itemLabel ? `${path}.${itemLabel}` : path,
-  }) as unknown
+  const value = useWatch({ name: path }) as unknown
   const position = `${itemName} ${index + 1}`
-  const heading =
-    itemLabel && typeof title === "string" && title.trim()
-      ? `${position}: ${title}`
-      : position
+  const summary = itemSummary(value, itemLabel)
+  const { errors } = useFormState({ name: path })
+  const hasError = get(errors, path) !== undefined
+  const [collapsed, setCollapsed] = useState(false)
+  const collapsible =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+  const open = !collapsible || !collapsed || hasError
+  const bodyId = `${sortId}-${path}-body`
+  const iconButton =
+    "size-9 rounded-lg pointer-coarse:size-11 [&_svg:not([class*='size-'])]:size-4"
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex flex-col gap-3 rounded-lg border bg-background p-3 ${isDragging ? "z-10 shadow-lg" : ""}`}
+      className={cn(
+        "flex flex-col rounded-xl border bg-background shadow-xs",
+        isDragging && "z-10 shadow-lg"
+      )}
       aria-label={position}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 p-1.5 pl-1">
         <button
           type="button"
           ref={setActivatorNodeRef}
@@ -389,17 +565,33 @@ function ListItem({
           {...attributes}
           {...listeners}
           aria-label={`Drag to reorder ${position}`}
-          className="flex size-7 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:size-11"
         >
           <GripVertical aria-hidden className="size-4" />
         </button>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {heading}
+        <span
+          aria-hidden
+          className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground tabular-nums"
+        >
+          {index + 1}
         </span>
+        <ItemTitle
+          collapsible={collapsible}
+          open={open}
+          bodyId={bodyId}
+          onToggle={() => setCollapsed((c) => !c)}
+        >
+          <span className="shrink-0 text-sm font-semibold">{position}</span>
+          {summary ? (
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
+              {summary}
+            </span>
+          ) : null}
+        </ItemTitle>
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          className={iconButton}
           aria-label={`Move ${position} up`}
           data-focus-key={`${sortId}:up`}
           disabled={disabled || index === 0}
@@ -410,7 +602,7 @@ function ListItem({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          className={iconButton}
           aria-label={`Move ${position} down`}
           data-focus-key={`${sortId}:down`}
           disabled={disabled || index === count - 1}
@@ -421,22 +613,88 @@ function ListItem({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
           aria-label={`Remove ${position}`}
           disabled={!canRemove}
           onClick={onRemove}
-          className="text-destructive hover:text-destructive"
+          className={cn(iconButton, "text-destructive hover:text-destructive")}
         >
           <Trash2 aria-hidden />
         </Button>
       </div>
       <div
+        id={bodyId}
+        hidden={!open}
         data-focus-key={`${sortId}:first`}
         tabIndex={-1}
-        className="flex flex-col gap-4 outline-none"
+        className={cn(
+          "flex-col gap-4 border-t px-4 pt-4 pb-5 outline-none",
+          open ? "flex" : "hidden"
+        )}
       >
         <Field schema={element} name={position} path={path} />
       </div>
     </li>
   )
+}
+
+/**
+ * The item's name and summary; for object items a disclosure button that
+ * collapses the item (its fields stay mounted, hidden).
+ */
+function ItemTitle({
+  collapsible,
+  open,
+  bodyId,
+  onToggle,
+  children,
+}: {
+  collapsible: boolean
+  open: boolean
+  bodyId: string
+  onToggle: () => void
+  children: ReactNode
+}) {
+  const className =
+    "flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left"
+  if (!collapsible) return <span className={className}>{children}</span>
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={bodyId}
+      onClick={onToggle}
+      className={cn(
+        className,
+        "outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+      )}
+    >
+      {children}
+      <ChevronDown
+        aria-hidden
+        className={cn(
+          "ml-auto size-4 shrink-0 text-muted-foreground transition-transform",
+          !open && "-rotate-90"
+        )}
+      />
+    </button>
+  )
+}
+
+/**
+ * One line naming an item: its first two texts in field order ("18+ ·
+ * Years in business"), always including the itemLabel field's value.
+ */
+export function itemSummary(value: unknown, itemLabel?: string): string {
+  if (typeof value === "string") return ""
+  if (typeof value !== "object" || value === null) return ""
+  const record = value as Record<string, unknown>
+  const texts = (keys: string[]) =>
+    keys
+      .map((key) => record[key])
+      .filter((v): v is string => typeof v === "string" && v.trim() !== "")
+  const parts = texts(Object.keys(record)).slice(0, 2)
+  // The item's naming field always shows, even when it is not among the first two.
+  const [named] = itemLabel ? texts([itemLabel]) : []
+  if (named && !parts.includes(named)) parts.splice(1, 1, named)
+  return parts.join(" · ")
 }

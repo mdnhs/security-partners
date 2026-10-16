@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useState } from "react"
 
 import { FormError, FormNotice } from "@/components/admin/auth/form-messages"
+import { StatusPill } from "@/components/admin/kit/status-pill"
+import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { authClient, authErrorMessage } from "@/lib/auth-client"
 import { describeUserAgent, formatDateTime } from "@/lib/format"
+import { cn } from "@/lib/utils"
 
 type Session = {
   id: string
@@ -67,7 +70,10 @@ export function SessionsList({
     <div className="flex flex-col gap-4">
       {error ? <FormError>{error}</FormError> : null}
       {notice ? <FormNotice>{notice}</FormNotice> : null}
-      <ul aria-label="Signed-in devices" className="divide-y rounded-lg border">
+      <ul
+        aria-label="Signed-in devices"
+        className="divide-y rounded-xl border bg-background"
+      >
         {sessions.map((session) => (
           <li
             key={session.id}
@@ -77,9 +83,9 @@ export function SessionsList({
               <span className="text-sm font-medium">
                 {describeUserAgent(session.userAgent)}
                 {session.id === currentSessionId ? (
-                  <span className="ml-2 rounded bg-brand-mint px-1.5 py-0.5 text-xs text-brand-green-dark">
+                  <StatusPill tone="success" className="ml-2 h-6">
                     This device
-                  </span>
+                  </StatusPill>
                 ) : null}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -89,8 +95,8 @@ export function SessionsList({
             </div>
             {session.id !== currentSessionId ? (
               <Button
+                className={FORM_ACTION}
                 variant="outline"
-                size="sm"
                 onClick={() => revoke(session)}
               >
                 Sign out
@@ -100,7 +106,11 @@ export function SessionsList({
         ))}
       </ul>
       {others.length > 0 ? (
-        <Button variant="outline" className="self-start" onClick={revokeOthers}>
+        <Button
+          variant="outline"
+          className={cn(FORM_ACTION, "self-start")}
+          onClick={revokeOthers}
+        >
           Sign out all other devices
         </Button>
       ) : null}

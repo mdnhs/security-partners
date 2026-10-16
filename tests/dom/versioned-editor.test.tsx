@@ -178,9 +178,12 @@ describe("page editor (master 4.4)", () => {
         screen.queryByRole("dialog", { name: "Publish changes?" })
       ).toBeNull()
     )
-    expect(document.querySelector('[data-slot="badge"]')).toHaveTextContent(
-      "Published"
-    )
+    const header = document.querySelector('[data-slot="editor-bar"]')!
+    expect(
+      [...header.querySelectorAll('[data-slot="status-pill"]')].map(
+        (pill) => pill.textContent
+      )
+    ).toEqual(["Published"])
   })
 
   it("does not autosave the form's own normalization on open", async () => {
@@ -463,6 +466,11 @@ describe("page editor section tabs", () => {
     renderEditor()
     const heading = await headingInput()
     const tablist = screen.getByRole("tablist", { name: "Sections" })
+    // A page has a parent list: the header links back to it.
+    expect(screen.getByRole("link", { name: "All pages" })).toHaveAttribute(
+      "href",
+      "/admin/pages"
+    )
     // The sticky tab rail stops below the editor's sticky bar.
     expect(
       tablist

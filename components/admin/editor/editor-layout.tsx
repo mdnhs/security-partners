@@ -1,20 +1,25 @@
 "use client"
 
-import { ChevronLeft } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import {
   type CSSProperties,
   type ReactNode,
   type RefObject,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react"
 
+import {
+  type ContentState,
+  ContentStatusPills,
+} from "@/components/admin/kit/content-status"
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
-import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
-/** Status badge text for a versioned record. */
+/** Status badge text for a versioned record (list screens). */
 export function statusLabel(record: { published: unknown; dirty: boolean }): {
   text: string
   variant: "default" | "secondary" | "outline"
@@ -25,13 +30,33 @@ export function statusLabel(record: { published: unknown; dirty: boolean }): {
   return { text: "Published", variant: "default" }
 }
 
+/** Header buttons (History, Preview, Publish, Delete): 40 px, 44 on touch. */
+export const EDITOR_ACTION =
+  "h-10 gap-2 rounded-xl px-3 font-semibold sm:px-4 pointer-coarse:h-11"
+
+/** Space kept between the stuck bar and what sits below it. */
+const GAP = 16
+
 /**
- * Editor frame: back link, title + status, save state and actions in a
- * sticky bar under the topbar; the form below in a readable column.
- * Inside section tabs (Settings) the bar is the opaque top of the tab
- * content card (sticking on its own, beside the sticky rail), and
- * without `backHref` (a tab rail is the way back) there is no back link.
- * Sets --section-tabs-top so the form's sticky tab rail stops below the bar.
+ * Sticky offsets, all from main's padding (--main-pad, set by the shell):
+ * - The bar sticks 12 px below main's top edge (below lg) or at main's
+ *   padding (from lg, level with the Settings rail), so `top` is that
+ *   distance less the padding (sticky offsets count from the padding edge).
+ * - A strip in main's grey (::before) fills the space above the stuck bar,
+ *   so fields never show through there. It is only as tall as that space
+ *   (12 px / --main-pad), which at rest is main's padding or the gap above
+ *   the Settings card: it never covers the tab row.
+ */
+const STICKY =
+  "@container/bar sticky z-20 top-[calc(0.75rem-var(--main-pad,0px))] lg:top-0 before:pointer-events-none before:absolute before:h-3 before:bg-sidebar before:content-[''] lg:before:h-(--main-pad)"
+
+/**
+ * Editor frame: a sticky header card (back link where a parent list exists,
+ * title, status pills, save state, actions), then the form. Inside section
+ * tabs (Settings) the header is the opaque, full-width top of the tab's
+ * white card (padding --card-pad); elsewhere it is a card of its own.
+ * Sets --section-tabs-top so the form's sticky tab rail stops below the
+ * bar, and keeps a focused field from hiding under it (WCAG 2.4.11).
  */
 export function EditorLayout({
   backHref,
@@ -47,7 +72,7 @@ export function EditorLayout({
   backHref?: string
   backLabel?: string
   title: string
-  status: { text: string; variant: "default" | "secondary" | "outline" }
+  status: ContentState
   saveState: ReactNode
   actions: ReactNode
   aside?: ReactNode
@@ -55,67 +80,61 @@ export function EditorLayout({
 }) {
   const inTabs = useInSectionTabs()
   const barRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const barHeight = useHeight(barRef)
-  const bar = (
-    <>
-      {backHref ? (
-        <Link
-          href={backHref}
-          className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft aria-hidden className="size-4" />
-          {backLabel}
-        </Link>
-      ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
-            {title}
-          </h1>
-          <Badge variant={status.variant}>{status.text}</Badge>
-          {saveState}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">{actions}</div>
-      </div>
-    </>
-  )
+  useKeepFocusBelow(barRef, contentRef)
   return (
     <div
       className="flex flex-col gap-6"
-      // Bar height + the gap-6 below it.
-      style={{ "--section-tabs-top": `${barHeight + 24}px` } as CSSProperties}
+      style={{ "--section-tabs-top": `${barHeight + GAP}px` } as CSSProperties}
     >
-      {inTabs ? (
-        // Sticky at the top of the section-tabs content card (p-4 sm:p-6):
-        // a strip in main's grey fills main's top padding (sticky elements
-        // stop inside it, so fields would show above the bar), and the bar
-        // is the card's opaque, full-width top with its rounded corners.
-        <div
-          data-slot="editor-bar-sticky"
-          className="sticky -top-4 z-20 -mx-4 -mt-8 bg-sidebar pt-4 sm:-top-6 sm:-mx-6 sm:-mt-12 sm:pt-6 lg:-top-8 lg:-mt-14 lg:pt-8"
-        >
-          <div
-            ref={barRef}
-            data-slot="editor-bar"
-            className="rounded-t-card flex flex-col gap-3 border-b bg-card px-4 py-3 sm:px-6 sm:py-4"
-          >
-            {bar}
+      <header
+        ref={barRef}
+        data-slot="editor-bar"
+        className={cn(
+          STICKY,
+          "bg-card",
+          inTabs
+            ? // The card's top: full width over its padding, a rule below.
+              "rounded-t-card -mx-(--card-pad,0px) -mt-(--card-pad,0px) border-b px-(--card-pad) py-4 before:inset-x-0 before:bottom-full"
+            : // A card of its own; the strip starts outside its 1 px border.
+              "rounded-card border px-4 py-4 shadow-xs before:-inset-x-px before:bottom-[calc(100%+1px)] sm:px-6"
+        )}
+      >
+        {/* Side by side once the bar is wide enough for both (container). */}
+        <div className="flex flex-col gap-4 @4xl/bar:flex-row @4xl/bar:items-center @4xl/bar:justify-between">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            {backHref ? (
+              <Link
+                href={backHref}
+                className="inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <ArrowLeft aria-hidden className="size-4" />
+                {backLabel}
+              </Link>
+            ) : null}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="xl:text-title min-w-0 truncate text-2xl font-bold tracking-tight">
+                {title}
+              </h1>
+              <ContentStatusPills record={status} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {saveState}
+            {actions}
           </div>
         </div>
-      ) : (
-        // Flush with main's top edge (negative top = main's padding), opaque
-        // in main's grey so nothing shows through.
-        <div
-          ref={barRef}
-          data-slot="editor-bar"
-          className="sticky -top-4 z-20 -mx-4 -mt-6 flex flex-col gap-3 border-b bg-sidebar px-4 py-3 sm:-top-6 sm:-mx-6 sm:px-6 lg:-top-8 lg:-mx-8 lg:-mt-8 lg:px-8"
-        >
-          {bar}
-        </div>
-      )}
+      </header>
       {/* The form has its own section tabs: the side panel joins it as a
           column only from 2xl and sits above it before that. */}
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_18rem]">
+      <div
+        ref={contentRef}
+        className={cn(
+          "grid w-full gap-6 2xl:grid-cols-[minmax(0,1fr)_18rem]",
+          inTabs ? "max-w-240" : "max-w-304"
+        )}
+      >
         <div className="min-w-0">{children}</div>
         {aside ? (
           <aside className="order-first flex flex-col gap-4 2xl:order-none">
@@ -140,4 +159,32 @@ function useHeight(ref: RefObject<HTMLElement | null>): number {
     return () => observer.disconnect()
   }, [ref])
   return height
+}
+
+/**
+ * WCAG 2.2 SC 2.4.11: a control that receives focus (Tab, Shift+Tab, an
+ * error jump) is scrolled clear of the sticky bar. The browser only scrolls
+ * a focused element that is outside the panel, and one under the bar is
+ * inside it; so the panel scrolls up by the overlap plus a gap.
+ */
+function useKeepFocusBelow(
+  barRef: RefObject<HTMLElement | null>,
+  contentRef: RefObject<HTMLElement | null>
+) {
+  useEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+    function onFocusIn(event: FocusEvent) {
+      const bar = barRef.current
+      const scroller = bar?.closest("main")
+      if (!bar || !scroller || !(event.target instanceof HTMLElement)) return
+      const barRect = bar.getBoundingClientRect()
+      if (barRect.height === 0) return
+      const top = event.target.getBoundingClientRect().top
+      if (top < barRect.bottom + GAP / 2)
+        scroller.scrollTop += top - barRect.bottom - GAP
+    }
+    content.addEventListener("focusin", onFocusIn)
+    return () => content.removeEventListener("focusin", onFocusIn)
+  }, [barRef, contentRef])
 }

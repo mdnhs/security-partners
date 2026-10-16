@@ -192,3 +192,35 @@ test("two editors: the stale one gets the conflict dialog and reloads theirs", a
   )
   await expect(saveStatus(page)).toHaveText("Saved")
 })
+
+test("a field focused with Shift+Tab is scrolled clear of the sticky header (WCAG 2.4.11)", async ({
+  page,
+}) => {
+  const { editor } = readFixtures()
+  await signIn(page, editor.email)
+  const hero = await openHomeEditor(page)
+  const heading = hero.getByRole("textbox", { name: "Heading" })
+  const tagline = hero.getByRole("textbox", { name: "Tagline" })
+  const bar = page.locator('[data-slot="editor-bar"]')
+  const bottomOf = async () => {
+    const box = await bar.boundingBox()
+    return box!.y + box!.height
+  }
+  // Scroll the panel until the Heading input sits just under the stuck bar
+  // (inside the panel, so the browser alone would not scroll it into view).
+  await page.locator("main#main").evaluate((main, offset) => {
+    main.scrollTop = offset
+  }, 0)
+  const headingTop = (await heading.boundingBox())!.y
+  const barBottom = await bottomOf()
+  await page
+    .locator("main#main")
+    .evaluate((main, by) => (main.scrollTop += by), headingTop - barBottom + 10)
+  expect((await heading.boundingBox())!.y).toBeLessThan(await bottomOf())
+  await tagline.focus()
+  await page.keyboard.press("Shift+Tab")
+  await expect(heading).toBeFocused()
+  expect((await heading.boundingBox())!.y).toBeGreaterThanOrEqual(
+    await bottomOf()
+  )
+})

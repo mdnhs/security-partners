@@ -10,12 +10,10 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
     fields: {
       name: { label: "Site name" },
       legalName: { label: "Legal name" },
-      logo: { label: "Logo" },
-      logoAlt: { label: "Logo description (alt text)" },
-      logoOnDark: { label: "Logo on dark backgrounds" },
-      favicon: { label: "Browser tab icon" },
+      logoAlt: { label: "Logo description (alt text)", width: "full" },
       productionUrl: {
         label: "Production URL",
+        width: "full",
         help: "The live address, e.g. https://www.securitypartnersltd.com. Decides whether this copy of the site counts as production.",
       },
       timezone: { label: "Time zone", help: "IANA name, e.g. Europe/Dublin." },
@@ -27,20 +25,82 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         label: "Copyright line",
         help: "{year} is replaced with the current year.",
       },
+      logo: { label: "Logo", aspect: "square" },
+      logoOnDark: { label: "Logo on dark backgrounds", aspect: "square" },
+      favicon: { label: "Browser tab icon", aspect: "square" },
+    },
+    groups: {
+      "": [
+        {
+          title: "Identity",
+          description: "The names the site uses for the company.",
+          fields: ["name", "legalName", "copyright"],
+        },
+        {
+          title: "Logos",
+          description: "Shown in the header, the footer and the browser tab.",
+          fields: ["logo", "logoAlt", "logoOnDark", "favicon"],
+        },
+        {
+          title: "Production URL",
+          description: "Where the live site is published.",
+          fields: ["productionUrl"],
+        },
+        {
+          title: "Language and time",
+          description: "Used for dates, times and the page language.",
+          fields: ["timezone", "locale"],
+        },
+      ],
     },
   },
   contact: {
     fields: {
-      phone24h: { label: "24-hour number" },
-      office: { label: "Office number" },
-      operationsMobile: { label: "Operations mobile" },
+      phone24h: { label: "24-hour number", icon: "phone" },
+      office: { label: "Office number", icon: "phone" },
+      operationsMobile: { label: "Operations mobile", icon: "phone" },
       operationsExtension: { label: "Operations extension" },
       email: { label: "Main email" },
       operationsEmail: { label: "Operations email" },
-      hours: { label: "Office hours" },
-      addressLine1: { label: "Address line 1" },
+      hours: { label: "Office hours", icon: "clock", width: "full" },
+      addressLine1: { label: "Address line 1", icon: "map" },
       addressLine2: { label: "Address line 2" },
-      mapsHref: { label: "Map link", help: "Opened by “Get directions”." },
+      mapsHref: {
+        label: "Map link",
+        help: "Opened by “Get directions”.",
+        width: "full",
+      },
+    },
+    groups: {
+      "": [
+        {
+          title: "Phone numbers",
+          description:
+            "Shown in the header, the footer and on the contact page; tel: links are made from them.",
+          fields: [
+            "phone24h",
+            "office",
+            "operationsMobile",
+            "operationsExtension",
+          ],
+        },
+        {
+          title: "Email",
+          description: "Where people write to you.",
+          fields: ["email", "operationsEmail"],
+        },
+        {
+          title: "Address & map",
+          description:
+            "Your office address and the map behind “Get directions”.",
+          fields: ["addressLine1", "addressLine2", "mapsHref"],
+        },
+        {
+          title: "Opening hours",
+          description: "Shown next to the office number.",
+          fields: ["hours"],
+        },
+      ],
     },
   },
   navigation: {
@@ -53,6 +113,20 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       },
       headerCta: { label: "Header button" },
     },
+    groups: {
+      "": [
+        {
+          title: "Menu",
+          description: "The links across the top of every page.",
+          fields: ["headerLinks"],
+        },
+        {
+          title: "Call to action",
+          description: "The highlighted button at the end of the menu.",
+          fields: ["headerCta"],
+        },
+      ],
+    },
   },
   footer: {
     fields: {
@@ -61,6 +135,21 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       legal: { label: "Legal links" },
       "legal.privacy": { label: "Privacy link" },
       "legal.terms": { label: "Terms link" },
+    },
+    groups: {
+      "": [
+        {
+          title: "Footer text",
+          description: "The tagline and the column headings.",
+          fields: [
+            "tagline",
+            "quickLinksHeading",
+            "contactHeading",
+            "groupHeading",
+            "groupTelLabel",
+          ],
+        },
+      ],
     },
   },
   microcopy: {
@@ -94,6 +183,24 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       badge: { label: "Badge" },
       highlights: { label: "Highlights", itemName: "Highlight" },
     },
+    groups: {
+      "": [
+        {
+          title: "Text",
+          description: "The heading and copy of the About section.",
+          fields: ["eyebrow", "heading", "body"],
+        },
+        {
+          title: "Image",
+          fields: ["image", "imageAlt"],
+        },
+        {
+          title: "Highlights",
+          description: "The ticked list beside the text.",
+          fields: ["highlights"],
+        },
+      ],
+    },
   },
   "sections.contact": {
     fields: {
@@ -103,6 +210,7 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         itemLabel: "title",
         help: PLACEHOLDER_HELP,
       },
+      "infoItems[].icon": { label: "Icon", aspect: "square" },
       "infoItems[].lines": {
         label: "Lines",
         itemName: "Line",
@@ -114,7 +222,22 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       "map.tiles": {
         label: "Map tile address",
         help: "{col} and {row} are filled in for each tile.",
+        width: "full",
       },
+    },
+    groups: {
+      "": [
+        {
+          title: "Heading",
+          description: "The top of the Contact section.",
+          fields: ["eyebrow", "heading", "intro"],
+        },
+        {
+          title: "Contact blocks",
+          description: "The cards with numbers, emails and the address.",
+          fields: ["infoItems"],
+        },
+      ],
     },
   },
   "sections.enquireBanner": {
@@ -123,12 +246,47 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       cta: { label: "Main button" },
       secondaryCta: { label: "Second button", help: PLACEHOLDER_HELP },
     },
+    groups: {
+      "": [
+        {
+          title: "Text",
+          fields: ["eyebrow", "heading", "copy"],
+        },
+        {
+          title: "Background",
+          description: "The photo behind the banner.",
+          fields: ["image"],
+        },
+        { title: "Buttons", fields: ["cta", "secondaryCta"] },
+      ],
+    },
   },
-  "sections.clients": { fields: {} },
+  "sections.clients": {
+    fields: {},
+    groups: {
+      "": [
+        {
+          title: "Heading",
+          description: "Above the strip of client logos.",
+          fields: ["eyebrow", "heading"],
+        },
+      ],
+    },
+  },
   "sections.whyChooseUs": {
     fields: {
       features: { label: "Features", itemName: "Feature", itemLabel: "title" },
-      "features[].icon": { label: "Icon" },
+      "features[].icon": { label: "Icon", aspect: "square" },
+    },
+    groups: {
+      "": [
+        { title: "Text", fields: ["eyebrow", "heading", "copy"] },
+        {
+          title: "Features",
+          description: "The reasons, each with an icon.",
+          fields: ["features"],
+        },
+      ],
     },
   },
   leads: {
@@ -145,7 +303,22 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       acknowledgement: {
         label: "Send an acknowledgement",
         help: "Email the person who sent the enquiry to confirm it arrived.",
+        width: "full",
       },
+    },
+    groups: {
+      "": [
+        {
+          title: "Notifications",
+          description: "Who hears about a new enquiry.",
+          fields: ["recipients", "acknowledgement"],
+        },
+        {
+          title: "Retention",
+          description: "How long enquiries are kept.",
+          fields: ["retentionMonths"],
+        },
+      ],
     },
   },
 }

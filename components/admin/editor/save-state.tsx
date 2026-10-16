@@ -31,7 +31,17 @@ const ICONS = {
   error: CloudOff,
 } satisfies Record<SaveState, unknown>
 
-/** Live save status next to the editor title (announced politely). */
+/** Text and icon colour per state (soft pill in the editor header). */
+const TONE: Record<SaveState, string> = {
+  saved: "bg-muted text-muted-foreground [&_svg]:text-success",
+  saving: "bg-muted text-muted-foreground [&_svg]:text-primary",
+  unsaved: "bg-warning-soft text-warning",
+  invalid: "bg-danger-soft text-danger",
+  conflict: "bg-danger-soft text-danger",
+  error: "bg-danger-soft text-danger",
+}
+
+/** Live save status in the editor header (announced politely). */
 export function SaveStateIndicator({
   state,
   onRetry,
@@ -48,10 +58,8 @@ export function SaveStateIndicator({
         aria-label={`Save status: ${LABELS[state]}`}
         data-save-state={state}
         className={cn(
-          "flex items-center gap-1.5 text-sm",
-          state === "saved" && "text-muted-foreground",
-          (state === "invalid" || state === "conflict" || state === "error") &&
-            "font-medium text-destructive"
+          "inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap",
+          TONE[state]
         )}
       >
         <Icon
@@ -61,7 +69,12 @@ export function SaveStateIndicator({
         {LABELS[state]}
       </p>
       {state === "error" && onRetry ? (
-        <Button type="button" variant="outline" size="xs" onClick={onRetry}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 rounded-xl px-4 font-semibold pointer-coarse:h-11"
+          onClick={onRetry}
+        >
           Retry
         </Button>
       ) : null}

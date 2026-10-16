@@ -1,29 +1,20 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { FormCard } from "@/components/admin/form/form-ui"
 
+/** One account panel: a titled card like the editors' field groups. */
 export function AccountSection({
+  id,
   title,
   description,
   children,
 }: {
+  id: string
   title: string
   description: string
   children: React.ReactNode
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2 className="text-base font-bold">{title}</h2>
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <FormCard id={`account-${id}`} title={title} description={description}>
+      {children}
+    </FormCard>
   )
 }

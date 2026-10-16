@@ -11,8 +11,8 @@ import {
 } from "@/components/admin/section-tabs/section-tabs"
 
 import { type EditorMeta, metaFor } from "./editor-meta"
-import { Field } from "./field"
 import { resolveWidget } from "./resolve-widget"
+import { RootFields } from "./widgets/structure"
 
 export type FormTab = { id: string; label: string; keys: string[] }
 
@@ -85,12 +85,26 @@ export function FormTabs({
 
   // After an error jump, focus the first invalid field once its panel shows.
   const { setFocus } = useFormContext()
+  const rootRef = useRef<HTMLDivElement>(null)
   const pendingFocus = useRef<{ tab: string; path: string } | null>(null)
   useEffect(() => {
     const pending = pendingFocus.current
     if (!pending || pending.tab !== selected) return
     pendingFocus.current = null
     setFocus(pending.path)
+    const panel = rootRef.current?.querySelector<HTMLElement>(
+      `[data-form-tab="${CSS.escape(pending.tab)}"]`
+    )
+    if (!panel || panel.contains(document.activeElement)) return
+    // setFocus does nothing for a path no input registers (a list's own
+    // error, a media picker): focus the first invalid control instead, or
+    // the first control of the group whose error shows.
+    const invalid = panel.querySelector<HTMLElement>('[aria-invalid="true"]')
+    const message = panel.querySelector('[data-slot="field-error"]')
+    const control = message
+      ?.closest('[role="group"], fieldset, section')
+      ?.querySelector<HTMLElement>("input, textarea, select, button")
+    ;(invalid ?? control)?.focus()
   })
 
   useEffect(() => {
@@ -124,29 +138,27 @@ export function FormTabs({
     () =>
       tabs.map((tab) => (
         <SectionTabsPanel key={tab.id} id={tab.id}>
-          <div className="flex flex-col gap-6">
-            {tab.keys.map((key) => (
-              <Field
-                key={key}
-                schema={schema.shape[key] as z.ZodType}
-                name={key}
-                path={key}
-              />
-            ))}
+          <div data-form-tab={tab.id}>
+            <RootFields
+              shape={schema.shape as Record<string, z.ZodType>}
+              keys={tab.keys}
+            />
           </div>
         </SectionTabsPanel>
       )),
     [tabs, schema]
   )
   return (
-    <SectionTabs
-      ariaLabel={ariaLabel}
-      items={items}
-      value={selected}
-      onValueChange={select}
-    >
-      {panels}
-    </SectionTabs>
+    <div ref={rootRef} className="contents">
+      <SectionTabs
+        ariaLabel={ariaLabel}
+        items={items}
+        value={selected}
+        onValueChange={select}
+      >
+        {panels}
+      </SectionTabs>
+    </div>
   )
 }
 

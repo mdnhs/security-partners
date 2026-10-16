@@ -9,10 +9,19 @@ afterEach(() => {
 })
 
 // jsdom lacks a few browser APIs that base-ui, cmdk and ProseMirror call.
+// Width queries follow window.innerWidth (tests resize by redefining it);
+// anything else (prefers-*, hover …) does not match.
+function matchesWidth(query: string): boolean {
+  const min = /\(min-width:\s*(\d+)px\)/.exec(query)
+  if (min) return window.innerWidth >= Number(min[1])
+  const max = /\(max-width:\s*(\d+)px\)/.exec(query)
+  if (max) return window.innerWidth <= Number(max[1])
+  return false
+}
 if (!window.matchMedia)
   window.matchMedia = (query: string) =>
     ({
-      matches: false,
+      matches: matchesWidth(query),
       media: query,
       onchange: null,
       addListener: () => undefined,

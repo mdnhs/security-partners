@@ -1,12 +1,13 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { ImageIcon, Link2 } from "lucide-react"
+import { ImageIcon, Link2, ListTree } from "lucide-react"
 import { useState } from "react"
 import { get, useController, useFormState } from "react-hook-form"
 
 import { MediaPickerDialog } from "@/components/admin/media/picker-dialog"
 import { useMediaItem } from "@/components/admin/media/use-media-item"
+import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
 import { RichTextEditor } from "@/components/admin/rich-text/editor"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
+import { cn } from "@/lib/utils"
 import type { OptionCollection, OptionItem } from "@/lib/schemas/api/search"
 
 import { fieldId, useSchemaForm, type WidgetProps } from "../context"
@@ -31,9 +33,24 @@ import { NativeSelect } from "./basic"
 import {
   deepErrorText,
   describedBy,
+  ErrorText,
   errorText,
   FieldShell,
+  HelpText,
 } from "./field-shell"
+
+/** What a link destination points at, shown under it (null: say nothing). */
+export function destinationKind(href: string): string | null {
+  const value = href.trim()
+  if (!value) return null
+  if (value.startsWith("{")) return "Filled in from Contact details."
+  if (value.startsWith("#")) return "A section of the same page."
+  if (value.startsWith("/")) return "A page on this site."
+  if (value.startsWith("tel:")) return "Starts a phone call."
+  if (value.startsWith("mailto:")) return "Opens an email."
+  if (/^https?:\/\//.test(value)) return "Another website."
+  return null
+}
 
 function useOptions(collection: OptionCollection | undefined, enabled = true) {
   return useQuery({
@@ -86,66 +103,100 @@ export function LinkWidget({ field, path }: WidgetProps) {
   // An error on the link as a whole (e.g. a server message for "hero.cta").
   const { errors } = useFormState({ name: path, exact: true })
   const ownError = errorText(get(errors, path))
+  const inItem = /\.\d+$/.test(path)
+  const kind = destinationKind((hrefValue as string | null) ?? "")
+  const kindId = `${id}-href-kind`
   return (
     <fieldset
-      className="flex flex-col gap-3 rounded-lg border p-3"
+      className={cn(
+        "flex min-w-0 flex-col gap-4",
+        !inItem && "rounded-xl border bg-muted/30 p-4"
+      )}
       aria-describedby={describedBy(id, {
         help: field.meta.help,
         error: ownError,
       })}
     >
-      <legend className="px-1 text-sm font-semibold">{field.label}</legend>
+      {/* A list item's card already shows its name ("Link 2"). */}
+      <legend
+        className={cn(
+          "float-left mb-1 w-full text-sm font-semibold",
+          inItem && "sr-only"
+        )}
+      >
+        {field.label}
+      </legend>
       {field.meta.help ? (
-        <p id={`${id}-help`} className="-mt-1 text-sm text-muted-foreground">
-          {field.meta.help}
-        </p>
+        <div className="-mt-3">
+          <HelpText id={`${id}-help`}>{field.meta.help}</HelpText>
+        </div>
       ) : null}
-      {ownError ? (
-        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
-          {ownError}
-        </p>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {ownError ? <ErrorText id={`${id}-error`}>{ownError}</ErrorText> : null}
+      <div className="grid gap-4 @lg/card:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <FieldShell id={`${id}-label`} label="Text" error={labelError}>
           <Input
             id={`${id}-label`}
             name={labelName}
             ref={labelRef}
+            className={ADMIN_CONTROL}
             value={(labelValue as string) ?? ""}
             disabled={disabled}
+            aria-required
             aria-invalid={!!labelError}
             aria-describedby={describedBy(`${id}-label`, { error: labelError })}
             onChange={(event) => onLabelChange(event.target.value)}
             onBlur={onLabelBlur}
           />
         </FieldShell>
-        <FieldShell id={`${id}-href`} label="Link to" error={hrefError}>
+        <FieldShell
+          id={`${id}-href`}
+          label="Link to"
+          error={hrefError}
+          extra={
+            kind && !hrefError ? (
+              <p id={kindId} className="text-xs text-muted-foreground">
+                {kind}
+              </p>
+            ) : null
+          }
+        >
           <div className="flex gap-2">
-            <Input
-              id={`${id}-href`}
-              name={hrefName}
-              ref={hrefRef}
-              value={(hrefValue as string) ?? ""}
-              placeholder="/contact, https://…, tel:…"
-              disabled={disabled}
-              aria-invalid={!!hrefError}
-              aria-describedby={describedBy(`${id}-href`, { error: hrefError })}
-              onChange={(event) => onHrefChange(event.target.value)}
-              onBlur={onHrefBlur}
-            />
+            <div className="relative min-w-0 flex-1">
+              <Link2
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id={`${id}-href`}
+                name={hrefName}
+                ref={hrefRef}
+                className={cn(ADMIN_CONTROL, "pl-9")}
+                value={(hrefValue as string) ?? ""}
+                placeholder="/contact, https://…, tel:…"
+                disabled={disabled}
+                aria-required
+                aria-invalid={!!hrefError}
+                aria-describedby={describedBy(`${id}-href`, {
+                  error: hrefError,
+                  extraId: kind && !hrefError ? kindId : undefined,
+                })}
+                onChange={(event) => onHrefChange(event.target.value)}
+                onBlur={onHrefBlur}
+              />
+            </div>
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger
                 render={
                   <Button
                     type="button"
                     variant="outline"
-                    size="default"
+                    className="h-10 rounded-lg px-3"
                     disabled={disabled}
                     aria-label={`Pick a page for ${field.label}`}
                   />
                 }
               >
-                <Link2 aria-hidden />
+                <ListTree aria-hidden />
                 <span className="max-sm:sr-only">Pick</span>
               </PopoverTrigger>
               <PopoverContent className="w-80 p-0" align="end">
@@ -261,8 +312,20 @@ export function MediaWidget({ field, path }: WidgetProps) {
       error={error}
       optional={field.optional || field.nullable}
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-[repeating-conic-gradient(var(--muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px]">
+      <div
+        className={cn(
+          "flex flex-col gap-4 rounded-xl border bg-background p-3 shadow-xs sm:flex-row sm:items-center",
+          error && "border-destructive"
+        )}
+      >
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-[repeating-conic-gradient(var(--muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px]",
+            field.meta.aspect === "square"
+              ? "aspect-square w-24"
+              : "aspect-video w-full sm:w-44"
+          )}
+        >
           {item.data ? (
             // eslint-disable-next-line @next/next/no-img-element -- admin thumbnail
             <img
@@ -274,23 +337,30 @@ export function MediaWidget({ field, path }: WidgetProps) {
             <ImageIcon aria-hidden className="size-6 text-muted-foreground" />
           )}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <p className="truncate text-sm text-muted-foreground">
-            {chosen
-              ? item.data
-                ? item.data.alt || item.data.url
-                : item.isError
-                  ? "Image not found"
-                  : "Loading…"
-              : "No image chosen"}
-          </p>
-          <div className="flex gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <p className="truncate text-sm font-medium">
+              {chosen
+                ? item.data
+                  ? fileName(item.data.url) || item.data.alt || "Image"
+                  : item.isError
+                    ? "Image not found"
+                    : "Loading…"
+                : "No image chosen"}
+            </p>
+            {item.data ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {item.data.alt || "No description"}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
             <Button
               id={id}
               ref={ref}
               type="button"
               variant="outline"
-              size="sm"
+              className="h-9 rounded-lg px-3 pointer-coarse:h-11"
               disabled={disabled}
               // Starts with the visible text (WCAG 2.5.3 label in name).
               aria-label={`${action}: ${field.label}`}
@@ -298,13 +368,14 @@ export function MediaWidget({ field, path }: WidgetProps) {
               aria-describedby={describedBy(id, { help, error })}
               onClick={() => setOpen(true)}
             >
+              <ImageIcon aria-hidden />
               {action}
             </Button>
             {chosen && (field.nullable || field.optional) ? (
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                className="h-9 rounded-lg px-3 text-destructive hover:text-destructive pointer-coarse:h-11"
                 disabled={disabled}
                 aria-label={`Remove: ${field.label}`}
                 onClick={() => onChange(null)}
@@ -325,6 +396,10 @@ export function MediaWidget({ field, path }: WidgetProps) {
     </FieldShell>
   )
 }
+
+/** "/media/2026/hero-banner.jpg" → "hero-banner.jpg". */
+const fileName = (url: string | undefined) =>
+  url ? decodeURIComponent(url.split(/[?#]/)[0].split("/").pop() || url) : ""
 
 export function RichTextWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()

@@ -5,10 +5,13 @@ import QRCode from "qrcode"
 import { useState } from "react"
 
 import { FormError, FormNotice } from "@/components/admin/auth/form-messages"
+import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
+import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient, authErrorMessage } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
 
 type Setup = {
   totpUri: string
@@ -152,6 +155,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
           <div className="grid max-w-xs gap-2">
             <Label htmlFor="setup-code">Code from the app</Label>
             <Input
+              className={ADMIN_CONTROL}
               id="setup-code"
               name="code"
               inputMode="numeric"
@@ -161,10 +165,11 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
             />
           </div>
           <div className="flex gap-2">
-            <Button type="submit" disabled={pending}>
+            <Button className={FORM_ACTION} type="submit" disabled={pending}>
               {pending ? "Checking…" : "Turn on"}
             </Button>
             <Button
+              className={FORM_ACTION}
               type="button"
               variant="ghost"
               onClick={() => setSetup(null)}
@@ -187,6 +192,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
         <div className="grid gap-2">
           <Label htmlFor="twofactor-enable-password">Your password</Label>
           <Input
+            className={ADMIN_CONTROL}
             id="twofactor-enable-password"
             name="password"
             type="password"
@@ -194,7 +200,11 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
             required
           />
         </div>
-        <Button type="submit" disabled={pending} className="self-start">
+        <Button
+          type="submit"
+          disabled={pending}
+          className={cn(FORM_ACTION, "self-start")}
+        >
           {pending ? "Starting…" : "Set up two-factor authentication"}
         </Button>
       </form>
@@ -210,6 +220,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
       <div className="grid gap-2">
         <Label htmlFor="twofactor-manage-password">Your password</Label>
         <Input
+          className={ADMIN_CONTROL}
           id="twofactor-manage-password"
           name="password"
           type="password"
@@ -219,6 +230,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <Button
+          className={FORM_ACTION}
           type="submit"
           name="intent"
           value="codes"
@@ -228,6 +240,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
           New backup codes
         </Button>
         <Button
+          className={FORM_ACTION}
           type="submit"
           name="intent"
           value="disable"

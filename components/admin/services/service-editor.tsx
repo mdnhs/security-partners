@@ -6,7 +6,14 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { EDITOR_ACTION } from "@/components/admin/editor/editor-layout"
 import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
+import { ADMIN_CONTROL, FormCard } from "@/components/admin/form/form-ui"
+import {
+  ErrorText,
+  HelpText,
+  LABEL_CLASS,
+} from "@/components/admin/schema-form/widgets/field-shell"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -19,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { usePermission } from "@/hooks/use-permission"
+import { cn } from "@/lib/utils"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import { previewHref } from "@/lib/schemas/api/preview"
 import type { ServiceDto } from "@/lib/schemas/api/services"
@@ -140,53 +148,63 @@ function SlugCard({
     },
   })
   const valid = SLUG_PATTERN.test(slug)
+  const message =
+    error ?? (valid ? null : "Lowercase letters, numbers and single hyphens.")
   return (
-    <section
-      aria-labelledby="slug-title"
-      className="flex flex-col gap-3 rounded-xl border bg-card p-4"
+    <FormCard
+      id="slug"
+      title="Page address"
+      description="Changing it moves the live page immediately."
     >
-      <h2 id="slug-title" className="text-sm font-bold">
-        Page address
-      </h2>
-      <label htmlFor="service-slug" className="text-xs text-muted-foreground">
-        /services/…
-      </label>
-      <Input
-        id="service-slug"
-        value={slug}
-        disabled={!canEdit}
-        aria-invalid={!valid || !!error}
-        aria-describedby="service-slug-help"
-        onChange={(event) => {
-          setSlug(event.target.value)
-          setError(null)
-        }}
-      />
-      <p
-        id="service-slug-help"
-        className={
-          error || !valid
-            ? "text-xs text-destructive"
-            : "text-xs text-muted-foreground"
-        }
-      >
-        {error ??
-          (valid
-            ? "Changing it moves the live page immediately."
-            : "Lowercase letters, numbers and single hyphens.")}
-      </p>
-      {canEdit ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!valid || slug === service.slug || change.isPending}
-          onClick={() => change.mutate()}
-        >
-          Change address
-        </Button>
-      ) : null}
-    </section>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="service-slug" className={LABEL_CLASS}>
+          Address
+        </label>
+        <HelpText id="service-slug-help">
+          The page lives at /services/ followed by this.
+        </HelpText>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground"
+            >
+              /services/
+            </span>
+            <Input
+              id="service-slug"
+              value={slug}
+              className={cn(ADMIN_CONTROL, "pl-[5.25rem]")}
+              disabled={!canEdit}
+              aria-invalid={!!message}
+              aria-describedby={
+                message
+                  ? "service-slug-help service-slug-error"
+                  : "service-slug-help"
+              }
+              onChange={(event) => {
+                setSlug(event.target.value)
+                setError(null)
+              }}
+            />
+          </div>
+          {canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl px-4 font-semibold pointer-coarse:h-11"
+              disabled={!valid || slug === service.slug || change.isPending}
+              onClick={() => change.mutate()}
+            >
+              Change address
+            </Button>
+          ) : null}
+        </div>
+        {message ? (
+          <ErrorText id="service-slug-error">{message}</ErrorText>
+        ) : null}
+      </div>
+    </FormCard>
   )
 }
 
@@ -226,8 +244,7 @@ function DeleteService({
       <Button
         type="button"
         variant="ghost"
-        size="sm"
-        className="text-destructive"
+        className={cn(EDITOR_ACTION, "text-destructive hover:text-destructive")}
         onClick={() => setOpen(true)}
       >
         <Trash2 aria-hidden />

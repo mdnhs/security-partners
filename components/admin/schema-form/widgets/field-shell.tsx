@@ -1,17 +1,52 @@
 "use client"
 
+import { CircleAlert } from "lucide-react"
 import type { ReactNode } from "react"
 
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { cn } from "@/lib/utils"
+
+/** A field label: medium weight, small. */
+export const LABEL_CLASS = "text-sm font-medium"
+/** Required marker drawn by CSS, so it never joins the accessible name. */
+export const REQUIRED_MARK =
+  "after:-ml-1.5 after:text-destructive after:content-['*']"
+
+/** An error message with its icon (WCAG 1.4.1: not colour alone). */
+export function ErrorText({
+  id,
+  children,
+}: {
+  id: string
+  children: ReactNode
+}) {
+  return (
+    <FieldError id={id} className="flex items-start gap-1.5">
+      <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      <span>{children}</span>
+    </FieldError>
+  )
+}
+
+/** The hint under a label (`${id}-help`). */
+export function HelpText({
+  id,
+  children,
+}: {
+  id: string
+  children: ReactNode
+}) {
+  return (
+    <p id={id} className="text-xs leading-relaxed text-muted-foreground">
+      {children}
+    </p>
+  )
+}
 
 /**
- * Label, help and error around one input. Ids follow `${id}-help` /
- * `${id}-error`; widgets pass `describedBy(id, …)` to their input.
+ * Label, hint and error around one input (JW field look): label and hint
+ * above the control, `extra` (e.g. a counter) and the error below. Ids
+ * follow `${id}-help` / `${id}-error`; widgets pass `describedBy(id, …)`.
  */
 export function FieldShell({
   id,
@@ -27,24 +62,29 @@ export function FieldShell({
   help?: string
   error?: string
   optional?: boolean
-  /** Under the input, before help (e.g. a character counter). */
+  /** Under the input, before the error (e.g. a character counter). */
   extra?: ReactNode
   children: ReactNode
 }) {
   return (
-    <Field data-invalid={error ? true : undefined}>
-      <FieldLabel htmlFor={id}>
-        {label}
-        {optional ? (
-          <span className="font-normal text-muted-foreground">(optional)</span>
-        ) : null}
-      </FieldLabel>
+    <Field data-invalid={error ? true : undefined} className="gap-2">
+      <div className="flex flex-col gap-0.5">
+        <FieldLabel
+          htmlFor={id}
+          className={cn(LABEL_CLASS, !optional && REQUIRED_MARK)}
+        >
+          {label}
+          {optional ? (
+            <span className="font-normal text-muted-foreground">
+              (optional)
+            </span>
+          ) : null}
+        </FieldLabel>
+        {help ? <HelpText id={`${id}-help`}>{help}</HelpText> : null}
+      </div>
       {children}
       {extra}
-      {help ? (
-        <FieldDescription id={`${id}-help`}>{help}</FieldDescription>
-      ) : null}
-      {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
+      {error ? <ErrorText id={`${id}-error`}>{error}</ErrorText> : null}
     </Field>
   )
 }
@@ -55,8 +95,8 @@ export function describedBy(
   opts: { help?: string; error?: string; extraId?: string }
 ): string | undefined {
   const ids = [
-    opts.extraId,
     opts.help ? `${id}-help` : null,
+    opts.extraId,
     opts.error ? `${id}-error` : null,
   ].filter(Boolean)
   return ids.length ? ids.join(" ") : undefined

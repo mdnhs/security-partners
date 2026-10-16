@@ -1,5 +1,7 @@
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 
+import { PAGE_HERO_GROUPS } from "../shared/editor-groups"
+
 /** Editor labels for the Blog page (template "blog"). Articles are edited under Articles. */
 export const blogEditorMeta: EditorMeta = {
   fields: {
@@ -16,4 +18,5 @@ export const blogEditorMeta: EditorMeta = {
     },
     pageSize: { label: "Articles per page" },
   },
+  groups: { hero: PAGE_HERO_GROUPS },
 }

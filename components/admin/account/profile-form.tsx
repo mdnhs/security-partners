@@ -4,10 +4,13 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { FormError, FormNotice } from "@/components/admin/auth/form-messages"
+import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
+import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient, authErrorMessage } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
 
 export function ProfileForm({
   name,
@@ -58,11 +61,18 @@ export function ProfileForm({
       ) : null}
       <div className="grid gap-2">
         <Label htmlFor="profile-email">Email</Label>
-        <Input id="profile-email" value={email} disabled readOnly />
+        <Input
+          className={ADMIN_CONTROL}
+          id="profile-email"
+          value={email}
+          disabled
+          readOnly
+        />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="profile-name">Name</Label>
         <Input
+          className={ADMIN_CONTROL}
           id="profile-name"
           name="name"
           defaultValue={name}
@@ -74,6 +84,7 @@ export function ProfileForm({
       <div className="grid gap-2">
         <Label htmlFor="profile-title">Job title</Label>
         <Input
+          className={ADMIN_CONTROL}
           id="profile-title"
           name="title"
           defaultValue={title ?? ""}
@@ -84,7 +95,11 @@ export function ProfileForm({
           Shown as the byline role on articles you write.
         </p>
       </div>
-      <Button type="submit" disabled={pending} className="self-start">
+      <Button
+        type="submit"
+        disabled={pending}
+        className={cn(FORM_ACTION, "self-start")}
+      >
         {pending ? "Saving…" : "Save profile"}
       </Button>
     </form>

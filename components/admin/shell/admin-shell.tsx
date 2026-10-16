@@ -28,7 +28,9 @@ import { Topbar } from "./topbar"
  * --content-h does not subtract the impersonation banner (its height wraps
  * with the viewport): while impersonating, the panel is shorter by the
  * banner plus a 12 px gap, so panes sized by it must also cap at the panel
- * (e.g. max-h-full) rather than rely on it alone.
+ * (e.g. max-h-full) rather than rely on it alone. Inside the panel,
+ * --main-h is its measured height (banner included) and --main-pad its
+ * padding, so sticky panes can size and offset themselves exactly.
  */
 export function AdminShell({
   session,
@@ -48,7 +50,7 @@ export function AdminShell({
   /** Counts beside nav items (e.g. new leads, from Phase 7). */
   badges?: NavBadges
 }) {
-  const mainRef = useScrollTopOnNavigate()
+  const mainRef = useMainPanel()
   return (
     <AdminSessionProvider value={session}>
       <AdminProviders
@@ -85,7 +87,7 @@ export function AdminShell({
                   ref={mainRef}
                   id="main"
                   tabIndex={-1}
-                  className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-4 outline-none sm:p-6 lg:p-8"
+                  className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-(--main-pad) outline-none [--main-pad:1rem] sm:[--main-pad:1.5rem] lg:[--main-pad:2rem]"
                 >
                   {children}
                 </main>
@@ -103,12 +105,24 @@ export function AdminShell({
  * The content panel, not the document, scrolls, so Next's scroll-to-top on
  * navigation never reaches it: a new page starts at the panel's top. A URL
  * with a #fragment is left alone so the browser scrolls the target into view.
+ * Also publishes the panel's height as --main-h.
  */
-function useScrollTopOnNavigate() {
+function useMainPanel() {
   const ref = useRef<HTMLElement>(null)
   const pathname = usePathname()
   useEffect(() => {
     if (ref.current && !window.location.hash) ref.current.scrollTop = 0
   }, [pathname])
+  // --main-h: the panel's height (it shrinks under the impersonation banner).
+  useEffect(() => {
+    const main = ref.current
+    if (!main) return
+    const measure = () =>
+      main.style.setProperty("--main-h", `${main.clientHeight}px`)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(main)
+    return () => observer.disconnect()
+  }, [])
   return ref
 }

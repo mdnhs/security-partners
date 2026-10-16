@@ -121,8 +121,16 @@ describe("settings editor (master 4.5)", () => {
     const bar = heading.closest('[data-slot="editor-bar"]')
     expect(bar).toHaveClass("bg-card", "rounded-t-card", "border-b")
     expect(bar).not.toHaveClass("backdrop-blur")
-    // Its sticky wrapper covers main's top padding so nothing shows above it.
-    expect(bar?.parentElement).toHaveClass("sticky", "lg:-top-8", "bg-sidebar")
+    // Sticky itself; offsets come from main's and the card's padding
+    // variables, and a ::before strip in main's grey fills above it.
+    expect(bar).toHaveClass(
+      "sticky",
+      "lg:top-0",
+      "-mx-(--card-pad,0px)",
+      "-mt-(--card-pad,0px)",
+      "before:bg-sidebar",
+      "lg:before:h-(--main-pad)"
+    )
     expect(bar?.closest('[data-slot="section-tabs-content"]')).toHaveClass(
       "bg-card"
     )

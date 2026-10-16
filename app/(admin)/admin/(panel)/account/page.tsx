@@ -34,7 +34,7 @@ async function Account() {
   const { user, session } = await requireSession()
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Account</h1>
+      <h1 className="text-title">Account</h1>
       {session.impersonatedBy ? (
         <FormNotice>
           You are viewing the admin as {user.name}. Account settings are
@@ -44,6 +44,7 @@ async function Account() {
         <SectionTabs ariaLabel="Account sections" items={TABS}>
           <SectionTabsPanel id="profile">
             <AccountSection
+              id="profile"
               title="Profile"
               description="Your name and job title appear on articles you write."
             >
@@ -56,6 +57,7 @@ async function Account() {
           </SectionTabsPanel>
           <SectionTabsPanel id="password">
             <AccountSection
+              id="password"
               title="Password"
               description="Changing your password signs out your other devices."
             >
@@ -64,6 +66,7 @@ async function Account() {
           </SectionTabsPanel>
           <SectionTabsPanel id="two-factor">
             <AccountSection
+              id="two-factor"
               title="Two-factor authentication"
               description="A code from your phone in addition to your password."
             >
@@ -72,6 +75,7 @@ async function Account() {
           </SectionTabsPanel>
           <SectionTabsPanel id="sessions">
             <AccountSection
+              id="sessions"
               title="Sessions"
               description="Where your account is signed in. Sign out anything you do not recognise."
             >

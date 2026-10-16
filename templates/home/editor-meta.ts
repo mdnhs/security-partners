@@ -32,13 +32,42 @@ export const homeEditorMeta: EditorMeta = {
       label: "Suffix after the number",
       help: "Optional, e.g. +.",
     },
-    services: { label: "Services section" },
-    team: { label: "Team section" },
-    blog: { label: "Blog section" },
+    services: {
+      label: "Services section",
+      help: "The heading above the service cards.",
+    },
+    team: {
+      label: "Team section",
+      help: "The heading above the team photos.",
+    },
+    blog: {
+      label: "Blog section",
+      help: "The latest articles near the end of the page.",
+    },
     "blog.cta": { label: "Button" },
     "blog.count": {
       label: "Posts shown",
       help: "How many recent articles appear on the home page.",
     },
+  },
+  groups: {
+    hero: [
+      {
+        title: "Text",
+        description: "The words over the banner photo.",
+        fields: ["eyebrow", "heading", "tagline", "subheading"],
+      },
+      { title: "Background", fields: ["backgroundImage"] },
+      {
+        title: "Buttons",
+        description: "The two calls to action under the text.",
+        fields: ["primaryCta", "secondaryCta"],
+      },
+      {
+        title: "Stats",
+        description: "The figures along the bottom of the banner.",
+        fields: ["stats"],
+      },
+    ],
   },
 }
