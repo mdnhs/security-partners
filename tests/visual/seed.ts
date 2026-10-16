@@ -11,7 +11,7 @@ import { getEnv } from "@/server/env"
 
 import { resetDb } from "../integration/db"
 
-import { VISUAL_ADMIN } from "./admin-user"
+import { VISUAL_ADMIN, VISUAL_EDITOR } from "./admin-user"
 
 const { DATABASE_URL } = getEnv()
 const name = new URL(DATABASE_URL).pathname
@@ -21,7 +21,8 @@ if (!name.endsWith("_e2e"))
 await runMigrations(DATABASE_URL)
 await resetDb()
 const report = await seedContent(getDb())
-await getAuth().api.createUser({
+const auth = getAuth()
+await auth.api.createUser({
   body: {
     email: VISUAL_ADMIN.email,
     name: VISUAL_ADMIN.name,
@@ -29,7 +30,15 @@ await getAuth().api.createUser({
     password: VISUAL_ADMIN.password,
   },
 })
+await auth.api.createUser({
+  body: {
+    email: VISUAL_EDITOR.email,
+    name: VISUAL_EDITOR.name,
+    role: ["editor"],
+    password: VISUAL_EDITOR.password,
+  },
+})
 await closeDb()
 console.log(
-  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin)`
+  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin, 1 editor)`
 )

@@ -4,3 +4,11 @@ export const VISUAL_ADMIN = {
   name: "Vera Visual",
   password: "visual-password-0123456789",
 } as const
+
+// An editor: the admin views the panel as them (impersonation banner), and
+// signed in as them /admin/users is forbidden (the 403 state).
+export const VISUAL_EDITOR = {
+  email: "eddie@visual.test",
+  name: "Eddie Visual",
+  password: "visual-password-0123456789",
+} as const

@@ -44,7 +44,14 @@ export function WebsiteCard({
         {status.label}
       </p>
       <p className="mt-3 text-lg leading-tight font-semibold">Your website</p>
-      {host ? <p className="mt-1 truncate text-xs opacity-75">{host}</p> : null}
+      {host ? (
+        <p
+          data-slot="website-host"
+          className="mt-1 truncate text-xs opacity-75"
+        >
+          {host}
+        </p>
+      ) : null}
       <a
         href={site.url}
         target="_blank"
