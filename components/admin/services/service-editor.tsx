@@ -33,14 +33,23 @@ export function ServiceEditor({ id }: { id: string }) {
   const canPublish = usePermission({ service: ["publish"] })
   const canDelete = usePermission({ service: ["delete"] })
   const queryKey = ["services", id] as const
+  // Once deleted, nothing may load the record again (it would 404).
+  const [deleted, setDeleted] = useState(false)
   const record = useQuery({
     queryKey,
     queryFn: () => unwrap(api.services[":id"].$get({ param: { id } })),
+    enabled: !deleted,
   })
   const param = { id }
   // A slug change bumps the record version; the editor keeps the version it
   // loaded, so it is remounted from the updated cache (else the next save 409s).
   const [epoch, setEpoch] = useState(0)
+  if (deleted)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Service deleted. Returning to all services…
+      </p>
+    )
   return (
     <VersionedEditor<ServiceDto>
       key={epoch}
@@ -74,7 +83,10 @@ export function ServiceEditor({ id }: { id: string }) {
       canPublish={canPublish}
       actions={
         canDelete && record.data ? (
-          <DeleteService service={record.data} />
+          <DeleteService
+            service={record.data}
+            onDeleted={() => setDeleted(true)}
+          />
         ) : null
       }
       aside={
@@ -178,7 +190,13 @@ function SlugCard({
   )
 }
 
-function DeleteService({ service }: { service: ServiceDto }) {
+function DeleteService({
+  service,
+  onDeleted,
+}: {
+  service: ServiceDto
+  onDeleted: () => void
+}) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -192,6 +210,9 @@ function DeleteService({ service }: { service: ServiceDto }) {
       ),
     onSuccess: async () => {
       toast.success(`${service.title} deleted`)
+      onDeleted()
+      // Drop the deleted record first so nothing refetches it (404).
+      queryClient.removeQueries({ queryKey: ["services", service.id] })
       await queryClient.invalidateQueries({ queryKey: ["services"] })
       router.push("/admin/services")
     },

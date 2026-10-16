@@ -92,11 +92,8 @@ export function ReorderPanel({
   })
   if (all.isPending)
     return (
-      <div
-        className="flex flex-col gap-2"
-        aria-busy="true"
-        aria-label="Loading"
-      >
+      <div role="status" aria-busy="true" className="flex flex-col gap-2">
+        <span className="sr-only">Loading {label.toLowerCase()}…</span>
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton key={i} className="h-12 rounded-lg" />
         ))}
@@ -104,11 +101,24 @@ export function ReorderPanel({
     )
   if (all.isError)
     return (
-      <p role="alert" className="text-sm text-destructive">
-        {all.error instanceof ApiError || !(all.error instanceof Error)
-          ? errorMessage(all.error)
-          : all.error.message}
-      </p>
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-xl border p-6"
+      >
+        <p className="text-sm">
+          {all.error instanceof ApiError || !(all.error instanceof Error)
+            ? errorMessage(all.error)
+            : all.error.message}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => all.refetch()}
+        >
+          Try again
+        </Button>
+      </div>
     )
   return (
     <div className="flex flex-col gap-4">

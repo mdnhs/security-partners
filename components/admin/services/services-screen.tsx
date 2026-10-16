@@ -167,6 +167,17 @@ export function ServicesScreen() {
             )
           }}
           empty="No services yet."
+          emptyAction={
+            canCreate ? (
+              <Link
+                href="/admin/services/new"
+                className={buttonClassName({ size: "sm" })}
+              >
+                <Plus aria-hidden />
+                New service
+              </Link>
+            ) : null
+          }
         />
       )}
     </>

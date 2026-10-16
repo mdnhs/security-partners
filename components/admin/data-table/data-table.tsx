@@ -12,7 +12,7 @@ import {
   useTable,
 } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Search } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useId, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,6 +66,7 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   initialSort,
   searchPlaceholder = "Search",
   empty,
+  emptyAction,
 }: {
   /** Accessible name (table caption, list label). */
   label: string
@@ -77,6 +78,8 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   initialSort?: SortingState
   searchPlaceholder?: string
   empty: ReactNode
+  /** Call to action in the empty state (e.g. "Add category"); omit for read-only users. */
+  emptyAction?: ReactNode
 }) {
   const [sorting, setSorting] = useState<SortingState>(initialSort ?? [])
   const [pagination, setPagination] = useState<PaginationState>({
@@ -85,6 +88,14 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   })
   const [search, setSearch] = useState("")
   const q = useDebouncedValue(search.trim(), 250)
+  // Back to page 1 when the debounced query changes (adjusted during render,
+  // so no request goes out for the new page with the old query or vice versa).
+  const [pagedQ, setPagedQ] = useState(q)
+  if (pagedQ !== q) {
+    setPagedQ(q)
+    if (pagination.pageIndex !== 0)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
   const sort = sorting[0]
     ? `${sorting[0].id}:${sorting[0].desc ? "desc" : "asc"}`
     : undefined
@@ -99,8 +110,25 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
     queryKey: [...queryKey, "list", params],
     queryFn: () => fetchPage(params),
     placeholderData: keepPreviousData,
+    // Editors elsewhere change status/titles: show the cache, then refresh.
+    staleTime: 0,
   })
   const rows = query.data?.items ?? EMPTY_ROWS
+  // A page past the end (last row deleted, list shrank): go to the last page.
+  if (
+    query.data &&
+    !query.isPlaceholderData &&
+    rows.length === 0 &&
+    query.data.total > 0 &&
+    pagination.pageIndex > 0
+  ) {
+    const last = Math.max(
+      0,
+      Math.ceil(query.data.total / pagination.pageSize) - 1
+    )
+    if (last !== pagination.pageIndex)
+      setPagination((p) => ({ ...p, pageIndex: last }))
+  }
   const table = useTable({
     features: dataTableFeatures,
     columns,
@@ -115,6 +143,20 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
       setPagination((p) => ({ ...p, pageIndex: 0 }))
     },
     onPaginationChange: setPagination,
+  })
+
+  const sortId = useId()
+  // Phones get a select instead of sortable headers (cards have no headers).
+  const sortOptions = table.getAllLeafColumns().flatMap((column) => {
+    if (!column.getCanSort()) return []
+    const name =
+      typeof column.columnDef.header === "string"
+        ? column.columnDef.header
+        : column.id
+    return [
+      { value: `${column.id}:asc`, label: `${name} (ascending)` },
+      { value: `${column.id}:desc`, label: `${name} (descending)` },
+    ]
   })
 
   const total = query.data?.total ?? 0
@@ -134,12 +176,33 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
           placeholder={searchPlaceholder}
           className="pl-8"
           value={search}
-          onChange={(event) => {
-            setSearch(event.target.value)
-            setPagination((p) => ({ ...p, pageIndex: 0 }))
-          }}
+          onChange={(event) => setSearch(event.target.value)}
         />
       </div>
+      {sortOptions.length ? (
+        <div className="flex items-center gap-2 text-sm sm:hidden">
+          <label htmlFor={sortId} className="text-muted-foreground">
+            Sort by
+          </label>
+          <select
+            id={sortId}
+            value={sort ?? ""}
+            onChange={(event) => {
+              const [id, dir] = event.target.value.split(":")
+              setSorting(id ? [{ id, desc: dir === "desc" }] : [])
+              setPagination((p) => ({ ...p, pageIndex: 0 }))
+            }}
+            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="">Default order</option>
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       {query.isError ? (
         <div
@@ -157,11 +220,8 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
           </Button>
         </div>
       ) : query.isPending ? (
-        <div
-          className="flex flex-col gap-2"
-          aria-busy="true"
-          aria-label={`Loading ${label.toLowerCase()}`}
-        >
+        <div role="status" aria-busy="true" className="flex flex-col gap-2">
+          <span className="sr-only">Loading {label.toLowerCase()}…</span>
           {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-12 rounded-lg" />
           ))}
@@ -169,7 +229,14 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
           <Inbox aria-hidden className="size-6" />
-          {q ? `Nothing matches “${q}”.` : empty}
+          {q ? (
+            `Nothing matches “${q}”.`
+          ) : (
+            <>
+              <span>{empty}</span>
+              {emptyAction}
+            </>
+          )}
         </div>
       ) : (
         <>

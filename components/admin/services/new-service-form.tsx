@@ -73,6 +73,7 @@ export function NewServiceForm() {
           <Button
             type="button"
             disabled={create.isPending || !slugValid}
+            aria-describedby={slugValid ? undefined : "new-service-slug-help"}
             onClick={() => create.mutate()}
           >
             Create draft
@@ -96,17 +97,37 @@ export function NewServiceForm() {
           id="new-service-slug"
           className="max-w-md"
           value={effectiveSlug}
-          aria-invalid={!slugValid || !!errors?.slug}
+          aria-invalid={(!!effectiveSlug && !slugValid) || !!errors?.slug}
+          aria-describedby="new-service-slug-help"
           onChange={(event) => {
             setSlugTouched(true)
             setSlug(event.target.value)
           }}
         />
         {errors?.slug ? (
-          <p role="alert" className="text-sm text-destructive">
+          <p
+            id="new-service-slug-help"
+            role="alert"
+            className="text-sm text-destructive"
+          >
             {errors.slug[0]}
           </p>
-        ) : null}
+        ) : (
+          <p
+            id="new-service-slug-help"
+            className={
+              effectiveSlug && !slugValid
+                ? "text-sm text-destructive"
+                : "text-sm text-muted-foreground"
+            }
+          >
+            {!effectiveSlug
+              ? "Enter the service name below; the address is made from it. You can create the draft once it has an address."
+              : slugValid
+                ? `The page will be at /services/${effectiveSlug}.`
+                : "Use lowercase letters, numbers and single hyphens to create the draft."}
+          </p>
+        )}
       </section>
       <SchemaForm
         schema={serviceContent}

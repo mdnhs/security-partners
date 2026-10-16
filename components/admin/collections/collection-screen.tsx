@@ -68,11 +68,24 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
   const api = client(name)
   const queryKey = ["collections", name] as const
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey })
+  const refresh = () => {
+    // A record opened again via ?edit must load fresh, not from this cache.
+    queryClient.removeQueries({ queryKey: ["collection-item", name] })
+    return queryClient.invalidateQueries({ queryKey })
+  }
   const closeEdit = () => {
     setEditing(null)
     if (editId) router.replace(pathname)
   }
+  // ⌘K links to ?edit=<id>; without update permission there is no editor.
+  const readOnlyEdit = !!editId && !canUpdate
+  useEffect(() => {
+    if (!readOnlyEdit) return
+    toast.info("You can view this list but not edit it", {
+      description: "Ask an administrator if you need to make changes.",
+    })
+    router.replace(pathname)
+  }, [readOnlyEdit, router, pathname])
 
   // Stable per collection + permission (TanStack Table v9 wants stable columns).
   const columns = useMemo<DataTableColumns<AnyItem>>(
@@ -178,6 +191,14 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
             )
           }
           empty={config.empty}
+          emptyAction={
+            canCreate ? (
+              <Button type="button" size="sm" onClick={() => setCreating(true)}>
+                <Plus aria-hidden />
+                Add {config.singular.toLowerCase()}
+              </Button>
+            ) : null
+          }
         />
       )}
       {creating ? (
@@ -235,6 +256,7 @@ function EditSheet({
     queryFn: () => api.get(editId!),
     enabled: !!editId && canEdit,
     retry: false,
+    refetchOnMount: "always",
   })
   const failed = loaded.isError
   useEffect(() => {
@@ -245,7 +267,8 @@ function EditSheet({
     onClose()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per failure
   }, [failed])
-  const record = item ?? loaded.data ?? null
+  // Only data fetched for this opening: RecordSheet reads `initial` once.
+  const record = item ?? (loaded.isFetchedAfterMount ? loaded.data : null)
   if (!record || !canEdit) return null
   return (
     <RecordSheet

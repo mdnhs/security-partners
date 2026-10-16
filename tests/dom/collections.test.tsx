@@ -194,6 +194,275 @@ describe("collection screen: reorder and ?edit (⌘K)", () => {
   })
 })
 
+const session = (roles: Role[]) => ({
+  user: {
+    id: "u",
+    name: "U",
+    email: "u@x.test",
+    title: null,
+    twoFactorEnabled: true,
+  },
+  roles,
+  impersonatedBy: null,
+})
+
+/** Wraps the current fetch mock: `routes` answer first, the rest falls through. */
+function route(
+  routes: (
+    url: URL,
+    method: string,
+    init?: RequestInit
+  ) => Response | undefined | Promise<Response | undefined>
+) {
+  const fallback = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementation(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost")
+      return (
+        (await routes(url, init?.method ?? "GET", init)) ??
+        fallback(input, init)
+      )
+    }
+  )
+}
+
+describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)", () => {
+  const empty = () =>
+    route((url, method) =>
+      method === "GET" && url.pathname === "/api/v1/admin/categories"
+        ? json(200, { items: [], page: 1, pageSize: 20, total: 0 })
+        : undefined
+    )
+
+  it("offers an Add action in the empty state to editors", async () => {
+    empty()
+    const user = userEvent.setup()
+    renderScreen()
+    expect(await screen.findByText("No categories yet.")).toBeInTheDocument()
+    const adds = screen.getAllByRole("button", { name: "Add category" })
+    expect(adds).toHaveLength(2)
+    await user.click(adds[1])
+    expect(
+      await screen.findByRole("dialog", { name: "Category" })
+    ).toBeInTheDocument()
+  })
+
+  it("shows only the empty text to viewers", async () => {
+    empty()
+    renderScreen(["viewer"])
+    expect(await screen.findByText("No categories yet.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Add category" })).toBeNull()
+  })
+
+  it("goes back to the last page when the current page comes back empty", async () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      ...category(1),
+      id: `00000000-0000-7000-8000-0000000001${String(i).padStart(2, "0")}`,
+      name: `Item ${i}`,
+    }))
+    route((url, method) => {
+      if (method !== "GET" || url.pathname !== "/api/v1/admin/categories")
+        return undefined
+      const page = Number(url.searchParams.get("page"))
+      // Page 1 first reports 21 records; by the time page 2 loads one was deleted.
+      return page === 1
+        ? json(200, { items: many, page, pageSize: 20, total: 21 })
+        : json(200, { items: [], page, pageSize: 20, total: 20 })
+    })
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    const pager = screen.getByRole("navigation", { name: "Pagination" })
+    await user.click(within(pager).getByRole("button", { name: "Next" }))
+    const pagesAsked = () =>
+      fetchMock.mock.calls.map(([input]) =>
+        new URL(String(input), "http://localhost").searchParams.get("page")
+      )
+    await waitFor(() => expect(pagesAsked()).toContain("2"))
+    await waitFor(() => expect(pagesAsked().at(-1)).toBe("1"))
+    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(21))
+  })
+
+  it("a new search goes to page 1 without a request mixing old and new state", async () => {
+    route((url, method) => {
+      if (method !== "GET" || url.pathname !== "/api/v1/admin/categories")
+        return undefined
+      const page = Number(url.searchParams.get("page"))
+      return json(200, {
+        items: [category(page)],
+        page,
+        pageSize: 20,
+        total: url.searchParams.get("q") ? 1 : 21,
+      })
+    })
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    const pager = screen.getByRole("navigation", { name: "Pagination" })
+    await user.click(within(pager).getByRole("button", { name: "Next" }))
+    await waitFor(() => expect(lastUrl().searchParams.get("page")).toBe("2"))
+    const before = fetchMock.mock.calls.length
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search categories" }),
+      "x"
+    )
+    await waitFor(() => expect(lastUrl().searchParams.get("q")).toBe("x"))
+    const after = fetchMock.mock.calls
+      .slice(before)
+      .map(([input]) => new URL(String(input), "http://localhost").searchParams)
+      .filter((p) => p.get("sort") !== "sortOrder:asc")
+    expect(after.map((p) => `${p.get("page")}:${p.get("q")}`)).toEqual(["1:x"])
+  })
+
+  it("reopening ?edit after a save shows the saved value, not the cache", async () => {
+    const target = category(2)
+    let stored = { ...target }
+    route(async (url, method, init) => {
+      if (url.pathname !== `/api/v1/admin/categories/${target.id}`)
+        return undefined
+      if (method === "PUT") {
+        stored = { ...stored, ...JSON.parse(String(init!.body)) }
+        return json(200, stored)
+      }
+      return json(200, stored)
+    })
+    const client = makeQueryClient()
+    const tree = () => (
+      <AdminShell queryClient={client} session={session(["editor"])}>
+        <CollectionScreen name="categories" />
+      </AdminShell>
+    )
+    const user = userEvent.setup()
+    search.current = new URLSearchParams(`edit=${target.id}`)
+    const { rerender } = render(tree())
+    const sheet = await screen.findByRole("dialog", { name: "Category" })
+    const name = within(sheet).getByRole("textbox", { name: "Name" })
+    await waitFor(() => expect(name).toHaveValue("Category 2"))
+    await user.clear(name)
+    await user.type(name, "Renamed")
+    await user.click(within(sheet).getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/admin/categories")
+    )
+    // The router drops ?edit, then ⌘K opens the same record again.
+    search.current = new URLSearchParams()
+    rerender(tree())
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    search.current = new URLSearchParams(`edit=${target.id}`)
+    rerender(tree())
+    const again = await screen.findByRole("dialog", { name: "Category" })
+    await waitFor(() =>
+      expect(within(again).getByRole("textbox", { name: "Name" })).toHaveValue(
+        "Renamed"
+      )
+    )
+  })
+
+  it("a viewer following ?edit gets the list without the param or an editor", async () => {
+    search.current = new URLSearchParams(`edit=${category(1).id}`)
+    renderScreen(["viewer"])
+    await screen.findByRole("table", { name: "Categories" })
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/admin/categories")
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+})
+
+describe("reorder panel save", () => {
+  const ids = (n: number[]) => n.map((i) => category(i).id)
+
+  it("PUTs the full new order, then returns to the list", async () => {
+    const puts: unknown[] = []
+    route((url, method, init) => {
+      if (
+        method === "PUT" &&
+        url.pathname === "/api/v1/admin/reorder/categories"
+      ) {
+        puts.push(JSON.parse(String(init!.body)))
+        return json(200, { ids: [] })
+      }
+      return undefined
+    })
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    await user.click(screen.getByRole("button", { name: "Change order" }))
+    await screen.findByRole("list", { name: "Categories order" })
+    const save = screen.getByRole("button", { name: "Save order" })
+    expect(save).toBeDisabled()
+    await user.click(
+      screen.getByRole("button", { name: "Move Category 1 down" })
+    )
+    await user.click(save)
+    await waitFor(() => expect(puts).toEqual([{ ids: ids([2, 1, 3]) }]))
+    expect(
+      await screen.findByRole("table", { name: "Categories" })
+    ).toBeInTheDocument()
+  })
+
+  it("on 409 reloads the current order and drops the local one", async () => {
+    route((url, method) =>
+      method === "PUT" && url.pathname === "/api/v1/admin/reorder/categories"
+        ? json(409, {
+            error: {
+              code: "CONFLICT",
+              message: "Changed",
+              current: { ids: [] },
+            },
+          })
+        : undefined
+    )
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    await user.click(screen.getByRole("button", { name: "Change order" }))
+    const list = await screen.findByRole("list", { name: "Categories order" })
+    await user.click(
+      screen.getByRole("button", { name: "Move Category 1 down" })
+    )
+    const firstPages = () =>
+      fetchMock.mock.calls.filter(([input]) => {
+        const url = new URL(String(input), "http://localhost")
+        return (
+          url.searchParams.get("sort") === "sortOrder:asc" &&
+          url.searchParams.get("page") === "1"
+        )
+      }).length
+    const before = firstPages()
+    await user.click(screen.getByRole("button", { name: "Save order" }))
+    await waitFor(() => expect(firstPages()).toBe(before + 1))
+    await waitFor(() =>
+      expect(within(list).getAllByRole("listitem")[0]).toHaveTextContent(
+        "Category 1"
+      )
+    )
+    expect(screen.getByRole("button", { name: "Save order" })).toBeDisabled()
+  })
+
+  it("shows Try again when the order cannot be loaded", async () => {
+    let fail = true
+    route((url, method) =>
+      fail &&
+      method === "GET" &&
+      url.pathname === "/api/v1/admin/categories" &&
+      url.searchParams.get("sort") === "sortOrder:asc"
+        ? json(403, { error: { code: "FORBIDDEN", message: "Not allowed" } })
+        : undefined
+    )
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    await user.click(screen.getByRole("button", { name: "Change order" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Not allowed")
+    fail = false
+    await user.click(screen.getByRole("button", { name: "Try again" }))
+    expect(
+      await screen.findByRole("list", { name: "Categories order" })
+    ).toBeInTheDocument()
+  })
+})
+
 describe("SortableList (keyboard alternative to dragging)", () => {
   it("moves items with the Move buttons and keeps focus on the moved item", async () => {
     const user = userEvent.setup()
