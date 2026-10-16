@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -101,9 +102,9 @@ export function RecordSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-xl">
+      <SheetContent side="right" className="w-full gap-0 bg-card sm:max-w-xl">
         <SheetHeader className="border-b">
-          <SheetTitle>{title}</SheetTitle>
+          <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto p-4">
@@ -132,12 +133,14 @@ export function RecordSheet({
             <Button
               type="button"
               variant="outline"
+              className={FORM_ACTION}
               onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button
               type="button"
+              className={FORM_ACTION}
               disabled={save.isPending}
               onClick={() => save.mutate()}
             >

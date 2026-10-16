@@ -13,10 +13,13 @@ import {
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
-import { statusLabel } from "@/components/admin/editor/editor-layout"
-import { PageHeader } from "@/components/admin/page-header"
-import { Badge } from "@/components/ui/badge"
-import { Button, buttonClassName } from "@/components/ui/button"
+import { ContentStatusPills } from "@/components/admin/kit/content-status"
+import {
+  LINK_PRIMARY,
+  PageHeader,
+  SECONDARY_ACTION,
+} from "@/components/admin/page-header"
+import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { api, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
@@ -31,7 +34,7 @@ const columns = ch.columns([
     cell: (info) => (
       <Link
         href={`/admin/services/${info.row.original.id}`}
-        className="font-medium hover:underline"
+        className="font-semibold underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {info.getValue()}
       </Link>
@@ -41,19 +44,22 @@ const columns = ch.columns([
     header: "Address",
     enableSorting: false,
     cell: (info) => (
-      <span className="text-muted-foreground">/services/{info.getValue()}</span>
+      <code className="font-mono text-xs text-muted-foreground">
+        /services/{info.getValue()}
+      </code>
     ),
   }),
   ch.display({
     id: "status",
     header: "Status",
-    cell: ({ row }) => {
-      const s = statusLabel({
-        published: row.original.publishedAt ? true : null,
-        dirty: row.original.dirty,
-      })
-      return <Badge variant={s.variant}>{s.text}</Badge>
-    },
+    cell: ({ row }) => (
+      <ContentStatusPills
+        record={{
+          published: row.original.publishedAt ? true : null,
+          dirty: row.original.dirty,
+        }}
+      />
+    ),
   }),
   ch.accessor("updatedAt", {
     header: "Updated",
@@ -83,6 +89,7 @@ export function ServicesScreen() {
               <Button
                 type="button"
                 variant="outline"
+                className={SECONDARY_ACTION}
                 onClick={() => setReordering((v) => !v)}
                 aria-pressed={reordering}
               >
@@ -91,7 +98,7 @@ export function ServicesScreen() {
               </Button>
             ) : null}
             {canCreate ? (
-              <Link href="/admin/services/new" className={buttonClassName({})}>
+              <Link href="/admin/services/new" className={LINK_PRIMARY}>
                 <Plus aria-hidden />
                 New service
               </Link>
@@ -146,33 +153,29 @@ export function ServicesScreen() {
             }
           }
           columns={columns}
-          renderCard={(row) => {
-            const s = statusLabel({
-              published: row.publishedAt ? true : null,
-              dirty: row.dirty,
-            })
-            return (
-              <Link
-                href={`/admin/services/${row.id}`}
-                className="flex items-center gap-3 rounded-xl border bg-card p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="font-medium">{row.title}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    /services/{row.slug}
-                  </span>
+          renderCard={(row) => (
+            <Link
+              href={`/admin/services/${row.id}`}
+              className="rounded-card flex items-center gap-3 bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-semibold">{row.title}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  /services/{row.slug}
                 </span>
-                <Badge variant={s.variant}>{s.text}</Badge>
-              </Link>
-            )
-          }}
+              </span>
+              <ContentStatusPills
+                record={{
+                  published: row.publishedAt ? true : null,
+                  dirty: row.dirty,
+                }}
+              />
+            </Link>
+          )}
           empty="No services yet."
           emptyAction={
             canCreate ? (
-              <Link
-                href="/admin/services/new"
-                className={buttonClassName({ size: "sm" })}
-              >
+              <Link href="/admin/services/new" className={LINK_PRIMARY}>
                 <Plus aria-hidden />
                 New service
               </Link>

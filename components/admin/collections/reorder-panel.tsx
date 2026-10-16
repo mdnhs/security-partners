@@ -8,11 +8,15 @@ import {
   type SortableItem,
   SortableList,
 } from "@/components/admin/sortable-list"
+import { EmptyState } from "@/components/admin/kit/empty-state"
+import { CardSkeleton } from "@/components/admin/kit/skeletons"
+import { FORM_ACTION } from "@/components/admin/page-header"
+import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import type { Reorderable } from "@/lib/schemas/api/collections"
 import { type Paginated, PAGE_SIZE_MAX } from "@/lib/schemas/api/list"
+import { cn } from "@/lib/utils"
 
 /** PUT /reorder accepts at most this many ids (reorderInput). */
 export const REORDER_MAX_ITEMS = 500
@@ -56,6 +60,7 @@ export function ReorderPanel({
   onDone: () => void
 }) {
   const queryClient = useQueryClient()
+  const onCard = useInSectionTabs()
   const all = useQuery({
     queryKey: [...queryKey, "all"],
     queryFn: load,
@@ -92,33 +97,31 @@ export function ReorderPanel({
   })
   if (all.isPending)
     return (
-      <div role="status" aria-busy="true" className="flex flex-col gap-2">
+      <div role="status" aria-busy="true">
         <span className="sr-only">Loading {label.toLowerCase()}…</span>
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-12 rounded-lg" />
-        ))}
+        <CardSkeleton className="h-64" />
       </div>
     )
   if (all.isError)
     return (
-      <div
+      <EmptyState
         role="alert"
-        className="flex flex-col items-start gap-3 rounded-xl border p-6"
-      >
-        <p className="text-sm">
-          {all.error instanceof ApiError || !(all.error instanceof Error)
+        title="The order didn't load"
+        description={
+          all.error instanceof ApiError || !(all.error instanceof Error)
             ? errorMessage(all.error)
-            : all.error.message}
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => all.refetch()}
-        >
-          Try again
-        </Button>
-      </div>
+            : all.error.message
+        }
+        action={
+          <Button
+            type="button"
+            className={FORM_ACTION}
+            onClick={() => all.refetch()}
+          >
+            Try again
+          </Button>
+        }
+      />
     )
   return (
     <div className="flex flex-col gap-4">
@@ -126,21 +129,29 @@ export function ReorderPanel({
         Drag the handle, or use the arrow buttons. Keyboard: focus a handle,
         press space, use the arrow keys, press space again.
       </p>
-      <SortableList
-        label={label}
-        items={items}
-        onReorder={setOrder}
-        disabled={save.isPending}
-      />
+      <div className={cn("rounded-card bg-card p-4", onCard && "border")}>
+        <SortableList
+          label={label}
+          items={items}
+          onReorder={setOrder}
+          disabled={save.isPending}
+        />
+      </div>
       <div className="flex gap-2">
         <Button
           type="button"
+          className={FORM_ACTION}
           disabled={order === null || save.isPending}
           onClick={() => save.mutate()}
         >
           Save order
         </Button>
-        <Button type="button" variant="outline" onClick={onDone}>
+        <Button
+          type="button"
+          variant="outline"
+          className={FORM_ACTION}
+          onClick={onDone}
+        >
           Cancel
         </Button>
       </div>

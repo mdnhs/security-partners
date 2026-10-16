@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 import { CollectionScreen } from "@/components/admin/collections/collection-screen"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
+import { SectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { SortableList } from "@/components/admin/sortable-list"
 import { slugify } from "@/components/admin/services/new-service-form"
 import type { Role } from "@/lib/auth/roles"
@@ -71,7 +72,8 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock)
 })
 
-function renderScreen(roles: Role[] = ["editor"]) {
+function renderScreen(roles: Role[] = ["editor"], { inTabs = false } = {}) {
+  const content = <CollectionScreen name="categories" />
   return render(
     <AdminShell
       queryClient={makeQueryClient()}
@@ -87,7 +89,16 @@ function renderScreen(roles: Role[] = ["editor"]) {
         impersonatedBy: null,
       }}
     >
-      <CollectionScreen name="categories" />
+      {inTabs ? (
+        <SectionTabs
+          ariaLabel="Collections"
+          items={[{ id: "c", label: "Categories", href: "/admin/categories" }]}
+        >
+          {content}
+        </SectionTabs>
+      ) : (
+        content
+      )}
     </AdminShell>
   )
 }
@@ -114,7 +125,9 @@ describe("collection screen + data table (master 4.6)", () => {
 
     const pager = screen.getByRole("navigation", { name: "Pagination" })
     expect(pager).toHaveTextContent("1–3 of 3")
-    expect(within(pager).getByRole("button", { name: "Next" })).toBeDisabled()
+    expect(
+      within(pager).getByRole("button", { name: "Next page" })
+    ).toBeDisabled()
   })
 
   it("searches with a debounced query", async () => {
@@ -148,6 +161,30 @@ describe("collection screen + data table (master 4.6)", () => {
     await screen.findByRole("table", { name: "Categories" })
     expect(screen.queryByRole("button", { name: "Add category" })).toBeNull()
     expect(screen.queryByRole("button", { name: "Change order" })).toBeNull()
+  })
+
+  it("outlines the table and cards on a section tab's white card", async () => {
+    renderScreen(["editor"], { inTabs: true })
+    const table = await screen.findByRole("table", { name: "Categories" })
+    // No second white card inside the tab card: a bordered table instead.
+    expect(table.closest('[data-slot="table-card"]')).toHaveClass(
+      "rounded-card",
+      "border"
+    )
+    const cards = within(
+      screen.getByRole("list", { name: "Categories" })
+    ).getAllByRole("button")
+    expect(cards[0]).toHaveClass("rounded-card", "border")
+  })
+
+  it("keeps the borderless white card table on the grey panel", async () => {
+    renderScreen()
+    const table = await screen.findByRole("table", { name: "Categories" })
+    expect(table.closest('[data-slot="table-card"]')).toHaveClass(
+      "rounded-card",
+      "bg-card"
+    )
+    expect(table.closest('[data-slot="table-card"]')).not.toHaveClass("border")
   })
 })
 
@@ -273,7 +310,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     renderScreen()
     await screen.findByRole("table", { name: "Categories" })
     const pager = screen.getByRole("navigation", { name: "Pagination" })
-    await user.click(within(pager).getByRole("button", { name: "Next" }))
+    await user.click(within(pager).getByRole("button", { name: "Next page" }))
     const pagesAsked = () =>
       fetchMock.mock.calls.map(([input]) =>
         new URL(String(input), "http://localhost").searchParams.get("page")
@@ -299,7 +336,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     renderScreen()
     await screen.findByRole("table", { name: "Categories" })
     const pager = screen.getByRole("navigation", { name: "Pagination" })
-    await user.click(within(pager).getByRole("button", { name: "Next" }))
+    await user.click(within(pager).getByRole("button", { name: "Next page" }))
     await waitFor(() => expect(lastUrl().searchParams.get("page")).toBe("2"))
     const before = fetchMock.mock.calls.length
     await user.type(

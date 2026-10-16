@@ -10,9 +10,16 @@ import {
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
-import { PageHeader } from "@/components/admin/page-header"
+import {
+  FORM_ACTION,
+  PageHeader,
+  PRIMARY_ACTION,
+  SECONDARY_ACTION,
+} from "@/components/admin/page-header"
+import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
+import { cn } from "@/lib/utils"
 import { api, unwrap } from "@/lib/api-client"
 import type { CollectionName } from "@/lib/schemas/api/collections"
 import type { Paginated } from "@/lib/schemas/api/list"
@@ -62,6 +69,9 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
   const canUpdate = usePermission({ collection: ["update"] })
   const canDelete = usePermission({ collection: ["delete"] })
   const [reordering, setReordering] = useState(false)
+  // Phone cards on a section tab's white card are outlined, not white-on-white.
+  const onCard = useInSectionTabs()
+  const card = cn("rounded-card bg-card p-4", onCard && "border")
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<AnyItem | null>(null)
   const editId = searchParams.get("edit")
@@ -102,6 +112,7 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
+                  className="pointer-coarse:size-11"
                   aria-label={`Edit ${config.itemLabel(row.original)}`}
                   onClick={() => setEditing(row.original)}
                 >
@@ -125,6 +136,7 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
               <Button
                 type="button"
                 variant="outline"
+                className={SECONDARY_ACTION}
                 onClick={() => setReordering((v) => !v)}
                 aria-pressed={reordering}
               >
@@ -133,7 +145,11 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
               </Button>
             ) : null}
             {canCreate ? (
-              <Button type="button" onClick={() => setCreating(true)}>
+              <Button
+                type="button"
+                className={PRIMARY_ACTION}
+                onClick={() => setCreating(true)}
+              >
                 <Plus aria-hidden />
                 Add {config.singular.toLowerCase()}
               </Button>
@@ -179,21 +195,26 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
               <button
                 type="button"
                 onClick={() => setEditing(item)}
-                className="w-full rounded-xl border bg-card p-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className={cn(
+                  card,
+                  "w-full text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                )}
                 aria-label={`Edit ${config.itemLabel(item)}`}
               >
                 {config.card(item)}
               </button>
             ) : (
-              <div className="rounded-xl border bg-card p-3">
-                {config.card(item)}
-              </div>
+              <div className={card}>{config.card(item)}</div>
             )
           }
           empty={config.empty}
           emptyAction={
             canCreate ? (
-              <Button type="button" size="sm" onClick={() => setCreating(true)}>
+              <Button
+                type="button"
+                className={FORM_ACTION}
+                onClick={() => setCreating(true)}
+              >
                 <Plus aria-hidden />
                 Add {config.singular.toLowerCase()}
               </Button>

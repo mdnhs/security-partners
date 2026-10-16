@@ -14,9 +14,13 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Search } from "lucide-react"
 import { type ReactNode, useId, useState } from "react"
 
+import { DataTablePagination } from "@/components/admin/data-table/data-table-pagination"
+import { EmptyState } from "@/components/admin/kit/empty-state"
+import { CardSkeleton } from "@/components/admin/kit/skeletons"
+import { FORM_ACTION } from "@/components/admin/page-header"
+import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { errorMessage } from "@/lib/api-client"
 import type { Paginated } from "@/lib/schemas/api/list"
@@ -160,95 +164,98 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   })
 
   const total = query.data?.total ?? 0
-  const from = total === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
-  const to = Math.min(total, (pagination.pageIndex + 1) * pagination.pageSize)
+  // On a section tab's white card a second white card would vanish: outline it.
+  const onCard = useInSectionTabs()
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="relative max-w-sm">
-        <Search
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          type="search"
-          aria-label={`Search ${label.toLowerCase()}`}
-          placeholder={searchPlaceholder}
-          className="pl-8"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
-      {sortOptions.length ? (
-        <div className="flex items-center gap-2 text-sm sm:hidden">
-          <label htmlFor={sortId} className="text-muted-foreground">
-            Sort by
-          </label>
-          <select
-            id={sortId}
-            value={sort ?? ""}
-            onChange={(event) => {
-              const [id, dir] = event.target.value.split(":")
-              setSorting(id ? [{ id, desc: dir === "desc" }] : [])
-              setPagination((p) => ({ ...p, pageIndex: 0 }))
-            }}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="">Default order</option>
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full sm:w-72">
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="search"
+            aria-label={`Search ${label.toLowerCase()}`}
+            placeholder={searchPlaceholder}
+            className="h-10 rounded-xl bg-card pl-9 pointer-coarse:h-11"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
         </div>
-      ) : null}
+        {sortOptions.length ? (
+          <div className="flex w-full items-center gap-2 text-sm sm:hidden">
+            <label htmlFor={sortId} className="text-muted-foreground">
+              Sort by
+            </label>
+            <select
+              id={sortId}
+              value={sort ?? ""}
+              onChange={(event) => {
+                const [id, dir] = event.target.value.split(":")
+                setSorting(id ? [{ id, desc: dir === "desc" }] : [])
+                setPagination((p) => ({ ...p, pageIndex: 0 }))
+              }}
+              className="h-10 min-w-0 flex-1 rounded-xl border border-input bg-card px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
+            >
+              <option value="">Default order</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+      </div>
 
       {query.isError ? (
-        <div
+        <EmptyState
           role="alert"
-          className="flex flex-col items-start gap-3 rounded-xl border p-6"
-        >
-          <p className="text-sm">{errorMessage(query.error)}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => query.refetch()}
-          >
-            Try again
-          </Button>
-        </div>
+          title={`The ${label.toLowerCase()} didn't load`}
+          description={errorMessage(query.error)}
+          action={
+            <Button
+              type="button"
+              className={FORM_ACTION}
+              onClick={() => query.refetch()}
+            >
+              Try again
+            </Button>
+          }
+        />
       ) : query.isPending ? (
-        <div role="status" aria-busy="true" className="flex flex-col gap-2">
+        <div role="status" aria-busy="true">
           <span className="sr-only">Loading {label.toLowerCase()}…</span>
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-12 rounded-lg" />
-          ))}
+          <CardSkeleton />
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          <Inbox aria-hidden className="size-6" />
-          {q ? (
-            `Nothing matches “${q}”.`
-          ) : (
-            <>
-              <span>{empty}</span>
-              {emptyAction}
-            </>
-          )}
-        </div>
+        <EmptyState
+          icon={Inbox}
+          role={q ? "status" : undefined}
+          title={q ? "No matches" : `No ${label.toLowerCase()} yet`}
+          description={q ? `Nothing matches “${q}”.` : empty}
+          action={q ? undefined : emptyAction}
+        />
       ) : (
-        <>
+        <div
+          aria-busy={query.isPlaceholderData || undefined}
+          className={cn(
+            "flex flex-col gap-3 transition-opacity",
+            query.isPlaceholderData && "opacity-60"
+          )}
+        >
           <div
+            data-slot="table-card"
             className={cn(
-              "hidden overflow-x-auto rounded-xl border bg-card sm:block",
-              query.isPlaceholderData && "opacity-60"
+              "rounded-card hidden overflow-x-auto bg-card sm:block",
+              onCard && "border"
             )}
           >
             <table className="w-full text-sm">
               <caption className="sr-only">{label}</caption>
-              <thead className="border-b bg-muted/50 text-left text-xs text-muted-foreground uppercase">
+              <thead className="border-b text-left text-muted-foreground">
                 {table.getHeaderGroups().map((group) => (
                   <tr key={group.id}>
                     {group.headers.map((header) => {
@@ -267,13 +274,13 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
                                   ? "none"
                                   : undefined
                           }
-                          className="px-4 py-3 font-semibold"
+                          className="h-12 px-4 font-medium"
                         >
                           {header.isPlaceholder ? null : sortable ? (
                             <button
                               type="button"
                               onClick={header.column.getToggleSortingHandler()}
-                              className="inline-flex items-center gap-1 rounded uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                              className="inline-flex items-center gap-1 rounded-md outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                             >
                               <table.FlexRender header={header} />
                               {dir === "asc" ? (
@@ -309,42 +316,22 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
               </tbody>
             </table>
           </div>
-          <ul aria-label={label} className="flex flex-col gap-2 sm:hidden">
+          <ul aria-label={label} className="flex flex-col gap-3 sm:hidden">
             {rows.map((row) => (
               <li key={row.id}>{renderCard(row as T)}</li>
             ))}
           </ul>
-        </>
+        </div>
       )}
 
-      <nav
-        aria-label="Pagination"
-        className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground"
-      >
-        <span aria-live="polite">
-          {total === 0 ? "No results" : `${from}–${to} of ${total}`}
-        </span>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-          >
-            Next
-          </Button>
-        </div>
-      </nav>
+      <DataTablePagination
+        page={pagination.pageIndex + 1}
+        pageSize={pagination.pageSize}
+        total={total}
+        onPageChange={(next) =>
+          setPagination((p) => ({ ...p, pageIndex: next - 1 }))
+        }
+      />
     </div>
   )
 }
