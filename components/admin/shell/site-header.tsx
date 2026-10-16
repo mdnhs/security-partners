@@ -23,14 +23,14 @@ function useNavTrail(): { section: string; item: string } | null {
 }
 
 /** Content-column header (dashboard-01): sidebar toggle, breadcrumb, ⌘K, site link. */
-export function SiteHeader() {
+export function SiteHeader({ siteUrl }: { siteUrl: string }) {
   const trail = useNavTrail()
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-4 lg:px-6">
       <SidebarTrigger className="-ml-1" />
       <Separator
         orientation="vertical"
-        className="mx-1 h-4 data-vertical:self-auto max-md:hidden"
+        className="mx-1 h-4 max-md:hidden data-vertical:self-auto"
       />
       {trail ? (
         <nav aria-label="Breadcrumb" className="min-w-0 max-md:hidden">
@@ -52,7 +52,7 @@ export function SiteHeader() {
         <CommandPalette />
       </div>
       <a
-        href="/"
+        href={siteUrl}
         target="_blank"
         rel="noreferrer"
         className={buttonClassName({ variant: "ghost", size: "sm" })}

@@ -5,8 +5,8 @@ import { BASE_URL } from "./env"
 import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
 
 /** The signed-in user's menu in the sidebar footer (holds "Sign out"). */
-async function openUserMenu(page: Page) {
-  await page.locator('[data-slot="sidebar-footer"]').getByRole("button").click()
+async function openUserMenu(page: Page, name: string) {
+  await page.getByRole("button", { name: new RegExp(`^${name}\\b`) }).click()
 }
 
 async function signIn(page: Page, email: string, password: string) {
@@ -136,7 +136,7 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await expect(
       page.getByRole("heading", { name: `Welcome, ${editor.name}` })
     ).toBeVisible()
-    await openUserMenu(page)
+    await openUserMenu(page, editor.name)
     await page.getByRole("menuitem", { name: "Sign out" }).click()
     await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
     await page.goto("/admin")
@@ -160,16 +160,19 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
         body: JSON.stringify({ message: "Internal server error" }),
       })
     )
-    await openUserMenu(page)
+    await openUserMenu(page, editor.name)
     await page.getByRole("menuitem", { name: "Sign out" }).click()
-    // The menu stays open with the error; the item can be retried.
-    await expect(page.getByRole("menu")).toContainText("Internal server error")
+    // The error shows in the sidebar footer; the menu can be reopened to retry.
+    // Scoped: Next's route announcer is a role="alert" too.
+    const footer = page.locator('[data-slot="sidebar-footer"]')
+    await expect(footer.getByRole("alert")).toContainText(
+      "Internal server error"
+    )
     await expect(page).toHaveURL(/\/admin$/)
-    await expect(
-      page.getByRole("menuitem", { name: "Sign out" })
-    ).not.toHaveAttribute("aria-disabled", "true")
 
     await page.unroute("**/api/auth/sign-out")
+    await openUserMenu(page, editor.name)
+    await expect(footer.getByRole("alert")).toHaveCount(0)
     await page.getByRole("menuitem", { name: "Sign out" }).click()
     await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
   })

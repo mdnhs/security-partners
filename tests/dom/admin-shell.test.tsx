@@ -64,7 +64,7 @@ const session = (
 })
 
 const desktopWidth = window.innerWidth
-/** useIsMobile reads innerWidth on mount (< 768 px: the sheet). */
+/** useIsMobile reads innerWidth on mount (< 1024 px: the sheet). */
 function setViewportWidth(width: number) {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -75,7 +75,7 @@ function setViewportWidth(width: number) {
 
 afterEach(() => {
   setViewportWidth(desktopWidth)
-  document.cookie = "sidebar_state=; max-age=0; path=/"
+  document.cookie = "sidebar_state=; max-age=0; path=/admin"
 })
 
 beforeEach(() => {
@@ -147,7 +147,10 @@ describe("AdminShell (master 4.1)", () => {
     )
     const sidebar = document.querySelector('[data-slot="sidebar"]')!
     expect(sidebar).toHaveAttribute("data-state", "expanded")
-    await user.click(screen.getByRole("button", { name: "Toggle navigation" }))
+    const trigger = screen.getByRole("button", { name: "Toggle navigation" })
+    // The desktop sidebar never leaves the page: nothing to "expand".
+    expect(trigger).not.toHaveAttribute("aria-expanded")
+    await user.click(trigger)
     expect(sidebar).toHaveAttribute("data-state", "collapsed")
     expect(sidebar).toHaveAttribute("data-collapsible", "icon")
     await user.keyboard("{Control>}b{/Control}")
@@ -177,11 +180,19 @@ describe("AdminShell (master 4.1)", () => {
     const sidebar = document.querySelector('[data-slot="sidebar"]')!
     await user.click(screen.getByRole("textbox", { name: "Title" }))
     await user.keyboard("{Control>}b{/Control}")
-    screen.getByText("Rich").focus()
+    expect(sidebar).toHaveAttribute("data-state", "expanded")
+    await user.keyboard("{Meta>}b{/Meta}")
+    expect(sidebar).toHaveAttribute("data-state", "expanded")
     fireEvent.keyDown(screen.getByText("Rich"), { key: "b", metaKey: true })
+    expect(sidebar).toHaveAttribute("data-state", "expanded")
+    fireEvent.keyDown(screen.getByText("Rich"), { key: "b", ctrlKey: true })
+    expect(sidebar).toHaveAttribute("data-state", "expanded")
     await user.click(screen.getByRole("button", { name: "Claims bold" }))
     await user.keyboard("{Control>}b{/Control}")
     expect(sidebar).toHaveAttribute("data-state", "expanded")
+    // Sanity: the same key on a plain button does toggle.
+    fireEvent.keyDown(document.body, { key: "b", ctrlKey: true })
+    expect(sidebar).toHaveAttribute("data-state", "collapsed")
   })
 
   it("shows the signed-in user in the sidebar footer and a skip link", async () => {
@@ -341,7 +352,7 @@ describe("AdminShell (master 4.1)", () => {
     expect(clear).toHaveBeenCalled()
   })
 
-  it("shows a sign-out failure in the user menu and keeps the session", async () => {
+  it("shows a sign-out failure outside the menu, clears it on reopen and keeps the session", async () => {
     signOut.mockResolvedValue({ error: { message: "nope" } })
     const client = makeQueryClient()
     const clear = vi.spyOn(client, "clear")
@@ -351,15 +362,39 @@ describe("AdminShell (master 4.1)", () => {
         <p>Body</p>
       </AdminShell>
     )
-    await user.click(screen.getByRole("button", { name: /Edith Editor/ }))
-    const item = await screen.findByRole("menuitem", { name: "Sign out" })
-    await user.click(item)
-    expect(
-      within(screen.getByRole("menu")).getByRole("alert")
-    ).toHaveTextContent("Could not sign out.")
-    expect(item).not.toHaveAttribute("aria-disabled", "true")
+    const account = screen.getByRole("button", { name: /Edith Editor/ })
+    await user.click(account)
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }))
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("Could not sign out.")
+    expect(screen.queryByRole("menu")).toBeNull()
+    expect(alert.closest('[data-slot="sidebar-footer"]')).not.toBeNull()
     expect(clear).not.toHaveBeenCalled()
     expect(router.replace).not.toHaveBeenCalled()
+    // A fresh attempt starts without the old error.
+    await user.click(account)
+    expect(
+      await screen.findByRole("menuitem", { name: "Sign out" })
+    ).not.toHaveAttribute("aria-disabled", "true")
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("closes the navigation sheet from its close button", async () => {
+    setViewportWidth(390)
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    await user.click(screen.getByRole("button", { name: "Toggle navigation" }))
+    const sheet = await screen.findByRole("dialog", { name: "Navigation" })
+    const close = within(sheet).getByRole("button", { name: "Close" })
+    expect(close).not.toHaveClass("hidden")
+    await user.click(close)
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull()
+    )
   })
 
   it("closes the navigation sheet from the brand link too", async () => {
@@ -400,9 +435,12 @@ describe("AdminShell (master 4.1)", () => {
     ).toHaveAttribute("target", "_blank")
   })
 
-  it("shows the website card with the site host and a View site link", () => {
+  it("links to the configured site and shows its host and environment", () => {
     render(
-      <AdminShell session={session(["editor"])} siteHost="example.test">
+      <AdminShell
+        session={session(["editor"])}
+        site={{ url: "https://example.test", env: "staging" }}
+      >
         <p>Body</p>
       </AdminShell>
     )
@@ -411,15 +449,36 @@ describe("AdminShell (master 4.1)", () => {
     ) as HTMLElement
     expect(footer).toHaveTextContent("Your website")
     expect(footer).toHaveTextContent("example.test")
+    expect(footer).toHaveTextContent("Staging")
+    expect(footer).not.toHaveTextContent("Live")
     // The card's button, and the icon-rail link (CSS shows one at a time).
     const links = within(footer).getAllByRole("link", {
       name: "View site (opens in new tab)",
     })
     expect(links).toHaveLength(2)
+    links.push(
+      within(screen.getByRole("banner")).getByRole("link", {
+        name: "View site (opens in new tab)",
+      })
+    )
     for (const link of links) {
-      expect(link).toHaveAttribute("href", "/")
+      expect(link).toHaveAttribute("href", "https://example.test")
       expect(link).toHaveAttribute("target", "_blank")
     }
+  })
+
+  it("labels production as Live", () => {
+    render(
+      <AdminShell
+        session={session(["editor"])}
+        site={{ url: "https://example.test", env: "production" }}
+      >
+        <p>Body</p>
+      </AdminShell>
+    )
+    expect(
+      document.querySelector('[data-slot="sidebar-footer"]')
+    ).toHaveTextContent("Live")
   })
 
   it("starts collapsed when the saved sidebar state says so", () => {

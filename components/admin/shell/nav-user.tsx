@@ -37,11 +37,17 @@ export function NavUser() {
   const queryClient = useQueryClient()
   const { isMobile, setOpenMobile } = useSidebar()
   // The next user must never see this user's cached data.
-  const { signOut, pending, error } = useSignOut(() => queryClient.clear())
+  const { signOut, pending, error, clearError } = useSignOut(() =>
+    queryClient.clear()
+  )
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(open) => {
+            if (open) clearError()
+          }}
+        >
           <DropdownMenuTrigger
             render={
               <SidebarMenuButton
@@ -92,22 +98,21 @@ export function NavUser() {
               Account
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {/* Stays open while signing out, so a failure is shown here. */}
-            <DropdownMenuItem
-              closeOnClick={false}
-              disabled={pending}
-              onClick={signOut}
-            >
+            <DropdownMenuItem disabled={pending} onClick={signOut}>
               <LogOut aria-hidden />
               Sign out
             </DropdownMenuItem>
-            {error ? (
-              <p role="alert" className="px-1.5 py-1 text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Outside the menu (which closes on click); cleared on reopen. */}
+        {error ? (
+          <p
+            role="alert"
+            className="px-2 pt-1 text-xs font-medium text-red-300 group-data-[collapsible=icon]:sr-only"
+          >
+            {error}
+          </p>
+        ) : null}
       </SidebarMenuItem>
     </SidebarMenu>
   )

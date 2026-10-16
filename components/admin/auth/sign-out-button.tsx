@@ -36,5 +36,7 @@ export function useSignOut(onSignedOut?: () => void) {
     router.replace("/admin/sign-in?notice=signed-out")
     router.refresh()
   }
-  return { signOut, pending, error }
+  /** Forget a shown failure (e.g. when the user retries from a fresh menu). */
+  const clearError = () => setError(null)
+  return { signOut, pending, error, clearError }
 }

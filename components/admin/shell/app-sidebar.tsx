@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
+import type { SiteInfo } from "./constants"
 import type { NavBadges } from "./nav"
 import { NavMain } from "./nav-main"
 import { NavUser } from "./nav-user"
@@ -22,13 +23,13 @@ import { WebsiteCard } from "./website-card"
 /**
  * Admin sidebar (shadcn dashboard-01): brand, permission-filtered navigation,
  * the website card and the signed-in user. Collapses to icons on desktop
- * (⌘/Ctrl+B); a sheet below 768 px.
+ * (⌘/Ctrl+B); a sheet below 1024 px.
  */
 export function AppSidebar({
-  siteHost,
+  site,
   badges,
 }: {
-  siteHost: string
+  site: SiteInfo
   badges?: NavBadges
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
@@ -71,7 +72,7 @@ export function AppSidebar({
         <NavMain badges={badges} />
       </SidebarContent>
       <SidebarFooter>
-        <WebsiteCard siteHost={siteHost} />
+        <WebsiteCard site={site} />
         <NavUser />
       </SidebarFooter>
     </Sidebar>

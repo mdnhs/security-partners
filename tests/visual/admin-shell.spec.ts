@@ -37,7 +37,7 @@ test("admin shell frame", async ({ page }) => {
 test("admin sidebar collapsed to icons", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "desktop",
-    "the icon rail exists from 768 px up"
+    "the icon rail exists from 1024 px up"
   )
   await signIn(page)
   await page.getByRole("button", { name: "Toggle navigation" }).click()
@@ -50,10 +50,10 @@ test("admin sidebar collapsed to icons", async ({ page }, testInfo) => {
   })
 })
 
-test("admin navigation sheet (below 768 px)", async ({ page }, testInfo) => {
+test("admin navigation sheet (below 1024 px)", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "mobile",
-    "the sheet exists below md only"
+    "the sheet exists below lg only"
   )
   await signIn(page)
   await page.getByRole("button", { name: "Toggle navigation" }).click()

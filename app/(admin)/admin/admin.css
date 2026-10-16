@@ -24,6 +24,15 @@ html[data-admin] {
   --sidebar-ring: var(--color-brand-green);
 }
 
+/*
+ * Keep scrolled-to and focused content clear of the sticky header (and the
+ * impersonation banner above it). --admin-header-h is measured by
+ * components/admin/shell/admin-shell.tsx; 3.5rem is the header alone.
+ */
+html[data-admin] {
+  scroll-padding-top: calc(var(--admin-header-h, 3.5rem) + 0.5rem);
+}
+
 html[data-admin].dark {
   --primary: oklch(0.93 0.01 264);
   --primary-foreground: var(--color-brand-navy);
