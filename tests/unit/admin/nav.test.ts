@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   dockItems,
+  findNavItem,
   isActiveItem,
   menuSections,
   NAV_SECTIONS,
@@ -71,6 +72,20 @@ describe("navigation registry (JW structure)", () => {
     ])
     const team = navDestinations(["editor"]).find((d) => d.label === "Team")!
     expect(team).toMatchObject({ href: "/admin/team", parent: "Collections" })
+  })
+
+  it("finds Collections by its stable id, not its label", () => {
+    expect(findNavItem(["editor"], "collections")?.label).toBe("Collections")
+    expect(findNavItem(["author"], "collections")).toBeUndefined()
+  })
+
+  it("gives ⌘K one entry per page, collection pages with their own icons", () => {
+    const all = navDestinations(["owner"])
+    expect(new Set(all.map((d) => d.href)).size).toBe(all.length)
+    const icons = all
+      .filter((d) => d.parent === "Collections")
+      .map((d) => d.icon)
+    expect(new Set(icons).size).toBe(icons.length)
   })
 
   it("drops a parent whose children are all hidden", () => {

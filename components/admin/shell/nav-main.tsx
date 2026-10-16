@@ -15,7 +15,7 @@ import {
 import { isActiveItem, menuSections, type NavBadges } from "./nav"
 import { NavEntry } from "./nav-entry"
 
-/** The permission-filtered admin navigation, one labelled group per section. */
+/** The permission-filtered sections, one labelled group each (JW sidebar). */
 export function NavMain({ badges = {} }: { badges?: NavBadges }) {
   const pathname = usePathname()
   const { roles } = useAdminSession()
@@ -28,10 +28,10 @@ export function NavMain({ badges = {} }: { badges?: NavBadges }) {
       {menuSections(roles).map((section, index) => {
         const labelId = `${idPrefix}-section-${index}`
         return (
-          <SidebarGroup key={section.label}>
+          <SidebarGroup key={section.label} className="py-1">
             <SidebarGroupLabel
               id={labelId}
-              className="font-bold tracking-[0.08em] text-sidebar-foreground/60 uppercase"
+              className="h-7 px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
             >
               {section.label}
             </SidebarGroupLabel>

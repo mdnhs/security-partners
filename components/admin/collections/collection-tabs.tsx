@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 
 import { SectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { useAdminSession } from "@/components/admin/session-provider"
-import { navItems } from "@/components/admin/shell/nav"
+import { findNavItem } from "@/components/admin/shell/nav"
 
 /**
  * The Collections section's sub-pages as left route tabs (JW: the sidebar
@@ -12,9 +12,7 @@ import { navItems } from "@/components/admin/shell/nav"
  */
 export function CollectionTabs({ children }: { children: ReactNode }) {
   const { roles } = useAdminSession()
-  const collections = navItems(roles)
-    .flatMap((section) => section.items)
-    .find((item) => item.label === "Collections")
+  const collections = findNavItem(roles, "collections")
   const items = (collections?.children ?? []).map((child) => ({
     id: child.href,
     label: child.label,

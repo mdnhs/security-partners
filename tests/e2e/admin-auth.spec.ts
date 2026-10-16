@@ -4,9 +4,9 @@ import { URI } from "otpauth"
 import { BASE_URL } from "./env"
 import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
 
-/** The signed-in user's menu in the sidebar footer (holds "Sign out"). */
+/** The signed-in user's menu in the topbar (holds "Sign out"). */
 async function openUserMenu(page: Page, name: string) {
-  await page.getByRole("button", { name: new RegExp(`^${name}\\b`) }).click()
+  await page.getByRole("button", { name: `Account menu for ${name}` }).click()
 }
 
 async function signIn(page: Page, email: string, password: string) {
@@ -162,9 +162,9 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     )
     await openUserMenu(page, editor.name)
     await page.getByRole("menuitem", { name: "Sign out" }).click()
-    // The error shows in the sidebar footer; the menu can be reopened to retry.
+    // The error shows under the avatar; the menu can be reopened to retry.
     // Scoped: Next's route announcer is a role="alert" too.
-    const footer = page.locator('[data-slot="sidebar-footer"]')
+    const footer = page.locator('[data-slot="topbar"]')
     await expect(footer.getByRole("alert")).toContainText(
       "Internal server error"
     )

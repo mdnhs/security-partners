@@ -1,10 +1,14 @@
 import {
+  Building2,
   FileText,
   LayoutDashboard,
   Layers,
   type LucideIcon,
   Settings,
+  ShieldCheck,
+  Tags,
   UserRound,
+  Users,
   Wrench,
 } from "lucide-react"
 
@@ -17,11 +21,18 @@ export type NavBadges = Partial<Record<NavBadgeKey, number>>
 export type NavChild = {
   label: string
   href: string
+  /** ⌘K's icon for the sub-page (the parent's when absent). */
+  icon?: LucideIcon
   /** null = every signed-in user. */
   permission: PermissionRequest | null
 }
 
+/** Stable handles for items other code looks up (labels may change). */
+export type NavItemId = "collections"
+
 export type NavItem = {
+  /** Set when other code (e.g. the Collections tabs) needs to find the item. */
+  id?: NavItemId
   label: string
   href: string
   icon: LucideIcon
@@ -86,22 +97,35 @@ export const NAV_SECTIONS: NavSection[] = [
         match: "prefix",
       },
       {
+        id: "collections",
         label: "Collections",
         href: "/admin/team",
         icon: Layers,
         permission: COLLECTION,
         match: "prefix",
         children: [
-          { label: "Team", href: "/admin/team", permission: COLLECTION },
-          { label: "Clients", href: "/admin/clients", permission: COLLECTION },
+          {
+            label: "Team",
+            href: "/admin/team",
+            icon: Users,
+            permission: COLLECTION,
+          },
+          {
+            label: "Clients",
+            href: "/admin/clients",
+            icon: ShieldCheck,
+            permission: COLLECTION,
+          },
           {
             label: "Group companies",
             href: "/admin/group-companies",
+            icon: Building2,
             permission: COLLECTION,
           },
           {
             label: "Categories",
             href: "/admin/categories",
+            icon: Tags,
             permission: COLLECTION,
           },
         ],
@@ -182,7 +206,7 @@ export function navDestinations(roles: readonly string[]): NavDestination[] {
         ? item.children.map((child) => ({
             label: child.label,
             href: child.href,
-            icon: item.icon,
+            icon: child.icon ?? item.icon,
             parent: item.label,
           }))
         : [
@@ -195,6 +219,16 @@ export function navDestinations(roles: readonly string[]): NavDestination[] {
           ]
     )
   )
+}
+
+/** The item `id` names, as `roles` may see it (children filtered), if any. */
+export function findNavItem(
+  roles: readonly string[],
+  id: NavItemId
+): NavItem | undefined {
+  return navItems(roles)
+    .flatMap((section) => section.items)
+    .find((item) => item.id === id)
 }
 
 const covers = (href: string, pathname: string) =>

@@ -6,7 +6,6 @@ import {
   ExternalLink,
   FileText,
   Plus,
-  Search,
   ShieldCheck,
   Tags,
   Users,
@@ -16,7 +15,6 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
 import { useAdminSession } from "@/components/admin/session-provider"
-import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandDialog,
@@ -27,13 +25,13 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
-import { Kbd } from "@/components/ui/kbd"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
 import { api, unwrap } from "@/lib/api-client"
 import type { SearchType } from "@/lib/schemas/api/search"
 
 import { navDestinations } from "./nav"
+import { useCommandPalette } from "./palette-context"
 
 const TYPE_ICONS: Record<SearchType, typeof FileText> = {
   page: FileText,
@@ -65,23 +63,27 @@ export function isPaletteShortcut(event: KeyboardEvent): boolean {
 
 /**
  * ⌘K palette (spec §8.2): jump to a section, run a quick action or open a
- * record found by the search API. Renders its own topbar trigger.
+ * record found by the search API. Opened by the topbar's SearchPill or
+ * ⌘/Ctrl+K.
  */
 export function CommandPalette() {
   const router = useRouter()
   const { roles } = useAdminSession()
   const canCreateService = usePermission({ service: ["create"] })
   const canEditPages = usePermission({ page: ["update"] })
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useCommandPalette()
   const [query, setQuery] = useState("")
   const trimmed = query.trim()
   const q = useDebouncedValue(trimmed, 200)
 
   /** Every open/close goes through here: a closed palette forgets its query. */
-  const setPaletteOpen = useCallback((next: boolean) => {
-    setOpen(next)
-    if (!next) setQuery("")
-  }, [])
+  const setPaletteOpen = useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      if (!next) setQuery("")
+    },
+    [setOpen]
+  )
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -148,16 +150,6 @@ export function CommandPalette() {
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setPaletteOpen(true)}
-        className="w-full max-w-sm justify-start gap-2 text-muted-foreground max-sm:w-auto max-sm:border-transparent"
-      >
-        <Search aria-hidden />
-        <span className="max-sm:sr-only">Search…</span>
-        <Kbd className="ml-auto max-sm:hidden">⌘K</Kbd>
-      </Button>
       <CommandDialog
         open={open}
         onOpenChange={setPaletteOpen}

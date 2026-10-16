@@ -45,6 +45,7 @@ import { makeQueryClient } from "@/components/admin/providers"
 import type { AdminSession } from "@/components/admin/session-provider"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import { formatBadge, NavEntry } from "@/components/admin/shell/nav-entry"
+import { AdminThemeProvider } from "@/components/admin/theme-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import type { Role } from "@/lib/auth/roles"
 
@@ -86,21 +87,6 @@ beforeEach(() => {
 })
 
 describe("AdminShell (master 4.1)", () => {
-  it("shows only the sections the roles may read", () => {
-    render(
-      <AdminShell session={session(["intake"])}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    const nav = screen.getByRole("navigation", { name: "Admin" })
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .map((a) => a.textContent)
-    ).toEqual(["Dashboard"])
-    expect(screen.getByRole("main")).toHaveTextContent("Body")
-  })
-
   it("marks the current section with aria-current", () => {
     pathname.current = "/admin/pages/home"
     render(
@@ -195,49 +181,6 @@ describe("AdminShell (master 4.1)", () => {
     expect(sidebar).toHaveAttribute("data-state", "collapsed")
   })
 
-  it("shows the signed-in user in the sidebar footer and a skip link", async () => {
-    const user = userEvent.setup()
-    render(
-      <AdminShell session={session(["editor", "author"])}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    const account = screen.getByRole("button", { name: /Edith Editor/ })
-    expect(account).toHaveTextContent("edith@example.test")
-    expect(account).toHaveTextContent("EE")
-    expect(account.closest('[data-slot="sidebar-footer"]')).not.toBeNull()
-    await user.click(account)
-    const menu = await screen.findByRole("menu")
-    expect(menu).toHaveTextContent("editor, author")
-    expect(
-      within(menu).getByRole("menuitem", { name: "Account" })
-    ).toHaveAttribute("href", "/admin/account")
-    expect(
-      within(menu).getByRole("menuitem", { name: "Sign out" })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("link", { name: "Skip to content" })
-    ).toHaveAttribute("href", "#main")
-    expect(screen.getByRole("main")).toHaveAttribute("id", "main")
-  })
-
-  it("shows where the page sits in the header breadcrumb", () => {
-    pathname.current = "/admin/pages/home"
-    render(
-      <AdminShell session={session(["editor"])}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    const crumbs = within(screen.getByRole("banner")).getByRole("navigation", {
-      name: "Breadcrumb",
-    })
-    expect(
-      within(crumbs)
-        .getAllByRole("listitem")
-        .map((li) => li.textContent)
-    ).toEqual(["Content", "Pages"])
-  })
-
   it("shows the impersonation banner only while impersonating", () => {
     const { rerender } = render(
       <AdminShell session={session(["editor"])}>
@@ -257,30 +200,6 @@ describe("AdminShell (master 4.1)", () => {
     expect(
       within(banner).getByRole("button", { name: "Stop impersonating" })
     ).toBeEnabled()
-  })
-
-  it("stacks the impersonation banner above the header in one sticky wrapper", () => {
-    render(
-      <AdminShell session={session(["editor"], "owner-1")}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    const banner = screen.getByRole("region", { name: "Impersonation" })
-    const siteHeader = screen.getByRole("banner")
-    const header = siteHeader.parentElement!
-    expect(header).toHaveClass("sticky", "top-0")
-    expect(banner.parentElement).toBe(header)
-    expect(header.firstElementChild).toBe(banner)
-    // Neither sticks on its own (they would overlap at top: 0).
-    expect(banner).not.toHaveClass("sticky")
-    expect(siteHeader).not.toHaveClass("sticky")
-    // The sidebar sits beside the content column, never under the header.
-    const sidebar = document.querySelector('[data-slot="sidebar"]')!
-    const inset = document.querySelector('[data-slot="sidebar-inset"]')!
-    expect(header.parentElement).toBe(inset)
-    expect(sidebar.contains(header)).toBe(false)
-    expect(header.contains(sidebar)).toBe(false)
-    expect(sidebar.parentElement).toBe(inset.parentElement)
   })
 
   it("stop impersonating: calls the API, drops the cache and goes to /admin", async () => {
@@ -332,53 +251,6 @@ describe("AdminShell (master 4.1)", () => {
     expect(router.replace).not.toHaveBeenCalled()
   })
 
-  it("clears the query cache on sign out", async () => {
-    signOut.mockResolvedValue({ error: null })
-    const client = makeQueryClient()
-    const clear = vi.spyOn(client, "clear")
-    const user = userEvent.setup()
-    render(
-      <AdminShell session={session(["editor"])} queryClient={client}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    await user.click(screen.getByRole("button", { name: /Edith Editor/ }))
-    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }))
-    await waitFor(() =>
-      expect(router.replace).toHaveBeenCalledWith(
-        "/admin/sign-in?notice=signed-out"
-      )
-    )
-    expect(clear).toHaveBeenCalled()
-  })
-
-  it("shows a sign-out failure outside the menu, clears it on reopen and keeps the session", async () => {
-    signOut.mockResolvedValue({ error: { message: "nope" } })
-    const client = makeQueryClient()
-    const clear = vi.spyOn(client, "clear")
-    const user = userEvent.setup()
-    render(
-      <AdminShell session={session(["editor"])} queryClient={client}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    const account = screen.getByRole("button", { name: /Edith Editor/ })
-    await user.click(account)
-    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }))
-    const alert = await screen.findByRole("alert")
-    expect(alert).toHaveTextContent("Could not sign out.")
-    expect(screen.queryByRole("menu")).toBeNull()
-    expect(alert.closest('[data-slot="sidebar-footer"]')).not.toBeNull()
-    expect(clear).not.toHaveBeenCalled()
-    expect(router.replace).not.toHaveBeenCalled()
-    // A fresh attempt starts without the old error.
-    await user.click(account)
-    expect(
-      await screen.findByRole("menuitem", { name: "Sign out" })
-    ).not.toHaveAttribute("aria-disabled", "true")
-    expect(screen.queryByRole("alert")).toBeNull()
-  })
-
   it("closes the navigation sheet from its close button", async () => {
     setViewportWidth(390)
     const user = userEvent.setup()
@@ -415,58 +287,6 @@ describe("AdminShell (master 4.1)", () => {
     )
   })
 
-  it("names each navigation group by its section label", () => {
-    render(
-      <AdminShell session={session(["editor"])}>
-        <p>Body</p>
-      </AdminShell>
-    )
-    const nav = screen.getByRole("navigation", { name: "Admin" })
-    expect(
-      within(nav)
-        .getAllByRole("list")
-        .map((list) => list.getAttribute("aria-labelledby"))
-        .map((id) => document.getElementById(id!)?.textContent)
-    ).toEqual(["Overview", "Content", "Configuration"])
-    expect(
-      within(screen.getByRole("banner")).getByRole("link", {
-        name: "View site (opens in new tab)",
-      })
-    ).toHaveAttribute("target", "_blank")
-  })
-
-  it("links to the configured site and shows its host and environment", () => {
-    render(
-      <AdminShell
-        session={session(["editor"])}
-        site={{ url: "https://example.test", env: "staging" }}
-      >
-        <p>Body</p>
-      </AdminShell>
-    )
-    const footer = document.querySelector(
-      '[data-slot="sidebar-footer"]'
-    ) as HTMLElement
-    expect(footer).toHaveTextContent("Your website")
-    expect(footer).toHaveTextContent("example.test")
-    expect(footer).toHaveTextContent("Staging")
-    expect(footer).not.toHaveTextContent("Live")
-    // The card's button, and the icon-rail link (CSS shows one at a time).
-    const links = within(footer).getAllByRole("link", {
-      name: "View site (opens in new tab)",
-    })
-    expect(links).toHaveLength(2)
-    links.push(
-      within(screen.getByRole("banner")).getByRole("link", {
-        name: "View site (opens in new tab)",
-      })
-    )
-    for (const link of links) {
-      expect(link).toHaveAttribute("href", "https://example.test")
-      expect(link).toHaveAttribute("target", "_blank")
-    }
-  })
-
   it("labels production as Live", () => {
     render(
       <AdminShell
@@ -491,6 +311,266 @@ describe("AdminShell (master 4.1)", () => {
       "data-state",
       "collapsed"
     )
+  })
+
+  it("shows only the sections the roles may read", () => {
+    render(
+      <AdminShell session={session(["intake"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const nav = screen.getByRole("navigation", { name: "Admin" })
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((a) => a.textContent)
+    ).toEqual(["Dashboard"])
+    expect(screen.getByRole("main")).toHaveTextContent("Body")
+  })
+
+  it("lists sections only and marks Collections on a collection page", () => {
+    pathname.current = "/admin/clients"
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const nav = screen.getByRole("navigation", { name: "Admin" })
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((a) => a.textContent)
+    ).toEqual(["Dashboard", "Pages", "Services", "Collections", "Settings"])
+    const collections = within(nav).getByRole("link", { name: "Collections" })
+    expect(collections).toHaveAttribute("aria-current", "page")
+    expect(collections).toHaveAttribute("href", "/admin/team")
+  })
+
+  it("puts the floating panels on the canvas: sidebar, topbar, content", () => {
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const sidebar = document.querySelector('[data-slot="sidebar"]')!
+    expect(sidebar).toHaveAttribute("data-variant", "floating")
+    const topbar = screen.getByRole("banner")
+    expect(topbar).toHaveAttribute("data-slot", "topbar")
+    expect(topbar).toHaveClass("rounded-card", "bg-sidebar", "h-[72px]")
+    const main = screen.getByRole("main")
+    expect(main).toHaveClass("rounded-card", "bg-sidebar", "overflow-y-auto")
+    expect(main).toHaveAttribute("id", "main")
+    expect(
+      screen.getByRole("link", { name: "Skip to content" })
+    ).toHaveAttribute("href", "#main")
+  })
+
+  it("opens ⌘K from the search pill", async () => {
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const pill = within(screen.getByRole("banner")).getByRole("button", {
+      name: "Search",
+    })
+    expect(pill).toHaveAttribute("aria-keyshortcuts", "Meta+K Control+K")
+    await user.click(pill)
+    expect(
+      await screen.findByRole("dialog", { name: "Search the admin" })
+    ).toBeInTheDocument()
+  })
+
+  it("shows an honest empty notifications popover", async () => {
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Notifications",
+      })
+    )
+    expect(await screen.findByText(/You're all caught up/)).toBeInTheDocument()
+  })
+
+  it("user menu in the topbar: identity, roles, Account, Security, theme, sign out", async () => {
+    const user = userEvent.setup()
+    render(
+      <AdminThemeProvider defaultTheme="light">
+        <AdminShell session={session(["editor", "author"])}>
+          <p>Body</p>
+        </AdminShell>
+      </AdminThemeProvider>
+    )
+    const trigger = within(screen.getByRole("banner")).getByRole("button", {
+      name: "Account menu for Edith Editor",
+    })
+    expect(trigger).toHaveTextContent("EE")
+    await user.click(trigger)
+    const menu = await screen.findByRole("menu")
+    expect(menu).toHaveTextContent("Edith Editor")
+    expect(menu).toHaveTextContent("edith@example.test")
+    expect(menu).toHaveTextContent("editor, author")
+    expect(
+      within(menu).getByRole("menuitem", { name: "Account" })
+    ).toHaveAttribute("href", "/admin/account")
+    expect(
+      within(menu).getByRole("menuitem", { name: "Security" })
+    ).toHaveAttribute("href", "/admin/account?tab=security")
+    expect(
+      within(menu)
+        .getAllByRole("menuitemradio")
+        .map((item) => item.textContent)
+    ).toEqual(["Light", "Dark", "System"])
+    await user.click(within(menu).getByRole("menuitemradio", { name: "Dark" }))
+    await waitFor(() =>
+      expect(localStorage.getItem("sp-admin-theme")).toBe("dark")
+    )
+  })
+
+  it("stacks the impersonation banner above the topbar in one header wrapper", () => {
+    render(
+      <AdminShell session={session(["editor"], "owner-1")}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const banner = screen.getByRole("region", { name: "Impersonation" })
+    const topbar = screen.getByRole("banner")
+    const header = topbar.parentElement!
+    expect(header).toHaveAttribute("data-slot", "admin-header")
+    expect(header.firstElementChild).toBe(banner)
+    // The sidebar sits beside the content column, never under the header.
+    const sidebar = document.querySelector('[data-slot="sidebar"]')!
+    expect(sidebar.contains(header)).toBe(false)
+    expect(header.contains(sidebar)).toBe(false)
+    expect(header.nextElementSibling).toBe(screen.getByRole("main"))
+  })
+
+  it("clears the query cache on sign out", async () => {
+    signOut.mockResolvedValue({ error: null })
+    const client = makeQueryClient()
+    const clear = vi.spyOn(client, "clear")
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])} queryClient={client}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Account menu for Edith Editor" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }))
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith(
+        "/admin/sign-in?notice=signed-out"
+      )
+    )
+    expect(clear).toHaveBeenCalled()
+  })
+
+  it("shows a sign-out failure in the topbar, clears it on reopen and keeps the session", async () => {
+    signOut.mockResolvedValue({ error: { message: "nope" } })
+    const client = makeQueryClient()
+    const clear = vi.spyOn(client, "clear")
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["editor"])} queryClient={client}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const account = screen.getByRole("button", {
+      name: "Account menu for Edith Editor",
+    })
+    await user.click(account)
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }))
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("Could not sign out.")
+    expect(screen.queryByRole("menu")).toBeNull()
+    expect(alert.closest('[data-slot="topbar"]')).not.toBeNull()
+    expect(clear).not.toHaveBeenCalled()
+    expect(router.replace).not.toHaveBeenCalled()
+    await user.click(account)
+    expect(
+      await screen.findByRole("menuitem", { name: "Sign out" })
+    ).not.toHaveAttribute("aria-disabled", "true")
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("footer dock: Account link and Log out (which clears the cache)", async () => {
+    signOut.mockResolvedValue({ error: null })
+    const client = makeQueryClient()
+    const clear = vi.spyOn(client, "clear")
+    const user = userEvent.setup()
+    render(
+      <AdminShell session={session(["intake"])} queryClient={client}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const footer = document.querySelector(
+      '[data-slot="sidebar-footer"]'
+    ) as HTMLElement
+    // The card's dock row and the icon rail's column (CSS shows one).
+    const docks = within(footer).getAllByRole("navigation", { name: "Account" })
+    expect(docks).toHaveLength(2)
+    expect(
+      within(docks[0]).getByRole("link", { name: "Account" })
+    ).toHaveAttribute("href", "/admin/account")
+    await user.click(within(docks[0]).getByRole("button", { name: "Log out" }))
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith(
+        "/admin/sign-in?notice=signed-out"
+      )
+    )
+    expect(clear).toHaveBeenCalled()
+  })
+
+  it("names each navigation group by its section label", () => {
+    render(
+      <AdminShell session={session(["editor"])}>
+        <p>Body</p>
+      </AdminShell>
+    )
+    const nav = screen.getByRole("navigation", { name: "Admin" })
+    expect(
+      within(nav)
+        .getAllByRole("list")
+        .map((list) => list.getAttribute("aria-labelledby"))
+        .map((id) => document.getElementById(id!)?.textContent)
+    ).toEqual(["Overview", "Content", "Configuration"])
+  })
+
+  it("website card: environment, host and Open site", () => {
+    render(
+      <AdminShell
+        session={session(["editor"])}
+        site={{ url: "https://example.test", env: "staging" }}
+      >
+        <p>Body</p>
+      </AdminShell>
+    )
+    const footer = document.querySelector(
+      '[data-slot="sidebar-footer"]'
+    ) as HTMLElement
+    expect(footer).toHaveTextContent("Your website")
+    expect(footer).toHaveTextContent("example.test")
+    expect(footer).toHaveTextContent("Staging")
+    expect(footer).not.toHaveTextContent("Live")
+    const link = within(footer).getByRole("link", {
+      name: "Open site (opens in a new tab)",
+    })
+    expect(link).toHaveAttribute("href", "https://example.test")
+    expect(link).toHaveAttribute("target", "_blank")
+    // JW topbar: no View site and no breadcrumb.
+    expect(
+      within(screen.getByRole("banner")).queryByRole("link", {
+        name: /View site/,
+      })
+    ).toBeNull()
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull()
   })
 })
 
@@ -528,5 +608,21 @@ describe("NavEntry", () => {
     renderEntry(0)
     expect(screen.queryByRole("img")).toBeNull()
     expect(formatBadge(7)).toBe("7")
+  })
+
+  it("marks the active entry with a bar, bold label and filled icon", () => {
+    render(
+      <SidebarProvider>
+        <ul>
+          <NavEntry item={item} active />
+        </ul>
+      </SidebarProvider>
+    )
+    const link = screen.getByRole("link", { name: "Leads" })
+    expect(link).toHaveAttribute("aria-current", "page")
+    expect(link).toHaveAttribute("data-active")
+    expect(
+      link.closest("li")!.querySelector('[data-slot="nav-active-bar"]')
+    ).not.toBeNull()
   })
 })

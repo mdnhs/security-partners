@@ -48,7 +48,7 @@ export function EditorLayout({
     <div className="flex flex-col gap-6">
       <div
         className={cn(
-          "sticky top-[var(--admin-header-h,3.5rem)] z-20 flex flex-col gap-3 border-b bg-background/95 py-3 backdrop-blur supports-backdrop-filter:bg-background/80",
+          "sticky top-0 z-20 flex flex-col gap-3 border-b bg-background/95 py-3 backdrop-blur supports-backdrop-filter:bg-background/80",
           !inTabs &&
             "-mx-4 -mt-6 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:-mt-8 lg:px-8"
         )}

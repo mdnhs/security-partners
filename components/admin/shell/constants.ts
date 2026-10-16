@@ -10,3 +10,6 @@ export type SiteInfo = {
 
 /** Until the layout passes the configured origin (tests, stories). */
 export const DEFAULT_SITE: SiteInfo = { url: "/", env: "development" }
+
+/** Circular icon buttons in the topbar (JW signature component 7). */
+export const ICON_BUTTON = "size-11 rounded-full border-border bg-card"

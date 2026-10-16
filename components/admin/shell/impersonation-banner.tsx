@@ -10,7 +10,7 @@ import { api, errorMessage, unwrap } from "@/lib/api-client"
 
 /**
  * Notice while an owner/admin views the admin as another user (spec §6).
- * Rendered inside the shell's sticky header, above the topbar.
+ * Rendered in the content column's header wrapper, above the topbar.
  */
 export function ImpersonationBanner({ name }: { name: string }) {
   const router = useRouter()
@@ -21,7 +21,7 @@ export function ImpersonationBanner({ name }: { name: string }) {
     <div
       role="region"
       aria-label="Impersonation"
-      className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 bg-amber-300 px-4 py-2 text-sm font-medium text-amber-950"
+      className="rounded-card bg-warning-soft text-warning flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 py-3 text-sm font-medium"
     >
       <span className="flex items-center gap-2">
         <Eye aria-hidden className="size-4" />
@@ -31,7 +31,7 @@ export function ImpersonationBanner({ name }: { name: string }) {
       <Button
         size="sm"
         variant="outline"
-        className="border-amber-950/30 bg-transparent text-amber-950 hover:bg-amber-950/10"
+        className="border-warning/40 text-warning hover:bg-warning/10 hover:text-warning rounded-lg bg-transparent"
         disabled={pending}
         onClick={async () => {
           setPending(true)
