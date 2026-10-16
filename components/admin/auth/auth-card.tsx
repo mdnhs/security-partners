@@ -1,12 +1,6 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import type { ReactNode } from "react"
 
-/** Card used by every admin auth page: h1 title, one-line description, form. */
+/** Title block + form for every admin auth page (JW AuthHeader; no card chrome). */
 export function AuthCard({
   title,
   description,
@@ -14,17 +8,19 @@ export function AuthCard({
 }: {
   title: string
   description: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h1 className="text-lg font-bold">{title}</h1>
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-[2rem] leading-tight font-bold tracking-tight sm:text-4xl">
+          {title}
+        </h1>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </header>
+      {children}
+    </div>
   )
 }
