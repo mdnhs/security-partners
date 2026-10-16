@@ -1,6 +1,8 @@
+import { cookies, headers } from "next/headers"
 import { Suspense } from "react"
 
 import { AdminShell } from "@/components/admin/shell/admin-shell"
+import { SIDEBAR_COOKIE } from "@/components/admin/shell/constants"
 import { requireSession } from "@/server/auth/session"
 
 /**
@@ -18,9 +20,14 @@ export default function PanelLayout({
 }
 
 async function PanelFrame({ children }: { children: React.ReactNode }) {
-  const { user, actor, session } = await requireSession()
+  const [{ user, actor, session }, cookieStore, headerStore] =
+    await Promise.all([requireSession(), cookies(), headers()])
   return (
     <AdminShell
+      // Set by the sidebar toggle (components/ui/sidebar.tsx).
+      defaultSidebarOpen={cookieStore.get(SIDEBAR_COOKIE)?.value !== "false"}
+      // The admin is served from the public site's own host.
+      siteHost={headerStore.get("host") ?? ""}
       session={{
         user,
         roles: actor.roles,

@@ -48,10 +48,8 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   ).toBeVisible()
   await expect(page.getByText("Two-factor authentication is on")).toBeVisible()
 
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "Sign out" })
-    .click()
+  await page.locator('[data-slot="sidebar-footer"]').getByRole("button").click()
+  await page.getByRole("menuitem", { name: "Sign out" }).click()
   await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
   await signIn(page, account.email)
   await expect(page).toHaveURL(/\/admin\/two-factor/)

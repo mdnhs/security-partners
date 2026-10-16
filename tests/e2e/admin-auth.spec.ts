@@ -4,6 +4,11 @@ import { URI } from "otpauth"
 import { BASE_URL } from "./env"
 import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
 
+/** The signed-in user's menu in the sidebar footer (holds "Sign out"). */
+async function openUserMenu(page: Page) {
+  await page.locator('[data-slot="sidebar-footer"]').getByRole("button").click()
+}
+
 async function signIn(page: Page, email: string, password: string) {
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password", { exact: true }).fill(password)
@@ -131,7 +136,8 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     await expect(
       page.getByRole("heading", { name: `Welcome, ${editor.name}` })
     ).toBeVisible()
-    await page.getByRole("button", { name: "Sign out" }).click()
+    await openUserMenu(page)
+    await page.getByRole("menuitem", { name: "Sign out" }).click()
     await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
     await page.goto("/admin")
     await expect(page).toHaveURL(/\/admin\/sign-in\?next=%2Fadmin$/)
@@ -154,13 +160,17 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
         body: JSON.stringify({ message: "Internal server error" }),
       })
     )
-    await page.getByRole("button", { name: "Sign out" }).click()
-    await expect(page.getByText("Internal server error")).toBeVisible()
+    await openUserMenu(page)
+    await page.getByRole("menuitem", { name: "Sign out" }).click()
+    // The menu stays open with the error; the item can be retried.
+    await expect(page.getByRole("menu")).toContainText("Internal server error")
     await expect(page).toHaveURL(/\/admin$/)
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeEnabled()
+    await expect(
+      page.getByRole("menuitem", { name: "Sign out" })
+    ).not.toHaveAttribute("aria-disabled", "true")
 
     await page.unroute("**/api/auth/sign-out")
-    await page.getByRole("button", { name: "Sign out" }).click()
+    await page.getByRole("menuitem", { name: "Sign out" }).click()
     await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
   })
 

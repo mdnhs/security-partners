@@ -1,28 +1,41 @@
 "use client"
 
 import type { QueryClient } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 
 import { AdminProviders } from "@/components/admin/providers"
 import {
   type AdminSession,
   AdminSessionProvider,
 } from "@/components/admin/session-provider"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
-import { CommandPalette } from "./command-palette"
+import { AppSidebar } from "./app-sidebar"
+import type { NavBadges } from "./nav"
 import { ImpersonationBanner } from "./impersonation-banner"
-import { Sidebar } from "./sidebar"
-import { Topbar } from "./topbar"
+import { SiteHeader } from "./site-header"
 
-/** Signed-in admin frame: sidebar (≥ 1024 px), topbar, main landmark. */
+/**
+ * Signed-in admin frame (shadcn dashboard-01): inset sidebar (a sheet below
+ * 768 px), sticky header, main landmark.
+ */
 export function AdminShell({
   session,
   children,
   queryClient,
+  defaultSidebarOpen = true,
+  siteHost = "",
+  badges,
 }: {
   session: AdminSession
   children: ReactNode
   queryClient?: QueryClient
+  /** Desktop sidebar expanded (the `sidebar_state` cookie remembers it). */
+  defaultSidebarOpen?: boolean
+  /** The public site's host, shown on the sidebar's website card. */
+  siteHost?: string
+  /** Counts beside nav items (e.g. new leads, from Phase 7). */
+  badges?: NavBadges
 }) {
   return (
     <AdminSessionProvider value={session}>
@@ -36,20 +49,30 @@ export function AdminShell({
         >
           Skip to content
         </a>
-        <div className="flex min-h-svh">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
+        <SidebarProvider
+          defaultOpen={defaultSidebarOpen}
+          style={
+            {
+              "--sidebar-width": "calc(var(--spacing) * 64)",
+              "--header-height": "calc(var(--spacing) * 14)",
+            } as CSSProperties
+          }
+        >
+          <AppSidebar siteHost={siteHost} badges={badges} />
+          <SidebarInset className="min-w-0">
             {/*
              * One sticky header for the content column: the impersonation
-             * banner stacks above the topbar instead of covering it, and the
-             * full-height sidebar sits beside it, never underneath
-             * (WCAG 2.2 SC 2.4.11).
+             * banner stacks above the site header instead of covering it, and
+             * the sidebar sits beside it, never underneath (WCAG 2.2 SC 2.4.11).
              */}
-            <div data-slot="admin-header" className="sticky top-0 z-30">
+            <div
+              data-slot="admin-header"
+              className="sticky top-0 z-30 md:overflow-hidden md:rounded-t-xl"
+            >
               {session.impersonatedBy ? (
                 <ImpersonationBanner name={session.user.name} />
               ) : null}
-              <Topbar search={<CommandPalette />} />
+              <SiteHeader />
             </div>
             <main
               id="main"
@@ -58,8 +81,8 @@ export function AdminShell({
             >
               {children}
             </main>
-          </div>
-        </div>
+          </SidebarInset>
+        </SidebarProvider>
       </AdminProviders>
     </AdminSessionProvider>
   )

@@ -1,10 +1,8 @@
 "use client"
 
-import { LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import { authClient, authErrorMessage } from "@/lib/auth-client"
 
 /** Signs out; resolves to an error message, or null when the session ended. */
@@ -17,43 +15,26 @@ export async function signOutOrError(): Promise<string | null> {
   }
 }
 
-export function SignOutButton({
-  onSignedOut,
-}: {
-  /** Runs once the session has ended, before leaving the page. */
-  onSignedOut?: () => void
-} = {}) {
+/**
+ * Sign-out flow for any control: ends the session, runs `onSignedOut`, then
+ * leaves for the sign-in page. A failure keeps the user here with `error`.
+ */
+export function useSignOut(onSignedOut?: () => void) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  return (
-    <div className="flex items-center gap-2">
-      {error ? (
-        <span role="alert" className="text-sm text-destructive">
-          {error}
-        </span>
-      ) : null}
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={pending}
-        onClick={async () => {
-          setPending(true)
-          setError(null)
-          const failure = await signOutOrError()
-          if (failure) {
-            setError(failure)
-            setPending(false)
-            return
-          }
-          onSignedOut?.()
-          router.replace("/admin/sign-in?notice=signed-out")
-          router.refresh()
-        }}
-      >
-        <LogOut aria-hidden />
-        Sign out
-      </Button>
-    </div>
-  )
+  async function signOut() {
+    setPending(true)
+    setError(null)
+    const failure = await signOutOrError()
+    if (failure) {
+      setError(failure)
+      setPending(false)
+      return
+    }
+    onSignedOut?.()
+    router.replace("/admin/sign-in?notice=signed-out")
+    router.refresh()
+  }
+  return { signOut, pending, error }
 }

@@ -13,6 +13,10 @@ import {
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 
+/** Live counts shown beside nav items (Leads arrives in Phase 7). */
+export type NavBadgeKey = "new-leads"
+export type NavBadges = Partial<Record<NavBadgeKey, number>>
+
 export type NavItem = {
   label: string
   href: string
@@ -21,6 +25,8 @@ export type NavItem = {
   permission: PermissionRequest | null
   /** "exact" for /admin (otherwise every admin URL would match). */
   match: "exact" | "prefix"
+  /** Which count from NavBadges (if any) to show beside the label. */
+  badge?: NavBadgeKey
 }
 
 export type NavSection = { label: string; items: NavItem[] }

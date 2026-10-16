@@ -34,13 +34,29 @@ test("admin shell frame", async ({ page }) => {
   })
 })
 
-test("admin navigation sheet (below 1024 px)", async ({ page }, testInfo) => {
+test("admin sidebar collapsed to icons", async ({ page }, testInfo) => {
   test.skip(
-    testInfo.project.name !== "mobile",
-    "the sheet exists below lg only"
+    testInfo.project.name !== "desktop",
+    "the icon rail exists from 768 px up"
   )
   await signIn(page)
-  await page.getByRole("button", { name: "Open navigation" }).click()
+  await page.getByRole("button", { name: "Toggle navigation" }).click()
+  await expect(page.locator('[data-slot="sidebar"]')).toHaveAttribute(
+    "data-state",
+    "collapsed"
+  )
+  await expect(page).toHaveScreenshot("admin-shell-collapsed.png", {
+    mask: [page.getByRole("main")],
+  })
+})
+
+test("admin navigation sheet (below 768 px)", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile",
+    "the sheet exists below md only"
+  )
+  await signIn(page)
+  await page.getByRole("button", { name: "Toggle navigation" }).click()
   await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible()
   // The modal sheet hides <main> from the accessibility tree (getByRole would
   // mask nothing) and a mask is painted above the sheet, so the page content
