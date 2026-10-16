@@ -29,6 +29,19 @@ const DEST_ALL = [
   "Settings",
   "Account",
 ]
+const DEST_ADMIN = [
+  "Dashboard",
+  "Pages",
+  "Services",
+  "Team",
+  "Clients",
+  "Group companies",
+  "Categories",
+  "Settings",
+  "Users",
+  "Audit log",
+  "Account",
+]
 
 describe("navigation registry (JW structure)", () => {
   it.each<[Role, string[]]>([
@@ -62,8 +75,26 @@ describe("navigation registry (JW structure)", () => {
     expect(menuSections(["intake"]).map((s) => s.label)).toEqual(["Overview"])
   })
 
+  it("Users and Audit log are dock items for owners and admins only (spec §8.1, ruling D3)", () => {
+    for (const role of ["owner", "admin"] as const) {
+      expect(dock([role])).toEqual(["Users", "Audit log", "Account"])
+      expect(menu([role])).toEqual(MENU_ALL)
+    }
+    for (const role of ["editor", "viewer", "marketer", "author"] as const)
+      expect(dock([role])).toEqual(["Account"])
+    const admin = navItems(["admin"]).find((s) => s.label === "Administration")
+    expect(admin?.items.map((i) => [i.label, i.href])).toEqual([
+      ["Users", "/admin/users"],
+      ["Audit log", "/admin/audit"],
+    ])
+    expect(navItems(["editor"]).some((s) => s.label === "Administration")).toBe(
+      false
+    )
+  })
+
   it("flattens children for ⌘K, permission-filtered", () => {
     expect(destinations(["editor"])).toEqual(DEST_ALL)
+    expect(destinations(["admin"])).toEqual(DEST_ADMIN)
     expect(destinations(["marketer"])).toEqual([
       "Dashboard",
       "Pages",
@@ -106,6 +137,13 @@ describe("navigation registry (JW structure)", () => {
     const dashboard = NAV_SECTIONS[0]!.items[0]!
     expect(isActiveItem(dashboard, "/admin")).toBe(true)
     expect(isActiveItem(dashboard, "/admin/pages")).toBe(false)
+    const users = NAV_SECTIONS.flatMap((s) => s.items).find(
+      (i) => i.label === "Users"
+    )!
+    expect(
+      isActiveItem(users, "/admin/users/0190f0e0-0000-7000-8000-000000000001")
+    ).toBe(true)
+    expect(isActiveItem(users, "/admin/users-archive")).toBe(false)
   })
 
   it("every link stays inside /admin", () => {

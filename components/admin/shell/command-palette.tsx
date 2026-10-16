@@ -8,6 +8,7 @@ import {
   Plus,
   ShieldCheck,
   Tags,
+  UserCog,
   Users,
   Wrench,
 } from "lucide-react"
@@ -71,6 +72,7 @@ export function CommandPalette() {
   const { roles } = useAdminSession()
   const canCreateService = usePermission({ service: ["create"] })
   const canEditPages = usePermission({ page: ["update"] })
+  const canReadUsers = usePermission({ user: ["read"] })
   const { open, setOpen } = useCommandPalette()
   const [query, setQuery] = useState("")
   const trimmed = query.trim()
@@ -104,6 +106,20 @@ export function CommandPalette() {
     queryKey: ["search", q],
     queryFn: () => unwrap(api.search.$get({ query: { q } })),
     enabled: open && wantsRecords && q.length >= 2,
+    staleTime: 10_000,
+  })
+  // People (spec §8.2): the users list, name or email, for user:read holders.
+  const people = useQuery({
+    queryKey: ["users", "palette", q],
+    queryFn: async () =>
+      (
+        await unwrap(
+          api.users.$get({
+            query: { q, page: "1", pageSize: "5", sort: "name:asc" },
+          })
+        )
+      ).items,
+    enabled: canReadUsers && open && wantsRecords && q.length >= 2,
     staleTime: 10_000,
   })
 
@@ -144,9 +160,13 @@ export function CommandPalette() {
   }
 
   const records = (wantsRecords && results.data?.items) || []
+  const found = (wantsRecords && canReadUsers && people.data) || []
   // The debounce window counts as searching: no flash of "No results".
-  const searching = wantsRecords && (trimmed !== q || results.isFetching)
-  const failed = wantsRecords && !searching && results.isError
+  const searching =
+    wantsRecords &&
+    (trimmed !== q || results.isFetching || (canReadUsers && people.isFetching))
+  const failed =
+    wantsRecords && !searching && (results.isError || people.isError)
 
   return (
     <>
@@ -154,7 +174,7 @@ export function CommandPalette() {
         open={open}
         onOpenChange={setPaletteOpen}
         title="Search the admin"
-        description="Jump to a section, run an action or find a page, service or team member."
+        description="Jump to a section, run an action or find a page, service, team member or user."
       >
         {/*
          * Server results are already filtered: cmdk must not filter again.
@@ -199,6 +219,25 @@ export function CommandPalette() {
                     </CommandItem>
                   )
                 })}
+              </CommandGroup>
+            ) : null}
+            {found.length > 0 ? (
+              <CommandGroup heading="People">
+                {found.map((person) => (
+                  <CommandItem
+                    key={`user:${person.id}`}
+                    value={`user:${person.id}`}
+                    onSelect={() =>
+                      go(() => router.push(`/admin/users/${person.id}`))
+                    }
+                  >
+                    <UserCog aria-hidden />
+                    <span className="truncate">{person.name}</span>
+                    <span className="ml-auto truncate text-xs text-muted-foreground">
+                      {person.email}
+                    </span>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             ) : null}
             {sections.length > 0 ? (

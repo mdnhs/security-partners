@@ -73,6 +73,9 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   empty,
   emptyDescription,
   emptyAction,
+  toolbar,
+  filterKey = "",
+  filteredEmpty = "Nothing matches these filters",
 }: {
   /** Accessible name (table caption, list label). */
   label: string
@@ -89,6 +92,15 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   emptyDescription?: ReactNode
   /** Call to action in the empty state (e.g. "Add category"); omit for read-only users. */
   emptyAction?: ReactNode
+  /** Extra filter controls shown beside the search box (labelled selects/inputs). */
+  toolbar?: ReactNode
+  /**
+   * Identity of the active extra filters ("" = none). The caller puts the
+   * filters into `queryKey` and `fetchPage`; a new key returns to page 1.
+   */
+  filterKey?: string
+  /** Empty-list title while extra filters are active. */
+  filteredEmpty?: string
 }) {
   const [sorting, setSorting] = useState<SortingState>(initialSort ?? [])
   const [pagination, setPagination] = useState<PaginationState>({
@@ -102,6 +114,13 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   const [pagedQ, setPagedQ] = useState(q)
   if (pagedQ !== q) {
     setPagedQ(q)
+    if (pagination.pageIndex !== 0)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  // Likewise for the caller's extra filters.
+  const [pagedFilterKey, setPagedFilterKey] = useState(filterKey)
+  if (pagedFilterKey !== filterKey) {
+    setPagedFilterKey(filterKey)
     if (pagination.pageIndex !== 0)
       setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
@@ -174,7 +193,13 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <div
+        className={cn(
+          "flex flex-wrap gap-3",
+          // Labelled filters stand above their controls: line up the bottoms.
+          toolbar ? "items-end" : "items-center"
+        )}
+      >
         <div className="relative w-full sm:w-72">
           <Search
             aria-hidden
@@ -213,6 +238,7 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
             </select>
           </div>
         ) : null}
+        {toolbar}
       </div>
 
       {query.isError ? (
@@ -238,10 +264,16 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
       ) : rows.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          role={q ? "status" : undefined}
-          title={q ? "No matches" : empty}
-          description={q ? `Nothing matches “${q}”.` : emptyDescription}
-          action={q ? undefined : emptyAction}
+          role={q || filterKey ? "status" : undefined}
+          title={q ? "No matches" : filterKey ? filteredEmpty : empty}
+          description={
+            q
+              ? `Nothing matches “${q}”.`
+              : filterKey
+                ? "Try different filters or clear them."
+                : emptyDescription
+          }
+          action={q || filterKey ? undefined : emptyAction}
         />
       ) : (
         // Relative dates count from the last fetch (moves on with refetches).

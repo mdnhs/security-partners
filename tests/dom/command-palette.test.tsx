@@ -96,6 +96,71 @@ describe("⌘K command palette (master 4.1)", () => {
     )
   })
 
+  it("finds people for user:read holders and opens their page (spec §8.2)", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "http://localhost")
+      if (url.pathname === "/api/v1/admin/users") {
+        expect(url.searchParams.get("q")).toBe("oli")
+        expect(url.searchParams.get("pageSize")).toBe("5")
+        return Response.json({
+          items: [
+            {
+              id: "0190f0e0-0000-7000-8000-000000000001",
+              name: "Olive Owner",
+              email: "olive@example.test",
+            },
+          ],
+          page: 1,
+          pageSize: 5,
+          total: 1,
+        })
+      }
+      return Response.json({ items: [] })
+    })
+    const user = userEvent.setup()
+    renderShell(["admin"])
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.type(
+      within(dialog).getByRole("combobox", { name: "Search" }),
+      "oli"
+    )
+    const option = await within(dialog).findByRole("option", {
+      name: /Olive Owner/,
+    })
+    expect(
+      within(
+        within(dialog).getByRole("group", { name: "People" })
+      ).getAllByRole("option")
+    ).toHaveLength(1)
+    await user.click(option)
+    expect(push).toHaveBeenCalledWith(
+      "/admin/users/0190f0e0-0000-7000-8000-000000000001"
+    )
+  })
+
+  it("never asks for people without user:read", async () => {
+    const user = userEvent.setup()
+    renderShell(["editor"])
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.type(
+      within(dialog).getByRole("combobox", { name: "Search" }),
+      "oli"
+    )
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(
+      fetchMock.mock.calls.map(
+        ([input]) => new URL(String(input), "http://localhost").pathname
+      )
+    ).toEqual(["/api/v1/admin/search"])
+    expect(within(dialog).queryByRole("group", { name: "People" })).toBeNull()
+  })
+
   it("lists only the sections and actions the user may use", async () => {
     const user = userEvent.setup()
     renderShell(["intake"])

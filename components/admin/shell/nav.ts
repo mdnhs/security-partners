@@ -4,9 +4,11 @@ import {
   LayoutDashboard,
   Layers,
   type LucideIcon,
+  ScrollText,
   Settings,
   ShieldCheck,
   Tags,
+  UserCog,
   UserRound,
   Users,
   Wrench,
@@ -63,8 +65,9 @@ const COLLECTION = { collection: ["read"] } satisfies PermissionRequest
 /**
  * Admin IA (spec §8.1) in the James Whitfield structure: the sidebar lists
  * sections; a section's sub-pages are tabs in the content panel; account
- * and administration links sit in the footer dock. Later phases add their
- * items here (Articles, Media, Leads, SEO, Marketing, Users, Audit log).
+ * and administration links (Users, Audit log — ruling D3) sit in the footer
+ * dock. Later phases add their items here (Articles, Media, Leads, SEO,
+ * Marketing).
  */
 export const NAV_SECTIONS: NavSection[] = [
   {
@@ -145,6 +148,27 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    label: "Administration",
+    items: [
+      {
+        label: "Users",
+        href: "/admin/users",
+        icon: UserCog,
+        permission: { user: ["read"] },
+        match: "prefix",
+        dock: true,
+      },
+      {
+        label: "Audit log",
+        href: "/admin/audit",
+        icon: ScrollText,
+        permission: { audit: ["read"] },
+        match: "prefix",
+        dock: true,
+      },
+    ],
+  },
+  {
     label: "You",
     items: [
       {
@@ -191,7 +215,7 @@ export function menuSections(roles: readonly string[]): NavSection[] {
     .filter((section) => section.items.length > 0)
 }
 
-/** Footer-dock links (Account; Users and Audit log from Phase 4 Task 12). */
+/** Footer-dock links: Users, Audit log (owners/admins) and Account. */
 export function dockItems(roles: readonly string[]): NavItem[] {
   return navItems(roles).flatMap((section) =>
     section.items.filter((item) => item.dock)

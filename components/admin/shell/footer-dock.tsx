@@ -29,8 +29,8 @@ export type DockProps = {
 }
 
 /**
- * Account (and, from Phase 4 Task 12, Users and Audit log) plus Log out as
- * icon buttons: a row in the website card, a column in the icon rail.
+ * Users, Audit log (owners/admins), Account and Log out as icon buttons: a
+ * row in the website card, a column in the icon rail.
  */
 export function FooterDock({
   tone,

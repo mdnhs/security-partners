@@ -18,6 +18,7 @@ import { getEnv } from "@/server/env"
 
 import { resetDb } from "../integration/db"
 
+import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
 import { E2E_PASSWORD, type E2EFixtures, FIXTURES_FILE } from "./fixtures"
 
 const { DATABASE_URL } = getEnv()
@@ -75,6 +76,14 @@ await auth.api.verifyTOTP({
 const account = { email: "account@e2e.test", name: "Avery Account" }
 await auth.api.createUser({
   body: { ...account, role: ["editor"], password: E2E_PASSWORD },
+})
+
+// Users + Audit log screens (Phase 4 Task 12): an owner and a plain admin.
+await auth.api.createUser({
+  body: { ...E2E_OWNER, role: ["owner"], password: E2E_PASSWORD },
+})
+await auth.api.createUser({
+  body: { ...E2E_ADMIN, role: ["admin"], password: E2E_PASSWORD },
 })
 
 const fixtures: E2EFixtures = {
