@@ -1,45 +1,181 @@
 /*
- * Admin-only design tokens. Imported by the admin root layout only and
- * scoped to <html data-admin>, so the public site's tokens never change.
- * Brand colours come from globals.css (--color-brand-*).
+ * The admin's Tailwind entry: the public entry (utilities, shadcn base,
+ * brand colours) plus the admin type scale, card radius and colour tokens.
+ * Every token is scoped to <html data-admin>, so the public site (which
+ * loads app/globals.css alone) never changes.
+ * Layout language: the James Whitfield admin (floating grey panels on a
+ * white canvas, white cards). Colours: Security Partners navy and green.
  */
-html[data-admin] {
-  --primary: var(--color-brand-navy);
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: var(--color-brand-blue);
-  --accent: var(--color-brand-surface);
-  --accent-foreground: var(--color-brand-navy);
-  --chart-1: var(--color-brand-blue);
-  --chart-2: var(--color-brand-green);
-  --chart-3: var(--color-brand-navy);
-  --chart-4: var(--color-brand-muted);
-  --chart-5: var(--color-brand-blue-deep);
-  --sidebar: var(--color-brand-navy);
-  --sidebar-foreground: oklch(0.93 0.01 264);
-  --sidebar-primary: var(--color-brand-green);
-  --sidebar-primary-foreground: var(--color-brand-navy);
-  --sidebar-accent: oklch(1 0 0 / 9%);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: var(--color-brand-green);
+@import "../../globals.css";
+
+/* Type scale and card radius (phase-04b Task 1). */
+@theme {
+  --text-title: 2.25rem;
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.025em;
+  --text-title--font-weight: 700;
+  --text-card-title: 1.125rem;
+  --text-card-title--line-height: 1.35;
+  --text-card-title--font-weight: 700;
+  --text-kpi: 2.75rem;
+  --text-kpi--line-height: 1;
+  --text-kpi--letter-spacing: -0.03em;
+  --text-kpi--font-weight: 700;
+  --radius-card: 1.375rem;
 }
 
-/*
- * Keep scrolled-to and focused content clear of the sticky header (and the
- * impersonation banner above it). --admin-header-h is measured by
- * components/admin/shell/admin-shell.tsx; 3.5rem is the header alone.
- */
+@theme inline {
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-skeleton: var(--skeleton);
+  --color-hero-chip: var(--hero-chip);
+  --color-hero-chip-foreground: var(--hero-chip-foreground);
+  --color-hero-delta: var(--hero-delta);
+}
+
 html[data-admin] {
-  scroll-padding-top: calc(var(--admin-header-h, 3.5rem) + 0.5rem);
+  --radius: 0.75rem;
+  /* White canvas, cool-grey panels (sidebar, topbar, content), white cards. */
+  --background: #ffffff;
+  --foreground: #0d1b36;
+  --card: #ffffff;
+  --card-foreground: #0d1b36;
+  --popover: #ffffff;
+  --popover-foreground: #0d1b36;
+  /* Brand green, darkened for AA with white text (brand #67bd31 is 2.3:1). */
+  --primary: #367318;
+  --primary-foreground: #ffffff;
+  --secondary: #e8edf5;
+  --secondary-foreground: #0d1b36;
+  --muted: #e8edf5;
+  --muted-foreground: #5a6478;
+  --accent: #eef6e8;
+  --accent-foreground: #2f5f14;
+  --destructive: #dc2626;
+  --border: #e3e8f2;
+  /* Control edges (WCAG 1.4.11): 3:1 on canvas, panels and cards. */
+  --input: #7d8799;
+  --ring: #4e9a22;
+  --chart-1: #2751a3;
+  --chart-2: #4e9a22;
+  --chart-3: #67bd31;
+  --chart-4: #0d1b36;
+  --chart-5: #a7d98a;
+  --sidebar: #f1f4f9;
+  --sidebar-foreground: #0d1b36;
+  --sidebar-primary: #367318;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef6e8;
+  --sidebar-accent-foreground: #2f5f14;
+  --sidebar-border: #e3e8f2;
+  --sidebar-ring: #4e9a22;
+  /* Status pills: soft fill, strong text. */
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  /* Loading placeholders, visible on panels and cards. */
+  --skeleton: #dde3ec;
+  /* Comparison-period stripes in charts and legends. */
+  --hatch: #a7d98a;
+  /* Hero KPI card and the auth brand panel (navy, like the public hero). */
+  --hero-from: #0d1b36;
+  --hero-to: #1b3566;
+  --hero-foreground: #ffffff;
+  --hero-chip: #ffffff;
+  --hero-chip-foreground: #0d1b36;
+  --hero-delta: #b7e892;
+  /* The sidebar's "Your website" card. */
+  --promo-from: #071022;
+  --promo-to: #13284d;
+  --promo-foreground: #ffffff;
 }
 
 html[data-admin].dark {
-  --primary: oklch(0.93 0.01 264);
-  --primary-foreground: var(--color-brand-navy);
-  --ring: oklch(0.7 0.12 264);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --sidebar: oklch(0.17 0.03 264);
+  /* Elevation: canvas darkest, then panels, then cards. */
+  --background: #0b1220;
+  --foreground: #e6ebf3;
+  --card: #1d2840;
+  --card-foreground: #e6ebf3;
+  --popover: #1d2840;
+  --popover-foreground: #e6ebf3;
+  --primary: #7cc84a;
+  --primary-foreground: #0a1408;
+  --secondary: #1a2337;
+  --secondary-foreground: #e6ebf3;
+  --muted: #1a2337;
+  --muted-foreground: #9aa6bb;
+  --accent: #1f3318;
+  --accent-foreground: #cfeab8;
+  --destructive: #f87171;
+  --border: #26324a;
+  --input: #6b7a95;
+  --ring: #7cc84a;
+  --chart-1: #7aa2f0;
+  --chart-2: #7cc84a;
+  --chart-3: #a7d98a;
+  --chart-4: #c7d3ea;
+  --chart-5: #3f6b25;
+  --sidebar: #141c2e;
+  --sidebar-foreground: #e6ebf3;
+  --sidebar-primary: #7cc84a;
+  --sidebar-primary-foreground: #0a1408;
+  --sidebar-accent: #1f3318;
+  --sidebar-accent-foreground: #cfeab8;
+  --sidebar-border: #26324a;
+  --sidebar-ring: #7cc84a;
+  --success: #4ade80;
+  --success-soft: #12301c;
+  --warning: #fbbf24;
+  --warning-soft: #33270c;
+  --danger: #f87171;
+  --danger-soft: #3a1414;
+  --skeleton: #2a3550;
+  --hatch: #3f6b25;
+}
+
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--hatch) 0 3px,
+    transparent 3px 7px
+  );
+}
+
+@utility bg-hero {
+  background-image: linear-gradient(160deg, var(--hero-from), var(--hero-to));
+  color: var(--hero-foreground);
+}
+
+@utility bg-promo {
+  background-image: linear-gradient(160deg, var(--promo-from), var(--promo-to));
+  color: var(--promo-foreground);
+}
+
+@layer base {
+  /* Narrow, quiet scrollbars across the admin (sidebar, tab rows, tables). */
+  html[data-admin] * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* Restrained motion, and none for people who ask for less. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin] *,
+  html[data-admin] *::before,
+  html[data-admin] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Rich text editing surface (components/admin/rich-text/editor.tsx). */

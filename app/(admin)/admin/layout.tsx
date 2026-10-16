@@ -1,9 +1,8 @@
 import type { Metadata } from "next"
 import { Geist_Mono, Lato } from "next/font/google"
 
-import "../../globals.css"
 import "./admin.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import { AdminThemeProvider } from "@/components/admin/theme-provider"
 import { cn } from "@/lib/utils"
 
 const lato = Lato({
@@ -25,7 +24,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-/** Root layout for /admin (separate from the public site's root layout). */
+/**
+ * Root layout for /admin (separate from the public site's). admin.css is
+ * the admin's Tailwind entry: it imports the public globals.css and adds
+ * the admin tokens, all under html[data-admin].
+ */
 export default function AdminRootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -41,8 +44,8 @@ export default function AdminRootLayout({
         lato.variable
       )}
     >
-      <body className="min-h-svh bg-muted/40">
-        <ThemeProvider>{children}</ThemeProvider>
+      <body className="min-h-svh bg-background text-foreground">
+        <AdminThemeProvider>{children}</AdminThemeProvider>
       </body>
     </html>
   )

@@ -58,7 +58,7 @@ export function AdminProviders({
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         {children}
-        <Toaster position="bottom-right" richColors closeButton />
+        <Toaster position="top-center" richColors closeButton />
       </TooltipProvider>
     </QueryClientProvider>
   )
