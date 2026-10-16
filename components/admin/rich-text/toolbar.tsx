@@ -14,7 +14,7 @@ import {
   Redo2,
   Undo2,
 } from "lucide-react"
-import { useState } from "react"
+import { type KeyboardEvent, useState } from "react"
 
 import { MediaPickerDialog } from "@/components/admin/media/picker-dialog"
 import { Button } from "@/components/ui/button"
@@ -27,17 +27,26 @@ import {
 
 import { isRichTextHref, type RichTextMode } from "./extensions"
 
+/** Props that make a control one stop of the toolbar's roving tabindex. */
+type Roving = {
+  tabIndex: number
+  onFocus: () => void
+  "data-toolbar-item": ""
+}
+
 function ToolButton({
   label,
   pressed,
   disabled,
   onClick,
+  roving,
   children,
 }: {
   label: string
   pressed?: boolean
   disabled?: boolean
   onClick: () => void
+  roving: Roving
   children: React.ReactNode
 }) {
   return (
@@ -51,6 +60,7 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       className="aria-pressed:bg-muted aria-pressed:text-foreground"
+      {...roving}
     >
       {children}
     </Button>
@@ -67,12 +77,14 @@ function LinkButton({
   disabled,
   open,
   onOpenChange,
+  roving,
 }: {
   editor: Editor
   active: boolean
   disabled?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
+  roving: Roving
 }) {
   const [href, setHref] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -106,6 +118,7 @@ function LinkButton({
     onOpenChange(false)
   }
 
+  const label = active ? "Edit link" : "Link"
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
@@ -115,10 +128,12 @@ function LinkButton({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Link"
-            title="Link (Ctrl/⌘ K)"
-            aria-pressed={active}
-            className="aria-pressed:bg-muted aria-pressed:text-foreground"
+            aria-label={label}
+            aria-keyshortcuts="Control+K Meta+K"
+            title={`${label} (Ctrl/⌘ K)`}
+            data-active={active || undefined}
+            className="data-active:bg-muted data-active:text-foreground"
+            {...roving}
           />
         }
       >
@@ -184,25 +199,51 @@ function LinkButton({
   )
 }
 
+/** Arrow keys, Home and End move focus between the toolbar's enabled controls. */
+function onToolbarKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  const keys = ["ArrowLeft", "ArrowRight", "Home", "End"]
+  if (!keys.includes(event.key)) return
+  const items = [
+    ...event.currentTarget.querySelectorAll<HTMLElement>(
+      "[data-toolbar-item]:not(:disabled)"
+    ),
+  ]
+  if (items.length === 0) return
+  const at = items.indexOf(document.activeElement as HTMLElement)
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowRight"
+          ? (at + 1) % items.length
+          : (at - 1 + items.length) % items.length
+  event.preventDefault()
+  items[next].focus()
+}
+
 /** Formatting controls limited to what the site renders (spec §5.3). */
 export function RichTextToolbar({
   editor,
   mode,
   editorId,
+  disabled,
   linkOpen,
   onLinkOpenChange,
 }: {
   editor: Editor
   mode: RichTextMode
   editorId: string
+  /** The field's `disabled` prop (the editor's editability follows it). */
+  disabled?: boolean
   linkOpen: boolean
   onLinkOpenChange: (open: boolean) => void
 }) {
   const [picking, setPicking] = useState(false)
+  const [focusKey, setFocusKey] = useState("Bold")
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
-      editable: e.isEditable,
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
       link: e.isActive("link"),
@@ -216,18 +257,52 @@ export function RichTextToolbar({
     }),
   })
   const full = mode === "full"
-  const locked = !state.editable
+  // The prop, not editor state: setEditable(…, false) emits no transaction,
+  // so a selector over `isEditable` would stay stale after re-enabling.
+  const locked = !!disabled
+
+  // Roving tabindex (WAI-ARIA toolbar): one Tab stop, the last focused
+  // control, or the first enabled one when that is disabled.
+  const enabled: [string, boolean][] = [
+    ["Bold", !locked],
+    ["Italic", !locked],
+    ["Link", !locked],
+    ...(full
+      ? ([
+          ["Heading", !locked],
+          ["Subheading", !locked],
+          ["Bulleted list", !locked],
+          ["Numbered list", !locked],
+          ["Quote", !locked],
+          ["Insert image", !locked],
+        ] as [string, boolean][])
+      : []),
+    ["Undo", !locked && state.canUndo],
+    ["Redo", !locked && state.canRedo],
+  ]
+  const stop = enabled.some(([key, on]) => key === focusKey && on)
+    ? focusKey
+    : enabled.find(([, on]) => on)?.[0]
+  const roving = (key: string): Roving => ({
+    tabIndex: key === stop ? 0 : -1,
+    onFocus: () => setFocusKey(key),
+    "data-toolbar-item": "",
+  })
+
   return (
     <div
       role="toolbar"
       aria-label="Formatting"
       aria-controls={editorId}
+      aria-orientation="horizontal"
+      onKeyDown={onToolbarKeyDown}
       className="flex flex-wrap items-center gap-0.5 border-b bg-muted/40 p-1"
     >
       <ToolButton
         label="Bold"
         pressed={state.bold}
         disabled={locked}
+        roving={roving("Bold")}
         onClick={() => editor.chain().focus().toggleBold().run()}
       >
         <Bold aria-hidden />
@@ -236,6 +311,7 @@ export function RichTextToolbar({
         label="Italic"
         pressed={state.italic}
         disabled={locked}
+        roving={roving("Italic")}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       >
         <Italic aria-hidden />
@@ -244,6 +320,7 @@ export function RichTextToolbar({
         editor={editor}
         active={state.link}
         disabled={locked}
+        roving={roving("Link")}
         open={linkOpen && !locked}
         onOpenChange={onLinkOpenChange}
       />
@@ -254,6 +331,7 @@ export function RichTextToolbar({
             label="Heading"
             pressed={state.h2}
             disabled={locked}
+            roving={roving("Heading")}
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 2 }).run()
             }
@@ -264,6 +342,7 @@ export function RichTextToolbar({
             label="Subheading"
             pressed={state.h3}
             disabled={locked}
+            roving={roving("Subheading")}
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 3 }).run()
             }
@@ -274,6 +353,7 @@ export function RichTextToolbar({
             label="Bulleted list"
             pressed={state.bullet}
             disabled={locked}
+            roving={roving("Bulleted list")}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
           >
             <List aria-hidden />
@@ -282,6 +362,7 @@ export function RichTextToolbar({
             label="Numbered list"
             pressed={state.ordered}
             disabled={locked}
+            roving={roving("Numbered list")}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
           >
             <ListOrdered aria-hidden />
@@ -290,6 +371,7 @@ export function RichTextToolbar({
             label="Quote"
             pressed={state.quote}
             disabled={locked}
+            roving={roving("Quote")}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
           >
             <Quote aria-hidden />
@@ -297,12 +379,13 @@ export function RichTextToolbar({
           <ToolButton
             label="Insert image"
             disabled={locked}
+            roving={roving("Insert image")}
             onClick={() => setPicking(true)}
           >
             <ImagePlus aria-hidden />
           </ToolButton>
           <MediaPickerDialog
-            open={picking}
+            open={picking && !locked}
             onOpenChange={setPicking}
             onSelect={(item) =>
               editor
@@ -321,6 +404,7 @@ export function RichTextToolbar({
       <ToolButton
         label="Undo"
         disabled={locked || !state.canUndo}
+        roving={roving("Undo")}
         onClick={() => editor.chain().focus().undo().run()}
       >
         <Undo2 aria-hidden />
@@ -328,6 +412,7 @@ export function RichTextToolbar({
       <ToolButton
         label="Redo"
         disabled={locked || !state.canRedo}
+        roving={roving("Redo")}
         onClick={() => editor.chain().focus().redo().run()}
       >
         <Redo2 aria-hidden />

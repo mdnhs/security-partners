@@ -42,7 +42,19 @@ export function MediaPickerDialog({
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
   const [chosen, setChosen] = useState<MediaItem | null>(null)
-  const q = useDebouncedValue(query.trim(), 250)
+  // Each opening starts fresh: no stale search, page or choice.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setQuery("")
+      setPage(1)
+      setChosen(null)
+    }
+  }
+  const debounced = useDebouncedValue(query.trim(), 250)
+  // Clearing the search (or reopening) shows everything at once.
+  const q = query.trim() ? debounced : ""
 
   const result = useQuery({
     queryKey: ["media", "list", { q, page }],

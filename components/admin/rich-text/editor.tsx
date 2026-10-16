@@ -12,7 +12,7 @@ import { isDeepEqual } from "@/lib/json"
 import { cn } from "@/lib/utils"
 
 import { type RichTextMode, richTextExtensions } from "./extensions"
-import { ImageNodeView } from "./image-view"
+import { ImageNodeView, RichTextDisabledContext } from "./image-view"
 import { RichTextToolbar } from "./toolbar"
 
 /** Ctrl/⌘ K without other modifiers (the link shortcut inside the editor). */
@@ -96,10 +96,13 @@ export function RichTextEditor({
     })
   }, [editor, attributes])
 
-  // Outside changes (reload after a conflict, restore) replace the content.
+  // Outside changes (reload after a conflict, restore, reset to empty)
+  // replace the content.
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
-    if (value && !isDeepEqual(editor.getJSON(), value))
+    if (!value) {
+      if (!editor.isEmpty) editor.commands.clearContent(false)
+    } else if (!isDeepEqual(editor.getJSON(), value))
       editor.commands.setContent(value, { emitUpdate: false })
   }, [editor, value])
 
@@ -123,11 +126,14 @@ export function RichTextEditor({
           editor={editor}
           mode={mode}
           editorId={id}
+          disabled={disabled}
           linkOpen={linkOpen}
           onLinkOpenChange={setLinkOpen}
         />
       ) : null}
-      <EditorContent editor={editor} />
+      <RichTextDisabledContext value={!!disabled}>
+        <EditorContent editor={editor} />
+      </RichTextDisabledContext>
     </div>
   )
 }

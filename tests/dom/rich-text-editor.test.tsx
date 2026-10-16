@@ -216,6 +216,146 @@ describe("RichTextEditor", () => {
   })
 })
 
+describe("RichTextEditor state and keyboard", () => {
+  const ui = (props: Partial<Parameters<typeof RichTextEditor>[0]>) => (
+    <RichTextEditor
+      id="body"
+      label="Body"
+      value={doc("Hello")}
+      onChange={vi.fn()}
+      {...props}
+    />
+  )
+
+  it("follows the disabled prop (toolbar and image alt) without emitting changes", async () => {
+    const client = makeQueryClient()
+    const onChange = vi.fn()
+    const value: JSONContent = {
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: { media: { mediaId: LIBRARY[0].id }, alt: "Officer" },
+        },
+      ],
+    }
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        {ui({ value, onChange })}
+      </QueryClientProvider>
+    )
+    const toolbar = await screen.findByRole("toolbar", { name: "Formatting" })
+    const alt = await screen.findByDisplayValue("Officer")
+    expect(within(toolbar).getByRole("button", { name: "Bold" })).toBeEnabled()
+    expect(alt).toBeEnabled()
+
+    rerender(
+      <QueryClientProvider client={client}>
+        {ui({ value, onChange, disabled: true })}
+      </QueryClientProvider>
+    )
+    await waitFor(() =>
+      expect(
+        within(toolbar).getByRole("button", { name: "Bold" })
+      ).toBeDisabled()
+    )
+    for (const name of ["Italic", "Link", "Heading", "Insert image"])
+      expect(within(toolbar).getByRole("button", { name })).toBeDisabled()
+    expect(screen.getByDisplayValue("Officer")).toBeDisabled()
+    expect(screen.getByRole("textbox", { name: "Body" })).toHaveAttribute(
+      "contenteditable",
+      "false"
+    )
+
+    rerender(
+      <QueryClientProvider client={client}>
+        {ui({ value, onChange, disabled: false })}
+      </QueryClientProvider>
+    )
+    await waitFor(() =>
+      expect(
+        within(toolbar).getByRole("button", { name: "Bold" })
+      ).toBeEnabled()
+    )
+    expect(screen.getByDisplayValue("Officer")).toBeEnabled()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("is one Tab stop; arrow keys, Home and End move between controls", async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    const toolbar = await screen.findByRole("toolbar", { name: "Formatting" })
+    const tabbable = within(toolbar)
+      .getAllByRole("button")
+      .filter((b) => b.tabIndex === 0)
+    expect(tabbable.map((b) => b.getAttribute("aria-label"))).toEqual(["Bold"])
+
+    const bold = within(toolbar).getByRole("button", { name: "Bold" })
+    bold.focus()
+    await user.keyboard("{ArrowRight}")
+    expect(
+      within(toolbar).getByRole("button", { name: "Italic" })
+    ).toHaveFocus()
+    await user.keyboard("{ArrowLeft}{ArrowLeft}")
+    // Undo/Redo are disabled (nothing to undo), so the last stop is Insert image.
+    expect(
+      within(toolbar).getByRole("button", { name: "Insert image" })
+    ).toHaveFocus()
+    await user.keyboard("{Home}")
+    expect(bold).toHaveFocus()
+    await user.keyboard("{End}")
+    const image = within(toolbar).getByRole("button", { name: "Insert image" })
+    expect(image).toHaveFocus()
+    expect(image.tabIndex).toBe(0)
+    expect(bold.tabIndex).toBe(-1)
+  })
+
+  it("names the link control by state and advertises its shortcut", async () => {
+    renderEditor({
+      value: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "Contact",
+                marks: [{ type: "link", attrs: { href: "/contact" } }],
+              },
+            ],
+          },
+        ],
+      },
+    })
+    const toolbar = await screen.findByRole("toolbar", { name: "Formatting" })
+    const link = within(toolbar).getByRole("button", { name: /link/i })
+    expect(link).toHaveAttribute("aria-keyshortcuts", "Control+K Meta+K")
+    expect(link).not.toHaveAttribute("aria-pressed")
+    // The cursor starts inside the linked text.
+    await waitFor(() => expect(link).toHaveAccessibleName("Edit link"))
+  })
+
+  it("clears its content when the value is reset to null", async () => {
+    const client = makeQueryClient()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        {ui({ onChange })}
+      </QueryClientProvider>
+    )
+    const box = await screen.findByRole("textbox", { name: "Body" })
+    expect(box).toHaveTextContent("Hello")
+    rerender(
+      <QueryClientProvider client={client}>
+        {ui({ onChange, value: null })}
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(box).toHaveTextContent(""))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
 describe("MediaPickerDialog", () => {
   it("searches the library and returns the chosen item", async () => {
     const user = userEvent.setup()
@@ -250,5 +390,46 @@ describe("MediaPickerDialog", () => {
     )
     expect(onSelect).toHaveBeenCalledWith(LIBRARY[0])
     expect(String(fetchMock.mock.calls.at(-1)![0])).toContain("kind=image")
+  })
+
+  it("starts fresh each time it opens", async () => {
+    const user = userEvent.setup()
+    const client = makeQueryClient()
+    const picker = (open: boolean) => (
+      <QueryClientProvider client={client}>
+        <MediaPickerDialog
+          open={open}
+          onOpenChange={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(picker(true))
+    let dialog = await screen.findByRole("dialog", { name: "Choose an image" })
+    await user.type(
+      within(dialog).getByRole("searchbox", { name: "Search images" }),
+      "Officer"
+    )
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByRole("button", { name: /Team photo/ })
+      ).toBeNull()
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: /Officer at night/ })
+    )
+    rerender(picker(false))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    rerender(picker(true))
+    dialog = await screen.findByRole("dialog", { name: "Choose an image" })
+    expect(
+      within(dialog).getByRole("searchbox", { name: "Search images" })
+    ).toHaveValue("")
+    expect(
+      await within(dialog).findByRole("button", { name: /Team photo/ })
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole("button", { name: "Use this image" })
+    ).toBeDisabled()
   })
 })

@@ -124,4 +124,31 @@ describe("rich text editor schema = stored schema (spec §5.3)", () => {
       '"href":"#top"',
     ])
   })
+
+  it("keeps only library images whose id is a uuid", () => {
+    const doc = parse(
+      [
+        '<img data-media-id="not-a-uuid" alt="Bad">',
+        '<img data-media-id="" alt="Empty">',
+        '<img data-media-id="00000000-0000-7000-8000-000000000001" alt="Good">',
+      ].join("")
+    )
+    const images = doc.content!.filter((n) => n.type === "image")
+    expect(images.map((n) => n.attrs!.alt)).toEqual(["Good"])
+    expect(richText.safeParse(doc).success).toBe(true)
+  })
+
+  it("starts pasted ordered lists at 1 or more", () => {
+    for (const [start, expected] of [
+      ["0", 1],
+      ["-4", 1],
+      ["2.5", 1],
+      ["junk", 1],
+      ["7", 7],
+    ] as const) {
+      const doc = parse(`<ol start="${start}"><li><p>x</p></li></ol>`)
+      expect(doc.content![0].attrs).toEqual({ start: expected })
+      expect(richText.safeParse(doc).success).toBe(true)
+    }
+  })
 })

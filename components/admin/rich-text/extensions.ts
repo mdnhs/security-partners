@@ -32,6 +32,10 @@ export function isRichTextHref(value: string): boolean {
   return isSafeHref(value) && !WHOLE_PLACEHOLDER.test(value)
 }
 
+/** A uuid as `mediaRef` (z.uuid()) accepts it; anything else is dropped. */
+const MEDIA_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 /** attrs: { media: { mediaId }, alt } — same shape the renderer reads. */
 export const MediaImage = Node.create({
   name: "image",
@@ -58,7 +62,15 @@ export const MediaImage = Node.create({
   },
   // Only library images survive a paste; arbitrary <img src> is dropped.
   parseHTML() {
-    return [{ tag: "img[data-media-id]" }]
+    return [
+      {
+        tag: "img[data-media-id]",
+        getAttrs: (element) =>
+          MEDIA_ID.test(element.getAttribute("data-media-id") ?? "")
+            ? null
+            : false,
+      },
+    ]
   },
   renderHTML({ HTMLAttributes }) {
     return ["img", mergeAttributes(HTMLAttributes)]
@@ -71,8 +83,17 @@ const ParagraphListItem = ListItem.extend({ content: "paragraph+" })
 /** Ordered list with only the `start` the renderer uses (no list-style `type`). */
 const StartOrderedList = OrderedList.extend({
   addAttributes() {
-    const parent = (this.parent?.() ?? {}) as Partial<Attributes>
-    return { start: parent.start ?? { default: 1 } }
+    return {
+      // The stored schema needs an integer ≥ 1; pasted 0, negatives or junk
+      // start at 1.
+      start: {
+        default: 1,
+        parseHTML: (element) => {
+          const start = Number(element.getAttribute("start") ?? 1)
+          return Number.isInteger(start) && start >= 1 ? start : 1
+        },
+      },
+    }
   },
 })
 
