@@ -23,8 +23,10 @@ export default function PanelLayout({
 }
 
 async function PanelFrame({ children }: { children: React.ReactNode }) {
-  const [{ user, actor, session }, cookieStore, site] = await Promise.all([
-    requireSession(),
+  // Session first: it reads the request, so nothing below (the settings
+  // query needs the database) runs while the route is being prerendered.
+  const { user, actor, session } = await requireSession()
+  const [cookieStore, site] = await Promise.all([
     cookies(),
     getSettings("site"),
   ])
