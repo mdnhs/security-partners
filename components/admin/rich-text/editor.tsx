@@ -1,31 +1,56 @@
 "use client"
 
 import {
+  type Editor,
   EditorContent,
   type JSONContent,
   ReactNodeViewRenderer,
   useEditor,
+  useEditorState,
 } from "@tiptap/react"
 import { useEffect, useMemo, useState } from "react"
 
 import { isDeepEqual } from "@/lib/json"
+import { countTextWords, minutesFor } from "@/lib/rich-text/read-time"
 import { cn } from "@/lib/utils"
 
 import { type RichTextMode, richTextExtensions } from "./extensions"
 import { ImageNodeView, RichTextDisabledContext } from "./image-view"
 import { RichTextToolbar } from "./toolbar"
 
-/** Ctrl/⌘ K without other modifiers (the link shortcut inside the editor). */
-const isLinkShortcut = (event: KeyboardEvent) =>
-  (event.metaKey || event.ctrlKey) &&
-  !event.altKey &&
-  !event.shiftKey &&
-  event.key.toLowerCase() === "k"
+/** ⌘K (macOS) / Ctrl+K without other modifiers: inside the editor it means "link", not the admin palette. */
+export function isLinkShortcut(event: KeyboardEvent): boolean {
+  return (
+    event.key.toLowerCase() === "k" &&
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey
+  )
+}
+
+/** "N words · about M min read" under article bodies (same 200 wpm as the site). */
+function WordCount({ editor }: { editor: Editor }) {
+  const words = useEditorState({
+    editor,
+    selector: ({ editor: e }) =>
+      countTextWords(
+        e.state.doc.textBetween(0, e.state.doc.content.size, " ", " ")
+      ),
+  })
+  return (
+    <p className="border-t bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
+      {words === 0
+        ? "No text yet"
+        : `${words} ${words === 1 ? "word" : "words"} · about ${minutesFor(words)} min read`}
+    </p>
+  )
+}
 
 /**
  * TipTap editor for `richText` / `paragraphsText` fields. The JSON it emits
- * is what the public renderer reads (lib/rich-text/render.tsx); Phase 5
- * reuses it for article bodies.
+ * is what the public renderer reads (lib/rich-text/render.tsx); article
+ * bodies use it in "full" mode, which also shows the word count. ⌘K opens
+ * the link popover (and is kept from the admin ⌘K palette).
  */
 export function RichTextEditor({
   id,
@@ -134,6 +159,7 @@ export function RichTextEditor({
       <RichTextDisabledContext value={!!disabled}>
         <EditorContent editor={editor} />
       </RichTextDisabledContext>
+      {editor && mode === "full" ? <WordCount editor={editor} /> : null}
     </div>
   )
 }

@@ -18,3 +18,11 @@ export function isSafeHref(value: string): boolean {
   if (value.startsWith("#")) return !/\s/.test(value)
   return ABSOLUTE.test(value)
 }
+
+/**
+ * Links inside formatted text are rendered exactly as stored (placeholders
+ * are interpolated only in link fields), so no "{…}" anywhere in them.
+ */
+export function isSafeRichTextHref(value: string): boolean {
+  return isSafeHref(value) && !/[{}]/.test(value)
+}

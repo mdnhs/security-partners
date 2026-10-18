@@ -24,8 +24,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { isSafeRichTextHref } from "@/lib/href"
 
-import { isRichTextHref, type RichTextMode } from "./extensions"
+import type { RichTextMode } from "./extensions"
 
 /** Props that make a control one stop of the toolbar's roving tabindex. */
 type Roving = {
@@ -100,7 +101,7 @@ function LinkButton({
 
   function apply() {
     const value = href.trim()
-    if (!isRichTextHref(value)) {
+    if (!isSafeRichTextHref(value)) {
       setError("Use /path, #anchor, https://…, tel: or mailto:")
       return
     }

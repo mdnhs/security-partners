@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from "react"
 import Image from "next/image"
 import type { JSONContent } from "@tiptap/core"
 
-import { isSafeHref } from "@/lib/href"
+import { isSafeRichTextHref } from "@/lib/href"
 import { UNSAFE_HREF_FALLBACK } from "@/lib/interpolate"
 import type { WithMedia } from "@/lib/media"
 import type {
@@ -31,7 +31,9 @@ function withMarks(node: Extract<InlineNode, { type: "text" }>): ReactNode {
         <a
           // Validated on write; re-checked so a bad row never renders.
           href={
-            isSafeHref(mark.attrs.href) ? mark.attrs.href : UNSAFE_HREF_FALLBACK
+            isSafeRichTextHref(mark.attrs.href)
+              ? mark.attrs.href
+              : UNSAFE_HREF_FALLBACK
           }
           className="font-bold text-brand-blue hover:underline"
         >
@@ -142,7 +144,25 @@ function ArticleBlock({ block }: { block: WithMedia<RichTextBlock> }) {
   }
 }
 
-/** Article body blocks (also the legal pages), as siblings in the article column. */
+/** An empty paragraph (no text but whitespace), e.g. the editor's trailing one. */
+function isEmptyParagraph(block: { type: string }): boolean {
+  if (block.type !== "paragraph") return false
+  const content = (block as { content?: { type: string; text?: string }[] })
+    .content
+  return !content?.some(
+    (node) => node.type === "hardBreak" || (node.text ?? "").trim() !== ""
+  )
+}
+
+/**
+ * Article body blocks (also the legal pages), as siblings in the article
+ * column. Empty paragraphs at the end are skipped: the editor keeps one
+ * there so the cursor can move below a final list, quote or image.
+ */
 export function ArticleBlocks({ doc }: { doc: WithMedia<RichTextDoc> }) {
-  return doc.content.map((block, i) => <ArticleBlock key={i} block={block} />)
+  let end = doc.content.length
+  while (end > 0 && isEmptyParagraph(doc.content[end - 1])) end--
+  return doc.content
+    .slice(0, end)
+    .map((block, i) => <ArticleBlock key={i} block={block} />)
 }

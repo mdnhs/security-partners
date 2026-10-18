@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { isSafeHref } from "../href"
+import { isSafeHref, isSafeRichTextHref } from "../href"
 import { linkPlaceholderProblems } from "../link-rules"
 
 // Building blocks shared by settings, template and collection schemas.
@@ -47,12 +47,25 @@ export const httpUrl = z.url({ protocol: /^https?$/ })
 /** Reference to a row in the media library (resolved to a URL at render). */
 export const mediaRef = z.object({ mediaId: z.uuid() })
 
+/** A link target inside rich text: like `href`, but never a {placeholder}. */
+const richTextHref = z
+  .string()
+  .min(1, "Required")
+  .max(2000)
+  .refine(
+    isSafeRichTextHref,
+    "Use /path, #anchor, https://…, tel: or mailto: ({placeholders} do not work inside formatted text)"
+  )
+
 // Rich text: TipTap JSON restricted to what the article design renders
 // (spec §5.3). Unknown attributes are stripped on parse.
 const mark = z.discriminatedUnion("type", [
   z.object({ type: z.literal("bold") }),
   z.object({ type: z.literal("italic") }),
-  z.object({ type: z.literal("link"), attrs: z.object({ href }) }),
+  z.object({
+    type: z.literal("link"),
+    attrs: z.object({ href: richTextHref }),
+  }),
 ])
 const textNode = z.object({
   type: z.literal("text"),

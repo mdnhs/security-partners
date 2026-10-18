@@ -11,7 +11,7 @@ import { ListItem, OrderedList } from "@tiptap/extension-list"
 import { Plugin } from "@tiptap/pm/state"
 import { StarterKit } from "@tiptap/starter-kit"
 
-import { isSafeHref, WHOLE_PLACEHOLDER } from "@/lib/href"
+import { isSafeRichTextHref } from "@/lib/href"
 
 // The editor's schema is exactly what lib/schemas/common.ts accepts and
 // lib/rich-text/render.tsx renders (spec §5.3): paragraph, h2/h3, bullet and
@@ -23,15 +23,6 @@ import { isSafeHref, WHOLE_PLACEHOLDER } from "@/lib/href"
 
 /** "full": articles and legal pages; "paragraphs": about copy, service overview. */
 export type RichTextMode = "full" | "paragraphs"
-
-/**
- * Hrefs a rich-text link may use: /path, #anchor, http(s), tel:, mailto:.
- * Unlike plain `href` fields, rich text is not interpolated, so a whole
- * `{placeholder}` would reach the site literally and is refused.
- */
-export function isRichTextHref(value: string): boolean {
-  return isSafeHref(value) && !WHOLE_PLACEHOLDER.test(value)
-}
 
 /** A uuid as `mediaRef` (z.uuid()) accepts it; anything else is dropped. */
 const MEDIA_ID =
@@ -135,7 +126,11 @@ const CiteBlockquote = Blockquote.extend({
   },
 })
 
-/** Link mark storing `href` only (the renderer sets its own markup). */
+/**
+ * Link mark storing `href` only (the renderer sets its own markup). Hrefs:
+ * /path, #anchor, http(s), tel:, mailto: — rich text is not interpolated,
+ * so anything with "{" or "}" would reach the site literally and is refused.
+ */
 const HrefLink = Link.extend({
   addAttributes() {
     const parent = (this.parent?.() ?? {}) as Partial<Attributes>
@@ -145,7 +140,8 @@ const HrefLink = Link.extend({
   openOnClick: false,
   autolink: true,
   defaultProtocol: "https",
-  isAllowedUri: (url, ctx) => ctx.defaultValidate(url) && isRichTextHref(url),
+  isAllowedUri: (url, ctx) =>
+    ctx.defaultValidate(url) && isSafeRichTextHref(url),
 })
 
 /**
