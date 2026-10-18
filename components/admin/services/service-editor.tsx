@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { EDITOR_ACTION } from "@/components/admin/editor/editor-layout"
 import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
 import { ADMIN_CONTROL, FormCard } from "@/components/admin/form/form-ui"
+import { SeoLink } from "@/components/admin/seo/seo-link"
 import {
   ErrorText,
   HelpText,
@@ -91,12 +92,15 @@ export function ServiceEditor({ id }: { id: string }) {
       canEdit={canEdit}
       canPublish={canPublish}
       actions={
-        canDelete && record.data ? (
-          <DeleteService
-            service={record.data}
-            onDeleted={() => setDeleted(true)}
-          />
-        ) : null
+        <>
+          <SeoLink kind="service" id={id} />
+          {canDelete && record.data ? (
+            <DeleteService
+              service={record.data}
+              onDeleted={() => setDeleted(true)}
+            />
+          ) : null}
+        </>
       }
       aside={
         record.data ? (

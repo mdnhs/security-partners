@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 
 import { buttonClassName } from "@/components/ui/button"
+import { track } from "@/lib/analytics/events"
 import { LEADS_ENDPOINT } from "@/lib/schemas/api/leads"
 import { cn } from "@/lib/utils"
 
@@ -96,6 +97,11 @@ export function ContactForm({ labels }: ContactFormProps) {
       })
       if (res.ok) {
         form.reset()
+        // Typed event; sent only if the visitor consented (lib/analytics).
+        track({
+          event: "lead_submitted",
+          source_page: window.location.pathname,
+        })
         setFeedback({ kind: "success", message: labels.successMessage })
       } else {
         setFeedback({

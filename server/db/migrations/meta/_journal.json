@@ -64,6 +64,13 @@
       "when": 1792347197991,
       "tag": "0008_seo_defaults_organization",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792349044168,
+      "tag": "0009_consent_manage_label",
+      "breakpoints": true
     }
   ]
 }

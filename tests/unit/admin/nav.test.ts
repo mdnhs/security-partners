@@ -17,27 +17,19 @@ const dock = (roles: Role[]) => dockItems(roles).map((i) => i.label)
 const destinations = (roles: Role[]) =>
   navDestinations(roles).map((d) => d.label)
 
+const CONTENT_MENU = ["Dashboard", "Pages", "Articles", "Services"]
 const MENU_ALL = [
-  "Dashboard",
-  "Pages",
-  "Articles",
-  "Services",
+  ...CONTENT_MENU,
   "Collections",
   "Media",
+  "SEO",
+  "Marketing",
   "Settings",
 ]
 /** Owners and admins also handle enquiries (Leads, after Dashboard). */
-const MENU_LEADS = [
-  "Dashboard",
-  "Leads",
-  "Pages",
-  "Articles",
-  "Services",
-  "Collections",
-  "Media",
-  "Settings",
-]
-const DEST_ALL = [
+const MENU_LEADS = ["Dashboard", "Leads", ...MENU_ALL.slice(1)]
+const MENU_EDITOR = [...CONTENT_MENU, "Collections", "Media", "SEO", "Settings"]
+const CONTENT_DEST = [
   "Dashboard",
   "Pages",
   "Articles",
@@ -47,20 +39,35 @@ const DEST_ALL = [
   "Group companies",
   "Categories",
   "Media",
+]
+const GROWTH_DEST = [
+  "Overview",
+  "Defaults",
+  "Redirects",
+  "Tracking",
+  "Consent banner",
+]
+const DEST_EDITOR = [
+  ...CONTENT_DEST,
+  "Overview",
+  "Defaults",
   "Settings",
   "Account",
 ]
+/** Owners and admins also see Leads (after Dashboard). */
+const LEADS_DEST = ["Dashboard", "Leads", ...CONTENT_DEST.slice(1)]
 const DEST_ADMIN = [
-  "Dashboard",
-  "Leads",
-  "Pages",
-  "Articles",
-  "Services",
-  "Team",
-  "Clients",
-  "Group companies",
-  "Categories",
-  "Media",
+  ...LEADS_DEST,
+  ...GROWTH_DEST,
+  "Settings",
+  "Users",
+  "Audit log",
+  "Account",
+]
+const DEST_OWNER = [
+  ...LEADS_DEST,
+  ...GROWTH_DEST,
+  "Custom code",
   "Settings",
   "Users",
   "Audit log",
@@ -71,9 +78,9 @@ describe("navigation registry (JW structure)", () => {
   it.each<[Role, string[]]>([
     ["owner", MENU_LEADS],
     ["admin", MENU_LEADS],
-    ["editor", MENU_ALL],
+    ["editor", MENU_EDITOR],
     ["viewer", MENU_ALL],
-    ["marketer", ["Dashboard", "Pages", "Articles", "Services", "Media"]],
+    ["marketer", [...CONTENT_MENU, "Media", "SEO", "Marketing"]],
     ["author", ["Dashboard", "Articles", "Media"]],
     ["intake", ["Dashboard", "Leads"]],
   ])("%s sees menu %j", (role, expected) => {
@@ -117,14 +124,16 @@ describe("navigation registry (JW structure)", () => {
   })
 
   it("flattens children for ⌘K, permission-filtered", () => {
-    expect(destinations(["editor"])).toEqual(DEST_ALL)
+    expect(destinations(["editor"])).toEqual(DEST_EDITOR)
     expect(destinations(["admin"])).toEqual(DEST_ADMIN)
+    expect(destinations(["owner"])).toEqual(DEST_OWNER)
     expect(destinations(["marketer"])).toEqual([
       "Dashboard",
       "Pages",
       "Articles",
       "Services",
       "Media",
+      ...GROWTH_DEST,
       "Account",
     ])
     const team = navDestinations(["editor"]).find((d) => d.label === "Team")!
@@ -218,5 +227,58 @@ describe("navigation registry (JW structure)", () => {
         for (const child of item.children ?? [])
           expect(child.href.startsWith("/admin/")).toBe(true)
       }
+  })
+})
+
+describe("Growth section (phase 8)", () => {
+  const growth = (roles: Role[]) =>
+    menuSections(roles)
+      .find((s) => s.label === "Growth")
+      ?.items.map((i) => [i.label, i.children?.map((c) => c.label)]) ?? null
+  const FULL_SEO = ["SEO", ["Overview", "Defaults", "Redirects"]]
+  const MARKETING = ["Marketing", ["Tracking", "Consent banner"]]
+
+  it.each<[Role, unknown]>([
+    [
+      "owner",
+      [FULL_SEO, ["Marketing", ["Tracking", "Consent banner", "Custom code"]]],
+    ],
+    ["admin", [FULL_SEO, MARKETING]],
+    ["marketer", [FULL_SEO, MARKETING]],
+    ["viewer", [FULL_SEO, MARKETING]],
+    ["editor", [["SEO", ["Overview", "Defaults"]]]],
+    ["author", null],
+    ["intake", null],
+  ])("%s sees %j", (role, expected) => {
+    expect(growth([role])).toEqual(expected)
+  })
+
+  it("sits between Content and Configuration", () => {
+    const labels = menuSections(["owner"]).map((s) => s.label)
+    expect(labels.indexOf("Growth")).toBe(labels.indexOf("Content") + 1)
+    expect(labels.indexOf("Configuration")).toBe(labels.indexOf("Growth") + 1)
+  })
+
+  it("Marketing opens its first tab; ⌘K lists sub-pages with their parent", () => {
+    const marketing = navItems(["marketer"])
+      .flatMap((s) => s.items)
+      .find((i) => i.label === "Marketing")!
+    expect(marketing.href).toBe("/admin/marketing/tracking")
+    expect(
+      navDestinations(["owner"])
+        .filter((d) => d.parent === "SEO" || d.parent === "Marketing")
+        .map((d) => `${d.parent} › ${d.label}`)
+    ).toEqual([
+      "SEO › Overview",
+      "SEO › Defaults",
+      "SEO › Redirects",
+      "Marketing › Tracking",
+      "Marketing › Consent banner",
+      "Marketing › Custom code",
+    ])
+    const seo = NAV_SECTIONS.flatMap((s) => s.items).find(
+      (i) => i.label === "SEO"
+    )!
+    expect(isActiveItem(seo, "/admin/seo/redirects")).toBe(true)
   })
 })

@@ -5,6 +5,7 @@ import { useState } from "react"
 
 import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
 import type { StatusPillSpec } from "@/components/admin/kit/content-status"
+import { SeoLink } from "@/components/admin/seo/seo-link"
 import { api, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
 import type { ArticleDto } from "@/lib/schemas/api/articles"
@@ -109,7 +110,12 @@ export function ArticleEditor({ id }: { id: string }) {
       canEdit={permissions?.update ?? false}
       canPublish={permissions?.publish ?? false}
       status={(dto, dirty) => articleStatusPills({ ...dto, dirty })}
-      actions={(ctx) => <WorkflowActions ctx={ctx} />}
+      actions={(ctx) => (
+        <>
+          <SeoLink kind="article" id={id} />
+          <WorkflowActions ctx={ctx} />
+        </>
+      )}
       aside={(ctx) => (
         <ArticleSettings ctx={ctx} onDeleted={() => setDeleted(true)} />
       )}

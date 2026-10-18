@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, type Page, test } from "@playwright/test"
 
-import { E2E_ADMIN } from "./admin-accounts"
+import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 import { freezeUploads, pinMedia, PNG_1PX } from "./media-pins"
 
@@ -128,6 +128,34 @@ const INTEGRATIONS = [
   "/admin/settings/integrations/turnstile",
   "/admin/settings/integrations/ai",
 ]
+
+/** Growth ▸ SEO (Phase 8), audited signed in as the admin. */
+const GROWTH = ["/admin/seo", "/admin/seo/defaults", "/admin/seo/redirects"]
+
+/** SEO › Redirects, pinned (Phase 8 Task 9): one row and a loop error. */
+const REDIRECTS = {
+  items: [
+    {
+      id: "0190f0e0-0000-7000-8000-0000000000aa",
+      fromPath: "/old-alarms",
+      toPath: "/services/alarm-responses",
+      code: 301,
+      hits: 1234,
+      createdAt: "2026-10-01T09:00:00.000Z",
+      updatedAt: "2026-10-01T09:00:00.000Z",
+    },
+  ],
+  page: 1,
+  pageSize: 20,
+  total: 1,
+}
+const LOOP_ERROR = {
+  error: {
+    code: "VALIDATION_FAILED",
+    message: "This would loop",
+    fieldErrors: { toPath: ["This would loop: /a → /old-alarms → /a"] },
+  },
+}
 
 /** A saved SMTP integration (pinned: the seed sets none up). */
 const SAVED_SMTP = {
@@ -340,6 +368,69 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`lead delete dialog → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`marketing screens in ${colorScheme}`, async ({ page }) => {
+      // Phase 8: the owner sees all three tabs (custom code is owner-only).
+      await signIn(page, E2E_OWNER)
+      const failures: string[] = []
+      for (const [path, title] of [
+        ["/admin/marketing/tracking", "Tracking"],
+        ["/admin/marketing/consent", "Consent banner"],
+        ["/admin/marketing/custom-code", "Custom code"],
+      ] as const) {
+        await page.goto(path)
+        await expect(
+          page.getByRole("heading", { level: 1, name: title })
+        ).toBeVisible()
+        await expect(
+          page.getByRole("navigation", { name: "Marketing" })
+        ).toBeVisible()
+        for (const violation of await blocking(page))
+          failures.push(`${path} → ${violation}`)
+      }
+      expect(failures).toEqual([])
+    })
+
+    test(`growth screens in ${colorScheme}`, async ({ page }) => {
+      // SEO (Phase 8): overview with the health gauge, defaults, the
+      // record SEO sheet.
+      await signIn(page, E2E_ADMIN)
+      const failures = await auditEach(page, GROWTH)
+      await page.goto("/admin/seo")
+      await page.getByRole("button", { name: "Edit SEO for Home" }).click()
+      await expect(
+        page.getByRole("dialog", { name: "SEO: Home" })
+      ).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`/admin/seo + SEO sheet → ${violation}`)
+      // Redirects (Task 9) with one pinned row (the seed has none), then the
+      // add dialog showing the API's field error.
+      await page.route("**/api/v1/admin/redirects?*", (route) =>
+        route.request().method() === "GET"
+          ? route.fulfill({ json: REDIRECTS })
+          : route.continue()
+      )
+      await page.route("**/api/v1/admin/redirects", (route) =>
+        route.request().method() === "POST"
+          ? route.fulfill({ status: 422, json: LOOP_ERROR })
+          : route.continue()
+      )
+      await page.goto("/admin/seo/redirects")
+      await expect(
+        page.getByRole("table", { name: "Redirects" })
+      ).toContainText("/old-alarms")
+      for (const violation of await blocking(page))
+        failures.push(`/admin/seo/redirects (one row) → ${violation}`)
+      await page.getByRole("button", { name: "Add redirect" }).first().click()
+      const dialog = page.getByRole("dialog", { name: "Add redirect" })
+      await dialog.getByLabel("Old address").fill("/a")
+      await dialog.getByLabel("New address").fill("/old-alarms")
+      await dialog.getByRole("button", { name: "Add redirect" }).click()
+      await expect(dialog.getByText(/This would loop/)).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`redirect dialog (field error) → ${violation}`)
       expect(failures).toEqual([])
     })
 
