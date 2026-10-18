@@ -132,8 +132,10 @@ restore) bypass the app's cache: restart the app afterwards.
   the dump's SHA-256). Named `sp-<db>-<UTC stamp>.dump`. The newest 14 are
   kept. Pruning and the restore drill only consider this database's
   `sp-<db>-` files, ordered by the stamp, so a store shared by two
-  environments never prunes or drills the other one's dumps. The data of `rate_limits` and `public_rate_limits` is not dumped
-  (short-lived counters).
+  environments never prunes or drills the other one's dumps. The data of
+  `rate_limits` and `public_rate_limits` (short-lived counters) and of
+  `verifications` (pending invite, password-reset and 2FA links, which are
+  redeemable by whoever reads them) is not dumped.
 - Where: the R2 bucket, prefix `backups/`, once Settings ▸ Integrations ▸ R2
   is saved; until then `/data/backups` on the app volume (lost with the
   server — set up R2). Local files are readable by the app user only.
@@ -178,7 +180,7 @@ restore) bypass the app's cache: restart the app afterwards.
 4. Start the app; check `/api/v1/health` and sign in.
 
 Sessions in the dump stay valid (same secret). Rate-limit tables come back
-empty. If the dump came from another environment, use `db:sync` instead: it
+empty, and so do pending invites and password links: re-send them. If the dump came from another environment, use `db:sync` instead: it
 re-encrypts the integration secrets for this environment's key.
 
 ## Rotate BETTER_AUTH_SECRET

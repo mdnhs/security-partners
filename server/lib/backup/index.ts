@@ -17,10 +17,16 @@ import {
   safeDatabaseName,
 } from "./store"
 
-/** Ephemeral counters: their rows are not worth restoring. */
+/**
+ * Ephemeral counters (not worth restoring) and pending verifications: their
+ * identifiers are live single-use links in plain text ("reset-password:
+ * <token>" for invites and recovery), redeemable by anyone who reads a dump
+ * (final review M2). After a restore, pending invites/links are re-sent.
+ */
 export const BACKUP_SKIPPED_DATA = [
   "public.rate_limits",
   "public.public_rate_limits",
+  "public.verifications",
 ] as const
 
 /** "sp-<db>-20261016T120000Z" (UTC, sortable). */
