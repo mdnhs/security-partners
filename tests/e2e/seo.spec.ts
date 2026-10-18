@@ -230,5 +230,19 @@ test.describe("generated share cards", () => {
       404
     )
     expect((await request.get("/og/nope/home")).status()).toBe(404)
+    expect((await request.get("/og/service/Not_A-Slug")).status()).toBe(404)
+    expect((await request.get("/og/page/no-such-page")).status()).toBe(404)
+  })
+
+  test("cards are cached briefly by clients and identical on repeat", async ({
+    request,
+  }) => {
+    const first = await request.get("/og/page/home")
+    expect(first.status()).toBe(200)
+    expect(first.headers()["cache-control"]).toBe(
+      "public, max-age=600, stale-while-revalidate=3600"
+    )
+    const second = await request.get("/og/page/home")
+    expect(Buffer.compare(await first.body(), await second.body())).toBe(0)
   })
 })

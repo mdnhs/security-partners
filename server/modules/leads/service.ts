@@ -40,7 +40,7 @@ import { mailer } from "@/server/lib/mailer"
 import { verifyTurnstileToken } from "@/server/lib/turnstile"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 import { deleteExpiredRateLimits } from "@/server/modules/rate-limit/repo"
-import { getPublishedSettings } from "@/server/modules/settings/service"
+import { readPublishedSettings } from "@/server/modules/settings/service"
 
 import * as repo from "./repo"
 
@@ -150,10 +150,10 @@ async function notifyNewLead(
 ): Promise<void> {
   const db = getDb()
   const [leadsSettings, site, contact, contactSection] = await Promise.all([
-    getPublishedSettings("leads", db),
-    getPublishedSettings("site", db),
-    getPublishedSettings("contact", db),
-    getPublishedSettings("sections.contact", db),
+    readPublishedSettings("leads", db),
+    readPublishedSettings("site", db),
+    readPublishedSettings("contact", db),
+    readPublishedSettings("sections.contact", db),
   ])
   const siteName = site?.name ?? "Security Partners"
   const outcomes: string[] = []
@@ -532,16 +532,14 @@ export function retentionCutoff(now: Date, months: number): Date {
  * settings.leads.retentionMonths, plus expired public rate-limit windows.
  * Audits counts only (no lead data); nothing is cached, so no tags.
  */
-export async function purgeExpiredLeads(
-  now: Date = new Date()
-): Promise<{
+export async function purgeExpiredLeads(now: Date = new Date()): Promise<{
   deleted: number
   cutoff: Date | null
   rateLimitsCleared: number
 }> {
   const db = getDb()
   const rateLimitsCleared = await deleteExpiredRateLimits(db, now)
-  const config = await getPublishedSettings("leads", db)
+  const config = await readPublishedSettings("leads", db)
   if (!config) return { deleted: 0, cutoff: null, rateLimitsCleared }
   const cutoff = retentionCutoff(now, config.retentionMonths)
   const deleted = await db.transaction(async (tx) => {

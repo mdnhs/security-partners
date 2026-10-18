@@ -15,7 +15,7 @@ import { writeAudit } from "@/server/lib/audit"
 import { invalidate, tag } from "@/server/lib/cache-tags"
 import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { pgErrorCode, UNIQUE_VIOLATION } from "@/server/lib/pg-errors"
-import { getPublishedSettings } from "@/server/modules/settings/service"
+import { readPublishedSettings } from "@/server/modules/settings/service"
 import { PAGE_PATHS } from "@/templates/registry"
 
 import {
@@ -68,7 +68,7 @@ function toDto(row: RedirectRow): RedirectDto {
  * unset.
  */
 async function siteOrigin(db: DbOrTx): Promise<string | null> {
-  const url = (await getPublishedSettings("site", db))?.productionUrl
+  const url = (await readPublishedSettings("site", db))?.productionUrl
   if (!url) return null
   try {
     return new URL(url).origin

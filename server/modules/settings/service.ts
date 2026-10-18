@@ -151,9 +151,10 @@ export async function restoreSettings(
 /**
  * Published value of a content settings key for server code that runs
  * outside the cached public queries (leads, jobs). null when unpublished
- * or when the stored value no longer matches its schema.
+ * or when the stored value no longer matches its schema. Public readers
+ * use the cached getPublishedSettings (settings/queries.ts) instead.
  */
-export async function getPublishedSettings<K extends SettingsKey>(
+export async function readPublishedSettings<K extends SettingsKey>(
   key: K,
   db: DbOrTx = getDb()
 ): Promise<SettingsValue<K> | null> {

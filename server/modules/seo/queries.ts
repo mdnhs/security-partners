@@ -3,6 +3,7 @@ import "server-only"
 import { cacheLife, cacheTag } from "next/cache"
 
 import { contactPlaceholders, interpolate } from "@/lib/interpolate"
+import { SLUG_PATTERN } from "@/lib/schemas/common"
 import { filled } from "@/lib/seo/effective"
 import type { SitemapSource } from "@/lib/seo/sitemap"
 import type { OgKind } from "@/lib/seo/urls"
@@ -70,26 +71,57 @@ export type OgSubject = {
   productionUrl: string | null
 }
 
-const recordTag = (kind: OgKind, id: string) =>
-  kind === "page"
-    ? tag.page(id)
-    : kind === "service"
-      ? tag.service(id)
-      : tag.article(id)
+/** Longest slug the schema accepts (lib/schemas/common.ts `slug`). */
+const MAX_SLUG = 120
 
-/** What a share card shows. Published rows only (never draft mode). */
+/**
+ * Whether `id` can name a share-card subject: a registered page key, or a
+ * well-formed service/article slug. Checked before any lookup or cache
+ * entry, so random ids cost nothing.
+ */
+export function isOgSubjectId(kind: OgKind, id: string): boolean {
+  if (kind === "page") return isPageKey(id)
+  return id.length <= MAX_SLUG && SLUG_PATTERN.test(id)
+}
+
+/** Cache tags of a share card: the record and the settings it shows. */
+export function ogSubjectTags(kind: OgKind, id: string): string[] {
+  const record =
+    kind === "page"
+      ? tag.page(id)
+      : kind === "service"
+        ? tag.service(id)
+        : tag.article(id)
+  return [
+    record,
+    tag.settings("site"),
+    tag.settings("seo.defaults"),
+    tag.settings("contact"),
+  ]
+}
+
+/**
+ * What a share card shows. Published rows only (never draft mode). Every
+ * published record has a card (page-meta always points og:image at it): a
+ * blank or missing name falls back to the default title, then the site
+ * name. null for an invalid id, an unknown or unpublished record, or an
+ * unpublished `site` setting.
+ */
 export async function getOgSubject(
+  kind: OgKind,
+  id: string
+): Promise<OgSubject | null> {
+  if (!isOgSubjectId(kind, id)) return null
+  return loadOgSubject(kind, id)
+}
+
+async function loadOgSubject(
   kind: OgKind,
   id: string
 ): Promise<OgSubject | null> {
   "use cache"
   cacheLife("max")
-  cacheTag(
-    recordTag(kind, id),
-    tag.settings("site"),
-    tag.settings("seo.defaults"),
-    tag.settings("contact")
-  )
+  cacheTag(...ogSubjectTags(kind, id))
   const name = await findPublishedName(getDb(), kind, id)
   if (name === undefined) return null
   const [site, defaults, contact] = await Promise.all([
@@ -97,10 +129,12 @@ export async function getOgSubject(
     getPublishedSettings("seo.defaults"),
     getPublishedSettings("contact"),
   ])
-  if (!site || !defaults || !contact) return null
+  if (!site) return null
+  const title = filled(name) ?? filled(defaults?.title) ?? site.name
   return {
     kind,
-    title: interpolate(name ?? defaults.title, contactPlaceholders(contact)),
+    // Unpublished contact settings: show the placeholders as stored.
+    title: contact ? interpolate(title, contactPlaceholders(contact)) : title,
     siteName: site.name,
     productionUrl: site.productionUrl,
   }

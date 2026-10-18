@@ -36,4 +36,17 @@ describe("OG card model", () => {
     expect(long.title.endsWith("…")).toBe(true)
     expect(long.titleSize).toBe(56)
   })
+
+  it("clamps a long site name in the footer and the page eyebrow", () => {
+    const card = ogCard({
+      ...base,
+      kind: "page",
+      title: "About",
+      siteName: "Security  Partners ".repeat(5),
+    })
+    expect([...card.siteName].length).toBeLessThanOrEqual(40)
+    expect(card.siteName.endsWith("…")).toBe(true)
+    expect(card.siteName).toMatch(/^Security Partners Security/)
+    expect(card.eyebrow).toBe(card.siteName)
+  })
 })

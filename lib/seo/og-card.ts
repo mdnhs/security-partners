@@ -25,22 +25,28 @@ const EYEBROW: Record<OgKind, string | null> = {
   article: "Article",
 }
 const MAX_TITLE = 110
+/** Site name shares a 28px line with the host (footer) or the eyebrow. */
+const MAX_SITE_NAME = 40
+
+/** Collapses whitespace and cuts to `max` characters (code points) with "…". */
+function clamp(text: string, max: number): string {
+  const chars = [...text.replace(/\s+/g, " ").trim()]
+  if (chars.length <= max) return chars.join("")
+  return `${chars
+    .slice(0, max - 1)
+    .join("")
+    .trimEnd()}…`
+}
 
 export function ogCard(input: OgCardInput): OgCard {
-  const chars = [...input.title.replace(/\s+/g, " ").trim()]
-  const title =
-    chars.length > MAX_TITLE
-      ? `${chars
-          .slice(0, MAX_TITLE - 1)
-          .join("")
-          .trimEnd()}…`
-      : chars.join("")
+  const title = clamp(input.title, MAX_TITLE)
+  const siteName = clamp(input.siteName, MAX_SITE_NAME)
   const length = [...title].length
   return {
-    eyebrow: EYEBROW[input.kind] ?? input.siteName,
+    eyebrow: EYEBROW[input.kind] ?? siteName,
     title,
     titleSize: length > 70 ? 56 : length > 36 ? 68 : 80,
-    siteName: input.siteName,
+    siteName,
     host: new URL(input.origin).host,
   }
 }

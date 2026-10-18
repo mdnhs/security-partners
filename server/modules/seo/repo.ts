@@ -227,9 +227,11 @@ export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
 }
 
 /**
- * The published name of a record: a page's hero title (home: null = use
- * the site title), a service's or article's title. undefined when the
- * record is unknown or not published (drafts never reach share cards).
+ * The published name of a record: a page's hero title, a service's or
+ * article's title. null when the record is published but has no name of
+ * its own (home, or a page without a hero title): the caller uses the
+ * site title. undefined when the record is unknown or not published
+ * (drafts never reach share cards).
  */
 export async function findPublishedName(
   db: DbOrTx,
@@ -244,18 +246,18 @@ export async function findPublishedName(
     if (!row?.published) return undefined
     if (id === "home") return null
     const title = (row.published as { hero?: { title?: unknown } }).hero?.title
-    return typeof title === "string" ? title : undefined
+    return typeof title === "string" ? title : null
   }
   if (kind === "service") {
     const [row] = await db
       .select({ title: sql<string | null>`${services.published}->>'title'` })
       .from(services)
       .where(and(eq(services.slug, id), isNotNull(services.published)))
-    return row?.title ?? undefined
+    return row ? row.title : undefined
   }
   const [row] = await db
     .select({ title: sql<string | null>`${articles.published}->>'title'` })
     .from(articles)
     .where(and(eq(articles.slug, id), isNotNull(articles.published)))
-  return row?.title ?? undefined
+  return row ? row.title : undefined
 }
