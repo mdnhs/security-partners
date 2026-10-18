@@ -88,7 +88,10 @@ export function decryptSecret(
   }
 }
 
-/** "••••" + last 4 characters. Secrets of 4 characters or fewer reveal nothing. */
-export function secretHint(plain: string): string {
-  return plain.length <= 4 ? "••••" : `••••${plain.slice(-4)}`
+/** Shortest secret that gets a hint: 4 shown characters must stay a small fraction. */
+export const SECRET_HINT_MIN_LENGTH = 12
+
+/** "••••" + last 4 characters; null (no hint) for secrets under 12 characters. */
+export function secretHint(plain: string): string | null {
+  return plain.length < SECRET_HINT_MIN_LENGTH ? null : `••••${plain.slice(-4)}`
 }

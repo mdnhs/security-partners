@@ -177,8 +177,10 @@ describe("secretHint", () => {
     expect(secretHint("sk-live-abcd1234")).toBe("••••1234")
   })
 
-  it("reveals nothing for secrets of 4 characters or fewer", () => {
-    expect(secretHint("abcd")).toBe("••••")
-    expect(secretHint("")).toBe("••••")
+  it("gives no hint for secrets under 12 characters", () => {
+    expect(secretHint("abcd1234567")).toBeNull()
+    expect(secretHint("abcd")).toBeNull()
+    expect(secretHint("")).toBeNull()
+    expect(secretHint("abcd12345678")).toBe("••••5678")
   })
 })

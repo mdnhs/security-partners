@@ -8,7 +8,7 @@ import type {
 } from "@/lib/schemas/api/integrations"
 import { getDb } from "@/server/db/client"
 import { auditLog, media, revisions, settings } from "@/server/db/schema"
-import { decryptSecret } from "@/server/lib/crypto"
+import { decryptSecret, encryptSecret } from "@/server/lib/crypto"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 
 import { resetDb } from "../db"
@@ -155,12 +155,12 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
       admin,
       "integrations.smtp",
       1,
-      smtpValues({ host: "smtp.example.test", password: "" })
+      smtpValues({ fromName: "SP Mailer", password: "" })
     )
     expect(status).toBe(200)
     expect(dto(text)).toMatchObject({
       version: 2,
-      values: { host: "smtp.example.test" },
+      values: { fromName: "SP Mailer" },
       secrets: { password: { set: true, hint: "••••5678" } },
     })
     const after = (await rawDraft("integrations.smtp")).draft as Record<
@@ -169,9 +169,153 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
     >
     expect(after.password).toBe(before.password)
     expect(await readIntegrationConfig("integrations.smtp")).toMatchObject({
-      host: "smtp.example.test",
+      fromName: "SP Mailer",
       password: SMTP_PASSWORD,
     })
+  })
+
+  it("a new server with the stored password kept → 422 (no exfiltration by retargeting)", async () => {
+    await put(owner, "integrations.smtp", 0, smtpValues())
+    const before = (await rawDraft("integrations.smtp")).draft
+    const moved = await put(
+      admin,
+      "integrations.smtp",
+      1,
+      smtpValues({ host: "smtp.attacker.test", password: "" })
+    )
+    expect(moved.status).toBe(422)
+    const { error } = JSON.parse(moved.text) as {
+      error: { fieldErrors: Record<string, string[]> }
+    }
+    expect(error.fieldErrors).toEqual({
+      password: ["Enter the password again for the new server"],
+    })
+    expect((await rawDraft("integrations.smtp")).draft).toEqual(before)
+
+    const reentered = await put(
+      admin,
+      "integrations.smtp",
+      1,
+      smtpValues({ host: "smtp.example.test", password: "new-password-9999" })
+    )
+    expect(reentered.status).toBe(200)
+    expect(dto(reentered.text)).toMatchObject({
+      version: 2,
+      values: { host: "smtp.example.test" },
+      secrets: { password: { set: true, hint: "••••9999" } },
+    })
+  })
+
+  it("R2: a new account needs both keys again; AI: a new provider needs the key again", async () => {
+    await put(owner, "integrations.r2", 0, {
+      accountId: "0123456789abcdef0123456789abcdef",
+      jurisdiction: "default",
+      bucket: "sp-media",
+      accessKeyId: "AKIDEXAMPLE1234",
+      secretAccessKey: R2_SECRET,
+    })
+    const r2 = await put(owner, "integrations.r2", 1, {
+      jurisdiction: "eu",
+      accessKeyId: "",
+      secretAccessKey: "",
+    })
+    expect(r2.status).toBe(422)
+    expect(
+      Object.keys(
+        (JSON.parse(r2.text) as { error: { fieldErrors: object } }).error
+          .fieldErrors
+      ).sort()
+    ).toEqual(["accessKeyId", "secretAccessKey"])
+    // The bucket name is not a target: the keys stay.
+    expect(
+      (await put(owner, "integrations.r2", 1, { bucket: "sp-media-2" })).status
+    ).toBe(200)
+
+    await put(owner, "integrations.ai", 0, {
+      enabled: true,
+      provider: "anthropic",
+      model: "claude-sonnet-4-5",
+      apiKey: "sk-ant-secret-key",
+      allowedRoles: ["owner"],
+    })
+    const ai = await put(owner, "integrations.ai", 1, {
+      provider: "openai",
+      model: "gpt-5",
+    })
+    expect(ai.status).toBe(422)
+    expect(
+      (JSON.parse(ai.text) as { error: { fieldErrors: object } }).error
+        .fieldErrors
+    ).toEqual({ apiKey: ["Enter the API key again for the new provider"] })
+  })
+
+  it("SMTP without a user name keeps no password", async () => {
+    await put(owner, "integrations.smtp", 0, smtpValues())
+    const { status, text } = await put(
+      owner,
+      "integrations.smtp",
+      1,
+      smtpValues({ user: "", password: "" })
+    )
+    expect(status).toBe(200)
+    expect(dto(text).secrets.password).toEqual({ set: false, hint: null })
+  })
+
+  it("a changed secret is re-encrypted and replaces the old ciphertext", async () => {
+    await put(owner, "integrations.smtp", 0, smtpValues())
+    const before = (await rawDraft("integrations.smtp")).draft as Record<
+      string,
+      string
+    >
+    await put(
+      owner,
+      "integrations.smtp",
+      1,
+      smtpValues({ password: "rotated-password-4321" })
+    )
+    const after = (await rawDraft("integrations.smtp")).draft as Record<
+      string,
+      string
+    >
+    expect(after.password).not.toBe(before.password)
+    expect(decryptSecret(after.password, "integrations.smtp.password")).toBe(
+      "rotated-password-4321"
+    )
+    expect(JSON.stringify(after)).not.toContain("rotated-password-4321")
+  })
+
+  it("production: an SMTP host on loopback / metadata → 422", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    try {
+      for (const host of ["127.0.0.1", "169.254.169.254", "localhost"]) {
+        const res = await put(
+          owner,
+          "integrations.smtp",
+          0,
+          smtpValues({ host })
+        )
+        expect(res.status).toBe(422)
+        expect(
+          Object.keys(
+            (JSON.parse(res.text) as { error: { fieldErrors: object } }).error
+              .fieldErrors
+          )
+        ).toEqual(["host"])
+      }
+      // RFC 1918 relays stay allowed.
+      expect(
+        (
+          await put(
+            owner,
+            "integrations.smtp",
+            0,
+            smtpValues({ host: "10.0.0.25" })
+          )
+        ).status
+      ).toBe(200)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it("stale version → 409 with the current state, before validation", async () => {
@@ -213,7 +357,7 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
       owner,
       "integrations.smtp",
       1,
-      smtpValues({ port: 2525, password: "" })
+      smtpValues({ port: 2525, password: SMTP_PASSWORD })
     )
     const rows = await getDb()
       .select({ action: auditLog.action, diff: auditLog.diff })
@@ -233,7 +377,7 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
       accountId: "0123456789abcdef0123456789abcdef",
       jurisdiction: "default",
       bucket: "sp-media",
-      accessKeyId: "AKID1234",
+      accessKeyId: "AKIDEXAMPLE1234",
       secretAccessKey: R2_SECRET,
     })
     await put(owner, "integrations.smtp", 0, smtpValues())
@@ -260,6 +404,43 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
     await expect(readIntegrationConfig("integrations.r2")).rejects.toThrow(
       /cannot be decrypted/
     )
+    // "Test connection" refuses until the secret is entered again.
+    const tested = await adminRequest("/integrations/integrations.r2/test", {
+      cookie: owner,
+      method: "POST",
+    })
+    expect(tested.status).toBe(422)
+    expect(
+      ((await tested.json()) as { error: { fieldErrors: object } }).error
+        .fieldErrors
+    ).toEqual({ secretAccessKey: ["Enter this again and save"] })
+  })
+
+  it("an unreadable secret dropped on save is listed in the audit diff", async () => {
+    await put(owner, "integrations.turnstile", 0, {
+      enabled: true,
+      siteKey: "0x4AAAAAAA",
+      secretKey: "0x4AAAAAAA-secret",
+    })
+    const stored = (await rawDraft("integrations.turnstile")).draft as Record<
+      string,
+      string
+    >
+    await getDb()
+      .update(settings)
+      .set({ draft: { ...stored, secretKey: encryptSecret("x", "other.aad") } })
+      .where(eq(settings.key, "integrations.turnstile"))
+    const res = await put(owner, "integrations.turnstile", 1, {
+      enabled: false,
+      secretKey: "",
+    })
+    expect(res.status).toBe(200)
+    expect(dto(res.text).secrets.secretKey).toEqual({ set: false, hint: null })
+    const [last] = await getDb()
+      .select({ diff: auditLog.diff })
+      .from(auditLog)
+      .where(eq(auditLog.action, "integration.updated"))
+    expect(last.diff).toEqual({ changed: ["enabled", "secretKey"] })
   })
 })
 

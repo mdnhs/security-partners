@@ -24,7 +24,7 @@ export const integrationVersionQuery = z.object({
   version: z.coerce.number().int().min(1),
 })
 
-/** A write-only secret as the API shows it: hint "••••abcd" (null when unset or unreadable). */
+/** A write-only secret as the API shows it: hint "••••abcd" (null when unset, unreadable or under 12 characters). */
 export type SecretState = { set: boolean; hint: string | null }
 
 export type IntegrationDto = {

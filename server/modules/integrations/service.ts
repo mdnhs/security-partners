@@ -25,6 +25,7 @@ import {
   forbidden,
   notFound,
 } from "@/server/lib/errors"
+import { resolveSmtpTarget, type SmtpTarget } from "@/server/lib/smtp-target"
 import { countMediaByDriver } from "@/server/modules/media/repo"
 
 import {
@@ -35,9 +36,12 @@ import {
   listIntegrationRows,
   updateIntegrationIfVersion,
 } from "./repo"
-import { runIntegrationTest } from "./testers"
+import { runIntegrationTest, type TestResult } from "./testers"
 
 type Values = Record<string, unknown>
+
+const sameValue = (a: unknown, b: unknown) =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 
 /** AAD binding each ciphertext to its settings key and field (spec §4). */
 export const secretAad = (key: IntegrationKey, field: string) =>
@@ -176,18 +180,77 @@ function mergeValues(
   return merged
 }
 
-/** Names of the fields whose value changed (audit diff: never values). */
+/**
+ * Names of the fields whose value changed (audit diff: never values). A
+ * secret that could no longer be decrypted counts as changed whether it was
+ * dropped or entered again.
+ */
 function changedFields(
   key: IntegrationKey,
   previous: Values | null,
-  next: Values
+  next: Values,
+  unreadable: readonly string[] = []
 ): string[] {
   return INTEGRATIONS[key].fields.filter(
     (field) =>
-      JSON.stringify(previous?.[field] ?? null) !==
-      JSON.stringify(next[field] ?? null)
+      unreadable.includes(field) || !sameValue(previous?.[field], next[field])
   )
 }
+
+/**
+ * Fields that decide where a kept secret is sent. Changing one of them while
+ * leaving the secret empty ("keep the stored one") would let whoever edits
+ * the form send the stored secret to a server of their choice, so the
+ * secret must be entered again.
+ */
+const RETARGET_RULES: Partial<
+  Record<
+    IntegrationKey,
+    { targets: readonly string[]; secrets: Readonly<Record<string, string>> }
+  >
+> = {
+  "integrations.smtp": {
+    targets: ["host", "port", "secure", "user"],
+    secrets: { password: "Enter the password again for the new server" },
+  },
+  "integrations.r2": {
+    targets: ["accountId", "jurisdiction"],
+    secrets: {
+      accessKeyId: "Enter the access key ID again for the new account",
+      secretAccessKey: "Enter the secret access key again for the new account",
+    },
+  },
+  "integrations.ai": {
+    targets: ["provider"],
+    secrets: { apiKey: "Enter the API key again for the new provider" },
+  },
+}
+
+function retargetErrors(
+  key: IntegrationKey,
+  input: Values,
+  previous: Values | null,
+  candidate: Values
+): Record<string, string[]> {
+  const rule = RETARGET_RULES[key]
+  if (!rule || !previous) return {}
+  if (
+    rule.targets.every((field) => sameValue(candidate[field], previous[field]))
+  )
+    return {}
+  const errors: Record<string, string[]> = {}
+  for (const [field, message] of Object.entries(rule.secrets)) {
+    const entered = input[field]
+    const kept = !(typeof entered === "string" && entered.trim() !== "")
+    // Only a secret that would be stored again (not one being cleared).
+    if (kept && previous[field] !== "" && candidate[field] !== "")
+      errors[field] = [message]
+  }
+  return errors
+}
+
+const BLOCKED_HOST_MESSAGE =
+  "This address is not allowed for an email server (local or metadata address)"
 
 export async function listIntegrations(
   actor: Actor
@@ -221,13 +284,32 @@ export async function saveIntegration(
   return getDb().transaction(async (tx) => {
     const row = await findIntegrationRow(tx, key)
     if ((row?.version ?? 0) !== input.version) throw conflict(toDto(key, row))
-    const previous = row ? openRow(key, row).values : null
-    const parsed = INTEGRATIONS[key].schema.safeParse(
-      mergeValues(key, input.values, previous)
+    const opened = row ? openRow(key, row) : null
+    const previous = opened?.values ?? null
+    const merged = mergeValues(key, input.values, previous)
+    // SMTP without sign-in sends no password: none is kept.
+    if (key === "integrations.smtp" && String(merged.user ?? "").trim() === "")
+      merged.password = ""
+    const parsed = INTEGRATIONS[key].schema.safeParse(merged)
+    const fieldErrors = {
+      ...(parsed.success ? {} : fieldErrorsFromIssues(parsed.error.issues)),
+      ...retargetErrors(
+        key,
+        input.values,
+        previous,
+        parsed.success ? (parsed.data as Values) : merged
+      ),
+    }
+    if (
+      parsed.success &&
+      key === "integrations.smtp" &&
+      (await resolveSmtpTarget(String((parsed.data as Values).host))).kind ===
+        "blocked"
     )
-    if (!parsed.success)
+      fieldErrors.host = [BLOCKED_HOST_MESSAGE]
+    if (!parsed.success || Object.keys(fieldErrors).length > 0)
       throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
-        fieldErrors: fieldErrorsFromIssues(parsed.error.issues),
+        fieldErrors,
       })
     const next = parsed.data as Values
     const stored = sealValues(
@@ -250,7 +332,9 @@ export async function saveIntegration(
       action: row ? "integration.updated" : "integration.created",
       entityType: "integration",
       entityId: key,
-      diff: { changed: changedFields(key, previous, next) },
+      diff: {
+        changed: changedFields(key, previous, next, opened?.unreadable ?? []),
+      },
     })
     return toDto(key, await findIntegrationRow(tx, key))
   })
@@ -267,6 +351,9 @@ export async function deleteIntegration(
     const row = await findIntegrationRow(tx, key)
     if (!row) throw notFound("Integration settings")
     if (row.version !== version) throw conflict(toDto(key, row))
+    // Best effort only: an upload committing concurrently can still write an
+    // r2 row after this count. The upload/migration path (Phase 6 Task 4)
+    // re-checks the active driver under lock before writing to R2.
     if (key === "integrations.r2") {
       const stored = await countMediaByDriver(tx, "r2")
       if (stored > 0)
@@ -345,7 +432,24 @@ export async function testIntegration(
         ),
       }
     )
-  const result = await runIntegrationTest(key, loaded.config)
+  let result: TestResult
+  if (key === "integrations.smtp") {
+    const config = loaded.config as IntegrationConfig<"integrations.smtp">
+    const target: SmtpTarget = await resolveSmtpTarget(config.host)
+    if (target.kind === "blocked")
+      throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
+        fieldErrors: { host: [BLOCKED_HOST_MESSAGE] },
+      })
+    result =
+      target.kind === "unresolved"
+        ? {
+            ok: false,
+            message: `Could not connect to the server (${config.host}:${config.port}).`,
+          }
+        : await runIntegrationTest(key, loaded.config, {
+            smtpAddress: target.address,
+          })
+  } else result = await runIntegrationTest(key, loaded.config)
   await writeAudit(db, actor, {
     action: "integration.tested",
     entityType: "integration",

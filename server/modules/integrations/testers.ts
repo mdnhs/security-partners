@@ -16,10 +16,16 @@ import type {
   TurnstileConfig,
 } from "@/lib/schemas/integrations"
 import { createR2Client } from "@/server/lib/r2-client"
+import { isLoopbackHost } from "@/server/lib/smtp-target"
 
 /** "Test connection" outcome: a failure is a result, not an exception. */
 export type TestResult = { ok: boolean; message: string }
-export type TestDeps = { fetch?: typeof fetch; r2Client?: S3Client }
+export type TestDeps = {
+  fetch?: typeof fetch
+  r2Client?: S3Client
+  /** Pre-resolved, allowed address for the SMTP host (server/lib/smtp-target.ts). */
+  smtpAddress?: string
+}
 
 const TIMEOUT_MS = 10_000
 export const TURNSTILE_VERIFY_URL =
@@ -27,8 +33,15 @@ export const TURNSTILE_VERIFY_URL =
 
 const pass = (message: string): TestResult => ({ ok: true, message })
 const fail = (message: string): TestResult => ({ ok: false, message })
-const errorText = (err: unknown) =>
-  err instanceof Error ? err.message : String(err)
+const errorCode = (err: unknown) => {
+  const code = (err as { code?: unknown } | null)?.code
+  return typeof code === "string" ? code : null
+}
+const isTimeout = (err: unknown) =>
+  err instanceof Error &&
+  (err.name === "TimeoutError" ||
+    err.name === "AbortError" ||
+    errorCode(err) === "ETIMEDOUT")
 
 /** Error texts may echo what they were given: mask every secret (4+ chars). */
 export function redactSecrets(
@@ -40,17 +53,58 @@ export function redactSecrets(
     .reduce((text, secret) => text.split(secret).join("••••"), message)
 }
 
-/** SMTP: open a connection, STARTTLS/TLS and sign in (transporter.verify(), notes §5.4). */
-export async function testSmtp(c: SmtpConfig): Promise<TestResult> {
-  const transport = nodemailer.createTransport({
-    host: c.host,
+/**
+ * Fixed texts for nodemailer failures. Error messages and server replies are
+ * never echoed: they would turn "Test connection" into a probe of internal
+ * services (and can contain what was sent).
+ */
+export function smtpFailureMessage(err: unknown): string {
+  switch (errorCode(err)) {
+    case "ECONNECTION":
+    case "ECONNREFUSED":
+    case "ENOTFOUND":
+    case "EDNS":
+    case "ESOCKET":
+      return "Could not connect to the server"
+    case "ETIMEDOUT":
+      return "The server did not respond in time"
+    case "EAUTH":
+    case "ENOAUTH":
+      return "The server rejected the user name or password"
+    case "ETLS":
+    case "EREQUIRETLS":
+      return "Secure connection failed"
+    default:
+      return "The server did not answer like an email server"
+  }
+}
+
+/**
+ * Transport options. Without implicit TLS, STARTTLS is required (the
+ * password never crosses the network in clear) except on loopback (dev
+ * Mailpit). `address` connects to a pre-checked IP while TLS still
+ * verifies the certificate for `host`.
+ */
+export function smtpTransportOptions(c: SmtpConfig, address: string = c.host) {
+  return {
+    host: address,
     port: c.port,
     secure: c.secure,
+    requireTLS: !c.secure && !isLoopbackHost(c.host),
+    tls: address === c.host ? undefined : { servername: c.host },
     auth: c.user ? { user: c.user, pass: c.password } : undefined,
     connectionTimeout: TIMEOUT_MS,
     greetingTimeout: TIMEOUT_MS,
     socketTimeout: TIMEOUT_MS,
-  })
+  }
+}
+
+/** SMTP: open a connection, STARTTLS/TLS and sign in (transporter.verify(), notes §5.4). */
+export async function testSmtp(
+  c: SmtpConfig,
+  address: string = c.host
+): Promise<TestResult> {
+  const transport = nodemailer.createTransport(smtpTransportOptions(c, address))
   try {
     await transport.verify()
     return pass(
@@ -59,13 +113,7 @@ export async function testSmtp(c: SmtpConfig): Promise<TestResult> {
         : `Connected to ${c.host}:${c.port}.`
     )
   } catch (err) {
-    const code = (err as { code?: unknown }).code
-    return fail(
-      redactSecrets(
-        `Could not connect to ${c.host}:${c.port}${typeof code === "string" ? ` (${code})` : ""}: ${errorText(err)}`,
-        [c.password]
-      )
-    )
+    return fail(`${smtpFailureMessage(err)} (${c.host}:${c.port}).`)
   } finally {
     transport.close()
   }
@@ -88,13 +136,14 @@ export async function testR2(
         return fail(
           "Access denied: check the access key ID, the secret and the token's bucket permissions."
         )
-      return fail(`R2 answered ${status ?? "with an error"} (${err.name}).`)
+      return fail(
+        status
+          ? `R2 answered with HTTP ${status}.`
+          : "R2 answered with an error."
+      )
     }
     return fail(
-      redactSecrets(`Could not reach R2: ${errorText(err)}`, [
-        c.secretAccessKey,
-        c.accessKeyId,
-      ])
+      isTimeout(err) ? "R2 did not respond in time." : "Could not reach R2."
     )
   } finally {
     client.destroy()
@@ -132,9 +181,9 @@ export async function testTurnstile(
     return pass("Cloudflare accepted the secret key.")
   } catch (err) {
     return fail(
-      redactSecrets(`Could not reach Cloudflare: ${errorText(err)}`, [
-        c.secretKey,
-      ])
+      isTimeout(err)
+        ? "Cloudflare did not respond in time."
+        : "Could not reach Cloudflare."
     )
   }
 }
@@ -177,9 +226,9 @@ export async function testAi(
     return fail(`The provider answered ${res.status}.`)
   } catch (err) {
     return fail(
-      redactSecrets(`Could not reach the provider: ${errorText(err)}`, [
-        c.apiKey,
-      ])
+      isTimeout(err)
+        ? "The provider did not respond in time."
+        : "Could not reach the provider."
     )
   }
 }
@@ -191,7 +240,7 @@ export async function runIntegrationTest<K extends IntegrationKey>(
 ): Promise<TestResult> {
   switch (key) {
     case "integrations.smtp":
-      return testSmtp(config as SmtpConfig)
+      return testSmtp(config as SmtpConfig, deps.smtpAddress)
     case "integrations.r2":
       return testR2(
         config as R2Config,

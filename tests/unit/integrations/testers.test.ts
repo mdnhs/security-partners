@@ -7,8 +7,11 @@ import type {
   SmtpConfig,
   TurnstileConfig,
 } from "@/lib/schemas/integrations"
+import { r2Endpoint } from "@/server/lib/r2-client"
 import {
   redactSecrets,
+  smtpFailureMessage,
+  smtpTransportOptions,
   testAi,
   testR2,
   testSmtp,
@@ -43,8 +46,75 @@ describe("testSmtp", () => {
     }
     const result = await testSmtp(config)
     expect(result.ok).toBe(false)
-    expect(result.message).toContain("127.0.0.1:1")
+    expect(result.message).toBe(
+      "Could not connect to the server (127.0.0.1:1)."
+    )
     expect(result.message).not.toContain("super-secret-pw")
+  })
+
+  it("maps nodemailer codes to fixed texts, never the error message", () => {
+    const err = (code: string) =>
+      Object.assign(new Error(`535 5.7.8 internal banner for ${code}`), {
+        code,
+      })
+    const cases: Record<string, string> = {
+      ECONNECTION: "Could not connect to the server",
+      ECONNREFUSED: "Could not connect to the server",
+      ENOTFOUND: "Could not connect to the server",
+      ETIMEDOUT: "The server did not respond in time",
+      EAUTH: "The server rejected the user name or password",
+      ETLS: "Secure connection failed",
+      EPROTOCOL: "The server did not answer like an email server",
+      ESOMETHING: "The server did not answer like an email server",
+    }
+    for (const [code, message] of Object.entries(cases))
+      expect(smtpFailureMessage(err(code))).toBe(message)
+    expect(smtpFailureMessage(new Error("no code"))).toBe(
+      "The server did not answer like an email server"
+    )
+  })
+
+  const remote: SmtpConfig = {
+    host: "smtp.example.ie",
+    port: 587,
+    secure: false,
+    user: "mailer",
+    password: "pw",
+    fromName: "SP",
+    fromAddress: "no-reply@example.ie",
+  }
+
+  it("requires STARTTLS without implicit TLS, except on loopback", () => {
+    expect(smtpTransportOptions(remote).requireTLS).toBe(true)
+    expect(
+      smtpTransportOptions({ ...remote, secure: true, port: 465 }).requireTLS
+    ).toBe(false)
+    expect(
+      smtpTransportOptions({ ...remote, host: "127.0.0.1" }).requireTLS
+    ).toBe(false)
+    expect(
+      smtpTransportOptions({ ...remote, host: "localhost" }).requireTLS
+    ).toBe(false)
+  })
+
+  it("connects to a pre-checked address while TLS verifies the host name", () => {
+    expect(smtpTransportOptions(remote, "10.0.0.25")).toMatchObject({
+      host: "10.0.0.25",
+      tls: { servername: "smtp.example.ie" },
+    })
+    expect(smtpTransportOptions(remote).tls).toBeUndefined()
+  })
+})
+
+describe("r2Endpoint", () => {
+  it("uses the EU host for EU-jurisdiction buckets", () => {
+    const accountId = "0123456789abcdef0123456789abcdef"
+    expect(r2Endpoint({ accountId, jurisdiction: "eu" })).toBe(
+      `https://${accountId}.eu.r2.cloudflarestorage.com`
+    )
+    expect(r2Endpoint({ accountId, jurisdiction: "default" })).toBe(
+      `https://${accountId}.r2.cloudflarestorage.com`
+    )
   })
 })
 
@@ -105,7 +175,17 @@ describe("testR2 (HeadBucket)", () => {
       })
     )
     expect(network.ok).toBe(false)
-    expect(network.message).not.toContain("secret-access-key")
+    expect(network.message).toBe("Could not reach R2.")
+    expect(
+      (
+        await testR2(
+          config,
+          client(async () => {
+            throw s3Error("SlowDown", 503)
+          })
+        )
+      ).message
+    ).toBe("R2 answered with HTTP 503.")
   })
 })
 
@@ -199,5 +279,32 @@ describe("testAi (GET the model)", () => {
         )
       ).message
     ).toBe("The key works, but model “claude-sonnet-4-5” was not found.")
+  })
+
+  it("network failures give fixed texts (no raw error or provider body)", async () => {
+    const boom = vi.fn(async () => {
+      throw new Error("connect ECONNREFUSED 10.1.2.3:443 sk-ant-secret")
+    })
+    expect((await testAi(anthropic, boom)).message).toBe(
+      "Could not reach the provider."
+    )
+    const slow = vi.fn(async () => {
+      throw new DOMException("timed out", "TimeoutError")
+    })
+    expect((await testAi(anthropic, slow)).message).toBe(
+      "The provider did not respond in time."
+    )
+    expect(
+      (
+        await testTurnstile(
+          {
+            enabled: true,
+            siteKey: "0x4AAAAAAA",
+            secretKey: "0x4AAAAAAA-secret",
+          },
+          boom
+        )
+      ).message
+    ).toBe("Could not reach Cloudflare.")
   })
 })
