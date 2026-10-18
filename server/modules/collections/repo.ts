@@ -119,6 +119,24 @@ export async function findCollectionRow<N extends Name>(
   return (row as CollectionRow<N> | undefined) ?? null
 }
 
+/**
+ * The row FOR UPDATE (caller's transaction): concurrent saves/deletes of one
+ * record queue up here before touching media_usages and revisions.
+ */
+export async function lockCollectionRow<N extends Name>(
+  db: DbOrTx,
+  name: N,
+  id: string
+): Promise<CollectionRow<N> | null> {
+  const table = COLLECTION_TABLES[name] as CollectionTable
+  const [row] = await db
+    .select()
+    .from(table)
+    .where(eq(table.id, id))
+    .for("update")
+  return (row as CollectionRow<N> | undefined) ?? null
+}
+
 export async function nextCollectionSortOrder(
   db: DbOrTx,
   name: Name

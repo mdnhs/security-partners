@@ -338,6 +338,40 @@ describe("services (master 4.6): draft/publish, slug, delete", () => {
   })
 })
 
+describe("concurrent saves of one record (final review minor 2)", () => {
+  it("queue up on the row: all succeed, one revision each, no false duplicate-name 409", async () => {
+    const client = await json<ClientItem>(
+      await adminRequest("/clients", {
+        cookie: editor,
+        method: "POST",
+        json: { name: "Race Ltd", logo: { mediaId: logoId }, url: null },
+      })
+    )
+    const statuses = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        adminRequest(`/clients/${client.id}`, {
+          cookie: editor,
+          method: "PUT",
+          json: {
+            name: "Race Ltd",
+            logo: { mediaId: logoId },
+            url: `https://race.example/${i}`,
+          },
+        }).then(async (res) => [res.status, await res.text()] as const)
+      )
+    )
+    expect(statuses.filter(([status]) => status !== 200)).toEqual([])
+    const revs = await getDb()
+      .select({ version: revisions.version })
+      .from(revisions)
+      .where(eq(revisions.entityId, client.id))
+    expect(revs).toHaveLength(9)
+    expect(await listMediaUsagesFor(getDb(), "client", client.id)).toEqual([
+      { mediaId: logoId, field: "logo" },
+    ])
+  })
+})
+
 describe("PUT /reorder/:collection (master 4.6)", () => {
   it("persists sortOrder and invalidates the collection tag", async () => {
     const { items } = await json<Paginated<TeamItem>>(
