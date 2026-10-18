@@ -30,9 +30,13 @@ export async function runMigrations(
     try {
       await migrate(drizzle({ client }), { migrationsFolder })
     } finally {
-      await client.query("select pg_advisory_unlock($1)", [MIGRATION_LOCK_ID])
+      // The lock dies with the connection anyway; a failed unlock (dropped
+      // connection) must never replace the migration error.
+      await client
+        .query("select pg_advisory_unlock($1)", [MIGRATION_LOCK_ID])
+        .catch(() => undefined)
     }
   } finally {
-    await client.end()
+    await client.end().catch(() => undefined)
   }
 }

@@ -68,7 +68,13 @@ export function diskBackupStore(dir = defaultBackupsDir()): BackupStore {
     location: dir,
     async put(name, file) {
       // Owner-only: dumps hold every row, including password hashes.
+      // mkdir's mode only applies to a new dir: tighten an existing one (and
+      // files written before this rule, e.g. by an older release) too.
       await mkdir(dir, { recursive: true, mode: 0o700 })
+      await chmod(dir, 0o700)
+      for (const existing of await readdir(dir))
+        if (NAME.test(existing))
+          await chmod(join(dir, existing), 0o600).catch(() => undefined)
       const final = join(dir, checkName(name))
       // A hidden temp name (never listed) + rename: a crash mid-copy never
       // leaves a truncated file under the real name.

@@ -5,6 +5,8 @@ import { resolve } from "node:path"
 /** Written by tests/e2e/seed.ts, read by the specs (gitignored). */
 export const FIXTURES_FILE = resolve("tests/e2e/.state/fixtures.json")
 export const E2E_PASSWORD = "e2e-password-0123456789"
+/** SMTP password integrations.spec.ts saves (scripts/check-log-secrets.ts). */
+export const E2E_SMTP_PASSWORD = "smtp-secret-1234"
 
 export type E2EFixtures = {
   editor: { email: string; name: string }

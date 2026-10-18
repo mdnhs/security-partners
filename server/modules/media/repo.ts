@@ -66,6 +66,19 @@ export async function existingMediaIds(
   return new Set(rows.map((r) => r.id))
 }
 
+/** The subset of `ids` whose stored file is not an image (e.g. a PDF). */
+export async function nonImageMediaIds(
+  db: DbOrTx,
+  ids: string[]
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const rows = await db
+    .select({ id: media.id })
+    .from(media)
+    .where(and(inArray(media.id, ids), notLike(media.mime, "image/%")))
+  return new Set(rows.map((r) => r.id))
+}
+
 /** Replaces every media_usages row of one entity (same transaction as the save). */
 export async function replaceMediaUsages(
   db: DbOrTx,

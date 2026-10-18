@@ -38,7 +38,7 @@ const THEMES = [
 /**
  * The avatar alone in the topbar; name, email and roles sit in the menu
  * (Account, Security, Theme, Sign out). A failed sign-out shows below the
- * avatar and clears when the menu reopens.
+ * avatar and clears when the menu reopens (a dock failure stays).
  */
 export function UserMenu() {
   const { user, roles } = useAdminSession()
@@ -49,7 +49,8 @@ export function UserMenu() {
     <div className="relative">
       <DropdownMenu
         onOpenChange={(open) => {
-          if (open) clearError()
+          // Only the menu's own failure clears; the dock keeps its error.
+          if (open && error?.source === "menu") clearError()
         }}
       >
         <DropdownMenuTrigger

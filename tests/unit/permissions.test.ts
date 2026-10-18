@@ -278,6 +278,34 @@ describe("hasPermission", () => {
   })
 })
 
+describe("hasPermission never throws on malformed requests (fail closed)", () => {
+  it("denies a resource whose action list is not an array", () => {
+    expect(
+      hasPermission(["owner"], {
+        page: undefined,
+      } as unknown as PermissionRequest)
+    ).toBe(false)
+    expect(
+      hasPermission(["owner"], { page: "read" } as unknown as PermissionRequest)
+    ).toBe(false)
+  })
+
+  it("denies prototype-named resources", () => {
+    for (const name of [
+      "__proto__",
+      "constructor",
+      "toString",
+      "hasOwnProperty",
+    ])
+      expect(
+        hasPermission(
+          ["owner"],
+          JSON.parse(`{"${name}":["read"]}`) as PermissionRequest
+        )
+      ).toBe(false)
+  })
+})
+
 describe("parseRoles", () => {
   it("splits the comma-joined Better Auth role column", () => {
     expect(parseRoles("editor,author")).toEqual(["editor", "author"])

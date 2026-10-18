@@ -450,9 +450,7 @@ describe("MediaLibrary (master 6.3)", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.url.includes("page=2"))).toBe(true)
     )
-    await waitFor(() =>
-      expect(document.querySelector("[aria-busy=true]")).toBeNull()
-    )
+    await waitFor(() => expect(screen.queryByText("Loading media…")).toBeNull())
     expect(await screen.findByText(/^1–24 of /)).toBeVisible()
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled()
     expect(

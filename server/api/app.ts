@@ -3,6 +3,7 @@ import "server-only"
 import { Hono } from "hono"
 import { secureHeaders } from "hono/secure-headers"
 
+import { HSTS } from "@/lib/security-headers"
 import type { AppEnv } from "@/server/api/context"
 import {
   requireSignedIn,
@@ -78,7 +79,8 @@ export function createApp() {
 
   // 1. Global
   api.use("*", requestIdMiddleware)
-  api.use("*", secureHeaders())
+  // Same HSTS as the pages (lib/security-headers.ts).
+  api.use("*", secureHeaders({ strictTransportSecurity: HSTS }))
   api.use("*", async (c, next) => {
     c.set("actor", null)
     await next()

@@ -37,7 +37,7 @@ export function PagesList() {
   })
   if (pages.isPending)
     return (
-      <div role="status" aria-busy="true">
+      <div role="status">
         <span className="sr-only">Loading pages…</span>
         <CardSkeleton />
       </div>

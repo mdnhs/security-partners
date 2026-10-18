@@ -14,6 +14,7 @@ import {
   type IntegrationKey,
   isSecretField,
 } from "@/lib/schemas/integrations"
+import { smtpConfig } from "@/lib/schemas/integrations/smtp"
 import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
@@ -251,6 +252,9 @@ function retargetErrors(
   return errors
 }
 
+/** Host names compare case-insensitively, without surrounding space. */
+const normalHost = (host: string) => host.trim().toLowerCase()
+
 const BLOCKED_HOST_MESSAGE =
   "This address is not allowed for an email server (local or metadata address)"
 
@@ -283,6 +287,20 @@ export async function saveIntegration(
   input: SaveIntegrationInput
 ): Promise<IntegrationDto> {
   assertCan(actor, { integration: ["update"] })
+  // The SMTP host check may wait for DNS (up to its timeout): do it before
+  // the transaction so no connection/transaction is held meanwhile.
+  // Only a host that passes the schema's own checks (trimmed, server-name
+  // characters) is looked up: invalid input never reaches DNS.
+  const entered =
+    key === "integrations.smtp"
+      ? smtpConfig.shape.host.safeParse(input.values.host)
+      : null
+  const preResolved = entered?.success
+    ? {
+        host: normalHost(entered.data),
+        target: await resolveSmtpTarget(entered.data),
+      }
+    : null
   return getDb().transaction(async (tx) => {
     const row = await findIntegrationRow(tx, key)
     if ((row?.version ?? 0) !== input.version) throw conflict(toDto(key, row))
@@ -302,13 +320,14 @@ export async function saveIntegration(
         parsed.success ? (parsed.data as Values) : merged
       ),
     }
-    if (
-      parsed.success &&
-      key === "integrations.smtp" &&
-      (await resolveSmtpTarget(String((parsed.data as Values).host))).kind ===
-        "blocked"
-    )
-      fieldErrors.host = [BLOCKED_HOST_MESSAGE]
+    if (parsed.success && key === "integrations.smtp") {
+      const host = String((parsed.data as Values).host)
+      const target =
+        preResolved?.host === normalHost(host)
+          ? preResolved.target
+          : await resolveSmtpTarget(host)
+      if (target.kind === "blocked") fieldErrors.host = [BLOCKED_HOST_MESSAGE]
+    }
     if (!parsed.success || Object.keys(fieldErrors).length > 0)
       throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
         fieldErrors,

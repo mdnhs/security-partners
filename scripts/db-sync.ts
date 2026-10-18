@@ -40,10 +40,15 @@ try {
 if (values.to) process.env.DATABASE_URL = values.to
 if (values["to-secret"]) process.env.BETTER_AUTH_SECRET = values["to-secret"]
 
+// Read the input-only source variables once, then drop them: pg_dump /
+// pg_restore and every other child process inherit process.env.
+const from = values.from || process.env.SOURCE_DATABASE_URL
+const fromSecret =
+  values["from-secret"] || process.env.SOURCE_BETTER_AUTH_SECRET
+delete process.env.SOURCE_DATABASE_URL
+delete process.env.SOURCE_BETTER_AUTH_SECRET
+
 await runScript("db:sync", async () => {
-  const from = values.from || process.env.SOURCE_DATABASE_URL
-  const fromSecret =
-    values["from-secret"] || process.env.SOURCE_BETTER_AUTH_SECRET
   const confirm = values.confirm
   if (!from || !fromSecret || !confirm) throw new Error(USAGE)
   const report = await dbSync({
@@ -53,6 +58,10 @@ await runScript("db:sync", async () => {
     demoPassword: values["demo-password"],
     verifyUrl: values["verify-url"],
   })
+  if (report.sourceSecretsChecked === 0)
+    console.log(
+      "[db:sync] notice: the source holds no encrypted secrets, so --from-secret could not be verified (nothing to re-key)"
+    )
   console.log(
     `[db:sync] target backed up: ${report.backup} → ${report.backupLocation}`
   )

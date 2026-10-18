@@ -92,17 +92,22 @@ function createAuth(db: Db) {
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: RESET_TOKEN_EXPIRES_IN,
       // Forgot-password: Better Auth creates the token; we link to our page.
+      // Not awaited: Better Auth only calls this for existing accounts, so
+      // the reply must not wait for SMTP (its timing would reveal whether
+      // the email is registered). The mailer never throws and never logs links.
       sendResetPassword: async ({ user, token }) => {
-        await mailer.send({
-          to: user.email,
-          subject: "Reset your Security Partners admin password",
-          template: "reset-password",
-          react: createElement(ResetPasswordEmail, {
-            name: user.name,
-            url: adminUrl("/admin/reset-password", { token }),
-            expiresInMinutes: RESET_TOKEN_EXPIRES_IN / 60,
-          }),
-        })
+        void mailer
+          .send({
+            to: user.email,
+            subject: "Reset your Security Partners admin password",
+            template: "reset-password",
+            react: createElement(ResetPasswordEmail, {
+              name: user.name,
+              url: adminUrl("/admin/reset-password", { token }),
+              expiresInMinutes: RESET_TOKEN_EXPIRES_IN / 60,
+            }),
+          })
+          .catch(() => undefined)
       },
       onPasswordReset: async ({ user }, request) => {
         await auditAuthEvent(actorFor(user, request?.headers), {

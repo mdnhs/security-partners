@@ -54,6 +54,11 @@ export type SyncOptions = {
 }
 
 export type SyncReport = {
+  /**
+   * Encrypted source values `fromSecret` was proven against. 0: the source
+   * holds nothing encrypted, so a wrong secret could not be detected.
+   */
+  sourceSecretsChecked: number
   backup: string
   backupLocation: string
   rotate: RotateReport
@@ -250,7 +255,10 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
     )
   if (await sameDatabase(opts.from, target))
     throw new Error("Source and target are the same database")
-  await assertSourceSecret(opts.from, opts.fromSecret)
+  const sourceSecretsChecked = await assertSourceSecret(
+    opts.from,
+    opts.fromSecret
+  )
 
   const backup = await runBackup({
     url: target,
@@ -292,6 +300,7 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
       : 0
     const checks = await verifyTarget(opts)
     return {
+      sourceSecretsChecked,
       backup: backup.name,
       backupLocation: backup.location,
       rotate,

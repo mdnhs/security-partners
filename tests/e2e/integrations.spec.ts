@@ -3,7 +3,13 @@ import { networkInterfaces } from "node:os"
 import { expect, type Page, test } from "@playwright/test"
 
 import { E2E_OWNER } from "./admin-accounts"
-import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
+import {
+  clientIpFor,
+  E2E_PASSWORD,
+  E2E_SMTP_PASSWORD,
+  greeting,
+  readFixtures,
+} from "./fixtures"
 
 // Master 7.1: SMTP credentials saved through Settings ▸ Integrations come
 // back masked, a changed server asks for the password again, "Test
@@ -16,7 +22,7 @@ import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 // machine, online or not. A separate round trip to the dev Mailpit runs
 // only where this machine has an RFC 1918 address.
 
-const PASSWORD = "smtp-secret-1234"
+const PASSWORD = E2E_SMTP_PASSWORD
 const TEST_NET = "192.0.2.1"
 
 /** This machine's first RFC 1918 IPv4 address (Mailpit listens on all). */

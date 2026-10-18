@@ -1,4 +1,6 @@
 import {
+  chmod,
+  mkdir,
   mkdtemp,
   readdir,
   readFile,
@@ -59,6 +61,18 @@ describe("disk backup store", () => {
       (await stat(join(dir, "backups", `${stamp(1)}.dump`))).mode & 0o777
     ).toBe(0o600)
     expect(await readdir(join(dir, "backups"))).toEqual([`${stamp(1)}.dump`])
+  })
+
+  it("tightens an existing world-readable backup dir and its files", async () => {
+    const backups = join(dir, "backups")
+    await mkdir(backups, { mode: 0o755 })
+    await chmod(backups, 0o755)
+    const old = join(backups, `${stamp(1)}.dump`)
+    await writeFile(old, "PGDMP-old", { mode: 0o644 })
+    await chmod(old, 0o644)
+    await diskBackupStore(backups).put(`${stamp(2)}.dump`, src)
+    expect((await stat(backups)).mode & 0o777).toBe(0o700)
+    expect((await stat(old)).mode & 0o777).toBe(0o600)
   })
 
   it("ignores interrupted backups (a dump without its manifest)", async () => {

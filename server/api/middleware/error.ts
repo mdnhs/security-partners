@@ -54,6 +54,11 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
   }
   if (err instanceof HTTPException) {
     const status = err.status as ContentfulStatusCode
+    if (status >= 500)
+      // The client only gets "Internal server error"; keep the cause here.
+      console.error(
+        `[api] ${c.get("requestId")} HTTP ${status}: ${err.message}`
+      )
     const code = codeForStatus(status)
     const message =
       status >= 500 ? "Internal server error" : err.message || "Request failed"

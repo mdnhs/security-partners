@@ -34,6 +34,9 @@ export function useAutosave<T>({
 }) {
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState<ApiError | null>(null)
+  // Set synchronously by a failing save, so a flush that was waiting for it
+  // never sends on top of a 409 (the state update lands a render later).
+  const conflictRef = useRef<ApiError | null>(null)
   const [error, setError] = useState<unknown>(null)
   const latest = useRef({ value, save, isValid })
   useEffect(() => {
@@ -53,6 +56,7 @@ export function useAutosave<T>({
 
   const flush = useCallback(async (): Promise<boolean> => {
     while (inFlight.current) await inFlight.current
+    if (conflictRef.current) return false
     const { value: current, save: run, isValid: check } = latest.current
     if (isDeepEqual(current, lastSaved.current)) return true
     if (!check(current)) return false
@@ -64,8 +68,10 @@ export function useAutosave<T>({
         lastSaved.current = current
         return true
       } catch (err) {
-        if (err instanceof ApiError && err.isConflict) setConflict(err)
-        else setError(err)
+        if (err instanceof ApiError && err.isConflict) {
+          conflictRef.current = err
+          setConflict(err)
+        } else setError(err)
         return false
       } finally {
         setSaving(false)
@@ -111,7 +117,10 @@ export function useAutosave<T>({
     conflict,
     error,
     flush,
-    resolveConflict: () => setConflict(null),
+    resolveConflict: () => {
+      conflictRef.current = null
+      setConflict(null)
+    },
     clearError: () => setError(null),
   }
 }

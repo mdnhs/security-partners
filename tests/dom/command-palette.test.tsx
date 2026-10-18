@@ -346,4 +346,23 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(within(dialog).queryByText(/No results/)).toBeNull()
     expect(within(dialog).queryByText("Searching…")).toBeNull()
   })
+
+  it("keeps the failed-search alert outside the listbox (ARIA: listbox children are options)", async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ error: { code: "VALIDATION", message: "Bad" } }),
+          { status: 422, headers: { "content-type": "application/json" } }
+        )
+    )
+    const user = userEvent.setup()
+    renderShell()
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.type(within(dialog).getByRole("combobox"), "zzz")
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.closest('[role="listbox"]')).toBeNull()
+  })
 })
