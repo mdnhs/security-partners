@@ -22,6 +22,10 @@ async function signIn(page: Page) {
   await page.getByLabel("Password", { exact: true }).fill(VISUAL_ADMIN.password)
   await page.getByRole("button", { name: "Sign in" }).click()
   await expect(page.getByTestId("greeting")).toBeVisible()
+  // The sidebar's lead count is server-rendered from the database: the
+  // visual seed has no enquiries, so it stays hidden. A lead left by another
+  // spec (e.g. the public contact form e2e) would show it — fail loudly.
+  await expect(page.getByLabel(/ new leads$/)).toHaveCount(0)
   await page.evaluate(() => document.fonts.ready)
 }
 

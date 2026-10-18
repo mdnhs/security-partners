@@ -144,6 +144,11 @@ async function signIn(
   await page.getByLabel("Password", { exact: true }).fill(who.password)
   await page.getByRole("button", { name: "Sign in" }).click()
   await expect(page.getByTestId("greeting")).toBeVisible()
+  // The sidebar's lead count is server-rendered from the database (not
+  // pinnable with page.route): the visual seed has no enquiries, so it stays
+  // hidden. A lead left by another spec (the public contact form e2e posts
+  // a real one) would show it in every shot — fail loudly instead.
+  await expect(page.getByLabel(/ new leads$/)).toHaveCount(0)
   await page.evaluate(() => document.fonts.ready)
 }
 
@@ -371,6 +376,98 @@ async function pinIntegrations(page: Page) {
           lastError: null,
         },
       })
+  )
+}
+
+/**
+ * The leads inbox and one lead, pinned (Phase 7): the visual seed has no
+ * enquiries, so the list, the detail and the assignee list are served.
+ */
+const LEAD_ID = "0190f0e0-0000-7000-8000-0000000000d1"
+const LEAD_ROWS = [
+  {
+    id: LEAD_ID,
+    name: "Siobhán Byrne",
+    email: "siobhan@harbourlogistics.ie",
+    phone: "087 123 4567",
+    company: "Harbour Logistics",
+    status: "new",
+    assignee: null,
+    sourcePage: "/contact",
+    createdAt: "2026-10-16T09:00:00.000Z",
+  },
+  {
+    id: "0190f0e0-0000-7000-8000-0000000000d2",
+    name: "Declan Murphy",
+    email: "declan@murphybuild.ie",
+    phone: null,
+    company: "Murphy Build",
+    status: "contacted",
+    assignee: { id: "u1", name: "Vera Visual" },
+    sourcePage: "/services/mobile-patrols",
+    createdAt: "2026-10-15T14:30:00.000Z",
+  },
+  {
+    id: "0190f0e0-0000-7000-8000-0000000000d3",
+    name: "Aoife Kelly",
+    email: "aoife.kelly@example.ie",
+    phone: "01 555 0101",
+    company: null,
+    status: "won",
+    assignee: { id: "u1", name: "Vera Visual" },
+    sourcePage: null,
+    createdAt: "2026-10-12T11:15:00.000Z",
+  },
+]
+const LEAD_DETAIL = {
+  ...LEAD_ROWS[0],
+  service: "Mobile patrols",
+  message:
+    "Hello,\n\nWe need night patrols for our Dublin Port depot, Monday to Saturday.\nCould someone call me this week?\n\nThanks, Siobhán",
+  consent: true,
+  updatedAt: "2026-10-16T10:00:00.000Z",
+  events: [
+    {
+      id: "e1",
+      type: "created",
+      body: "Sent from /contact",
+      actor: null,
+      createdAt: "2026-10-16T09:00:00.000Z",
+    },
+    {
+      id: "e2",
+      type: "email",
+      body: "Notification sent to enquiries@example.ie",
+      actor: null,
+      createdAt: "2026-10-16T09:00:01.000Z",
+    },
+    {
+      id: "e3",
+      type: "note",
+      body: "Left a voicemail; will try again tomorrow morning.",
+      actor: { id: "u1", name: "Vera Visual" },
+      createdAt: "2026-10-16T10:00:00.000Z",
+    },
+  ],
+}
+
+async function pinLeads(page: Page) {
+  await page.route("**/api/v1/admin/leads?*", (route) =>
+    route.fulfill({
+      json: { items: LEAD_ROWS, page: 1, pageSize: 20, total: 3 },
+    })
+  )
+  await page.route("**/api/v1/admin/leads/assignees", (route) =>
+    route.fulfill({
+      json: {
+        items: [{ id: "u1", name: "Vera Visual", email: VISUAL_ADMIN.email }],
+      },
+    })
+  )
+  await page.route(`**/api/v1/admin/leads/${LEAD_ID}`, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: LEAD_DETAIL })
+      : route.abort()
   )
 }
 
@@ -944,6 +1041,63 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("user-detail"), {
         mask: await masks(page),
+      })
+    })
+
+    test(`admin leads inbox ${colorScheme}`, async ({ page }) => {
+      await pinLeads(page)
+      await signIn(page)
+      await page.goto("/admin/leads")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Leads" })
+      ).toBeVisible()
+      // A table from 640 px, cards below: find the links in either.
+      await expect(
+        page
+          .getByRole("main")
+          .getByRole("link", { name: "Siobhán Byrne", exact: true })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("leads"), {
+        mask: await masks(page),
+      })
+    })
+
+    for (const tab of ["details", "notes", "activity"] as const)
+      test(`admin lead ${tab} ${colorScheme}`, async ({ page }) => {
+        await pinLeads(page)
+        await signIn(page)
+        await page.goto(`/admin/leads/${LEAD_ID}?tab=${tab}`)
+        await expect(
+          page.getByRole("heading", { level: 1, name: "Siobhán Byrne" })
+        ).toBeVisible()
+        await expect(
+          page
+            .getByRole("tablist", { name: "Lead sections" })
+            .getByRole("tab", { selected: true })
+        ).toContainText(tab, { ignoreCase: true })
+        // Only waits for the assignee list to load (its option text), so
+        // the shot never catches the select half-filled; the pinned lead
+        // itself is unassigned.
+        if (tab === "details")
+          await expect(page.getByLabel("Assigned to")).toContainText(
+            "Vera Visual"
+          )
+        await page.evaluate(() => document.fonts.ready)
+        await expect(page).toHaveScreenshot(shot(`lead-${tab}`), {
+          mask: await masks(page),
+        })
+      })
+
+    test(`admin lead delete dialog ${colorScheme}`, async ({ page }) => {
+      await pinLeads(page)
+      await signIn(page)
+      await page.goto(`/admin/leads/${LEAD_ID}`)
+      await page.getByRole("button", { name: "Delete", exact: true }).click()
+      await expect(
+        page.getByRole("alertdialog", { name: "Delete this lead?" })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("lead-delete-dialog"), {
+        mask: await overlayOnly(page),
       })
     })
 
