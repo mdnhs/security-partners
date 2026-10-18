@@ -30,6 +30,35 @@ const serverOnlyStub: Plugin = {
   },
 }
 
+/**
+ * `next/cache` only works inside a Next request; the scripts share modules
+ * that import it (server/auth/hooks.ts → server/lib/cache-tags.ts), so the
+ * bundle gets stubs that throw when called — callers log, never rethrow —
+ * instead of Next's server runtime and its optional OpenTelemetry peer.
+ */
+const nextCacheStub: Plugin = {
+  name: "next-cache-stub",
+  setup(b) {
+    b.onResolve({ filter: /^next\/cache$/ }, () => ({
+      path: "next/cache",
+      namespace: "next-cache-stub",
+    }))
+    b.onLoad({ filter: /.*/, namespace: "next-cache-stub" }, () => ({
+      contents: [
+        "const outsideNext = (name) => () => {",
+        "  throw new Error(`${name} is only available inside a Next.js request`)",
+        "}",
+        'export const revalidateTag = outsideNext("revalidateTag")',
+        'export const revalidatePath = outsideNext("revalidatePath")',
+        'export const updateTag = outsideNext("updateTag")',
+        'export const cacheTag = outsideNext("cacheTag")',
+        'export const cacheLife = outsideNext("cacheLife")',
+      ].join("\n"),
+      loader: "js",
+    }))
+  },
+}
+
 export async function buildScripts(
   outdir = resolve("scripts/dist")
 ): Promise<string[]> {
@@ -49,7 +78,7 @@ export async function buildScripts(
     banner: {
       js: 'import { createRequire as __spCreateRequire } from "node:module"; const require = __spCreateRequire(import.meta.url);',
     },
-    plugins: [serverOnlyStub],
+    plugins: [serverOnlyStub, nextCacheStub],
     legalComments: "none",
     logLevel: "warning",
   })
