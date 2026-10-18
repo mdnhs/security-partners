@@ -112,15 +112,16 @@ export async function deleteRedirectRow(db: DbOrTx, id: string) {
   return row ?? null
 }
 
-/** One more hit; updatedAt keeps meaning "last edited". */
+/** `by` more hits (coalesced in resolve.ts); updatedAt keeps meaning "last edited". */
 export async function incrementRedirectHits(
   db: DbOrTx,
-  id: string
+  id: string,
+  by = 1
 ): Promise<void> {
   await db
     .update(redirects)
     .set({
-      hits: sql`${redirects.hits} + 1`,
+      hits: sql`${redirects.hits} + ${by}`,
       updatedAt: sql`${redirects.updatedAt}`,
     })
     .where(eq(redirects.id, id))

@@ -4,12 +4,10 @@ import { expect, test } from "@playwright/test"
 
 test.describe("public site from the database", () => {
   for (const path of ["/services/no-such-service", "/blog/no-such-article"]) {
-    test(`unknown slug ${path} renders the 404 page, noindex`, async ({
-      page,
-    }) => {
-      // Cache Components stream the shell first, so notFound() inside the
-      // page's Suspense boundary is a soft 404: status 200 + noindex.
-      await page.goto(path)
+    test(`unknown slug ${path} is a real 404`, async ({ page }) => {
+      // proxy.ts checks the slug before the page streams (phase 8).
+      const response = await page.goto(path)
+      expect(response?.status()).toBe(404)
       await expect(
         page.getByRole("heading", { name: "This page could not be found." })
       ).toBeVisible()
