@@ -318,6 +318,23 @@ async function masks(page: Page) {
 }
 
 /** The editor has loaded and settled (autosave idle). */
+/** main#main's scrollTop if it is the same across two frames, else null. */
+function settledMainScrollTop(page: Page): Promise<number | null> {
+  return page.evaluate(
+    () =>
+      new Promise<number | null>((resolve) => {
+        const main = document.querySelector("main#main")
+        const before = main?.scrollTop ?? 0
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const after = main?.scrollTop ?? 0
+            resolve(after === before ? after : null)
+          })
+        )
+      })
+  )
+}
+
 async function editorReady(page: Page, title: string) {
   await expect(
     page.getByRole("heading", { level: 1, name: title })
@@ -1185,10 +1202,17 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/pages/home")
       await editorReady(page, "Home")
-      await page
+      // The editor page shows through the picker's backdrop: open it from
+      // a settled scroll position (images loaded, the button scrolled into
+      // view, main's scrollTop unchanged across two frames) so the backdrop
+      // is the same every run.
+      const change = page
         .getByRole("region", { name: "Hero" })
         .getByRole("button", { name: "Change image: Background image" })
-        .click()
+      await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      await change.scrollIntoViewIfNeeded()
+      await expect.poll(() => settledMainScrollTop(page)).not.toBeNull()
+      await change.click()
       const picker = page.getByRole("dialog", {
         name: "Choose: Background image",
       })
@@ -1208,6 +1232,11 @@ for (const colorScheme of ["light", "dark"] as const) {
         })
       ).toHaveAttribute("aria-valuenow", "40")
       await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      // The scroll offset the baselines were captured at (desktop/mobile).
+      const baselineScrollTop = page.viewportSize()!.width >= 1024 ? 558 : 845
+      await expect
+        .poll(() => settledMainScrollTop(page))
+        .toBe(baselineScrollTop)
       await expect(page).toHaveScreenshot(shot("media-picker-upload"), {
         mask: await overlayOnly(page),
       })
