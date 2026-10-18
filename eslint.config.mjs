@@ -70,6 +70,8 @@ const eslintConfig = defineConfig([
     ".data/**",
     "test-results/**",
     "playwright-report/**",
+    // Agent worktrees (local scratch checkouts):
+    ".claude/**",
   ]),
 ]);
 

@@ -52,3 +52,6 @@ playwright-report/
 
 # e2e fixtures written by tests/e2e/seed.ts
 /tests/e2e/.state/
+
+# Agent worktrees
+.claude/worktrees/
