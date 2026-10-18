@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { IntegrationForm } from "@/components/admin/integrations/integration-form"
+import { MigrateMediaPanel } from "@/components/admin/integrations/migrate-media-panel"
 import {
   INTEGRATIONS,
   integrationKeyFromSlug,
@@ -32,5 +33,9 @@ async function Integration({
   const key = integrationKeyFromSlug((await params).slug)
   if (!key) notFound()
   await requirePermission({ integration: ["read"] })
-  return <IntegrationForm integrationKey={key} />
+  return (
+    <IntegrationForm integrationKey={key}>
+      {key === "integrations.r2" ? <MigrateMediaPanel /> : null}
+    </IntegrationForm>
+  )
 }

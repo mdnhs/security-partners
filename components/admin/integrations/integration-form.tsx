@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/admin/kit/empty-state"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
+import { MIGRATE_MEDIA_QUERY_KEY } from "@/components/admin/integrations/migrate-media-panel"
 import { FORM_ACTION, PageHeader } from "@/components/admin/page-header"
 import {
   AlertDialog,
@@ -195,6 +196,7 @@ export function IntegrationForm({
     onSuccess: (next) => {
       queryClient.setQueryData(["integrations", key], next)
       void queryClient.invalidateQueries({ queryKey: ["integrations", "list"] })
+      void queryClient.invalidateQueries({ queryKey: MIGRATE_MEDIA_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       toast.success("Saved")
     },

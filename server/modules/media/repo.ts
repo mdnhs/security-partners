@@ -9,6 +9,7 @@ import {
   ilike,
   inArray,
   like,
+  notInArray,
   notLike,
   or,
   sql,
@@ -432,4 +433,38 @@ export async function lockMediaReferencingEntity(
     default:
       return null
   }
+}
+
+/** The next disk rows to move to R2, oldest first (static rows never move). */
+export function listDiskMediaBatch(
+  db: DbOrTx,
+  opts: { limit: number; excludeIds: string[] }
+) {
+  return db
+    .select({ id: media.id, key: media.key, mime: media.mime })
+    .from(media)
+    .where(
+      and(
+        eq(media.driver, "disk"),
+        opts.excludeIds.length
+          ? notInArray(media.id, opts.excludeIds)
+          : undefined
+      )
+    )
+    .orderBy(asc(media.createdAt), asc(media.id))
+    .limit(opts.limit)
+}
+
+/** disk → r2 only while the row still holds this key on disk (replace/delete win). */
+export async function markMovedToR2(
+  db: DbOrTx,
+  id: string,
+  key: string
+): Promise<boolean> {
+  const moved = await db
+    .update(media)
+    .set({ driver: "r2" })
+    .where(and(eq(media.id, id), eq(media.driver, "disk"), eq(media.key, key)))
+    .returning({ id: media.id })
+  return moved.length > 0
 }

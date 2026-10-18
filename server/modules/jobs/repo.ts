@@ -76,3 +76,41 @@ export async function finishJob(
     })
     .where(and(eq(jobs.id, id), eq(jobs.lockedAt, claimedAt)))
 }
+
+/**
+ * Queues a keyed one-off job to run at `runAt`. A waiting row is re-queued
+ * (runAt reset, last error cleared); a running row (locked) is left alone,
+ * so triggering twice never runs two copies.
+ */
+export async function enqueueKeyedJob(
+  db: DbOrTx,
+  job: { name: string; key: string; runAt: Date }
+): Promise<void> {
+  await db
+    .insert(jobs)
+    .values(job)
+    .onConflictDoUpdate({
+      target: jobs.key,
+      set: { name: job.name, runAt: job.runAt, lastError: null },
+      setWhere: isNull(jobs.lockedAt),
+    })
+}
+
+export async function findJobByKey(
+  db: DbOrTx,
+  key: string
+): Promise<JobRow | null> {
+  const [row] = await db.select().from(jobs).where(eq(jobs.key, key))
+  return row ?? null
+}
+
+/** Removes a finished one-off job (only while this claim still holds it). */
+export async function deleteClaimedJob(
+  db: DbOrTx,
+  id: string,
+  claimedAt: Date
+): Promise<void> {
+  await db
+    .delete(jobs)
+    .where(and(eq(jobs.id, id), eq(jobs.lockedAt, claimedAt)))
+}

@@ -71,3 +71,13 @@ export type MediaUsage = {
   label: string
   href: string | null
 }
+
+/** Settings ▸ Integrations ▸ R2 "Move uploads to R2" (master 6.4). */
+export type MediaMigrationStatus = {
+  r2Configured: boolean
+  onDisk: number
+  inR2: number
+  state: "idle" | "queued" | "running"
+  lastRunAt: string | null
+  lastError: string | null
+}

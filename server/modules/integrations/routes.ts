@@ -10,6 +10,7 @@ import {
 import type { AppEnv } from "@/server/api/context"
 import { actorOf, can } from "@/server/api/middleware/auth"
 import { zv } from "@/server/api/validate"
+import * as media from "@/server/modules/media/service"
 
 import * as service from "./service"
 
@@ -17,6 +18,17 @@ import * as service from "./service"
 export const integrationsRoutes = new Hono<AppEnv>()
   .get("/", can({ integration: ["read"] }), async (c) =>
     c.json(await service.listIntegrations(actorOf(c)), 200)
+  )
+  // Literal paths before "/:key".
+  .get(
+    "/integrations.r2/migrate-media",
+    can({ integration: ["read"] }),
+    async (c) => c.json(await media.getMediaMigrationStatus(actorOf(c)), 200)
+  )
+  .post(
+    "/integrations.r2/migrate-media",
+    can({ integration: ["update"] }),
+    async (c) => c.json(await media.startMediaMigration(actorOf(c)), 202)
   )
   .get(
     "/:key",

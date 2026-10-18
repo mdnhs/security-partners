@@ -6,6 +6,7 @@ import { errorKind } from "@/server/lib/errors"
 import { pgErrorCode } from "@/server/lib/pg-errors"
 import {
   claimDueJobs,
+  deleteClaimedJob,
   finishJob,
   upsertRecurringJob,
 } from "@/server/modules/jobs/repo"
@@ -15,7 +16,7 @@ import {
   signInternalRequest,
   TIMESTAMP_HEADER,
 } from "./internal-signature"
-import { type JobDefinition, RECURRING_JOBS } from "./jobs"
+import { ALL_JOBS, type JobDefinition, RECURRING_JOBS } from "./jobs"
 
 // In-process scheduler (spec §12): a 60 s tick in every server instance;
 // the jobs table (FOR UPDATE SKIP LOCKED) makes replicas safe.
@@ -116,7 +117,7 @@ export async function tick(
   } = {}
 ): Promise<TickResult[]> {
   const now = options.now ?? new Date()
-  const definitions = options.jobs ?? RECURRING_JOBS
+  const definitions = options.jobs ?? ALL_JOBS
   const revalidate = options.revalidate ?? revalidateViaApi
   const db = getDb()
   const claimed = await claimDueJobs(db, {
@@ -128,6 +129,7 @@ export async function tick(
   for (const job of claimed) {
     const definition = definitions.find((d) => d.name === job.name)
     let ok = true
+    let done = false
     const notes: string[] = []
     let tags: string[] = []
     // Tags a previous run could not expire (loopback down, restart): retried
@@ -144,6 +146,7 @@ export async function tick(
     try {
       if (!definition) throw new Error(`No handler for job "${job.name}"`)
       const result = await definition.run({ now, payload: job.payload })
+      done = result.done === true
       tags = result.tags ?? []
       if (result.warning) notes.unshift(result.warning)
       if (tags.length > 0) {
@@ -162,15 +165,21 @@ export async function tick(
       notes.unshift(failureText(job.name, err))
     }
     const error = notes.length > 0 ? notes.join("; ") : null
-    await finishJob(db, job.id, now, {
-      runAt: new Date(
-        now.getTime() + (ok && definition ? definition.everyMs : RETRY_DELAY_MS)
-      ),
-      lastRunAt: now,
-      lastError: error?.slice(0, ERROR_MAX_LENGTH) ?? null,
-      succeeded: ok,
-      payload: withPendingTags(job.payload, unrefreshed),
-    })
+    // A finished one-off job goes away, unless cache tags still wait for a
+    // refresh (the row keeps them and runs again).
+    if (ok && done && unrefreshed.length === 0)
+      await deleteClaimedJob(db, job.id, now)
+    else
+      await finishJob(db, job.id, now, {
+        runAt: new Date(
+          now.getTime() +
+            (ok && definition ? definition.everyMs : RETRY_DELAY_MS)
+        ),
+        lastRunAt: now,
+        lastError: error?.slice(0, ERROR_MAX_LENGTH) ?? null,
+        succeeded: ok,
+        payload: withPendingTags(job.payload, unrefreshed),
+      })
     results.push({ name: job.name, key: job.key, ok, error, tags })
   }
   return results

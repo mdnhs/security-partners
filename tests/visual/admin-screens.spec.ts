@@ -356,6 +356,20 @@ async function pinIntegrations(page: Page) {
   await page.route("**/api/v1/admin/integrations/integrations.r2", (route) =>
     route.fulfill({ json: R2_NEW })
   )
+  await page.route(
+    "**/api/v1/admin/integrations/integrations.r2/migrate-media",
+    (route) =>
+      route.fulfill({
+        json: {
+          r2Configured: false,
+          onDisk: 12,
+          inR2: 0,
+          state: "idle",
+          lastRunAt: null,
+          lastError: null,
+        },
+      })
+  )
 }
 
 const PATROLS = "mobile-patrols-protect-your-business-after-hours"
@@ -689,6 +703,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/settings/integrations/r2")
       await expect(page.getByLabel("Location")).toHaveValue("default")
+      await expect(
+        page.getByText("12 files on the server disk · 0 in R2")
+      ).toBeVisible()
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("integration-r2"), {
         mask: await masks(page),

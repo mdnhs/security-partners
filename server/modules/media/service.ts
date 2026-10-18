@@ -16,6 +16,7 @@ import {
   MEDIA_ALT_MAX,
   type MediaItem,
   type MediaListQuery,
+  type MediaMigrationStatus,
   type MediaUpdateInput,
   type MediaUsage,
 } from "@/lib/schemas/api/media"
@@ -37,19 +38,31 @@ import {
 } from "@/server/lib/media-sniff"
 import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { FOREIGN_KEY_VIOLATION, pgErrorCode } from "@/server/lib/pg-errors"
-import { getStorage, type StorageName, storageFor } from "@/server/lib/storage"
+import {
+  diskStorage,
+  getStorage,
+  r2Storage,
+  type StorageDriver,
+  type StorageName,
+  storageFor,
+} from "@/server/lib/storage"
 import { mediaUrl } from "@/server/lib/storage/paths"
 import { sanitizeSvg, SvgSanitizeError } from "@/server/lib/svg-sanitize"
+import { readIntegrationConfig } from "@/server/modules/integrations/service"
+import { enqueueKeyedJob, findJobByKey } from "@/server/modules/jobs/repo"
 
 import {
+  countMediaByDriver,
   deleteMediaRow,
   findMediaById,
   findServableMedia,
   insertMediaRow,
+  listDiskMediaBatch,
   listMediaRows,
   listMediaUsages,
   lockMediaRow,
   lockR2Settings,
+  markMovedToR2,
   type R2SettingsStamp,
   readR2Settings,
   updateMediaRow,
@@ -552,4 +565,207 @@ export async function readMediaFile(
     if (bytes) return { bytes, mime: row.mime, originalName: row.originalName }
   }
   return null
+}
+
+// Move existing uploads to R2 (master 6.4, spec §11). The job module imports
+// this service, so the job's name/key are repeated here (no import cycle).
+const MIGRATION_JOB = { name: "migrate-media", key: "migrate-media" } as const
+const MIGRATION_BATCH = 20
+const SETTINGS_CHANGED =
+  "The R2 settings changed during the move; it continues on the next run."
+
+/** Same saved R2 settings (or still none, for an injected test driver). */
+const sameStamp = (a: R2SettingsStamp | null, b: R2SettingsStamp | null) =>
+  a === null || b === null ? a === b : sameR2Settings(a, b)
+
+class SettingsChanged extends Error {}
+
+/**
+ * Fixed text for a file that could not be moved: driver errors (the R2
+ * driver already throws r2Failure's fixed messages), but never raw
+ * filesystem or database text (paths, SQL).
+ */
+function moveFailure(err: unknown, stage: "read" | "put" | "switch"): string {
+  if (stage === "read") return "could not read the file on the server disk"
+  if (stage === "switch" || pgErrorCode(err) !== undefined)
+    return "database error while switching the file to R2"
+  return err instanceof Error ? err.message : "R2 upload failed"
+}
+
+/**
+ * Moves disk files to R2 until `deadline` (master 6.4). Per file: copy
+ * (read from disk, put to R2), then switch the row in a transaction that
+ * holds the R2 settings row FOR SHARE first (same lock order as uploads:
+ * settings before media; a Disconnect waits for it, and a Disconnect or
+ * save that committed first stops the run), then delete the disk file after
+ * the commit. Idempotent and resumable: moved rows are no longer disk rows;
+ * a crash between copy and switch just puts the same key again. Keys never
+ * change, so URLs and cache entries stay valid.
+ */
+export async function migrateDiskMediaToR2(opts: {
+  deadline: number
+  r2?: StorageDriver
+  disk?: StorageDriver
+  batchSize?: number
+}): Promise<{
+  moved: number
+  failed: string[]
+  remaining: number
+  configured: boolean
+}> {
+  const db = getDb()
+  const disk = opts.disk ?? diskStorage()
+  // Stamp before config: a save in between can only stop the run, never
+  // let it write r2 rows for settings it did not copy with.
+  const stamp = await readR2Settings(db)
+  let r2 = opts.r2
+  if (!r2) {
+    const config = await readIntegrationConfig("integrations.r2", db)
+    if (!config)
+      return {
+        moved: 0,
+        failed: [],
+        remaining: await countMediaByDriver(db, "disk"),
+        configured: false,
+      }
+    r2 = r2Storage(config)
+  }
+  let moved = 0
+  const failed: string[] = []
+  const skip: string[] = []
+  try {
+    while (Date.now() < opts.deadline) {
+      const batch = await listDiskMediaBatch(db, {
+        limit: opts.batchSize ?? MIGRATION_BATCH,
+        excludeIds: skip,
+      })
+      if (batch.length === 0) break
+      for (const row of batch) {
+        if (Date.now() >= opts.deadline) break
+        if (await moveOne(db, row, { disk, r2, stamp, failed, skip })) moved++
+      }
+    }
+  } catch (err) {
+    if (!(err instanceof SettingsChanged)) throw err
+    failed.push(SETTINGS_CHANGED)
+  }
+  return {
+    moved,
+    failed,
+    remaining: await countMediaByDriver(db, "disk"),
+    configured: true,
+  }
+}
+
+/** One copy-then-switch; true = moved. Throws SettingsChanged to stop the run. */
+async function moveOne(
+  db: DbOrTx,
+  row: { id: string; key: string; mime: string },
+  run: {
+    disk: StorageDriver
+    r2: StorageDriver
+    stamp: R2SettingsStamp | null
+    failed: string[]
+    skip: string[]
+  }
+): Promise<boolean> {
+  const fail = (reason: string) => {
+    run.skip.push(row.id)
+    run.failed.push(`${row.key}: ${reason}`)
+    return false
+  }
+  let bytes: Uint8Array | null
+  try {
+    bytes = await run.disk.read(row.key)
+  } catch (err) {
+    return fail(moveFailure(err, "read"))
+  }
+  if (!bytes) return fail("file missing on the server disk")
+  try {
+    await run.r2.put(row.key, bytes, row.mime)
+  } catch (err) {
+    return fail(moveFailure(err, "put"))
+  }
+  let outcome: "moved" | "changed" | "already"
+  try {
+    outcome = await db.transaction(async (tx) => {
+      if (!sameStamp(run.stamp, await lockR2Settings(tx)))
+        throw new SettingsChanged()
+      if (await markMovedToR2(tx, row.id, row.key)) return "moved"
+      const now = await findMediaById(tx, row.id)
+      return now?.driver === "r2" && now.key === row.key ? "already" : "changed"
+    })
+  } catch (err) {
+    if (err instanceof SettingsChanged) {
+      await removeCopy(run.r2, row.key)
+      throw err
+    }
+    // The copy stays: if the commit did land, the row now points at it (a
+    // re-run puts the same key again otherwise).
+    return fail(moveFailure(err, "switch"))
+  }
+  // Replaced or deleted meanwhile: that change wins (it owns the old file).
+  if (outcome === "changed") await removeCopy(run.r2, row.key)
+  if (outcome !== "moved") return false
+  await run.disk.delete(row.key).catch(() => {
+    console.warn(`[media] moved ${row.key} to R2; the disk copy stays`)
+  })
+  return true
+}
+
+async function removeCopy(r2: StorageDriver, key: string): Promise<void> {
+  await r2.delete(key).catch(() => {
+    console.warn(`[media] could not delete the unused R2 copy ${key}`)
+  })
+}
+
+async function migrationStatus(): Promise<MediaMigrationStatus> {
+  const db = getDb()
+  const config = await readIntegrationConfig("integrations.r2", db).catch(
+    () => null
+  )
+  const onDisk = await countMediaByDriver(db, "disk")
+  const inR2 = await countMediaByDriver(db, "r2")
+  const job = await findJobByKey(db, MIGRATION_JOB.key)
+  return {
+    r2Configured: config !== null,
+    onDisk,
+    inR2,
+    state: !job ? "idle" : job.lockedAt ? "running" : "queued",
+    lastRunAt: job?.lastRunAt?.toISOString() ?? null,
+    lastError: job?.lastError ?? null,
+  }
+}
+
+/** Settings ▸ Integrations ▸ R2: files per driver and the move job's state. */
+export async function getMediaMigrationStatus(
+  actor: Actor
+): Promise<MediaMigrationStatus> {
+  assertCan(actor, { integration: ["read"] })
+  return migrationStatus()
+}
+
+/** Queues the keyed migrate-media job; the scheduler runs it within a minute. */
+export async function startMediaMigration(
+  actor: Actor
+): Promise<MediaMigrationStatus> {
+  assertCan(actor, { integration: ["update"] })
+  const db = getDb()
+  if (!(await readIntegrationConfig("integrations.r2", db)))
+    throw new AppError(
+      "VALIDATION_FAILED",
+      "Set up R2 before moving uploads to it."
+    )
+  const onDisk = await countMediaByDriver(db, "disk")
+  if (onDisk > 0)
+    await db.transaction(async (tx) => {
+      await enqueueKeyedJob(tx, { ...MIGRATION_JOB, runAt: new Date() })
+      await writeAudit(tx, actor, {
+        action: "media.migration_started",
+        entityType: "integration",
+        entityId: "integrations.r2",
+        diff: { onDisk },
+      })
+    })
+  return migrationStatus()
 }
