@@ -14,6 +14,17 @@ function tsFiles(dir: string): string[] {
   })
 }
 
+/**
+ * A local LIKE escaper: a named `escapeLike`, or an inline regex class of
+ * exactly \ % _ in any order (written `[\\%_]` in source).
+ */
+function isLikeEscaper(source: string): boolean {
+  return (
+    /\b(const|function)\s+escapeLike\b/.test(source) ||
+    /\[(?=[^\]]*\\\\)(?=[^\]]*%)(?=[^\]]*_)[\\%_]{4}\]/.test(source)
+  )
+}
+
 describe("LIKE helpers (ledger P04-9)", () => {
   it("escapes wildcards and the escape character", () => {
     expect(escapeLike(String.raw`50%_off\now`)).toBe(String.raw`50\%\_off\\now`)
@@ -25,11 +36,15 @@ describe("LIKE helpers (ledger P04-9)", () => {
     const copies = tsFiles(join(root, "server"))
       .map((file) => relative(root, file))
       .filter((file) => file !== join("server", "db", "like.ts"))
-      .filter((file) =>
-        /\b(const|function)\s+escapeLike\b/.test(
-          readFileSync(join(root, file), "utf8")
-        )
-      )
+      .filter((file) => isLikeEscaper(readFileSync(join(root, file), "utf8")))
     expect(copies).toEqual([])
+  })
+
+  it("recognises named and inline escaper copies", () => {
+    const inline = String.raw`const p = q.replace(/[\\%_]/g, (m) => "\\" + m)`
+    expect(isLikeEscaper(inline)).toBe(true)
+    expect(isLikeEscaper(String.raw`s.replace(/[_%\\]/g, f)`)).toBe(true)
+    expect(isLikeEscaper("function escapeLike(v: string) {}")).toBe(true)
+    expect(isLikeEscaper(String.raw`s.replace(/[%_]/g, f)`)).toBe(false)
   })
 })

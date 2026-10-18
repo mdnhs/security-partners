@@ -23,7 +23,7 @@ import {
 import type { Role } from "@/lib/auth/roles"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
-import { containsPattern, escapeLike } from "@/server/db/like"
+import { containsPattern } from "@/server/db/like"
 import {
   accounts,
   sessions,
@@ -309,15 +309,16 @@ export async function deleteUserById(db: DbOrTx, id: string): Promise<void> {
   await db.delete(users).where(eq(users.id, id))
 }
 
-/** Users whose email ends in "@<domain>" (demo accounts). */
-export async function listUsersByEmailDomain(
+/** Users with exactly one of these (lower-case) emails. */
+export async function listUsersByEmails(
   db: DbOrTx,
-  domain: string
+  emails: string[]
 ): Promise<UserRow[]> {
+  if (emails.length === 0) return []
   const rows = await db
     .select(userColumns)
     .from(users)
-    .where(like(users.email, `%@${escapeLike(domain)}`))
+    .where(inArray(users.email, emails))
     .orderBy(asc(users.email))
   return rows as UserRow[]
 }

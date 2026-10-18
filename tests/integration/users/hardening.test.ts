@@ -101,7 +101,7 @@ describe("users hardening (Phase 10 sweep)", () => {
     expect((seeded[0].diff as { emails: string[] }).emails).toHaveLength(7)
 
     await expect(removeDemoUsers()).rejects.toThrow(
-      "Create a real owner first (pnpm admin:create)"
+      "Create a real owner first, or finish setting its password."
     )
     expect(
       await getDb()
@@ -125,6 +125,25 @@ describe("users hardening (Phase 10 sweep)", () => {
         .from(auditLog)
         .where(eq(auditLog.action, "user.demo_removed"))
     ).toHaveLength(1)
+  })
+
+  it("demo:remove deletes only the seeded <role>@demo.local accounts", async () => {
+    await seedDemoUsers(DEMO_PASSWORD)
+    await createUser({ roles: ["owner"], email: "real.owner@example.test" })
+    const other = await createUser({
+      roles: ["editor"],
+      email: "other@demo.local",
+      password: null,
+    })
+    const { removed } = await removeDemoUsers()
+    expect(removed).toHaveLength(7)
+    expect(removed).not.toContain("other@demo.local")
+    expect(
+      await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(like(users.email, "%@demo.local"))
+    ).toEqual([{ id: other.id }])
   })
 
   it("names both inputs in the demo password length error", async () => {

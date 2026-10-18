@@ -209,6 +209,62 @@ describe(
       ).toHaveLength(1)
     })
 
+    it("flags template-literal import() and require() in isomorphic files", async () => {
+      expect(
+        await syntaxErrors(
+          "const dir = 'server'\nexport const load = () => import(`@/${dir}/env`)\n",
+          "lib/fixture.ts"
+        )
+      ).toHaveLength(1)
+      expect(
+        await syntaxErrors(
+          "const dir = 'server'\nexport const env = require(`../${dir}/env`)\n",
+          "templates/registry.ts"
+        )
+      ).toHaveLength(1)
+    })
+
+    it("flags require.resolve and createRequire in isomorphic files", async () => {
+      expect(
+        await syntaxErrors(
+          'export const p = require.resolve("../server/env")\n',
+          "lib/fixture.ts"
+        )
+      ).toHaveLength(1)
+      expect(
+        (
+          await syntaxErrors(
+            'import { createRequire } from "node:module"\n\nexport const r = createRequire(import.meta.url)\n',
+            "templates/home/schema.ts"
+          )
+        ).length
+      ).toBeGreaterThan(0)
+    })
+
+    it("leaves template-literal import() alone outside isomorphic code", async () => {
+      expect(
+        await syntaxErrors(
+          "const name = 'x'\nexport const load = () => import(`./${name}`)\n",
+          "components/fixture.ts"
+        )
+      ).toEqual([])
+    })
+
+    it("flags a route importing a repo with a file extension", async () => {
+      expect(
+        await boundaryErrors(
+          'import { findUserById } from "../users/repo.js"\n\nexport const x = findUserById\n',
+          "server/modules/pages/routes.ts"
+        )
+      ).toHaveLength(1)
+      expect(
+        await boundaryErrors(
+          'import { listUsers } from "./repo.ts"\n\nexport const x = listUsers\n',
+          "server/modules/users/routes.ts"
+        )
+      ).toHaveLength(1)
+    })
+
     it("still allows a route to import its own service", async () => {
       expect(
         await boundaryErrors(

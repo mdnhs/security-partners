@@ -9,7 +9,9 @@ const CODE = "{ts,tsx,mts,cts,js,mjs,cjs}";
 // (secrets, database, Node-only APIs) — statically, with import() or with
 // require().
 const SERVER_MESSAGE =
-  "lib/ and templates/*/schema.ts are isomorphic: never import server/ code.";
+  "lib/ and templates/ schemas, editor metadata and registry are isomorphic: never import server/ code.";
+const COMPUTED_MESSAGE =
+  "Isomorphic code (lib/, templates/ schemas, editor metadata, registry) may not load modules by computed path (template-literal import()/require(), require.resolve, createRequire).";
 const serverImport = {
   regex: "^(?:@/server|(?:\\.\\./)+server)(?:/|$)",
   message: SERVER_MESSAGE,
@@ -25,6 +27,22 @@ const serverSyntax = [
     selector: `CallExpression[callee.name='require'][arguments.0.value=${SERVER_PATH}]`,
     message: SERVER_MESSAGE,
   },
+  // Paths the selectors above cannot read: banned outright in these files.
+  {
+    selector: "ImportExpression[source.type='TemplateLiteral']",
+    message: COMPUTED_MESSAGE,
+  },
+  {
+    selector:
+      "CallExpression[callee.name='require'][arguments.0.type='TemplateLiteral']",
+    message: COMPUTED_MESSAGE,
+  },
+  {
+    selector:
+      "MemberExpression[object.name='require'][property.name='resolve']",
+    message: COMPUTED_MESSAGE,
+  },
+  { selector: "Identifier[name='createRequire']", message: COMPUTED_MESSAGE },
 ];
 // Only repositories talk to Drizzle (global constraint). Schema, migrations
 // and the seed live in server/db/; tests may query directly.
@@ -36,7 +54,8 @@ const drizzleImport = {
 // Routes validate, authorise and call a service; never a repo (any module's,
 // by alias or relative path).
 const repoImport = {
-  regex: "^(?:\\.{1,2}/(?:[^/]+/)*repo|@/server/modules/[^/]+/repo)$",
+  regex:
+    "^(?:\\.{1,2}/(?:[^/]+/)*repo|@/server/modules/[^/]+/repo)(?:\\.[cm]?[jt]s)?$",
   message: "Routes call services, never repos.",
 };
 
