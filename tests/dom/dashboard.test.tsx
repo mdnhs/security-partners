@@ -33,7 +33,7 @@ const dto: DashboardDto = {
       id: "smtp",
       title: "Set up email (SMTP)",
       description: "So enquiries and invites reach people.",
-      href: "/admin/settings",
+      href: "/admin/settings/integrations/smtp",
       done: false,
     },
     {
@@ -166,13 +166,13 @@ describe("dashboard (JW layout)", () => {
       within(list).getByRole("link", {
         name: /Set up email \(SMTP\).*\(to do\)/,
       })
-    ).toHaveAttribute("href", "/admin/settings")
+    ).toHaveAttribute("href", "/admin/settings/integrations/smtp")
     expect(
       within(list).getByRole("link", { name: /two-factor.*\(done\)/ })
     ).toBeInTheDocument()
     expect(
       within(next).getByRole("link", { name: "Get started" })
-    ).toHaveAttribute("href", "/admin/settings")
+    ).toHaveAttribute("href", "/admin/settings/integrations/smtp")
   })
 
   it("team activity for audit readers only", async () => {

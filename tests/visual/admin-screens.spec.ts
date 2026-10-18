@@ -36,7 +36,7 @@ const DASHBOARD = {
       id: "smtp",
       title: "Set up email (SMTP)",
       description: "So enquiries and invitations reach people.",
-      href: "/admin/settings",
+      href: "/admin/settings/integrations/smtp",
       done: false,
     },
     {
@@ -258,6 +258,97 @@ async function articleReady(page: Page, title: string, editable = true) {
   await expect(
     page.getByText(/words · about \d+ min read|No text yet/)
   ).toBeVisible()
+}
+
+/**
+ * Settings ▸ Integrations, pinned (Phase 6): SMTP saved (with a passed
+ * test), R2 never set up; the overview lists both plus the two others.
+ */
+const INTEGRATION_BASE = {
+  updatedAt: "2026-10-16T09:00:00.000Z",
+  updatedBy: { id: "u1", name: "Vera Visual" },
+}
+const SMTP_SAVED = {
+  key: "integrations.smtp",
+  slug: "smtp",
+  label: "Email (SMTP)",
+  description: "Sends invitations, password resets and enquiry notifications.",
+  configured: true,
+  version: 2,
+  values: {
+    host: "smtp.example.ie",
+    port: 587,
+    secure: false,
+    user: "mailer@example.ie",
+    fromName: "Security Partners",
+    fromAddress: "no-reply@example.ie",
+  },
+  secrets: { password: { set: true, hint: "••••1234" } },
+  ...INTEGRATION_BASE,
+}
+const R2_NEW = {
+  key: "integrations.r2",
+  slug: "r2",
+  label: "Media storage (Cloudflare R2)",
+  description:
+    "Keeps uploaded images and documents. Until it is set up, uploads stay on the server disk.",
+  configured: false,
+  version: 0,
+  values: { accountId: "", jurisdiction: "default", bucket: "" },
+  secrets: {
+    accessKeyId: { set: false, hint: null },
+    secretAccessKey: { set: false, hint: null },
+  },
+  updatedAt: null,
+  updatedBy: null,
+}
+const INTEGRATION_LIST = {
+  items: [
+    SMTP_SAVED,
+    R2_NEW,
+    {
+      ...R2_NEW,
+      key: "integrations.turnstile",
+      slug: "turnstile",
+      label: "Spam protection (Cloudflare Turnstile)",
+      description: "An invisible check on the contact form.",
+      values: { enabled: false, siteKey: "" },
+      secrets: { secretKey: { set: false, hint: null } },
+    },
+    {
+      ...R2_NEW,
+      key: "integrations.ai",
+      slug: "ai",
+      label: "AI assistant",
+      description: "Writing help in the admin for the roles you choose.",
+      values: {},
+      secrets: { apiKey: { set: false, hint: null } },
+    },
+  ],
+}
+
+async function pinIntegrations(page: Page) {
+  await page.route("**/api/v1/admin/integrations", (route) =>
+    route.fulfill({ json: INTEGRATION_LIST })
+  )
+  await page.route("**/api/v1/admin/integrations/integrations.smtp", (route) =>
+    route.fulfill({ json: SMTP_SAVED })
+  )
+  await page.route(
+    "**/api/v1/admin/integrations/integrations.smtp/test",
+    (route) =>
+      route.fulfill({
+        json: {
+          ok: true,
+          message:
+            "Connected to smtp.example.ie:587 and signed in as mailer@example.ie.",
+          testedAt: "2026-10-16T09:00:00.000Z",
+        },
+      })
+  )
+  await page.route("**/api/v1/admin/integrations/integrations.r2", (route) =>
+    route.fulfill({ json: R2_NEW })
+  )
 }
 
 const PATROLS = "mobile-patrols-protect-your-business-after-hours"
@@ -516,6 +607,46 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       await editorReady(page, "Site")
       await expect(page).toHaveScreenshot(shot("settings-site"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin integrations ${colorScheme}`, async ({ page }) => {
+      await pinIntegrations(page)
+      await signIn(page)
+      await page.goto("/admin/settings/integrations")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Integrations" })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("link", { name: /AI assistant/ })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("integrations"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin SMTP integration tested ${colorScheme}`, async ({ page }) => {
+      await pinIntegrations(page)
+      await signIn(page)
+      await page.goto("/admin/settings/integrations/smtp")
+      await expect(page.getByText("Saved · ends in 1234")).toBeVisible()
+      await page.getByRole("button", { name: "Test connection" }).click()
+      await expect(
+        page.getByRole("status", { name: "Connection test" })
+      ).toContainText("Test passed")
+      await expect(page).toHaveScreenshot(shot("integration-smtp"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin R2 integration not set up ${colorScheme}`, async ({ page }) => {
+      await pinIntegrations(page)
+      await signIn(page)
+      await page.goto("/admin/settings/integrations/r2")
+      await expect(page.getByLabel("Location")).toHaveValue("default")
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(shot("integration-r2"), {
         mask: await masks(page),
       })
     })

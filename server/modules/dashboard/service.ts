@@ -73,13 +73,13 @@ export async function getDashboard(
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
   const nextUp: NextUpItem[] = []
   if (configured) {
-    // Phase 7 points these at Settings ▸ Integrations.
+    // Settings ▸ Integrations (Phase 6 Task 2).
     nextUp.push({
       id: "smtp",
       title: "Set up email (SMTP)",
       description:
         "Needed for invitations, password resets and enquiry notifications. Until then, links are shown here to copy.",
-      href: "/admin/settings",
+      href: "/admin/settings/integrations/smtp",
       done: configured.has("integrations.smtp"),
     })
     nextUp.push({
@@ -87,7 +87,7 @@ export async function getDashboard(
       title: "Set up media storage (Cloudflare R2)",
       description:
         "Uploads are kept on the server disk until R2 is configured.",
-      href: "/admin/settings",
+      href: "/admin/settings/integrations/r2",
       done: configured.has("integrations.r2"),
     })
   }

@@ -87,6 +87,13 @@ describe("dashboard (master 4.7)", () => {
     expect(before.nextUp.find((i) => i.id === "unassigned-leads")?.title).toBe(
       "Assign 1 new enquiry"
     )
+    // Settings ▸ Integrations (Phase 6 Task 2).
+    expect(
+      Object.fromEntries(before.nextUp.map((i) => [i.id, i.href]))
+    ).toMatchObject({
+      smtp: "/admin/settings/integrations/smtp",
+      r2: "/admin/settings/integrations/r2",
+    })
 
     await getDb()
       .insert(settings)

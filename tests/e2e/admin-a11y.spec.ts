@@ -119,6 +119,36 @@ async function openArticle(
   await expect(page.getByLabel("Category", { exact: true })).toBeVisible()
 }
 
+/** Settings ▸ Integrations (owner/admin), audited signed in as the admin. */
+const INTEGRATIONS = [
+  "/admin/settings/integrations",
+  "/admin/settings/integrations/smtp",
+  "/admin/settings/integrations/r2",
+  "/admin/settings/integrations/turnstile",
+  "/admin/settings/integrations/ai",
+]
+
+/** A saved SMTP integration (pinned: the seed sets none up). */
+const SAVED_SMTP = {
+  key: "integrations.smtp",
+  slug: "smtp",
+  label: "Email (SMTP)",
+  description: "Sends invitations, password resets and enquiry notifications.",
+  configured: true,
+  version: 2,
+  values: {
+    host: "smtp.example.ie",
+    port: 587,
+    secure: false,
+    user: "mailer@example.ie",
+    fromName: "Security Partners",
+    fromAddress: "no-reply@example.ie",
+  },
+  secrets: { password: { set: true, hint: "••••1234" } },
+  updatedAt: "2026-10-16T09:00:00.000Z",
+  updatedBy: { id: "u1", name: "Ada Admin" },
+}
+
 const PATROLS = "mobile-patrols-protect-your-business-after-hours"
 const UNPUBLISHED = {
   live: false,
@@ -222,6 +252,52 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`/admin/audit + detail sheet → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`integrations in ${colorScheme}`, async ({ page }) => {
+      await signIn(page, E2E_ADMIN)
+      const failures = await auditEach(page, INTEGRATIONS)
+      // A saved integration: the secret's saved state, a failed and a
+      // passed test result, and the Disconnect confirmation.
+      await page.route(
+        "**/api/v1/admin/integrations/integrations.smtp",
+        (route) =>
+          route.request().method() === "GET"
+            ? route.fulfill({ json: SAVED_SMTP })
+            : route.abort()
+      )
+      // The last route added answers first: the failed result comes first.
+      for (const ok of [true, false])
+        await page.route(
+          "**/api/v1/admin/integrations/integrations.smtp/test",
+          (route) =>
+            route.fulfill({
+              json: {
+                ok,
+                message: ok
+                  ? "Connected to smtp.example.ie:587 and signed in as mailer@example.ie."
+                  : "Could not connect to the server (smtp.example.ie:587).",
+                testedAt: "2026-10-16T09:00:00.000Z",
+              },
+            }),
+          { times: 1 }
+        )
+      await page.goto("/admin/settings/integrations/smtp")
+      await expect(page.getByText("Saved · ends in 1234")).toBeVisible()
+      const result = page.getByRole("status", { name: "Connection test" })
+      for (const label of ["failed", "passed"]) {
+        await page.getByRole("button", { name: "Test connection" }).click()
+        await expect(result).toContainText(`Test ${label}`)
+        for (const violation of await blocking(page))
+          failures.push(`smtp (test ${label}) → ${violation}`)
+      }
+      await page.getByRole("button", { name: "Disconnect" }).click()
+      await expect(
+        page.getByRole("alertdialog", { name: "Disconnect Email (SMTP)?" })
+      ).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`smtp disconnect dialog → ${violation}`)
       expect(failures).toEqual([])
     })
 
