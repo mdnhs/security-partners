@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
 }))
 
+import { useAssistant } from "@/components/admin/ai/assistant-context"
 import { LeadDetail } from "@/components/admin/leads/lead-detail"
 import { LeadsScreen } from "@/components/admin/leads/leads-screen"
 import { makeQueryClient } from "@/components/admin/providers"
@@ -121,6 +122,11 @@ beforeEach(() => {
             ],
           },
           201
+        )
+      if (url.includes(`/leads/${GONE}`))
+        return reply(
+          { error: { code: "NOT_FOUND", message: "Not found" } },
+          404
         )
       if (url.includes(`/leads/${ID}`)) {
         if (method === "PATCH") {
@@ -399,5 +405,53 @@ describe("leads inbox (master 7.4)", () => {
       expect(calls.some((c) => c.method === "DELETE")).toBe(true)
     )
     await waitFor(() => expect(push).toHaveBeenCalledWith("/admin/leads"))
+  })
+})
+
+describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
+  /** Shows what the assistant would receive with the next message. */
+  function SharedScreen() {
+    const { screen: info, snapshot } = useAssistant()
+    return (
+      <output data-testid="shared">
+        {info ? JSON.stringify(snapshot()) : "nothing"}
+      </output>
+    )
+  }
+
+  it("shares the loaded lead without contact details", async () => {
+    renderAs(
+      ["intake"],
+      <>
+        <SharedScreen />
+        <LeadDetail id={ID} />
+      </>
+    )
+    const shared = screen.getByTestId("shared")
+    await waitFor(() => expect(shared).not.toHaveTextContent("nothing"))
+    const sent = JSON.parse(shared.textContent!)
+    expect(sent).toMatchObject({
+      title: "Lead details",
+      entityType: "lead",
+      entityId: ID,
+      record: { name: "Dinn Rí", message: "Line one\nLine two" },
+    })
+    expect(sent.record.notes).toEqual([
+      { at: "2026-10-16T10:00:00.000Z", by: "Ian Intake", text: "Rang back" },
+    ])
+    expect(shared.textContent).not.toContain("dinn@example.ie")
+    expect(shared.textContent).not.toContain("085 000 0000")
+  })
+
+  it("shares nothing for a lead that does not load", async () => {
+    renderAs(
+      ["intake"],
+      <>
+        <SharedScreen />
+        <LeadDetail id={GONE} />
+      </>
+    )
+    await screen.findByText("This lead does not exist")
+    expect(screen.getByTestId("shared")).toHaveTextContent("nothing")
   })
 })
