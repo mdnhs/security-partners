@@ -10,22 +10,32 @@ vi.mock("@/server/modules/redirects/resolve", () => ({
   resolvePublicPath,
 }))
 
+import {
+  BLOCKING_METADATA_MARK,
+  HTML_LIMITED_BOTS,
+} from "@/lib/seo/blocking-metadata"
+import { REQUEST_PATH_HEADER } from "@/lib/request-path"
 import { config, proxy } from "@/proxy"
 
-const request = (
-  path: string,
-  init: { cookie?: string; method?: string } = {}
-) =>
+type Init = {
+  cookie?: string
+  method?: string
+  headers?: Record<string, string>
+}
+const request = (path: string, init: Init = {}) =>
   new NextRequest(new URL(path, "http://127.0.0.1:3100"), {
     method: init.method ?? "GET",
-    headers: init.cookie ? { cookie: init.cookie } : {},
+    headers: {
+      ...init.headers,
+      ...(init.cookie ? { cookie: init.cookie } : {}),
+    },
   })
 
 const event = () => {
   const waitUntil = vi.fn()
   return { event: { waitUntil } as unknown as NextFetchEvent, waitUntil }
 }
-const run = (path: string, init?: { cookie?: string; method?: string }) =>
+const run = (path: string, init?: Init) =>
   proxy(request(path, init), event().event)
 
 beforeEach(() => {
@@ -240,5 +250,96 @@ describe("proxy.ts (public pages: real 404 and redirects)", () => {
     const res = await run("/contact", { method: "POST" })
     expect(resolvePublicPath).not.toHaveBeenCalled()
     expect(res.headers.get("x-middleware-next")).toBe("1")
+  })
+})
+
+describe("proxy.ts (blocking metadata for public documents only)", () => {
+  const CHROME = "Mozilla/5.0 (Macintosh) Chrome/140.0 Safari/537.36"
+  /** The user agent the page renders with (NextResponse.next({ request })). */
+  const renderedUa = (res: Response) =>
+    res.headers
+      .get("x-middleware-override-headers")
+      ?.split(",")
+      .includes("user-agent")
+      ? res.headers.get("x-middleware-request-user-agent")
+      : null
+
+  it("marks the user agent of a public document request", async () => {
+    const res = await run("/about", { headers: { "user-agent": CHROME } })
+    expect(res.headers.get("x-middleware-next")).toBe("1")
+    expect(renderedUa(res)).toBe(`${CHROME} ${BLOCKING_METADATA_MARK}`)
+    expect(HTML_LIMITED_BOTS.test(renderedUa(res) ?? "")).toBe(true)
+  })
+
+  it("a request without a user agent is marked too", async () => {
+    expect(renderedUa(await run("/"))).toBe(BLOCKING_METADATA_MARK)
+  })
+
+  it("the catch-all 404 rewrite is marked (its description is in <head>)", async () => {
+    resolvePublicPath.mockResolvedValue({ kind: "missing" })
+    const res = await run("/blog/nope", { headers: { "user-agent": CHROME } })
+    expect(res.headers.get("x-middleware-rewrite")).toBe(
+      "http://localhost:3100/_sp-missing"
+    )
+    expect(renderedUa(res)).toBe(`${CHROME} ${BLOCKING_METADATA_MARK}`)
+  })
+
+  it("a failed lookup still serves the page with blocking metadata", async () => {
+    resolvePublicPath.mockRejectedValue(new Error("db down"))
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const res = await run("/services/x", { headers: { "user-agent": CHROME } })
+    expect(renderedUa(res)).toBe(`${CHROME} ${BLOCKING_METADATA_MARK}`)
+    log.mockRestore()
+  })
+
+  it("never marks RSC requests (client navigations and prefetches)", async () => {
+    for (const headers of [
+      { "user-agent": CHROME, rsc: "1" } as Record<string, string>,
+      { "user-agent": CHROME, rsc: "1", "next-router-prefetch": "1" },
+    ]) {
+      const res = await run("/about", { headers })
+      expect(res.headers.get("x-middleware-next")).toBe("1")
+      expect(renderedUa(res)).toBe(CHROME)
+    }
+  })
+
+  it("never marks admin requests", async () => {
+    const res = await run("/admin", {
+      cookie: "sp.session_token=abc.def",
+      headers: { "user-agent": CHROME },
+    })
+    expect(renderedUa(res)).toBeNull()
+  })
+
+  it("only the mark makes metadata blocking (htmlLimitedBots)", () => {
+    expect(HTML_LIMITED_BOTS.test(CHROME)).toBe(false)
+    expect(HTML_LIMITED_BOTS.test("Googlebot/2.1")).toBe(false)
+    expect(
+      HTML_LIMITED_BOTS.test(`Googlebot/2.1 ${BLOCKING_METADATA_MARK}`)
+    ).toBe(true)
+  })
+})
+
+describe("proxy.ts (the public page's path for the preview exit)", () => {
+  const forwarded = (res: Response) =>
+    res.headers
+      .get("x-middleware-override-headers")
+      ?.split(",")
+      .includes(REQUEST_PATH_HEADER)
+      ? res.headers.get(`x-middleware-request-${REQUEST_PATH_HEADER}`)
+      : null
+
+  it("documents and RSC requests carry the path and query", async () => {
+    expect(forwarded(await run("/terms?x=1"))).toBe("/terms?x=1")
+    expect(forwarded(await run("/about", { headers: { rsc: "1" } }))).toBe(
+      "/about"
+    )
+  })
+
+  it("a client-sent value is replaced", async () => {
+    const res = await run("/about", {
+      headers: { [REQUEST_PATH_HEADER]: "/elsewhere" },
+    })
+    expect(forwarded(res)).toBe("/about")
   })
 })

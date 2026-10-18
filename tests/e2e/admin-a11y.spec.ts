@@ -21,14 +21,52 @@ const ALLOW: readonly string[] = []
 
 async function blocking(page: Page) {
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {})
+  // Overlays fade in (tw-animate, not switched off by reduced motion): audit
+  // the settled screen, never a frame of the fade.
+  await page
+    .waitForFunction(
+      () =>
+        document
+          .getAnimations()
+          .every(
+            (a) =>
+              a.playState !== "running" ||
+              a.effect?.getTiming().iterations === Infinity
+          ),
+      null,
+      { timeout: 5_000 }
+    )
+    .catch(() => {})
   const { violations } = await new AxeBuilder({ page })
     .withTags(TAGS)
     .disableRules([...ALLOW])
     // The live preview frames the public site, audited on its own.
     .exclude('iframe[title="Page preview"]')
     .analyze()
+  // Text a modal overlay dims is inactive (Base UI marks it aria-hidden and
+  // data-base-ui-inert): WCAG 1.4.3 exempts inactive components from
+  // contrast. Only color-contrast skips it; every other rule still counts.
+  const contrast = violations.find((v) => v.id === "color-contrast")
+  const inert = contrast
+    ? await page.evaluate(
+        (targets) =>
+          targets.map(
+            (t) =>
+              t.length === 1 &&
+              !!document.querySelector(t[0])?.closest("[data-base-ui-inert]")
+          ),
+        contrast.nodes.map((n) => n.target.map(String))
+      )
+    : []
   return violations
-    .filter((v) => v.impact === "serious" || v.impact === "critical")
+    .map((v) =>
+      v === contrast ? { ...v, nodes: v.nodes.filter((_, j) => !inert[j]) } : v
+    )
+    .filter(
+      (v) =>
+        v.nodes.length > 0 &&
+        (v.impact === "serious" || v.impact === "critical")
+    )
     .map(
       (v) =>
         `${v.id} (${v.impact}): ${v.nodes.map((node) => node.target.join(" ")).join(", ")}`

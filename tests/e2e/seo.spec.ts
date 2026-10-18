@@ -147,7 +147,9 @@ test.describe("metadata in <head>", () => {
       "<title>Security Partners Ltd. | Watching Over You</title>"
     )
     expect(meta(head, "description")).toMatch(/^Proactive, flexible/)
-    expect(canonical(head)).toBe(`${BASE_URL}/`)
+    // Next writes the site root as the bare origin (resolve-url.js: a "/"
+    // pathname resolves to `origin`); same URL as `${BASE_URL}/`.
+    expect(canonical(head)).toBe(BASE_URL)
     expect(meta(head, "og:type")).toBe("website")
     expect(meta(head, "og:image")).toBe(`${BASE_URL}/og/page/home`)
     expect(meta(head, "twitter:card")).toBe("summary_large_image")
