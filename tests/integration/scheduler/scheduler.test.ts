@@ -28,6 +28,7 @@ import {
 import {
   ensureRecurringJobs,
   LOCK_TIMEOUT_MS,
+  PARKED_RUN_AT,
   RETRY_DELAY_MS,
   tick,
 } from "@/server/lib/scheduler"
@@ -400,5 +401,81 @@ describe("scheduler (master 5.4)", () => {
     expect(result.warning).toBe(
       "Not published: invalid-timed: Some fields need attention"
     )
+  })
+})
+
+describe("scheduler hardening (final review minors 3, 4)", () => {
+  const tagJob = (tags: string[]) => ({
+    name: "tag-test",
+    key: "tag-test",
+    everyMs: 60 * 60_000,
+    run: async () => ({ tags }),
+  })
+  const manyTags = (n: number, prefix = "t") =>
+    Array.from({ length: n }, (_, i) => `${prefix}:${i}`)
+  // The internal route caps a request at 100 tags (422 above that).
+  const apiLike = (fail: (tags: string[]) => boolean = () => false) =>
+    vi.fn(async (tags: string[]) => {
+      if (tags.length > 100) throw new Error("Cache refresh answered 422")
+      if (fail(tags)) throw new Error("connect ECONNREFUSED")
+    })
+
+  it("sends pending tags in chunks of at most 100, so a long outage always drains", async () => {
+    const now = later()
+    await getDb()
+      .insert(jobs)
+      .values({
+        name: "tag-test",
+        key: "tag-test",
+        runAt: now,
+        payload: { pendingTags: manyTags(230) },
+      })
+    const ok = apiLike()
+    await tick({ now, jobs: [tagJob(manyTags(120, "n"))], revalidate: ok })
+    expect(ok.mock.calls.map(([tags]) => tags.length)).toEqual([
+      100, 100, 30, 100, 20,
+    ])
+    const row = await job("tag-test")
+    expect(row.payload).toBeNull()
+    expect(row.lastError).toBeNull()
+  })
+
+  it("keeps only the chunks that failed", async () => {
+    const now = later()
+    const pending = manyTags(150)
+    await getDb()
+      .insert(jobs)
+      .values({
+        name: "tag-test",
+        key: "tag-test",
+        runAt: now,
+        payload: { pendingTags: pending },
+      })
+    const flaky = apiLike((tags) => tags[0] === "t:100")
+    await tick({ now, jobs: [tagJob([])], revalidate: flaky })
+    const row = await job("tag-test")
+    expect(row.payload).toEqual({ pendingTags: pending.slice(100) })
+    expect(row.lastError).toContain("Cache refresh failed")
+  })
+
+  it("a job row without a handler is parked with its error, not retried every minute", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    const now = later()
+    await getDb()
+      .insert(jobs)
+      .values({ name: "renamed-job", key: "renamed-job", runAt: now })
+    const [result] = await tick({ now, jobs: [], revalidate: vi.fn() })
+    expect(result).toMatchObject({ name: "renamed-job", ok: false })
+    const row = await job("renamed-job")
+    expect(row.runAt).toEqual(PARKED_RUN_AT)
+    expect(row.lockedAt).toBeNull()
+    expect(row.lastError).toBe('No handler for job "renamed-job"')
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining('No handler for job "renamed-job"')
+    )
+    expect(
+      await tick({ now: new Date(now.getTime() + 60 * 60_000), jobs: [] })
+    ).toEqual([])
+    logged.mockRestore()
   })
 })
