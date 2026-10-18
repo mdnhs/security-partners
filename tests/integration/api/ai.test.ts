@@ -17,7 +17,9 @@ import type {
 } from "@/lib/schemas/api/ai"
 import type { Paginated } from "@/lib/schemas/api/list"
 import { getDb } from "@/server/db/client"
-import { aiConversations, aiMessages } from "@/server/db/schema"
+import { aiConversations, aiMessages, settings } from "@/server/db/schema"
+import { encryptSecret } from "@/server/lib/crypto"
+import { ASSISTANT_RULES } from "@/server/modules/ai/prompt"
 import { createLanguageModel } from "@/server/modules/ai/providers"
 
 import { resetDb } from "../db"
@@ -268,19 +270,28 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     ])
     expect(list.at(-1)).toEqual({ type: "done", messageId: expect.any(String) })
 
-    // What the model received: the rules + the screen, then the message.
+    // What the model received: the static rules, then the screen as a
+    // user-role context message right before the question.
     const call = modelOf(0).doStreamCalls[0]
-    const system = call.prompt[0] as { role: string; content: string }
-    expect(system.role).toBe("system")
-    expect(system.content).toContain("Screen: Home page (page home)")
-    expect(system.content).toContain('Focused field: "Heading" (hero.heading)')
-    expect(system.content).toContain('{"hero":{"heading":"Old heading"}}')
-    expect(call.prompt.slice(1)).toEqual([
-      {
-        role: "user",
-        content: [{ type: "text", text: "Rewrite the heading" }],
-      },
-    ])
+    expect(call.prompt[0]).toEqual({
+      role: "system",
+      content: ASSISTANT_RULES,
+    })
+    const [screen, question] = call.prompt.slice(1) as {
+      role: string
+      content: { type: string; text: string }[]
+    }[]
+    expect(call.prompt).toHaveLength(3)
+    expect(screen.role).toBe("user")
+    const screenText = screen.content[0].text
+    expect(screenText).toMatch(/^<screen-context>\n/)
+    expect(screenText).toContain("Screen: Home page (page home)")
+    expect(screenText).toContain('Focused field: "Heading" (hero.heading)')
+    expect(screenText).toContain('{"hero":{"heading":"Old heading"}}')
+    expect(question).toEqual({
+      role: "user",
+      content: [{ type: "text", text: "Rewrite the heading" }],
+    })
     expect(call.maxOutputTokens).toBe(1500)
 
     const [row] = await getDb()
@@ -408,28 +419,141 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
 
   it("rate limit: the 31st message in 10 minutes → 429 for that user only", async () => {
     await configureAi()
-    const [conversation] = await getDb()
-      .insert(aiConversations)
-      .values({ userId: editor.id, title: "Busy" })
-      .returning({ id: aiConversations.id })
-    await getDb()
-      .insert(aiMessages)
-      .values(
-        Array.from({ length: 30 }, (_, i) => ({
-          conversationId: conversation.id,
-          role: "user" as const,
-          content: `Message ${i}`,
-        }))
-      )
+    for (let i = 0; i < 30; i++) {
+      const res = await chat(editor.cookie, { message: `Message ${i}` })
+      expect(res.status).toBe(200)
+      await events(res)
+    }
+    const calls = vi.mocked(createLanguageModel).mock.calls.length
     const limited = await chat(editor.cookie, { message: "One more" })
     expect(limited.status).toBe(429)
     expect(
       ((await limited.json()) as { error: { code: string } }).error.code
     ).toBe("RATE_LIMITED")
-    expect(createLanguageModel).not.toHaveBeenCalled()
+    expect(createLanguageModel).toHaveBeenCalledTimes(calls)
     const other = await chat(owner.cookie, { message: "Hi" })
     expect(other.status).toBe(200)
     await events(other)
+  })
+
+  it("rate limit: deleting conversations does not reset it", async () => {
+    await configureAi()
+    const ids = new Set<string>()
+    for (let i = 0; i < 30; i++)
+      ids.add(
+        startedId(await events(await chat(editor.cookie, { message: `M${i}` })))
+      )
+    for (const id of ids) {
+      const removed = await adminRequest(`/ai/conversations/${id}`, {
+        cookie: editor.cookie,
+        method: "DELETE",
+      })
+      expect(removed.status).toBe(200)
+    }
+    expect(await getDb().select().from(aiMessages)).toEqual([])
+    expect((await chat(editor.cookie, { message: "Again" })).status).toBe(429)
+  })
+
+  it("rate limit: a parallel burst never goes over 30", async () => {
+    await configureAi()
+    const responses = await Promise.all(
+      Array.from({ length: 36 }, (_, i) =>
+        chat(editor.cookie, { message: `Burst ${i}` })
+      )
+    )
+    const statuses = responses.map((r) => r.status)
+    expect(statuses.filter((s) => s === 200)).toHaveLength(30)
+    expect(statuses.filter((s) => s === 429)).toHaveLength(6)
+    await Promise.all(
+      responses.map((r) => (r.status === 200 ? events(r) : r.text()))
+    )
+    const stored = await getDb()
+      .select({ id: aiMessages.id })
+      .from(aiMessages)
+      .where(eq(aiMessages.role, "user"))
+    expect(stored).toHaveLength(30)
+  })
+
+  it("stopping mid-answer stores no assistant message", async () => {
+    await configureAi()
+    let aborted = false
+    vi.mocked(createLanguageModel).mockImplementation(
+      () =>
+        new MockLanguageModelV4({
+          doStream: async ({ abortSignal }) => {
+            abortSignal?.addEventListener("abort", () => {
+              aborted = true
+            })
+            return {
+              stream: simulateReadableStream({
+                chunkDelayInMs: 40,
+                chunks: [
+                  { type: "text-start", id: "t1" },
+                  ...Array.from({ length: 20 }, (_, i) => ({
+                    type: "text-delta" as const,
+                    id: "t1",
+                    delta: `w${i} `,
+                  })),
+                  { type: "text-end", id: "t1" },
+                  {
+                    type: "finish",
+                    finishReason: { unified: "stop", raw: "stop" },
+                    usage,
+                  },
+                ],
+              }),
+            }
+          },
+        })
+    )
+    const res = await chat(editor.cookie, { message: "Long answer" })
+    expect(res.status).toBe(200)
+    const reader = readChatStream(res.body!)
+    const first = (await reader.next()).value as ChatStreamEvent
+    expect(first.type).toBe("start")
+    const conversationId = (first as { conversationId: string }).conversationId
+    expect((await reader.next()).value).toMatchObject({ type: "text" })
+    // The client stops reading: the body is cancelled.
+    await reader.return(undefined)
+    await res.body!.cancel()
+    await vi.waitFor(() => expect(aborted).toBe(true))
+    // Give the rest of the (aborted) stream time to finish.
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    expect(await messagesOf(conversationId)).toEqual([
+      { role: "user", content: "Long answer" },
+    ])
+  })
+
+  it("settings whose key no longer decrypts read as off (logged once, no values)", async () => {
+    await configureAi()
+    const [row] = await getDb()
+      .select({ draft: settings.draft })
+      .from(settings)
+      .where(eq(settings.key, "integrations.ai"))
+    const draft = row.draft as Record<string, unknown>
+    // A ciphertext bound to another field: the AAD no longer matches.
+    await getDb()
+      .update(settings)
+      .set({
+        draft: {
+          ...draft,
+          apiKey: encryptSecret(API_KEY, "integrations.smtp.password"),
+        },
+      })
+      .where(eq(settings.key, "integrations.ai"))
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    expect(await status(owner.cookie)).toEqual({
+      available: false,
+      model: null,
+      readOnly: false,
+    })
+    expect((await chat(owner.cookie, { message: "Hi" })).status).toBe(404)
+    expect(createLanguageModel).not.toHaveBeenCalled()
+    const lines = log.mock.calls.map((c) => c.join(" "))
+    expect(lines.filter((l) => l === "[ai] settings unreadable")).toHaveLength(
+      1
+    )
+    expect(lines.join("\n")).not.toContain(API_KEY)
   })
 
   it("read-only while viewing the admin as someone else", async () => {

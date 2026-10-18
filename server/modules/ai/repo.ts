@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, count, desc, eq, gte, inArray } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { aiConversations, aiMessages } from "@/server/db/schema"
@@ -151,27 +151,4 @@ export async function recentMessageRows(
     .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
     .limit(limit)
   return (rows as MessageRow[]).reverse()
-}
-
-/** Messages this user sent since `since` (per-user rate limit). */
-export async function countUserMessagesSince(
-  db: DbOrTx,
-  userId: string,
-  since: Date
-): Promise<number> {
-  const [{ n }] = await db
-    .select({ n: count() })
-    .from(aiMessages)
-    .innerJoin(
-      aiConversations,
-      eq(aiConversations.id, aiMessages.conversationId)
-    )
-    .where(
-      and(
-        eq(aiConversations.userId, userId),
-        eq(aiMessages.role, "user"),
-        gte(aiMessages.createdAt, since)
-      )
-    )
-  return n
 }
