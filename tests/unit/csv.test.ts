@@ -15,7 +15,7 @@ describe("CSV (RFC 4180 + formula-injection guard, master 7.4)", () => {
     expect(csvCell(-5)).toBe("-5")
   })
 
-  it.each(["=SUM(A1)", "+353 85 000", "-2+3", "@cmd", "\tTAB", "\rCR"])(
+  it.each(["=SUM(A1)", "+353 85 000", "-2+3", "@cmd", "\tTAB", "\rCR", "|cmd"])(
     "prefixes %j with an apostrophe",
     (value) => {
       expect(csvCell(value).replace(/^"|"$/g, "").startsWith("'")).toBe(true)

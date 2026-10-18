@@ -1,6 +1,6 @@
 import "server-only"
 
-import { asc, desc, ilike, or, sql } from "drizzle-orm"
+import { and, asc, desc, ilike, ne, or, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import {
@@ -105,16 +105,19 @@ export function searchCategories(db: DbOrTx, q: string, limit: number) {
     .limit(limit)
 }
 
-/** Leads by name, email or company, newest first (lead:read only). */
+/** Leads by name, email or company, newest first, spam left out (lead:read only). */
 export function searchLeads(db: DbOrTx, q: string, limit: number) {
   return db
     .select({ id: leads.id, name: leads.name, email: leads.email })
     .from(leads)
     .where(
-      or(
-        ilike(leads.name, contains(q)),
-        ilike(leads.email, contains(q)),
-        ilike(leads.company, contains(q))
+      and(
+        ne(leads.status, "spam"),
+        or(
+          ilike(leads.name, contains(q)),
+          ilike(leads.email, contains(q)),
+          ilike(leads.company, contains(q))
+        )
       )
     )
     .orderBy(desc(leads.createdAt), desc(leads.id))

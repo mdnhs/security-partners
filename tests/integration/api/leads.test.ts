@@ -625,3 +625,121 @@ describe("hardening (named risks)", () => {
     expect(await getDb().select().from(leads)).toHaveLength(1)
   })
 })
+
+describe("follow-up hardening", () => {
+  const adminActor = () => ({
+    userId: admin.userId,
+    roles: ["admin" as const],
+    ip: null,
+    userAgent: null,
+    impersonatorId: null,
+  })
+
+  it("refuses to export more than the limit instead of truncating", async () => {
+    const { exportLeads } = await import("@/server/modules/leads/service")
+    for (let i = 0; i < 3; i++) await addLead({ name: `Lead ${i}` })
+    await expect(
+      exportLeads(adminActor(), {}, new Date(), { limit: 2 })
+    ).rejects.toMatchObject({
+      status: 422,
+      message: "More than 2 enquiries match. Narrow the filters to export.",
+    })
+    expect(
+      await getDb()
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.action, "lead.exported"))
+    ).toHaveLength(0)
+    expect(
+      (await exportLeads(adminActor(), {}, new Date(), { limit: 3 })).count
+    ).toBe(3)
+  })
+
+  it("uses the 50,000 wording for the default limit", async () => {
+    const { LEAD_EXPORT_LIMIT } = await import("@/lib/schemas/api/leads")
+    expect(LEAD_EXPORT_LIMIT.toLocaleString("en-IE")).toBe("50,000")
+  })
+
+  it("caps the Notes cell at the newest 20 notes", async () => {
+    const lead = await addLead()
+    const base = Date.parse("2026-10-01T00:00:00Z")
+    await getDb()
+      .insert(leadEvents)
+      .values(
+        Array.from({ length: 25 }, (_, i) => ({
+          leadId: lead.id,
+          type: "note" as const,
+          body: `note-${String(i).padStart(2, "0")}`,
+          actorId: null,
+          createdAt: new Date(base + i * 60_000),
+        }))
+      )
+    const csv = await (
+      await adminRequest("/leads/export.csv", { cookie: admin.cookie })
+    ).text()
+    const kept = csv.match(/note-\d\d/g) ?? []
+    expect(kept).toHaveLength(20)
+    expect(kept[0]).toBe("note-05")
+    expect(kept.at(-1)).toBe("note-24")
+    expect(csv).toContain("note-24\n… (5 more notes not exported)")
+  })
+
+  it("caps the Notes cell at 20,000 characters, dropping the oldest", async () => {
+    const lead = await addLead()
+    const base = Date.parse("2026-10-01T00:00:00Z")
+    await getDb()
+      .insert(leadEvents)
+      .values(
+        Array.from({ length: 6 }, (_, i) => ({
+          leadId: lead.id,
+          type: "note" as const,
+          body: `N${i}:` + "x".repeat(4500),
+          actorId: null,
+          createdAt: new Date(base + i * 60_000),
+        }))
+      )
+    const csv = await (
+      await adminRequest("/leads/export.csv", { cookie: admin.cookie })
+    ).text()
+    const kept = csv.match(/N\d:/g) ?? []
+    expect(kept).toEqual(["N2:", "N3:", "N4:", "N5:"])
+    expect(csv).toContain("… (2 more notes not exported)")
+  })
+
+  it("rejects bidi override/isolate characters in notes but keeps newlines", async () => {
+    const lead = await addLead()
+    const post = (body: string) =>
+      adminRequest(`/leads/${lead.id}/events`, {
+        cookie: intake.cookie,
+        method: "POST",
+        json: { body },
+      })
+    for (const ch of ["\u202A", "\u202E", "\u2066", "\u2069"])
+      expect((await post(`invoice${ch}fdp.exe`)).status).toBe(422)
+    const ok = await json<LeadDto>(await post("line one\nline two"), 201)
+    expect(ok.events.at(-1)?.body).toBe("line one\nline two")
+  })
+
+  it("role coverage: owner may delete; marketer and author cannot read or export", async () => {
+    const owner = (await signedInUser(["owner"])).cookie
+    const marketer = (await signedInUser(["marketer"])).cookie
+    const author = (await signedInUser(["author"])).cookie
+    const lead = await addLead()
+    expect((await adminRequest("/leads", { cookie: marketer })).status).toBe(
+      403
+    )
+    expect(
+      (await adminRequest("/leads/export.csv", { cookie: marketer })).status
+    ).toBe(403)
+    expect((await adminRequest("/leads", { cookie: author })).status).toBe(403)
+    expect(
+      await json(
+        await adminRequest(`/leads/${lead.id}`, {
+          cookie: owner,
+          method: "DELETE",
+        })
+      )
+    ).toEqual({ ok: true })
+    expect(await getDb().select().from(leads)).toHaveLength(0)
+  })
+})

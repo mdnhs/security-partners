@@ -4,7 +4,8 @@ export type CsvValue = string | number | boolean | null | undefined
 /** Prepended to downloads so Excel reads UTF-8 ("Dinn Rí"). */
 export const CSV_BOM = "\uFEFF"
 
-const FORMULA_START = /^[=+\-@\t\r]/
+/** = + - @ start formulas; TAB/CR and | (DDE) are abused the same way. */
+const FORMULA_START = /^[=+\-@\t\r|]/
 
 export function csvCell(value: CsvValue): string {
   if (value === null || value === undefined) return ""

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest"
 
+import { ROLES } from "@/lib/auth/roles"
 import type { SearchResult } from "@/lib/schemas/api/search"
 import { getDb } from "@/server/db/client"
 import { leads } from "@/server/db/schema"
@@ -25,6 +26,13 @@ beforeAll(async () => {
     })
     .returning()
   leadId = row.id
+  await getDb().insert(leads).values({
+    name: "Zelda Spambot",
+    email: "zelda-spam@example.ie",
+    company: "Quartz Spam",
+    message: "Buy",
+    status: "spam",
+  })
   intake = (await signedInUser(["intake"])).cookie
   editor = (await signedInUser(["editor"])).cookie
 })
@@ -49,6 +57,25 @@ describe("⌘K lead results (gated on lead:read)", () => {
           href: `/admin/leads/${leadId}`,
         },
       ])
+  })
+
+  it("leaves spam out of lead results", async () => {
+    const titles = (await search(intake, "spambot")).map((r) => r.title)
+    expect(titles).toEqual([])
+    expect((await search(intake, "zelda")).map((r) => r.title)).toEqual([
+      "Zelda Quartz",
+    ])
+  })
+
+  it("rejects control characters in q for every role (422, not a DB error)", async () => {
+    for (const role of ROLES) {
+      const { cookie } = await signedInUser([role])
+      const res = await adminRequest("/search?q=%00", { cookie })
+      expect(res.status).toBe(422)
+      expect((await adminRequest("/search?q=a%1Fb", { cookie })).status).toBe(
+        422
+      )
+    }
   })
 
   it("roles without lead:read never see leads", async () => {

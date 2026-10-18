@@ -1,8 +1,22 @@
 import { z } from "zod"
 
+/** C0 controls and DEL (Postgres rejects NUL in text parameters). */
+function hasControlChars(value: string): boolean {
+  for (const ch of value) {
+    const code = ch.charCodeAt(0)
+    if (code < 32 || code === 127) return true
+  }
+  return false
+}
+
 /** GET /api/v1/admin/search?q= (⌘K palette). */
 export const searchQuery = z.object({
-  q: z.string().trim().min(1, "Type something to search").max(100),
+  q: z
+    .string()
+    .trim()
+    .min(1, "Type something to search")
+    .max(100)
+    .refine((v) => !hasControlChars(v), "Remove special characters"),
 })
 
 export const SEARCH_TYPES = [

@@ -410,23 +410,46 @@ export async function deleteLead(
 }
 
 const NOTE_ID_CHUNK = 1000
+/** Per lead in the Notes column: newest notes only, bounded size. */
+export const EXPORT_NOTES_MAX = 20
+export const EXPORT_NOTES_MAX_CHARS = 20_000
+
+/** Newest notes (oldest dropped first) within both caps, plus a tail line. */
+function notesCell(lines: readonly string[]): string {
+  let kept = lines.slice(-EXPORT_NOTES_MAX)
+  while (kept.length > 0 && kept.join("\n").length > EXPORT_NOTES_MAX_CHARS)
+    kept = kept.slice(1)
+  const dropped = lines.length - kept.length
+  if (dropped === 0) return kept.join("\n")
+  return [
+    ...kept,
+    `… (${dropped} more note${dropped === 1 ? "" : "s"} not exported)`,
+  ].join("\n")
+}
 
 /**
  * CSV export (RFC 4180, formula-guarded); `email` serves subject-access
- * requests. Bounded by LEAD_EXPORT_LIMIT rows; never includes ip_hash.
+ * requests. More than `limit` (LEAD_EXPORT_LIMIT) matches → 422 instead of
+ * a silently truncated file. Never includes ip_hash.
  */
 export async function exportLeads(
   actor: Actor,
   query: LeadExportQuery,
-  now: Date = new Date()
+  now: Date = new Date(),
+  { limit = LEAD_EXPORT_LIMIT }: { limit?: number } = {}
 ): Promise<{ csv: string; filename: string; count: number }> {
   assertCan(actor, { lead: ["export"] })
   const db = getDb()
   const rows = await repo.exportLeadRows(
     db,
     filtersFrom(actor, query),
-    LEAD_EXPORT_LIMIT
+    limit + 1
   )
+  if (rows.length > limit)
+    throw new AppError(
+      "VALIDATION_FAILED",
+      `More than ${limit.toLocaleString("en-IE")} enquiries match. Narrow the filters to export.`
+    )
   const notes = new Map<string, string[]>()
   // Chunked: one bind parameter per id, Postgres allows 65,535 per query.
   for (let i = 0; i < rows.length; i += NOTE_ID_CHUNK) {
@@ -454,7 +477,7 @@ export async function exportLeads(
         r.consent ? "yes" : "no",
         r.sourcePage,
         r.assigneeId ? (r.assigneeName ?? "Deleted user") : null,
-        (notes.get(r.id) ?? []).join("\n"),
+        notesCell(notes.get(r.id) ?? []),
         r.id,
       ])
     )

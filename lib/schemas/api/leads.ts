@@ -159,7 +159,10 @@ export const leadNoteInput = z.object({
     .trim()
     .min(1, "Write a note")
     .max(5000, "Keep notes under 5,000 characters")
-    .refine((v) => !hasControlChars(v, "\t\n\r"), "Remove special characters"),
+    .refine(
+      (v) => !hasControlChars(v, "\t\n\r") && !UNSAFE_IN_LINE.test(v),
+      "Remove special characters"
+    ),
 })
 
 export type LeadPerson = { id: string; name: string }
