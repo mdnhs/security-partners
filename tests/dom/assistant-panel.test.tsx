@@ -436,7 +436,9 @@ describe("Stopping an answer aborts the request (server cancels the provider)", 
     renderAssistant(ON, { editor: false })
     const dialog = await openPanel(user)
     await sendMessage(user, dialog, "Hi")
-    expect(await within(dialog).findByText("Partial answer")).toBeInTheDocument()
+    expect(
+      await within(dialog).findByText("Partial answer")
+    ).toBeInTheDocument()
     expect(signals[0]!.aborted).toBe(false)
     await user.click(within(dialog).getByRole("button", { name: "Stop" }))
     expect(signals[0]!.aborted).toBe(true)
