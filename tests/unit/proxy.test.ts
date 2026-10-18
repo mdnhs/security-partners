@@ -303,6 +303,19 @@ describe("proxy.ts (blocking metadata for public documents only)", () => {
     }
   })
 
+  it("strips a client-sent mark from RSC requests (no opting into bot rendering)", async () => {
+    for (const ua of [
+      `${CHROME} ${BLOCKING_METADATA_MARK}`,
+      `${BLOCKING_METADATA_MARK} ${CHROME}`,
+    ]) {
+      const res = await run("/about", {
+        headers: { "user-agent": ua, rsc: "1" },
+      })
+      expect(renderedUa(res)).toBe(CHROME)
+      expect(HTML_LIMITED_BOTS.test(renderedUa(res) ?? "")).toBe(false)
+    }
+  })
+
   it("never marks admin requests", async () => {
     const res = await run("/admin", {
       cookie: "sp.session_token=abc.def",
@@ -334,6 +347,19 @@ describe("proxy.ts (the public page's path for the preview exit)", () => {
     expect(forwarded(await run("/about", { headers: { rsc: "1" } }))).toBe(
       "/about"
     )
+  })
+
+  it("a client-sent value never reaches a POST (server action) either", async () => {
+    const res = await run("/contact", {
+      method: "POST",
+      headers: { [REQUEST_PATH_HEADER]: "/elsewhere" },
+    })
+    expect(res.headers.get("x-middleware-next")).toBe("1")
+    expect(res.headers.get("x-middleware-override-headers")).not.toBeNull()
+    expect(forwarded(res)).toBeNull()
+    expect(
+      res.headers.get(`x-middleware-request-${REQUEST_PATH_HEADER}`)
+    ).toBeNull()
   })
 
   it("a client-sent value is replaced", async () => {

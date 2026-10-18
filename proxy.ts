@@ -57,13 +57,16 @@ export async function publicGate(
   request: NextRequest,
   event: Pick<NextFetchEvent, "waitUntil">
 ): Promise<NextResponse> {
-  if (request.method !== "GET" && request.method !== "HEAD")
-    return NextResponse.next()
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    // No lookup; a client-sent path header never reaches the page.
+    const headers = new Headers(request.headers)
+    headers.delete(REQUEST_PATH_HEADER)
+    return NextResponse.next({ request: { headers } })
+  }
   // Documents render with blocking metadata (in <head>); RSC requests keep
   // streaming metadata (lib/seo/blocking-metadata.ts). Every page learns its
   // own path (lib/request-path.ts).
-  const headers =
-    blockingMetadataHeaders(request.headers) ?? new Headers(request.headers)
+  const headers = blockingMetadataHeaders(request.headers)
   const { pathname, search } = request.nextUrl
   headers.set(REQUEST_PATH_HEADER, `${pathname}${search}`)
   const init = { request: { headers } }

@@ -18,16 +18,24 @@ export const HTML_LIMITED_BOTS = new RegExp(BLOCKING_METADATA_MARK)
 
 /**
  * The request headers a public page request is rendered with: a document
- * request gets the mark, an RSC request (client navigation or prefetch,
- * header `RSC: 1`) is left as it is.
+ * request gets the mark; an RSC request (client navigation or prefetch,
+ * header `RSC: 1`) never carries it, so a client cannot opt its RSC
+ * requests into bot rendering by sending the mark itself.
  */
-export function blockingMetadataHeaders(headers: Headers): Headers | null {
-  if (headers.get("rsc") === "1") return null
-  const marked = new Headers(headers)
-  const ua = headers.get("user-agent")?.trim()
-  marked.set(
-    "user-agent",
-    ua ? `${ua} ${BLOCKING_METADATA_MARK}` : BLOCKING_METADATA_MARK
-  )
-  return marked
+export function blockingMetadataHeaders(headers: Headers): Headers {
+  const out = new Headers(headers)
+  const ua = (headers.get("user-agent") ?? "")
+    .replaceAll(BLOCKING_METADATA_MARK, "")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (headers.get("rsc") === "1") {
+    if (ua) out.set("user-agent", ua)
+    else out.delete("user-agent")
+  } else {
+    out.set(
+      "user-agent",
+      ua ? `${ua} ${BLOCKING_METADATA_MARK}` : BLOCKING_METADATA_MARK
+    )
+  }
+  return out
 }
