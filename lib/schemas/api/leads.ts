@@ -48,12 +48,22 @@ function hasControlChars(value: string, allow = ""): boolean {
   return false
 }
 
+/**
+ * Line/paragraph separators (U+2028/2029) and bidi embeddings, overrides
+ * and isolates (U+202A–202E, U+2066–2069): not allowed in one-line fields,
+ * which end up in email subjects/headers and admin lists.
+ */
+const UNSAFE_IN_LINE = /[\u2028\u2029\u202A-\u202E\u2066-\u2069]/
+
+const isSingleLine = (v: string) =>
+  !hasControlChars(v) && !UNSAFE_IN_LINE.test(v)
+
 const oneLine = (max: number) =>
   z
     .string()
     .trim()
     .max(max, `Use at most ${max} characters`)
-    .refine((v) => !hasControlChars(v), "Use a single line of text")
+    .refine(isSingleLine, "Use a single line of text")
 
 const optionalLine = (max: number) =>
   oneLine(max)
@@ -82,10 +92,11 @@ export const leadSubmission = z.object({
   sourcePage: z
     .string()
     .max(300)
-    .regex(/^\/(?!\/)\S*$/, "Must be a path on this site")
+    .regex(/^\/(?![\/\\])[^\s\\]*$/, "Must be a path on this site")
+    .refine(isSingleLine, "Must be a path on this site")
     .optional(),
-  /** Honeypot: hidden from people, filled by bots. */
-  website: z.string().max(500).optional(),
+  /** Honeypot: hidden from people, filled by bots. Any type is accepted (and fires when non-empty). */
+  website: z.unknown().optional(),
   turnstileToken: z.string().max(2048).optional(),
 })
 export type LeadSubmission = z.output<typeof leadSubmission>

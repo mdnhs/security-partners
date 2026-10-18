@@ -41,10 +41,52 @@ describe("leadSubmission (shared Zod schema, spec §9)", () => {
     expect(issues({ sourcePage: "//evil.example" })).toEqual(["sourcePage"])
   })
 
-  it("accepts the honeypot and Turnstile token fields", () => {
+  it("sourcePage: same-site path only — no NUL, backslash or protocol-relative form", () => {
+    const issues = (sourcePage: string) =>
+      leadSubmission
+        .safeParse({ ...valid, sourcePage })
+        .error?.issues.map((i) => i.path.join(".")) ?? []
+    expect(issues("/contact\u0000x")).toEqual(["sourcePage"])
+    expect(issues("/\\evil.example")).toEqual(["sourcePage"])
+    expect(issues("//x")).toEqual(["sourcePage"])
+    expect(issues("/a\\b")).toEqual(["sourcePage"])
+    expect(issues("/services/static-guarding?ref=x#top")).toEqual([])
+  })
+
+  it("single-line fields reject line/paragraph separators and bidi controls", () => {
+    const issues = (input: object) =>
+      leadSubmission
+        .safeParse({ ...valid, ...input })
+        .error?.issues.map((i) => i.path.join(".")) ?? []
+    for (const ch of [
+      "\u2028",
+      "\u2029",
+      "\u202A",
+      "\u202B",
+      "\u202C",
+      "\u202D",
+      "\u202E",
+      "\u2066",
+      "\u2067",
+      "\u2068",
+      "\u2069",
+    ]) {
+      expect(issues({ name: `Dinn${ch}Rí` })).toEqual(["name"])
+      expect(issues({ company: `Acme${ch}Ltd` })).toEqual(["company"])
+      expect(issues({ phone: `085${ch}000` })).toEqual(["phone"])
+      expect(issues({ service: `x${ch}y` })).toEqual(["service"])
+      expect(new Set(issues({ sourcePage: `/a${ch}b` }))).toEqual(
+        new Set(["sourcePage"])
+      )
+    }
+  })
+
+  it("accepts the honeypot (any type) and Turnstile token fields", () => {
     expect(
       leadSubmission.parse({ ...valid, website: "x", turnstileToken: "t" })
     ).toMatchObject({ website: "x", turnstileToken: "t" })
+    for (const website of [1, true, ["x"], { a: 1 }, null])
+      expect(leadSubmission.safeParse({ ...valid, website }).success).toBe(true)
   })
 
   it("lists the same statuses as the database enum", () => {

@@ -132,18 +132,44 @@ describe("POST /api/v1/public/leads (master 7.3)", () => {
     })
   })
 
-  it("sends the optional acknowledgement to the visitor when enabled", async () => {
+  it("sends the optional acknowledgement when enabled and Turnstile verified the visitor", async () => {
     await setLeadsSettings({
       recipients: ["ops@example.ie", "hr@example.ie"],
       retentionMonths: 24,
       acknowledgement: true,
     })
-    expect((await post(BODY)).status).toBe(200)
+    await saveTurnstile(true)
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: true }), { status: 200 })
+    )
+    expect((await post({ ...BODY, turnstileToken: "good" })).status).toBe(200)
     expect(send).toHaveBeenCalledTimes(2)
     expect(send.mock.calls[0][0]).toMatchObject({
       to: ["ops@example.ie", "hr@example.ie"],
     })
     expect(send.mock.calls[1][0]).toMatchObject({ to: "dinn@example.ie" })
+  })
+
+  it("acknowledgement enabled but Turnstile off → skipped (no open relay), recorded as an email event", async () => {
+    await setLeadsSettings({
+      recipients: ["ops@example.ie"],
+      retentionMonths: 24,
+      acknowledgement: true,
+    })
+    expect((await post(BODY)).status).toBe(200)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][0]).toMatchObject({ to: ["ops@example.ie"] })
+    const [row] = await getDb().select().from(leads)
+    const bodies = (
+      await getDb()
+        .select()
+        .from(leadEvents)
+        .where(and(eq(leadEvents.leadId, row.id), eq(leadEvents.type, "email")))
+    ).map((e) => e.body)
+    expect(bodies.sort()).toEqual([
+      "Acknowledgement skipped (no Turnstile).",
+      "Staff notification sent to 1 recipient.",
+    ])
   })
 
   it("a failed or unconfigured email never fails the request", async () => {
@@ -165,6 +191,28 @@ describe("POST /api/v1/public/leads (master 7.3)", () => {
     expect(await res.json()).toEqual({ ok: true })
     expect(await getDb().select().from(leads)).toHaveLength(0)
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it("honeypot of any non-empty type fires; empty string does not", async () => {
+    for (const website of [1, true, ["x"], { a: 1 }, "  spam  "])
+      expect(await (await post({ ...BODY, website })).json()).toEqual({
+        ok: true,
+      })
+    expect(await getDb().select().from(leads)).toHaveLength(0)
+    expect(send).not.toHaveBeenCalled()
+    expect((await post({ ...BODY, website: "" })).status).toBe(200)
+    expect(await getDb().select().from(leads)).toHaveLength(1)
+  })
+
+  it("sourcePage with NUL, a backslash or // → 422", async () => {
+    for (const sourcePage of ["/contact\u0000x", "/\\evil.example", "//x"]) {
+      const res = await post({ ...BODY, sourcePage })
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as {
+        error: { fieldErrors: Record<string, string[]> }
+      }
+      expect(Object.keys(body.error.fieldErrors)).toEqual(["sourcePage"])
+    }
   })
 
   it("6th post in 10 minutes from the same IP → 429 with Retry-After; other IPs unaffected", async () => {
@@ -285,6 +333,25 @@ describe("POST /api/v1/public/leads (master 7.3)", () => {
     expect(error.mock.calls.map((c) => String(c[0])).join("\n")).toContain(
       "[leads] Turnstile settings could not be read"
     )
+  })
+
+  it("Turnstile enabled: the check runs before the honeypot (bot without token → 422 either way)", async () => {
+    await saveTurnstile(true)
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ success: true }), { status: 200 })
+      )
+    expect((await post({ ...BODY, website: "bot" })).status).toBe(422)
+    expect((await post(BODY)).status).toBe(422)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    // A verified token with the honeypot filled is still dropped quietly.
+    const res = await post({ ...BODY, website: "bot", turnstileToken: "good" })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(await getDb().select().from(leads)).toHaveLength(0)
+    expect(send).not.toHaveBeenCalled()
   })
 
   it("Turnstile saved but disabled → no check", async () => {

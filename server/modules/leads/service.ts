@@ -44,12 +44,19 @@ export async function publicFormConfig(): Promise<LeadPublicConfig> {
   return { turnstileSiteKey: config.siteKey }
 }
 
-async function assertHuman(token: string | undefined, ip: string | null) {
+/**
+ * Turnstile check. true = enabled and verified for this request; false =
+ * not enabled (or unreadable: real enquiries must not be lost, logged
+ * above). Throws 422 when enabled and the token fails.
+ */
+async function assertHuman(
+  token: string | undefined,
+  ip: string | null
+): Promise<boolean> {
   const config = await readTurnstile()
-  // Unreadable settings must not lose real enquiries: skip, logged above.
-  if (config === "unreadable" || !config?.enabled) return
+  if (config === "unreadable" || !config?.enabled) return false
   if (await verifyTurnstileToken({ secret: config.secretKey, token, ip }))
-    return
+    return true
   throw new AppError("VALIDATION_FAILED", "Spam check failed", {
     fieldErrors: {
       turnstileToken: ["Spam check failed. Reload the page and try again."],
@@ -65,11 +72,13 @@ export async function submitLead(
   input: LeadSubmission,
   meta: { ip: string | null }
 ): Promise<{ ok: true; leadId: string | null }> {
-  if (input.website && input.website.trim() !== "") {
+  // Turnstile first: with it on, a bot without a token gets 422 whether
+  // or not it filled the honeypot.
+  const humanVerified = await assertHuman(input.turnstileToken, meta.ip)
+  if (honeypotFilled(input.website)) {
     console.info("[leads] honeypot filled; submission dropped")
     return { ok: true, leadId: null }
   }
-  await assertHuman(input.turnstileToken, meta.ip)
   const lead = await getDb().transaction(async (tx) => {
     const row = await repo.insertLead(tx, {
       name: input.name,
@@ -98,14 +107,23 @@ export async function submitLead(
     return row
   })
   try {
-    await notifyNewLead(lead)
+    await notifyNewLead(lead, { humanVerified })
   } catch (err) {
     console.error(`[leads] notification step failed (${errorName(err)})`)
   }
   return { ok: true, leadId: lead.id }
 }
 
-async function notifyNewLead(lead: repo.LeadRow): Promise<void> {
+/** Any value except undefined, null or a blank string fires the honeypot. */
+function honeypotFilled(value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  return typeof value !== "string" || value.trim() !== ""
+}
+
+async function notifyNewLead(
+  lead: repo.LeadRow,
+  { humanVerified }: { humanVerified: boolean }
+): Promise<void> {
   const db = getDb()
   const [leadsSettings, site, contact, contactSection] = await Promise.all([
     getPublishedSettings("leads", db),
@@ -155,7 +173,11 @@ async function notifyNewLead(lead: repo.LeadRow): Promise<void> {
     )
   }
 
-  if (leadsSettings?.acknowledgement) {
+  // Without a verified human check the acknowledgement would let anyone
+  // send our email to any address (relay): owner ruling, Turnstile required.
+  if (leadsSettings?.acknowledgement && !humanVerified) {
+    outcomes.push("Acknowledgement skipped (no Turnstile).")
+  } else if (leadsSettings?.acknowledgement) {
     const { delivered } = await mailer.send({
       to: lead.email,
       template: "lead-acknowledgement",

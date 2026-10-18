@@ -147,7 +147,11 @@ export function createMailer(deps: MailerDeps = defaultDeps) {
       react,
       replyTo,
     }: MailMessage): Promise<SendResult> {
-      const recipients = recipientDomains(to)
+      // The visitor's own domain can identify them: hide it too.
+      const recipients =
+        template === "lead-acknowledgement"
+          ? "*@<visitor>"
+          : recipientDomains(to)
       let html: string
       let text: string
       try {

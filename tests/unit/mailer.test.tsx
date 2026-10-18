@@ -240,6 +240,22 @@ describe("mailer (master 7.2)", () => {
     expect(line).not.toContain("someone")
   })
 
+  it("lead acknowledgement: the visitor is logged as *@<visitor>, not even the domain", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
+    const { deps: d } = deps()
+    await createMailer(d).send({
+      to: "dinn.ri@visitor-domain.example",
+      subject: "We received your message – Security Partners",
+      template: "lead-acknowledgement",
+      react: invite,
+    })
+    const logged = String(info.mock.calls[0][0])
+    expect(logged).toBe(
+      "[mailer] SMTP is not configured; not sent: lead-acknowledgement to *@<visitor>"
+    )
+    expect(logged).not.toContain("visitor-domain")
+  })
+
   it("lead emails: logs carry the template name and recipient domains, never the visitor's name or address", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
     const transport = fakeTransport(async () => {
