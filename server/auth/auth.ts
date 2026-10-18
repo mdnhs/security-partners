@@ -16,7 +16,7 @@ import * as schema from "@/server/db/schema"
 import { getEnv } from "@/server/env"
 import { mailer } from "@/server/lib/mailer"
 
-import { actorFor, auditAuthEvent, securityHooks } from "./hooks"
+import { actorFor, auditAuthEvent, onUserUpdated, securityHooks } from "./hooks"
 
 export const SESSION_EXPIRES_IN = 60 * 60 * 24 * 7 // 7 days (spec §6)
 export const IMPERSONATION_EXPIRES_IN = 60 * 60 // 1 hour
@@ -74,6 +74,14 @@ function createAuth(db: Db) {
     user: {
       additionalFields: {
         title: { type: "string", required: false, input: true },
+      },
+    },
+    databaseHooks: {
+      user: {
+        update: {
+          // Bylines (spec §5.3): a profile change expires cached articles.
+          after: async (_user, context) => onUserUpdated(context),
+        },
       },
     },
     emailAndPassword: {

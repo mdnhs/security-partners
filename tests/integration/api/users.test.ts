@@ -2,6 +2,14 @@ import { and, asc, eq } from "drizzle-orm"
 import { render } from "react-email"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+// The users service expires cached articles on name/title changes (Phase 5);
+// Hono runs outside Next here, so record instead of revalidating.
+vi.mock("next/cache", () => ({
+  revalidateTag: vi.fn(),
+  cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
+}))
+
 import { getAuth } from "@/server/auth/auth"
 import { getDb } from "@/server/db/client"
 import { auditLog, sessions, users } from "@/server/db/schema"

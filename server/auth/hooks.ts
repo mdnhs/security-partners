@@ -13,6 +13,7 @@ import { parseRoles } from "@/lib/auth/permissions"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { type AuditEntry, writeAudit } from "@/server/lib/audit"
+import { invalidate, tag } from "@/server/lib/cache-tags"
 import { clientIp } from "@/server/lib/ip"
 
 type AuthUser = { id: string; role?: string | null }
@@ -72,6 +73,29 @@ function attemptedEmail(
   return emailShape.safeParse(email).success
     ? { email }
     : { emailInvalid: true }
+}
+
+/** Better Auth endpoints that change a byline (users.name / users.title). */
+const BYLINE_PATHS: ReadonlySet<string> = new Set(["/update-user"])
+
+/**
+ * Article bylines are the author's profile (spec §5.3), cached under the
+ * `articles` tag: a profile change expires it. Never breaks the auth
+ * request — outside a Next request (scripts) revalidateTag throws, which is
+ * logged here, not rethrown.
+ */
+export async function onUserUpdated(
+  context: { path?: string } | null
+): Promise<void> {
+  if (!context?.path || !BYLINE_PATHS.has(context.path)) return
+  try {
+    invalidate(tag.articles)
+  } catch (err) {
+    console.error(
+      "[cache] could not expire articles after a profile change:",
+      err instanceof Error ? err.message : String(err)
+    )
+  }
 }
 
 /** Better Auth's pending-challenge cookie (`<prefix>.two_factor`). */

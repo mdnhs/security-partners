@@ -29,6 +29,7 @@ import {
 import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
+import { invalidate, tag } from "@/server/lib/cache-tags"
 import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { mailer } from "@/server/lib/mailer"
 
@@ -219,6 +220,8 @@ export async function updateUser(
       },
     })
   })
+  // Article bylines show users.name / users.title (spec §5.3).
+  invalidate(tag.articles)
   return toUserItem(await loadTarget(db, id))
 }
 
