@@ -4,8 +4,61 @@ import {
   checkRedirectChain,
   fromPathProblem,
   redirectLocation,
+  redirectTargetPath,
   toPathProblem,
 } from "@/lib/seo/redirects"
+
+describe("redirect rules (review fix round 1)", () => {
+  it("from: no %-escapes of unreserved characters (aliases)", () => {
+    for (const bad of [
+      "/%61dmin/x",
+      "/%5fnext/x",
+      "/%61bout",
+      "/a%2Db",
+      "/a%7e",
+    ])
+      expect(fromPathProblem(bad), bad).not.toBeNull()
+    expect(fromPathProblem("/caf%C3%A9")).toBeNull()
+    expect(fromPathProblem("/a%20b")).toBeNull()
+  })
+
+  it("the hop cap counts the whole chain, incoming runs included", () => {
+    const edges = new Map([
+      ["/h1", "/h2"],
+      ["/h2", "/h3"],
+      ["/h3", "/h4"],
+      ["/h4", "/h5"],
+      ["/h5", "/h6"],
+    ])
+    expect(checkRedirectChain(edges, "/h6", "/h7")).toEqual({
+      ok: false,
+      reason: "too-long",
+      chain: ["/h1", "/h2", "/h3", "/h4", "/h5", "/h6", "/h7"],
+    })
+    edges.delete("/h1")
+    expect(checkRedirectChain(edges, "/h6", "/h7")).toEqual({ ok: true })
+    // Editing a redirect replaces its own edge: no self-counting.
+    expect(checkRedirectChain(edges, "/h5", "/h6")).toEqual({ ok: true })
+  })
+
+  it("trailing slashes and own-origin URLs are the same path", () => {
+    expect(redirectTargetPath("/b/?x=1")).toBe("/b")
+    expect(redirectTargetPath("/")).toBe("/")
+    expect(redirectTargetPath("https://x.ie/b/", "https://x.ie")).toBe("/b")
+    expect(redirectTargetPath("https://x.ie/b")).toBeNull()
+    expect(redirectTargetPath("https://y.ie/b", "https://x.ie")).toBeNull()
+    expect(checkRedirectChain(new Map([["/b", "/a/"]]), "/a", "/b")).toEqual({
+      ok: false,
+      reason: "loop",
+      chain: ["/a", "/b", "/a"],
+    })
+    const viaOrigin = new Map([["/b", "https://x.ie/a"]])
+    expect(checkRedirectChain(viaOrigin, "/a", "/b")).toEqual({ ok: true })
+    expect(
+      checkRedirectChain(viaOrigin, "/a", "/b", "https://x.ie")
+    ).toMatchObject({ ok: false, reason: "loop" })
+  })
+})
 
 describe("redirect rules", () => {
   it("from: plain site paths only", () => {

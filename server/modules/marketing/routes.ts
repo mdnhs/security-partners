@@ -1,6 +1,7 @@
 import "server-only"
 
 import { Hono } from "hono"
+import { createMiddleware } from "hono/factory"
 
 import {
   draftInput,
@@ -14,10 +15,21 @@ import { zv } from "@/server/api/validate"
 
 import * as service from "./service"
 
-// The permission depends on :key (custom code is owner-only), so the
-// service authorises every call (lib/admin/growth-settings.ts).
+// The permission depends on :key (custom code is owner-only): `allowed`
+// authorises before any body is validated (a non-owner gets 403, never 422
+// about custom code), and the service re-checks (lib/admin/growth-settings.ts).
+const allowed = (action: "read" | "update") =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    service.authorizeGrowthSettings(
+      actorOf(c),
+      c.req.param("key") ?? "",
+      action
+    )
+    await next()
+  })
+
 export const marketingRoutes = new Hono<AppEnv>()
-  .get("/:key", zv("param", growthKeyParam), async (c) =>
+  .get("/:key", allowed("read"), zv("param", growthKeyParam), async (c) =>
     c.json(
       await service.getGrowthSettings(actorOf(c), c.req.valid("param").key),
       200
@@ -25,6 +37,7 @@ export const marketingRoutes = new Hono<AppEnv>()
   )
   .put(
     "/:key/draft",
+    allowed("update"),
     zv("param", growthKeyParam),
     zv("json", draftInput),
     async (c) =>
@@ -39,6 +52,7 @@ export const marketingRoutes = new Hono<AppEnv>()
   )
   .post(
     "/:key/publish",
+    allowed("update"),
     zv("param", growthKeyParam),
     zv("json", versionInput),
     async (c) =>
@@ -53,6 +67,7 @@ export const marketingRoutes = new Hono<AppEnv>()
   )
   .post(
     "/:key/restore",
+    allowed("update"),
     zv("param", growthKeyParam),
     zv("json", restoreInput),
     async (c) =>

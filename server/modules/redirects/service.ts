@@ -8,12 +8,14 @@ import type {
   RedirectListQuery,
   RedirectPatch,
 } from "@/lib/schemas/api/redirects"
-import { checkRedirectChain } from "@/lib/seo/redirects"
+import { checkRedirectChain, redirectTargetPath } from "@/lib/seo/redirects"
 import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
+import { invalidate, tag } from "@/server/lib/cache-tags"
 import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { pgErrorCode, UNIQUE_VIOLATION } from "@/server/lib/pg-errors"
+import { getPublishedSettings } from "@/server/modules/settings/service"
 import { PAGE_PATHS } from "@/templates/registry"
 
 import {
@@ -31,14 +33,6 @@ import {
 
 const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
-
-const decoded = (value: string) => {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
-  }
-}
 
 function assertCan(actor: Actor, req: PermissionRequest) {
   if (!hasPermission(actor.roles, req)) throw forbidden()
@@ -68,7 +62,26 @@ function toDto(row: RedirectRow): RedirectDto {
   }
 }
 
-/** A live page never redirects (proxy.ts serves it first). */
+/**
+ * The site's own origin (published settings.site.productionUrl), so
+ * absolute links to the site count as its paths in chain checks; null when
+ * unset.
+ */
+async function siteOrigin(db: DbOrTx): Promise<string | null> {
+  const url = (await getPublishedSettings("site", db))?.productionUrl
+  if (!url) return null
+  try {
+    return new URL(url).origin
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A live page never redirects (proxy.ts serves it first). Sources never
+ * hold %-escapes of unreserved characters (fromPathProblem), so the raw
+ * path is the one compared with page paths and slugs.
+ */
 async function assertFromIsFree(db: DbOrTx, fromPath: string) {
   if (STATIC_PATHS.has(fromPath))
     throw invalid("fromPath", "This address is a live page of the site")
@@ -78,7 +91,7 @@ async function assertFromIsFree(db: DbOrTx, fromPath: string) {
     (await isPublishedSlug(
       db,
       detail[1] === "services" ? "service" : "article",
-      decoded(detail[2])
+      detail[2]
     ))
   )
     throw invalid(
@@ -87,8 +100,13 @@ async function assertFromIsFree(db: DbOrTx, fromPath: string) {
     )
 }
 
-function assertChain(edges: Map<string, string>, from: string, to: string) {
-  const check = checkRedirectChain(edges, from, to)
+function assertChain(
+  edges: Map<string, string>,
+  from: string,
+  to: string,
+  origin: string | null
+) {
+  const check = checkRedirectChain(edges, from, to, origin)
   if (check.ok) return
   throw invalid(
     "toPath",
@@ -131,7 +149,12 @@ export async function createRedirect(
     const row = await getDb().transaction(async (tx) => {
       await lockRedirects(tx)
       await assertFromIsFree(tx, input.fromPath)
-      assertChain(await listRedirectEdges(tx), input.fromPath, input.toPath)
+      assertChain(
+        await listRedirectEdges(tx),
+        input.fromPath,
+        input.toPath,
+        await siteOrigin(tx)
+      )
       const created = await insertRedirect(tx, input)
       await writeAudit(tx, actor, {
         action: "redirect.created",
@@ -141,6 +164,7 @@ export async function createRedirect(
       })
       return created
     })
+    invalidate(tag.redirects)
     return toDto(row)
   } catch (err) {
     return mapUnique(err)
@@ -167,7 +191,7 @@ export async function updateRedirect(
         await assertFromIsFree(tx, next.fromPath)
       const edges = await listRedirectEdges(tx)
       edges.delete(existing.fromPath)
-      assertChain(edges, next.fromPath, next.toPath)
+      assertChain(edges, next.fromPath, next.toPath, await siteOrigin(tx))
       const updated = await updateRedirectRow(tx, id, next)
       if (!updated) throw notFound("Redirect")
       await writeAudit(tx, actor, {
@@ -185,6 +209,7 @@ export async function updateRedirect(
       })
       return updated
     })
+    invalidate(tag.redirects)
     return toDto(row)
   } catch (err) {
     return mapUnique(err)
@@ -206,6 +231,7 @@ export async function deleteRedirect(
       diff: { fromPath: removed.fromPath, toPath: removed.toPath },
     })
   })
+  invalidate(tag.redirects)
   return { ok: true }
 }
 
@@ -213,19 +239,33 @@ export async function deleteRedirect(
  * A published service/article changed address or was deleted: 301 the old
  * address (ledger ruling). Runs inside the caller's transaction, as a side
  * effect of an action the caller was allowed to take (editors have no
- * redirect permission of their own).
+ * redirect permission of their own). Redirects that led to the old address
+ * (also with a trailing slash or as an absolute link to the site) follow
+ * it. Returns true when redirects changed: the caller then expires
+ * tag.redirects after its transaction commits.
  */
 export async function recordMove(
   tx: DbOrTx,
   actor: Actor,
   move: { from: string; to: string; reason: string }
-): Promise<void> {
-  if (move.from === move.to) return
+): Promise<boolean> {
+  if (move.from === move.to) return false
   await lockRedirects(tx)
-  await moveRedirects(tx, move.from, move.to)
+  const origin = await siteOrigin(tx)
+  // Targets with their own query or hash keep pointing where they did.
+  const repoint = [...(await listRedirectEdges(tx))]
+    .filter(
+      ([source, target]) =>
+        source !== move.to &&
+        !/[?#]/.test(target) &&
+        redirectTargetPath(target, origin) === move.from
+    )
+    .map(([source]) => source)
+  const changed = await moveRedirects(tx, move.from, move.to, repoint)
   await writeAudit(tx, actor, {
     action: "redirect.auto_created",
     entityType: "redirect",
-    diff: move,
+    diff: { ...move, ...changed },
   })
+  return true
 }

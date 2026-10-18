@@ -462,6 +462,7 @@ describe("articles API (master 5.1)", () => {
       "articles",
       "article:night-patrols",
       "article:night-patrol-guide",
+      "redirects",
     ])
 
     const clash = await call(editor, `/articles/${article.id}/meta`, "PATCH", {
@@ -532,6 +533,7 @@ describe("articles API (master 5.1)", () => {
     expect(revalidateTag.mock.calls.map((c) => c[0])).toEqual([
       "articles",
       "article:key-holding-explained",
+      "redirects",
     ])
   })
 

@@ -8,8 +8,14 @@ export const MAX_REDIRECT_HOPS = 5
 const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
 const FILE_EXTENSION = /\.[A-Za-z0-9]+$/
-/** Percent-escapes that would change the path's shape once decoded: / \ . and control characters. */
-const SHAPE_ESCAPE = /%(2f|5c|2e|[01][0-9a-f]|7f)/i
+/**
+ * Percent-escapes a source may not use: / \ and control characters (they
+ * change the path's shape once decoded) and every unreserved character
+ * (A-Z a-z 0-9 - . _ ~), so "/%61dmin" or "/%61bout" cannot alias a reserved
+ * prefix, a static page or a slug. Other escapes (spaces, non-ASCII) stay.
+ */
+const FORBIDDEN_ESCAPE =
+  /%(2f|5c|[01][0-9a-f]|7f|2d|2e|3[0-9]|4[1-9a-f]|5[0-9a]|5f|6[1-9a-f]|7[0-9a]|7e)/i
 
 const decodes = (path: string) => {
   try {
@@ -31,8 +37,8 @@ export function fromPathProblem(path: string): string | null {
   // Browsers resolve "/a/../b" before asking, so such a source never matches.
   if (path.split("/").some((segment) => segment === "." || segment === ".."))
     return "Leave out . and .. segments"
-  if (!decodes(path) || SHAPE_ESCAPE.test(path))
-    return "Use plain characters instead of %-escapes for / \\ . and control characters"
+  if (!decodes(path) || FORBIDDEN_ESCAPE.test(path))
+    return "Type letters, numbers, / and - . _ ~ as themselves, not as %-escapes"
   const lower = path.toLowerCase()
   if (
     lower.startsWith("/_") ||
@@ -59,34 +65,89 @@ export function toPathProblem(to: string): string | null {
   return null
 }
 
-/** The site path a target leads to (query and hash ignored); null for external URLs. */
-const targetPath = (to: string): string | null =>
-  to.startsWith("/") ? (to.split(/[?#]/)[0] ?? to) : null
+/**
+ * The site path a target leads to: query and hash ignored, trailing slash
+ * dropped (Next redirects "/x/" to "/x"), and an absolute URL on the site's
+ * own origin (settings.site.productionUrl) read as its path. null for
+ * external URLs.
+ */
+export function redirectTargetPath(
+  to: string,
+  siteOrigin: string | null = null
+): string | null {
+  let path: string | null = null
+  if (to.startsWith("/")) path = to.split(/[?#]/)[0] ?? to
+  else if (siteOrigin) {
+    try {
+      const url = new URL(to)
+      if (url.origin === siteOrigin) path = url.pathname
+    } catch {
+      path = null
+    }
+  }
+  if (path === null) return null
+  return path.length > 1 ? path.replace(/\/+$/, "") || "/" : path
+}
 
 export type ChainCheck =
   { ok: true } | { ok: false; reason: "loop" | "too-long"; chain: string[] }
 
 /**
- * Follows `from → to` through the existing redirects (from_path → to_path).
- * A path seen twice is a loop; more than MAX_REDIRECT_HOPS hops is too long.
+ * Longest run of existing redirects that ends at `path` (reverse edges),
+ * as the paths before it, farthest first. Stops once past the hop cap.
+ */
+function longestIncoming(
+  edges: ReadonlyMap<string, string>,
+  path: string,
+  siteOrigin: string | null
+): string[] {
+  const into = new Map<string, string[]>()
+  for (const [source, target] of edges) {
+    const at = redirectTargetPath(target, siteOrigin)
+    if (at === null) continue
+    const list = into.get(at)
+    if (list) list.push(source)
+    else into.set(at, [source])
+  }
+  const walk = (at: string, seen: ReadonlySet<string>): string[] => {
+    if (seen.size > MAX_REDIRECT_HOPS + 1) return []
+    let best: string[] = []
+    for (const source of into.get(at) ?? []) {
+      if (seen.has(source)) continue
+      const run = [...walk(source, new Set([...seen, source])), source]
+      if (run.length > best.length) best = run
+    }
+    return best
+  }
+  return walk(path, new Set([path]))
+}
+
+/**
+ * Checks the whole chain through the new redirect `from → to`: the longest
+ * run of existing redirects into `from`, then `from → to` and onwards. A
+ * path seen twice is a loop; more than MAX_REDIRECT_HOPS hops in total is
+ * too long. `siteOrigin` makes absolute links to the site count as paths.
  */
 export function checkRedirectChain(
   existing: ReadonlyMap<string, string>,
   from: string,
-  to: string
+  to: string,
+  siteOrigin: string | null = null
 ): ChainCheck {
   const edges = new Map(existing)
+  edges.delete(from)
+  const incoming = longestIncoming(edges, from, siteOrigin)
   edges.set(from, to)
   const chain = [from]
-  let current = targetPath(to)
+  let current = redirectTargetPath(to, siteOrigin)
   while (current !== null) {
     if (chain.includes(current))
       return { ok: false, reason: "loop", chain: [...chain, current] }
     chain.push(current)
-    if (chain.length - 1 > MAX_REDIRECT_HOPS)
-      return { ok: false, reason: "too-long", chain }
+    if (incoming.length + chain.length - 1 > MAX_REDIRECT_HOPS)
+      return { ok: false, reason: "too-long", chain: [...incoming, ...chain] }
     const next = edges.get(current)
-    current = next === undefined ? null : targetPath(next)
+    current = next === undefined ? null : redirectTargetPath(next, siteOrigin)
   }
   return { ok: true }
 }

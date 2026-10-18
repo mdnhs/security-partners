@@ -42,8 +42,12 @@ function asVersioned(row: SettingsEditRow | null): Row | null {
 const can = (actor: Actor, req: PermissionRequest) =>
   hasPermission(actor.roles, req)
 
-/** SEO defaults, tracking, consent and custom code only; per-key permission. */
-function entryFor(actor: Actor, key: string, action: "read" | "update") {
+/** SEO defaults, tracking, consent and custom code only; per-key permission (404, then 403). */
+export function authorizeGrowthSettings(
+  actor: Actor,
+  key: string,
+  action: "read" | "update"
+) {
   if (!isGrowthSettingsKey(key)) throw notFound("Settings")
   if (!can(actor, GROWTH_SETTINGS[key][action])) throw forbidden()
   return key
@@ -76,7 +80,7 @@ export async function getGrowthSettings(
   actor: Actor,
   key: string
 ): Promise<GrowthSettingsDto> {
-  entryFor(actor, key, "read")
+  authorizeGrowthSettings(actor, key, "read")
   const row = asVersioned(await findSettingsForEdit(getDb(), key))
   if (!row) throw notFound("Settings")
   return toDto(actor, row)
@@ -87,7 +91,7 @@ export async function saveGrowthSettingsDraft(
   key: string,
   input: { draft: unknown; version: number }
 ): Promise<GrowthSettingsDto> {
-  entryFor(actor, key, "update")
+  authorizeGrowthSettings(actor, key, "update")
   return toDto(
     actor,
     await saveDraft(getDb(), storeFor(actor), actor, key, input)
@@ -99,7 +103,7 @@ export async function publishGrowthSettings(
   key: string,
   input: { version: number }
 ): Promise<GrowthSettingsDto> {
-  entryFor(actor, key, "update")
+  authorizeGrowthSettings(actor, key, "update")
   return toDto(
     actor,
     await publish(getDb(), storeFor(actor), actor, key, input)
@@ -111,7 +115,7 @@ export async function restoreGrowthSettings(
   key: string,
   input: { revisionId: string; version: number }
 ): Promise<GrowthSettingsDto> {
-  entryFor(actor, key, "update")
+  authorizeGrowthSettings(actor, key, "update")
   return toDto(
     actor,
     await restoreRevision(getDb(), storeFor(actor), actor, key, input)

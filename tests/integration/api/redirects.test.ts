@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { revalidateTag } = vi.hoisted(() => ({ revalidateTag: vi.fn() }))
@@ -10,7 +10,7 @@ vi.mock("next/cache", () => ({
 
 import type { RedirectDto } from "@/lib/schemas/api/redirects"
 import { getDb } from "@/server/db/client"
-import { auditLog, redirects } from "@/server/db/schema"
+import { auditLog, redirects, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 
 import { resetDb } from "../db"
@@ -241,5 +241,108 @@ describe("redirects API (master 8.2)", () => {
       .from(redirects)
       .where(eq(redirects.fromPath, "/blog/key-holding-explained"))
     expect(row?.toPath).toBe("/blog/key-holding-guide")
+  })
+})
+
+describe("redirects (review fix round 1)", () => {
+  it("%-escaped aliases of live or reserved addresses → 422", async () => {
+    for (const fromPath of ["/%61bout", "/%61dmin/x", "/%5fnext/x"]) {
+      const res = await create(marketer, { fromPath, toPath: "/", code: 301 })
+      expect(res.status, fromPath).toBe(422)
+      expect(Object.keys(await errorsOf(res))).toEqual(["fromPath"])
+    }
+  })
+
+  it("a chain over five hops counting incoming redirects → 422", async () => {
+    for (let i = 1; i <= 5; i++)
+      expect(
+        (
+          await create(marketer, {
+            fromPath: `/h${i}`,
+            toPath: `/h${i + 1}`,
+            code: 301,
+          })
+        ).status
+      ).toBe(201)
+    const res = await create(marketer, {
+      fromPath: "/h6",
+      toPath: "/h7",
+      code: 301,
+    })
+    expect(res.status).toBe(422)
+    expect((await errorsOf(res)).toPath?.[0]).toMatch(/Too many hops/)
+  })
+
+  it("every redirect change expires the redirects tag", async () => {
+    revalidateTag.mockClear()
+    const dto = (await (
+      await create(marketer, { fromPath: "/x", toPath: "/", code: 301 })
+    ).json()) as RedirectDto
+    await adminRequest(`/redirects/${dto.id}`, {
+      cookie: marketer,
+      method: "PATCH",
+      json: { code: 302 },
+    })
+    await adminRequest(`/redirects/${dto.id}`, {
+      cookie: marketer,
+      method: "DELETE",
+    })
+    expect(
+      revalidateTag.mock.calls.filter(([t]) => t === "redirects")
+    ).toHaveLength(3)
+  })
+
+  it("moves re-point trailing-slash and own-origin targets; the audit lists them", async () => {
+    await getDb()
+      .update(settings)
+      .set({
+        published: sql`jsonb_set(${settings.published}, '{productionUrl}', '"https://x.ie"')`,
+      })
+      .where(eq(settings.key, "site"))
+    for (const [fromPath, toPath] of [
+      ["/slash", "/services/alarm-responses/"],
+      ["/absolute", "https://x.ie/services/alarm-responses"],
+      ["/with-query", "/services/alarm-responses?x=1"],
+      ["/elsewhere", "https://y.ie/services/alarm-responses"],
+    ])
+      expect(
+        (await create(marketer, { fromPath, toPath, code: 301 })).status,
+        fromPath
+      ).toBe(201)
+    // A redirect from the new address is removed when the page takes it.
+    await getDb()
+      .insert(redirects)
+      .values({ fromPath: "/services/alarm-team", toPath: "/" })
+    revalidateTag.mockClear()
+    const s = await serviceRow(editor, "alarm-responses")
+    const res = await adminRequest(`/services/${s.id}/slug`, {
+      cookie: editor,
+      method: "PATCH",
+      json: { slug: "alarm-team", version: s.version },
+    })
+    expect(res.status).toBe(200)
+    expect(revalidateTag).toHaveBeenCalledWith("redirects", { expire: 0 })
+    const map = new Map((await rows()).map((r) => [r.fromPath, r.toPath]))
+    expect(map.get("/slash")).toBe("/services/alarm-team")
+    expect(map.get("/absolute")).toBe("/services/alarm-team")
+    expect(map.get("/with-query")).toBe("/services/alarm-responses?x=1")
+    expect(map.get("/elsewhere")).toBe("https://y.ie/services/alarm-responses")
+    expect(map.has("/services/alarm-team")).toBe(false)
+    const [audit] = await getDb()
+      .select({ diff: auditLog.diff })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.entityType, "redirect"),
+          eq(auditLog.action, "redirect.auto_created")
+        )
+      )
+    expect(audit.diff).toEqual({
+      from: "/services/alarm-responses",
+      to: "/services/alarm-team",
+      reason: "service.slug_changed",
+      deleted: ["/services/alarm-team"],
+      repointed: ["/absolute", "/slash"],
+    })
   })
 })

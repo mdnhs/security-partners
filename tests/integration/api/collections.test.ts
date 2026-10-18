@@ -307,6 +307,7 @@ describe("services (master 4.6): draft/publish, slug, delete", () => {
       "services",
       "service:static-security",
       "service:static-guarding",
+      "redirects",
     ])
 
     expect(

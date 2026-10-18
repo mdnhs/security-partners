@@ -25,7 +25,13 @@ import { syncMediaUsages } from "@/server/lib/media-usages"
 import { findSettingsRow } from "@/server/modules/settings/repo"
 import { isPageKey, PAGE_PATHS, type PageKey } from "@/templates/registry"
 
-import { findSeoRow, listSeoRows, type SeoRow, updateSeoColumn } from "./repo"
+import {
+  findSeoRow,
+  listSeoRows,
+  lockSeoMediaRow,
+  type SeoRow,
+  updateSeoColumn,
+} from "./repo"
 
 type Context = { defaults: SeoDefaultsSettings; values: Placeholders }
 
@@ -41,37 +47,25 @@ function assertCan(actor: Actor, req: PermissionRequest) {
 
 const record = (value: unknown) =>
   (value && typeof value === "object" ? value : {}) as Record<string, unknown>
-const text = (value: unknown) => (typeof value === "string" ? value : null)
 
 /** Name, URL and title/description fallbacks, mirroring templates/shared/page-meta.ts. */
 function describeRow(row: SeoRow) {
-  const content = record(row.published ?? row.draft)
   if (row.kind === "page") {
     const key = row.id as PageKey
     return {
       name: PAGE_LABELS[key],
       path: PAGE_PATHS[key],
-      titleName:
-        key === "home"
-          ? null
-          : (text(record(content.hero).title) ?? PAGE_LABELS[key]),
+      titleName: key === "home" ? null : (row.title ?? PAGE_LABELS[key]),
       fallbackDescription: null,
     }
   }
-  const title = text(content.title) ?? row.slug ?? row.id
-  return row.kind === "service"
-    ? {
-        name: title,
-        path: `/services/${row.slug}`,
-        titleName: title,
-        fallbackDescription: text(record(content.detail).intro),
-      }
-    : {
-        name: title,
-        path: `/blog/${row.slug}`,
-        titleName: title,
-        fallbackDescription: text(content.excerpt),
-      }
+  const title = row.title ?? row.slug ?? row.id
+  return {
+    name: title,
+    path: `/${row.kind === "service" ? "services" : "blog"}/${row.slug}`,
+    titleName: title,
+    fallbackDescription: row.description,
+  }
 }
 
 function toEntry(row: SeoRow, ctx: Context): SeoEntry {
@@ -84,7 +78,7 @@ function toEntry(row: SeoRow, ctx: Context): SeoEntry {
   }
   const own = effectiveSeo({ ...base, seo: row.seo })
   const fallback = effectiveSeo({ ...base, seo: {} })
-  const published = row.published !== null
+  const published = row.published
   return {
     kind: row.kind,
     id: row.id,
@@ -171,10 +165,10 @@ const changedFields = (before: Seo, after: Seo) =>
     )
     .sort()
 
-function tagsFor(row: SeoRow): string[] {
-  if (row.kind === "page") return [tag.page(row.id)]
-  if (row.kind === "service") return [tag.services, tag.service(row.slug!)]
-  return [tag.articles, tag.article(row.slug!)]
+function tagsFor(kind: SeoKind, id: string, slug: string | null): string[] {
+  if (kind === "page") return [tag.page(id)]
+  if (kind === "service") return [tag.services, tag.service(slug!)]
+  return [tag.articles, tag.article(slug!)]
 }
 
 const validId = (kind: SeoKind, id: string) =>
@@ -195,8 +189,10 @@ export async function updateSeo(
   if (!validId(kind, id)) throw notFound(LABEL[kind])
   const seo = cleanSeo(input.seo)
   const db = getDb()
-  const row = await db.transaction(async (tx) => {
-    const current = await findSeoRow(tx, kind, id)
+  // The row stays locked from this read to commit, so a concurrent draft
+  // save cannot slip in between and lose its images' usage rows.
+  const slug = await db.transaction(async (tx) => {
+    const current = await lockSeoMediaRow(tx, kind, id)
     if (!current) throw notFound(LABEL[kind])
     await updateSeoColumn(tx, kind, id, seo)
     try {
@@ -212,8 +208,13 @@ export async function updateSeo(
       entityId: id,
       diff: { fields: changedFields(current.seo, seo) },
     })
-    return { ...current, seo }
+    return current.slug
   })
-  invalidate(...tagsFor(row))
-  return toEntry(row, await loadContext(db))
+  invalidate(...tagsFor(kind, id, slug))
+  const [row, ctx] = await Promise.all([
+    findSeoRow(db, kind, id),
+    loadContext(db),
+  ])
+  if (!row) throw notFound(LABEL[kind])
+  return toEntry(row, ctx)
 }

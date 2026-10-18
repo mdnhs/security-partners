@@ -154,4 +154,15 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
     expect((await history(viewer, "contact")).status).toBe(200)
     expect((await history(owner, "integrations.smtp")).status).toBe(404)
   })
+
+  it("authorises before validating the body (403/404, never 422)", async () => {
+    const send = (cookie: string, path: string, json: unknown) =>
+      adminRequest(`/marketing/${path}`, { cookie, method: "PUT", json })
+    expect((await send(admin, "customCode/draft", { draft: 1 })).status).toBe(
+      403
+    )
+    expect((await send(viewer, "consent/draft", {})).status).toBe(403)
+    expect((await send(owner, "nope/draft", {})).status).toBe(404)
+    expect((await send(owner, "customCode/draft", {})).status).toBe(422)
+  })
 })

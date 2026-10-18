@@ -169,7 +169,7 @@ export async function changeServiceSlug(
   assertCan(actor, { service: ["update"] })
   const db = getDb()
   try {
-    const { before, after } = await db.transaction(async (tx) => {
+    const { before, after, moved } = await db.transaction(async (tx) => {
       const existing = await findServiceForEdit(tx, id)
       if (!existing) throw notFound("Service")
       const updated = await updateServiceIfVersion(tx, id, input.version, {
@@ -187,15 +187,22 @@ export async function changeServiceSlug(
         entityId: id,
         diff: { from: existing.slug, to: input.slug },
       })
-      if (existing.published !== null && existing.slug !== input.slug)
-        await recordMove(tx, actor, {
+      const moved =
+        existing.published !== null &&
+        existing.slug !== input.slug &&
+        (await recordMove(tx, actor, {
           from: `/services/${existing.slug}`,
           to: `/services/${input.slug}`,
           reason: "service.slug_changed",
-        })
-      return { before: existing, after: updated }
+        }))
+      return { before: existing, after: updated, moved }
     })
-    invalidate(tag.services, tag.service(before.slug), tag.service(after.slug))
+    invalidate(
+      tag.services,
+      tag.service(before.slug),
+      tag.service(after.slug),
+      ...(moved ? [tag.redirects] : [])
+    )
     return toDto(after)
   } catch (err) {
     if (pgErrorCode(err) === UNIQUE_VIOLATION) throw slugTaken()
@@ -209,7 +216,7 @@ export async function deleteService(
   input: { version: number }
 ) {
   assertCan(actor, { service: ["delete"] })
-  const removed = await getDb().transaction(async (tx) => {
+  const { removed, moved } = await getDb().transaction(async (tx) => {
     const existing = await findServiceForEdit(tx, id)
     if (!existing) throw notFound("Service")
     if (existing.version !== input.version) throw conflict(toDto(existing))
@@ -226,14 +233,19 @@ export async function deleteService(
       entityId: id,
       diff: { slug: existing.slug },
     })
-    if (existing.published !== null)
-      await recordMove(tx, actor, {
+    const moved =
+      existing.published !== null &&
+      (await recordMove(tx, actor, {
         from: `/services/${existing.slug}`,
         to: "/services",
         reason: "service.deleted",
-      })
-    return existing
+      }))
+    return { removed: existing, moved }
   })
-  invalidate(tag.services, tag.service(removed.slug))
+  invalidate(
+    tag.services,
+    tag.service(removed.slug),
+    ...(moved ? [tag.redirects] : [])
+  )
   return { ok: true as const }
 }

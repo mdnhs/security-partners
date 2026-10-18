@@ -7,6 +7,7 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
   isNotNull,
   or,
   sql,
@@ -153,19 +154,28 @@ export async function isPublishedSlug(
 
 /**
  * A live address moved from `from` to `to`: nothing may redirect away from
- * the new address, redirects that pointed at the old one follow it, and
- * the old address gets a 301.
+ * the new address, the redirects named in `repoint` (those that led to the
+ * old one) follow it, and the old address gets a 301. Returns the source
+ * paths deleted and re-pointed (for the audit).
  */
 export async function moveRedirects(
   db: DbOrTx,
   from: string,
-  to: string
-): Promise<void> {
-  await db.delete(redirects).where(eq(redirects.fromPath, to))
-  await db
-    .update(redirects)
-    .set({ toPath: to })
-    .where(eq(redirects.toPath, from))
+  to: string,
+  repoint: readonly string[]
+): Promise<{ deleted: string[]; repointed: string[] }> {
+  const deleted = await db
+    .delete(redirects)
+    .where(eq(redirects.fromPath, to))
+    .returning({ fromPath: redirects.fromPath })
+  const repointed =
+    repoint.length > 0
+      ? await db
+          .update(redirects)
+          .set({ toPath: to })
+          .where(inArray(redirects.fromPath, [...repoint]))
+          .returning({ fromPath: redirects.fromPath })
+      : []
   await db
     .insert(redirects)
     .values({ fromPath: from, toPath: to, code: 301 })
@@ -173,4 +183,8 @@ export async function moveRedirects(
       target: redirects.fromPath,
       set: { toPath: to, code: 301, updatedAt: new Date() },
     })
+  return {
+    deleted: deleted.map((r) => r.fromPath),
+    repointed: repointed.map((r) => r.fromPath).sort(),
+  }
 }

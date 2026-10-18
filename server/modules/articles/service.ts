@@ -306,7 +306,7 @@ export async function changeArticleMeta(
   need(actor, "update")
   const db = getDb()
   try {
-    const { before, after } = await db.transaction(async (tx) => {
+    const { before, after, moved } = await db.transaction(async (tx) => {
       const row = await loadRow(tx, id)
       const permissions = articlePermissions(actor, row)
       if (!permissions.update) throw forbidden()
@@ -350,19 +350,22 @@ export async function changeArticleMeta(
           },
         },
       })
-      if (row.published !== null && updated.slug !== row.slug)
-        await recordMove(tx, actor, {
+      const moved =
+        row.published !== null &&
+        updated.slug !== row.slug &&
+        (await recordMove(tx, actor, {
           from: `/blog/${row.slug}`,
           to: `/blog/${updated.slug}`,
           reason: "article.slug_changed",
-        })
-      return { before: row, after: updated }
+        }))
+      return { before: row, after: updated, moved }
     })
     if (before.published !== null)
       invalidate(
         tag.articles,
         tag.article(before.slug),
-        ...(after.slug !== before.slug ? [tag.article(after.slug)] : [])
+        ...(after.slug !== before.slug ? [tag.article(after.slug)] : []),
+        ...(moved ? [tag.redirects] : [])
       )
     return toDto(after, actor)
   } catch (err) {
@@ -377,7 +380,7 @@ export async function deleteArticle(
   input: { version: number }
 ): Promise<{ ok: true }> {
   need(actor, "delete")
-  const removed = await getDb().transaction(async (tx) => {
+  const { removed, moved } = await getDb().transaction(async (tx) => {
     const row = await loadRow(tx, id)
     if (!articlePermissions(actor, row).delete) throw forbidden()
     if (row.version !== input.version) throw conflict(toDto(row, actor))
@@ -391,16 +394,21 @@ export async function deleteArticle(
       entityId: id,
       diff: { slug: row.slug, version: row.version },
     })
-    if (row.published !== null)
-      await recordMove(tx, actor, {
+    const moved =
+      row.published !== null &&
+      (await recordMove(tx, actor, {
         from: `/blog/${row.slug}`,
         to: "/blog",
         reason: "article.deleted",
-      })
-    return row
+      }))
+    return { removed: row, moved }
   })
   if (removed.published !== null)
-    invalidate(tag.articles, tag.article(removed.slug))
+    invalidate(
+      tag.articles,
+      tag.article(removed.slug),
+      ...(moved ? [tag.redirects] : [])
+    )
   return { ok: true }
 }
 
