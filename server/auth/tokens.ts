@@ -7,6 +7,11 @@ import { adminUrl, getAuth } from "./auth"
 export const INVITE_TOKEN_EXPIRES_IN = 60 * 60 * 24 * 7 // 7 days
 export const RECOVERY_TOKEN_EXPIRES_IN = 60 * 60 * 24 // 24 hours
 
+/** A single-use password-link token (24 random bytes, URL-safe). */
+export function newPasswordToken(): string {
+  return randomBytes(24).toString("base64url")
+}
+
 /**
  * Creates a Better Auth password-reset token for `userId` (the same
  * `reset-password:<token>` verification row that /request-password-reset
@@ -18,7 +23,7 @@ export async function createPasswordToken(
   expiresInSeconds: number
 ): Promise<string> {
   const ctx = await getAuth().$context
-  const token = randomBytes(24).toString("base64url")
+  const token = newPasswordToken()
   await ctx.internalAdapter.createVerificationValue({
     value: userId,
     identifier: `reset-password:${token}`,

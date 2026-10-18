@@ -622,6 +622,7 @@ describe("credentials do not outlive the privilege that issued them", () => {
       to: ["owner"],
       passwordLinksRevoked: 1,
       impersonationsRevoked: 1,
+      sessionsRevoked: 0,
     })
   })
 

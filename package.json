@@ -26,6 +26,7 @@
     "admin:create": "pnpm tsx:server scripts/admin-create.ts",
     "owner:recover": "pnpm tsx:server scripts/owner-recover.ts",
     "demo:seed": "pnpm tsx:server scripts/demo-seed.ts",
+    "demo:remove": "pnpm tsx:server scripts/demo-remove.ts",
     "db:seed": "pnpm tsx:server scripts/seed.ts",
     "backup": "pnpm tsx:server scripts/backup.ts",
     "restore-drill": "pnpm tsx:server scripts/restore-drill.ts",

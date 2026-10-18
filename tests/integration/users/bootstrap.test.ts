@@ -227,6 +227,6 @@ describe("seedDemoUsers (demo:seed)", () => {
   })
 
   it("rejects a password shorter than 12 characters", async () => {
-    await expect(seedDemoUsers("short")).rejects.toThrow("12-128 characters")
+    await expect(seedDemoUsers("short")).rejects.toThrow("12–128 characters")
   })
 })

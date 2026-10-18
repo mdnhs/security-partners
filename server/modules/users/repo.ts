@@ -9,6 +9,7 @@ import {
   exists,
   gt,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   like,
@@ -22,6 +23,7 @@ import {
 import type { Role } from "@/lib/auth/roles"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import {
   accounts,
   sessions,
@@ -99,8 +101,6 @@ export type UserFilters = {
   q?: string
 }
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-
 function whereFor(filters: UserFilters): SQL | undefined {
   const conditions: (SQL | undefined)[] = []
   if (filters.role) conditions.push(hasRole(filters.role))
@@ -110,7 +110,7 @@ function whereFor(filters: UserFilters): SQL | undefined {
   if (filters.status === "invited")
     conditions.push(and(not(bannedNow), not(hasPassword)))
   if (filters.q) {
-    const pattern = `%${escapeLike(filters.q)}%`
+    const pattern = containsPattern(filters.q)
     conditions.push(
       or(
         ilike(users.name, pattern),
@@ -306,5 +306,51 @@ export async function clearAllTwoFactor(db: DbOrTx): Promise<number> {
 /** Signs everyone out (session cookies are signed with the auth secret). */
 export async function deleteAllSessions(db: DbOrTx): Promise<number> {
   const deleted = await db.delete(sessions).returning({ id: sessions.id })
+  return deleted.length
+}
+
+/**
+ * The same verification row Better Auth's /request-password-reset writes
+ * (`reset-password:<token>` → user id), inside the caller's transaction.
+ */
+export async function insertPasswordToken(
+  db: DbOrTx,
+  row: { userId: string; token: string; expiresAt: Date }
+): Promise<void> {
+  await db.insert(verifications).values({
+    identifier: `reset-password:${row.token}`,
+    value: row.userId,
+    expiresAt: row.expiresAt,
+  })
+}
+
+export async function deleteUserById(db: DbOrTx, id: string): Promise<void> {
+  await db.delete(users).where(eq(users.id, id))
+}
+
+/** Users with exactly one of these (lower-case) emails. */
+export async function listUsersByEmails(
+  db: DbOrTx,
+  emails: string[]
+): Promise<UserRow[]> {
+  if (emails.length === 0) return []
+  const rows = await db
+    .select(userColumns)
+    .from(users)
+    .where(inArray(users.email, emails))
+    .orderBy(asc(users.email))
+  return rows as UserRow[]
+}
+
+/** Deletes users (sessions, accounts, 2FA cascade; authored rows keep a null actor). */
+export async function deleteUsersByIds(
+  db: DbOrTx,
+  ids: string[]
+): Promise<number> {
+  if (ids.length === 0) return 0
+  const deleted = await db
+    .delete(users)
+    .where(inArray(users.id, ids))
+    .returning({ id: users.id })
   return deleted.length
 }

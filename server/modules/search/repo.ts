@@ -3,6 +3,7 @@ import "server-only"
 import { and, asc, desc, ilike, ne, or, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import {
   articleCategories,
   articles,
@@ -13,8 +14,7 @@ import {
   teamMembers,
 } from "@/server/db/schema"
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-const contains = (q: string) => `%${escapeLike(q)}%`
+const contains = containsPattern
 
 const serviceTitle = sql<string>`${services.draft}->>'title'`
 const articleTitle = sql<string>`${articles.draft}->>'title'`

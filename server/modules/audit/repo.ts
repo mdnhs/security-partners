@@ -15,6 +15,7 @@ import {
 
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import { auditLog, users } from "@/server/db/schema"
 
 export type NewAuditRow = typeof auditLog.$inferInsert
@@ -71,8 +72,6 @@ export type AuditFilters = {
 
 export type AuditSortField = "createdAt" | "action"
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-
 function whereFor(filters: AuditFilters): SQL | undefined {
   const conditions: (SQL | undefined)[] = [
     filters.actorId ? eq(auditLog.actorId, filters.actorId) : undefined,
@@ -84,7 +83,7 @@ function whereFor(filters: AuditFilters): SQL | undefined {
     filters.to ? lte(auditLog.createdAt, filters.to) : undefined,
   ]
   if (filters.q) {
-    const pattern = `%${escapeLike(filters.q)}%`
+    const pattern = containsPattern(filters.q)
     conditions.push(
       or(
         ilike(auditLog.action, pattern),

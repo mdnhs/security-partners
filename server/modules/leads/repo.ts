@@ -26,6 +26,7 @@ import {
 } from "@/lib/schemas/api/leads"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import { leadEvents, leads, users } from "@/server/db/schema"
 
 export type LeadRow = typeof leads.$inferSelect
@@ -62,8 +63,6 @@ export type LeadFilters = {
 }
 export type LeadSortField = "createdAt" | "name" | "status"
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-
 function whereFor(f: LeadFilters): SQL | undefined {
   const c: (SQL | undefined)[] = []
   if (f.status === "open")
@@ -73,7 +72,7 @@ function whereFor(f: LeadFilters): SQL | undefined {
   if (f.assigneeId === "none") c.push(isNull(leads.assigneeId))
   else if (f.assigneeId) c.push(eq(leads.assigneeId, f.assigneeId))
   if (f.q) {
-    const p = `%${escapeLike(f.q)}%`
+    const p = containsPattern(f.q)
     c.push(
       or(
         ilike(leads.name, p),

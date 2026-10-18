@@ -17,6 +17,7 @@ export const SCRIPT_ENTRIES = [
   "restore-drill",
   "secrets-rotate",
   "db-sync",
+  "demo-remove",
 ] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */
