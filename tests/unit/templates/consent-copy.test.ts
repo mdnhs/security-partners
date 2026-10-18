@@ -26,7 +26,8 @@ describe("consent banner close label (spec §5.2: ARIA labels are settings)", ()
   })
 
   it("a value stored before the field existed parses to Close (no migration)", () => {
-    const { closeLabel: _omit, ...older } = seeded
+    const older: Partial<ConsentSettings> = structuredClone(seeded)
+    delete older.closeLabel
     expect(consentSettings.parse(older).closeLabel).toBe("Close")
     // Public reads are not re-parsed: the view falls back too.
     expect(

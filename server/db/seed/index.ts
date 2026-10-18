@@ -45,8 +45,7 @@ export const SEED_TABLES = [
 export type SeedReport = Record<(typeof SEED_TABLES)[number], number>
 
 export type SeedIfEmptyResult =
-  | { seeded: true; report: SeedReport }
-  | { seeded: false; pages: number }
+  { seeded: true; report: SeedReport } | { seeded: false; pages: number }
 
 /**
  * Container auto-seed (docker-entrypoint.sh, spec §1.2 #6): seeds only a

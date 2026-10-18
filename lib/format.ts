@@ -89,7 +89,10 @@ export function siteTimeZone(value: string | null | undefined): string {
 }
 
 /** Calendar date as "2026-09-20" (for <time dateTime>) in `timeZone` (default Irish time). */
-export function isoDate(value: Date, timeZone: string = SITE_TIME_ZONE): string {
+export function isoDate(
+  value: Date,
+  timeZone: string = SITE_TIME_ZONE
+): string {
   const format = calendarDateIn(siteTimeZone(timeZone))!
   const parts = Object.fromEntries(
     format.formatToParts(value).map((p) => [p.type, p.value])

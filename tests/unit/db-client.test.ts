@@ -30,9 +30,7 @@ describe("getDb", () => {
     const caught = caughtFrom(() => getDb())
     expect(caught).toBeInstanceOf(AppError)
     expect((caught as AppError).code).toBe("INTERNAL")
-    expect((caught as AppError).message).toContain(
-      "DATABASE_URL: is required"
-    )
+    expect((caught as AppError).message).toContain("DATABASE_URL: is required")
   })
 
   it("validates DATABASE_URL through server/env.ts (no unchecked process.env read)", () => {
