@@ -7,7 +7,7 @@ import { toast } from "sonner"
 
 import { issuesToFieldErrors } from "@/components/admin/editor/versioned-editor"
 import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
-import { PageHeader } from "@/components/admin/page-header"
+import { PageHeader, PRIMARY_ACTION } from "@/components/admin/page-header"
 import { emptyValue } from "@/components/admin/schema-form/empty-value"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
 import { NativeSelect } from "@/components/admin/schema-form/widgets/basic"
@@ -104,8 +104,15 @@ export function NewArticleForm() {
         actions={
           <Button
             type="button"
+            className={PRIMARY_ACTION}
             disabled={create.isPending || !slugValid}
-            aria-describedby={slugValid ? undefined : "new-article-slug-help"}
+            aria-describedby={
+              slugValid
+                ? undefined
+                : slugError
+                  ? "new-article-slug-error"
+                  : "new-article-slug-help"
+            }
             onClick={() => create.mutate()}
           >
             Create draft
@@ -141,6 +148,7 @@ export function NewArticleForm() {
               onChange={(event) => {
                 setSlugTouched(true)
                 setSlug(event.target.value)
+                setErrors((e) => (e ? { ...e, slug: [] } : e))
               }}
             />
           </div>

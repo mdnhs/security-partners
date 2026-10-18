@@ -6,7 +6,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { issuesToFieldErrors } from "@/components/admin/editor/versioned-editor"
-import { PageHeader } from "@/components/admin/page-header"
+import { PageHeader, PRIMARY_ACTION } from "@/components/admin/page-header"
 import { emptyValue } from "@/components/admin/schema-form/empty-value"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
 import { Button } from "@/components/ui/button"
@@ -72,6 +72,7 @@ export function NewServiceForm() {
         actions={
           <Button
             type="button"
+            className={PRIMARY_ACTION}
             disabled={create.isPending || !slugValid}
             aria-describedby={slugValid ? undefined : "new-service-slug-help"}
             onClick={() => create.mutate()}

@@ -54,6 +54,9 @@ const ITEMS = [
 ]
 
 let options: ArticleOptions
+/** Overrides for the list mock: its rows and the reported total. */
+let listItems: ArticleListItem[] | undefined
+let total: number | undefined
 const listCalls: URL[] = []
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -65,6 +68,8 @@ beforeEach(() => {
   push.mockReset()
   replace.mockReset()
   listCalls.length = 0
+  listItems = undefined
+  total = undefined
   search.current = new URLSearchParams()
   options = {
     categories: [
@@ -82,8 +87,11 @@ beforeEach(() => {
       if (url.pathname === "/api/v1/admin/articles") {
         listCalls.push(url)
         const status = url.searchParams.get("status")
-        const items = ITEMS.filter((i) => !status || i.status === status)
-        return json({ items, page: 1, pageSize: 20, total: items.length })
+        const items = (listItems ?? ITEMS).filter(
+          (i) => !status || i.status === status
+        )
+        const page = Number(url.searchParams.get("page") ?? "1")
+        return json({ items, page, pageSize: 20, total: total ?? items.length })
       }
       return json({ items: [], page: 1, pageSize: 24, total: 0 })
     })
@@ -130,8 +138,13 @@ describe("articles list (master 5.3)", () => {
 
   it("filters by category and byline", async () => {
     const user = userEvent.setup()
+    total = 45 // three pages, so a filter change can send the list back to 1
     renderScreen()
     await screen.findByRole("table", { name: "Articles" })
+    await user.click(screen.getByRole("button", { name: "Next page" }))
+    await waitFor(() =>
+      expect(listCalls.at(-1)?.searchParams.get("page")).toBe("2")
+    )
     await waitFor(() =>
       expect(
         within(screen.getByLabelText("Category")).getByRole("option", {
@@ -176,5 +189,33 @@ describe("articles list (master 5.3)", () => {
     renderScreen(["viewer"])
     await screen.findByRole("table", { name: "Articles" })
     expect(screen.queryByRole("link", { name: "New article" })).toBeNull()
+  })
+
+  it("tells an empty list from an empty review queue", async () => {
+    listItems = []
+    const { unmount } = renderScreen()
+    expect(await screen.findByText("No articles yet")).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "Articles appear on /blog once published. Drafts stay private until then."
+      )
+    ).toBeInTheDocument()
+    unmount()
+    search.current = new URLSearchParams("status=in_review")
+    renderScreen()
+    expect(
+      await screen.findByText("Nothing is waiting for review")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("No articles yet")).toBeNull()
+  })
+
+  it("names other filters' empty result generically", async () => {
+    listItems = []
+    search.current = new URLSearchParams("status=draft")
+    renderScreen()
+    expect(
+      await screen.findByText("No articles match these filters")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Nothing is waiting for review")).toBeNull()
   })
 })

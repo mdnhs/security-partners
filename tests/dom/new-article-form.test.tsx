@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
 import { NewArticleForm } from "@/components/admin/articles/new-article-form"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
+import type { Role } from "@/lib/auth/roles"
 
 const CATEGORY = "0190f0e0-0000-7000-8000-0000000000c1"
 const IMAGE = {
@@ -31,9 +32,14 @@ const json = (status: number, body: unknown) =>
   })
 
 const posted: unknown[] = []
+/** Byline candidates from /options (empty for authors) and the POST reply. */
+let authors: { id: string; name: string; title: null }[]
+let created: () => Response
 beforeEach(() => {
   push.mockReset()
   posted.length = 0
+  authors = [{ id: "u1", name: "Edith Editor", title: null }]
+  created = () => json(201, { id: "0190f0e0-0000-7000-8000-0000000000a1" })
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -43,14 +49,14 @@ beforeEach(() => {
           categories: [
             { id: CATEGORY, slug: "mobile-patrols", name: "Mobile Patrols" },
           ],
-          authors: [{ id: "u1", name: "Edith Editor", title: null }],
+          authors,
         })
       if (
         url.pathname === "/api/v1/admin/articles" &&
         init?.method === "POST"
       ) {
         posted.push(JSON.parse(String(init.body)))
-        return json(201, { id: "0190f0e0-0000-7000-8000-0000000000a1" })
+        return created()
       }
       if (url.pathname === `/api/v1/admin/media/${IMAGE.id}`)
         return json(200, IMAGE)
@@ -133,4 +139,101 @@ describe("new article (master 5.3)", () => {
       )
     )
   })
+
+  it("shows a taken address inline and clears it on edit", async () => {
+    const user = userEvent.setup()
+    created = () =>
+      json(409, {
+        error: {
+          code: "CONFLICT",
+          message: "Another article already uses this address",
+          fieldErrors: { slug: ["Already used by another article"] },
+          requestId: "r1",
+        },
+      })
+    renderForm(["editor"])
+    await fillBasics(user)
+    await user.click(screen.getByRole("button", { name: "Create draft" }))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    const address = screen.getByLabelText("Address")
+    expect(
+      await screen.findByText("Already used by another article")
+    ).toBeInTheDocument()
+    expect(address).toHaveAttribute("aria-invalid", "true")
+    expect(address.getAttribute("aria-describedby")).toContain(
+      "new-article-slug-error"
+    )
+    expect(push).not.toHaveBeenCalled()
+    await user.type(address, "-2")
+    expect(screen.queryByText("Already used by another article")).toBeNull()
+    expect(address).not.toHaveAttribute("aria-invalid")
+  })
+
+  it("authors get no byline choice and post no authorId", async () => {
+    const user = userEvent.setup()
+    authors = []
+    renderForm(["author"])
+    await fillBasics(user)
+    expect(screen.queryByLabelText("Byline")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Create draft" }))
+    await waitFor(() => expect(posted).toHaveLength(1))
+    expect(posted[0]).not.toHaveProperty("authorId")
+    expect(posted[0]).toMatchObject({
+      slug: "night-patrols-and-key-holding",
+      categoryId: CATEGORY,
+    })
+  })
 })
+
+function renderForm(roles: Role[]) {
+  return render(
+    <AdminShell
+      queryClient={makeQueryClient()}
+      session={{
+        user: {
+          id: "u1",
+          name: "Edith Editor",
+          email: "e@example.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles,
+        impersonatedBy: null,
+      }}
+    >
+      <NewArticleForm />
+    </AdminShell>
+  )
+}
+
+/** Title, excerpt, cover and category: everything a draft needs. */
+async function fillBasics(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(
+    await screen.findByRole("textbox", { name: "Title" }),
+    "Night Patrols & Key Holding"
+  )
+  await user.type(
+    screen.getByRole("textbox", { name: "Excerpt" }),
+    "What a night patrol covers."
+  )
+  await user.click(
+    screen.getByRole("button", { name: "Choose image: Cover image" })
+  )
+  const picker = await screen.findByRole("dialog", {
+    name: "Choose: Cover image",
+  })
+  await user.click(
+    await within(picker).findByRole("button", { name: /Officer at night/ })
+  )
+  await user.click(
+    within(picker).getByRole("button", { name: "Use this image" })
+  )
+  await waitFor(() =>
+    expect(
+      within(screen.getByLabelText("Category")).getByRole("option", {
+        name: "Mobile Patrols",
+      })
+    ).toBeInTheDocument()
+  )
+  await user.selectOptions(screen.getByLabelText("Category"), CATEGORY)
+}

@@ -37,7 +37,7 @@ export function searchArticles(db: DbOrTx, q: string, limit: number) {
     .where(
       or(ilike(articleTitle, contains(q)), ilike(articles.slug, contains(q)))
     )
-    .orderBy(sql`${articles.publishedAt} desc nulls first`, asc(articles.slug))
+    .orderBy(sql`${articles.publishedAt} desc nulls last`, asc(articles.slug))
     .limit(limit)
 }
 
@@ -117,7 +117,7 @@ export function articleOptionRows(db: DbOrTx) {
   return db
     .select({ slug: articles.slug, title: articleTitle })
     .from(articles)
-    .orderBy(sql`${articles.publishedAt} desc nulls first`, asc(articles.slug))
+    .orderBy(sql`${articles.publishedAt} desc nulls last`, asc(articles.slug))
 }
 
 export function categoryOptionRows(db: DbOrTx) {
