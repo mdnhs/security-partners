@@ -1,9 +1,14 @@
+import { eq, isNotNull } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import { getDb } from "@/server/db/client"
-import { leads, settings } from "@/server/db/schema"
+import { articles, leads, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
+import {
+  countLeadsFromDay,
+  leadsFromDayQuery,
+} from "@/server/modules/dashboard/repo"
 import { getDashboard, trendDays } from "@/server/modules/dashboard/service"
 
 import { resetDb } from "../db"
@@ -113,6 +118,57 @@ describe("dashboard (master 4.7)", () => {
     expect(intake.kpis.leads30d).toBe(0)
     expect(intake.kpis.published).toBeNull()
     expect(intake.nextUp.map((i) => i.id)).toEqual(["unassigned-leads"])
+  })
+
+  it("counts a live article with a scheduled update as published (final review minor 5)", async () => {
+    const { cookie } = await signedInUser(["admin"])
+    const before = (await dashboard(cookie)).kpis.published!.articles
+    const [live] = await getDb()
+      .select({ id: articles.id })
+      .from(articles)
+      .where(isNotNull(articles.published))
+      .limit(1)
+    await getDb()
+      .update(articles)
+      .set({ status: "scheduled", scheduledAt: new Date(Date.now() + DAY) })
+      .where(eq(articles.id, live.id))
+    expect((await dashboard(cookie)).kpis.published!.articles).toBe(before)
+  })
+
+  it("leads from an Irish day: exact Dublin-midnight boundary, served by leads_created_at_idx (final review minor 6)", async () => {
+    const at = (iso: string) => ({
+      name: "N",
+      email: "n@example.ie",
+      message: "Hello",
+      createdAt: new Date(iso),
+    })
+    await getDb()
+      .insert(leads)
+      .values([
+        at("2026-07-14T22:59:59.999Z"), // 23:59:59 IST on the 14th
+        at("2026-07-14T23:00:00.000Z"), // midnight IST on the 15th
+        at("2026-12-14T23:59:59.999Z"), // GMT: still the 14th
+        at("2026-12-15T00:00:00.000Z"), // midnight GMT on the 15th
+      ])
+    expect(await countLeadsFromDay(getDb(), "2026-07-15")).toBe(3)
+    expect(await countLeadsFromDay(getDb(), "2026-12-15")).toBe(1)
+
+    const query = leadsFromDayQuery(getDb(), "2026-07-15").toSQL()
+    const client = await getDb().$client.connect()
+    try {
+      await client.query("begin")
+      await client.query("set local enable_seqscan = off")
+      const plan = await client.query<{ "QUERY PLAN": string }>(
+        `explain ${query.sql}`,
+        query.params
+      )
+      expect(plan.rows.map((r) => r["QUERY PLAN"]).join("\n")).toContain(
+        "leads_created_at_idx"
+      )
+    } finally {
+      await client.query("rollback")
+      client.release()
+    }
   })
 
   it("rejects anonymous requests", async () => {
