@@ -29,16 +29,18 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
   // Session first: it reads the request, so nothing below (the settings
   // query needs the database) runs while the route is being prerendered.
   const { user, actor, session } = await requireSession()
-  const [cookieStore, site] = await Promise.all([
-    cookies(),
-    getSettings("site"),
-  ])
-  const productionUrl = site?.productionUrl ?? undefined
   // Sidebar counts: unassigned new leads for those who handle them. Fresh
   // on every navigation and on router.refresh() after a lead changes.
-  const badges: NavBadges = hasPermission(actor.roles, { lead: ["read"] })
-    ? { "new-leads": (await leadBadge(actor)).newLeads }
-    : {}
+  const [cookieStore, site, badges] = await Promise.all([
+    cookies(),
+    getSettings("site"),
+    hasPermission(actor.roles, { lead: ["read"] })
+      ? leadBadge(actor).then((badge): NavBadges => ({
+          "new-leads": badge.newLeads,
+        }))
+      : ({} satisfies NavBadges),
+  ])
+  const productionUrl = site?.productionUrl ?? undefined
   return (
     <AdminShell
       // Set by the sidebar toggle (components/ui/sidebar.tsx).

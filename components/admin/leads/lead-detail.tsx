@@ -1,10 +1,10 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Download, Inbox, Trash2 } from "lucide-react"
+import { ArrowLeft, Inbox, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useId, useState } from "react"
+import { useId, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -17,7 +17,6 @@ import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import {
   FORM_ACTION,
   LINK_FORM,
-  LINK_SECONDARY,
   PageHeader,
   PRIMARY_ACTION,
 } from "@/components/admin/page-header"
@@ -53,14 +52,18 @@ import {
 } from "@/lib/schemas/api/leads"
 import { cn } from "@/lib/utils"
 
+import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
 
 const SELECT = cn(
   ADMIN_CONTROL,
-  "w-full border border-input outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 pointer-coarse:h-11"
+  "w-full border border-input outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 aria-busy:cursor-progress pointer-coarse:h-11"
 )
 
 const leadKey = (id: string) => ["leads", "detail", id] as const
+
+/** One status/assignee change; `seq` orders it among this page's changes. */
+type LeadChange = { json: UpdateLeadInput; seq: number }
 
 function Fact({
   label,
@@ -126,6 +129,9 @@ export function LeadDetail({ id }: { id: string }) {
   const statusId = useId()
   const assigneeId = useId()
   const noteId = useId()
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+  /** The newest status/assignee change; older responses are not applied. */
+  const latestChange = useRef(0)
   const key = leadKey(id)
 
   const lead = useQuery({
@@ -150,18 +156,49 @@ export function LeadDetail({ id }: { id: string }) {
     router.refresh()
   }
 
+  // Saves run one at a time (scope) in the order chosen; the selects stay
+  // enabled (disabling one drops its focus, and arrow keys fire a change
+  // per press), showing each choice at once.
   const update = useMutation({
-    mutationFn: async (json: UpdateLeadInput) =>
+    scope: { id: `lead-${id}` },
+    mutationFn: async ({ json }: LeadChange) =>
       (await unwrap(
         api.leads[":id"].$patch({ param: { id }, json })
       )) as LeadDto,
-    onSuccess: (dto) => {
-      applied(dto)
+    onSuccess: (dto, change) => {
+      // A newer choice is still on its way: keep showing that one.
+      if (change.seq === latestChange.current) applied(dto)
       toast.success("Lead updated")
     },
-    onError: (error) =>
-      toast.error("Not saved", { description: errorMessage(error) }),
+    onError: (error, change) => {
+      toast.error("Not saved", { description: errorMessage(error) })
+      if (change.seq !== latestChange.current) return
+      // Back to what the server has (earlier changes may have saved).
+      void queryClient.invalidateQueries({ queryKey: key })
+      router.refresh()
+    },
   })
+  const change = (json: UpdateLeadInput) => {
+    const seq = ++latestChange.current
+    void queryClient.cancelQueries({ queryKey: key })
+    queryClient.setQueryData<LeadDto>(key, (prev) => {
+      if (!prev) return prev
+      const next = { ...prev }
+      if (json.status) next.status = json.status
+      if (json.assigneeId !== undefined) {
+        const person = (assignees.data ?? []).find(
+          (u) => u.id === json.assigneeId
+        )
+        next.assignee = person
+          ? { id: person.id, name: person.name }
+          : prev.assignee?.id === json.assigneeId
+            ? prev.assignee
+            : null
+      }
+      return next
+    })
+    update.mutate({ json, seq })
+  }
   const addNote = useMutation({
     mutationFn: async (body: string) =>
       (await unwrap(
@@ -171,9 +208,13 @@ export function LeadDetail({ id }: { id: string }) {
       applied(dto)
       setNote("")
       toast.success("Note added")
+      // The button was disabled while saving: give focus back to the box.
+      noteRef.current?.focus()
     },
-    onError: (error) =>
-      toast.error("Note not added", { description: errorMessage(error) }),
+    onError: (error) => {
+      toast.error("Note not added", { description: errorMessage(error) })
+      noteRef.current?.focus()
+    },
   })
   const remove = useMutation({
     mutationFn: async () => unwrap(api.leads[":id"].$delete({ param: { id } })),
@@ -253,14 +294,11 @@ export function LeadDetail({ id }: { id: string }) {
           canExport || canDelete ? (
             <>
               {canExport ? (
-                <a
+                <CsvDownloadButton
                   href={leadExportHref({ status: "all", email: data.email })}
-                  download
-                  className={LINK_SECONDARY}
                 >
-                  <Download aria-hidden />
                   Export this person&apos;s data
-                </a>
+                </CsvDownloadButton>
               ) : null}
               {canDelete ? (
                 <Button
@@ -287,7 +325,10 @@ export function LeadDetail({ id }: { id: string }) {
             label: "Notes",
             badge: notes.length ? (
               <span className="rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground tabular-nums">
-                {notes.length}
+                <span aria-hidden>{notes.length}</span>
+                <span className="sr-only">
+                  {`, ${notes.length} ${notes.length === 1 ? "note" : "notes"}`}
+                </span>
               </span>
             ) : undefined,
           },
@@ -346,15 +387,16 @@ export function LeadDetail({ id }: { id: string }) {
                   : "You can read this lead but not change it."
               }
               className="self-start"
+              aria-busy={update.isPending || undefined}
             >
               <FieldShell id={statusId} label="Lead status">
                 <select
                   id={statusId}
                   className={SELECT}
                   value={data.status}
-                  disabled={!canUpdate || update.isPending}
+                  disabled={!canUpdate}
                   onChange={(event) =>
-                    update.mutate({ status: event.target.value as LeadStatus })
+                    change({ status: event.target.value as LeadStatus })
                   }
                 >
                   {LEAD_STATUSES.map((s) => (
@@ -369,9 +411,9 @@ export function LeadDetail({ id }: { id: string }) {
                   id={assigneeId}
                   className={SELECT}
                   value={data.assignee?.id ?? ""}
-                  disabled={!canUpdate || update.isPending}
+                  disabled={!canUpdate}
                   onChange={(event) =>
-                    update.mutate({ assigneeId: event.target.value || null })
+                    change({ assigneeId: event.target.value || null })
                   }
                 >
                   <option value="">Unassigned</option>
@@ -416,6 +458,7 @@ export function LeadDetail({ id }: { id: string }) {
               >
                 <FieldShell id={noteId} label="Add a note">
                   <Textarea
+                    ref={noteRef}
                     id={noteId}
                     rows={3}
                     maxLength={5000}

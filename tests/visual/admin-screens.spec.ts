@@ -144,6 +144,11 @@ async function signIn(
   await page.getByLabel("Password", { exact: true }).fill(who.password)
   await page.getByRole("button", { name: "Sign in" }).click()
   await expect(page.getByTestId("greeting")).toBeVisible()
+  // The sidebar's lead count is server-rendered from the database (not
+  // pinnable with page.route): the visual seed has no enquiries, so it stays
+  // hidden. A lead left by another spec (the public contact form e2e posts
+  // a real one) would show it in every shot — fail loudly instead.
+  await expect(page.getByLabel(/ new leads$/)).toHaveCount(0)
   await page.evaluate(() => document.fonts.ready)
 }
 
@@ -1070,6 +1075,9 @@ for (const colorScheme of ["light", "dark"] as const) {
             .getByRole("tablist", { name: "Lead sections" })
             .getByRole("tab", { selected: true })
         ).toContainText(tab, { ignoreCase: true })
+        // Only waits for the assignee list to load (its option text), so
+        // the shot never catches the select half-filled; the pinned lead
+        // itself is unassigned.
         if (tab === "details")
           await expect(page.getByLabel("Assigned to")).toContainText(
             "Vera Visual"

@@ -52,14 +52,18 @@ export function leadFilterQuery(f: LeadInboxFilters): {
   }
 }
 
-/** The CSV download for these filters (`email`: one person's data, GDPR). */
+/**
+ * The CSV download for these filters and search (`email`: one person's
+ * data, GDPR subject access).
+ */
 export function leadExportHref(f: {
   status?: string
   assignee?: string
+  q?: string
   email?: string
 }): string {
   const params = new URLSearchParams()
-  for (const key of ["status", "assignee", "email"] as const)
+  for (const key of ["status", "assignee", "q", "email"] as const)
     if (f[key]) params.set(key, f[key])
   const query = params.toString()
   return `/api/v1/admin/leads/export.csv${query ? `?${query}` : ""}`

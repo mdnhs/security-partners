@@ -36,6 +36,11 @@ describe("lead inbox helpers", () => {
     expect(leadExportHref({ status: "open", assignee: "" })).toBe(
       "/api/v1/admin/leads/export.csv?status=open"
     )
+    expect(
+      leadExportHref({ status: "open", assignee: "me", q: "Murphy & Co" })
+    ).toBe(
+      "/api/v1/admin/leads/export.csv?status=open&assignee=me&q=Murphy+%26+Co"
+    )
     expect(leadExportHref({ email: "a+b@example.ie", status: "all" })).toBe(
       "/api/v1/admin/leads/export.csv?status=all&email=a%2Bb%40example.ie"
     )

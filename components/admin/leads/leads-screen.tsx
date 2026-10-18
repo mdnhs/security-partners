@@ -1,9 +1,8 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { Download } from "lucide-react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 
 import {
@@ -12,7 +11,7 @@ import {
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
 import { FilterSelect } from "@/components/admin/filter-field"
-import { LINK_SECONDARY, PageHeader } from "@/components/admin/page-header"
+import { PageHeader } from "@/components/admin/page-header"
 import { usePermission } from "@/hooks/use-permission"
 import {
   type LeadInboxFilters,
@@ -30,6 +29,7 @@ import {
   type LeadListItem,
 } from "@/lib/schemas/api/leads"
 
+import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
 
 type Row = LeadListItem & Record<string, unknown>
@@ -97,14 +97,25 @@ const columns = ch.columns([
 
 /**
  * Leads inbox (spec §8.1): enquiries from the contact form, newest first,
- * with status and assignee filters (preselected from ?status= / ?assignee=)
- * and a CSV export of what the filters show.
+ * with status and assignee filters (kept in ?status= / ?assignee=, so links
+ * and reloads keep them) and a CSV export of what the list shows.
  */
 export function LeadsScreen() {
+  const router = useRouter()
   const params = useSearchParams()
   const [filters, setFilters] = useState<LeadInboxFilters>(() =>
     parseLeadFilters(new URLSearchParams(params.toString()))
   )
+  // The table's debounced search, as last sent to the API (for the export).
+  const [search, setSearch] = useState("")
+  const changeFilters = (patch: Partial<LeadInboxFilters>) => {
+    const next = { ...filters, ...patch }
+    setFilters(next)
+    const query = new URLSearchParams(leadFilterQuery(next)).toString()
+    router.replace(`/admin/leads${query ? `?${query}` : ""}`, {
+      scroll: false,
+    })
+  }
   const canExport = usePermission({ lead: ["export"] })
   const assignees = useQuery({
     queryKey: ["leads", "assignees"],
@@ -123,10 +134,9 @@ export function LeadsScreen() {
         description="Enquiries sent through the website contact form. Spam is hidden unless you filter for it."
         actions={
           canExport ? (
-            <a href={leadExportHref(query)} download className={LINK_SECONDARY}>
-              <Download aria-hidden />
+            <CsvDownloadButton href={leadExportHref({ ...query, q: search })}>
               Export CSV
-            </a>
+            </CsvDownloadButton>
           ) : null
         }
       />
@@ -144,10 +154,7 @@ export function LeadsScreen() {
               label="Status"
               value={filters.status}
               onChange={(value) =>
-                setFilters((f) => ({
-                  ...f,
-                  status: value as LeadInboxFilters["status"],
-                }))
+                changeFilters({ status: value as LeadInboxFilters["status"] })
               }
             >
               <option value="">Inbox (all but spam)</option>
@@ -163,9 +170,7 @@ export function LeadsScreen() {
               id="leads-assignee"
               label="Assignee"
               value={filters.assignee}
-              onChange={(value) =>
-                setFilters((f) => ({ ...f, assignee: value }))
-              }
+              onChange={(value) => changeFilters({ assignee: value })}
             >
               <option value="">Anyone</option>
               <option value="me">Me</option>
@@ -185,8 +190,9 @@ export function LeadsScreen() {
             </FilterSelect>
           </>
         }
-        fetchPage={async (p) =>
-          (await unwrap(
+        fetchPage={async (p) => {
+          setSearch(p.q ?? "")
+          return (await unwrap(
             api.leads.$get({
               query: {
                 page: String(p.page),
@@ -197,7 +203,7 @@ export function LeadsScreen() {
               },
             })
           )) as Paginated<Row>
-        }
+        }}
         columns={columns}
         renderCard={(lead) => (
           <div className="rounded-card relative flex flex-col gap-2 bg-card p-4">
