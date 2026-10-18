@@ -34,6 +34,7 @@ describe("SMTP mailer against Mailpit (master 7.2)", () => {
       to,
       replyTo: "visitor@example.test",
       subject: "Mailer test",
+      template: "invite",
       react: invite,
     })
     expect(result).toEqual({ delivered: true })
@@ -71,6 +72,7 @@ describe("SMTP mailer against Mailpit (master 7.2)", () => {
     const result = await mailer.send({
       to: unique("nobody"),
       subject: "Not sent",
+      template: "invite",
       react: invite,
     })
     expect(result).toEqual({ delivered: false })
@@ -82,7 +84,12 @@ describe("SMTP mailer against Mailpit (master 7.2)", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
     await configureSmtp({ port: 1 })
     expect(
-      await mailer.send({ to: unique("down"), subject: "Down", react: invite })
+      await mailer.send({
+        to: unique("down"),
+        subject: "Down",
+        template: "invite",
+        react: invite,
+      })
     ).toEqual({ delivered: false })
     error.mockRestore()
   })

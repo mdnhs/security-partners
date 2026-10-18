@@ -190,6 +190,7 @@ async function sendInviteEmail(
   return mailer.send({
     to: msg.to,
     subject: "You're invited to the Security Partners admin",
+    template: "invite",
     react: createElement(InviteEmail, {
       name: msg.name,
       inviterName: inviter?.name ?? "An administrator",
@@ -386,6 +387,7 @@ export async function createPasswordLink(
     ? await mailer.send({
         to: target.email,
         subject: "Reset your Security Partners admin password",
+        template: "reset-password",
         react: createElement(ResetPasswordEmail, {
           name: target.name,
           url,

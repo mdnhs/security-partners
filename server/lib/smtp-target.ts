@@ -56,6 +56,20 @@ export type LookupAll = (
 const lookupAll: LookupAll = (host) =>
   dnsLookup(host, { all: true, verbatim: true })
 
+/**
+ * Lead emails are sent inline in the public POST, so a slow resolver must
+ * not hold the visitor's request: past this the host counts as unresolved.
+ */
+export const SMTP_LOOKUP_TIMEOUT_MS = 3_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("DNS lookup timed out")), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 export const isProduction = () => process.env.NODE_ENV === "production"
 
 /**
@@ -66,7 +80,7 @@ export const isProduction = () => process.env.NODE_ENV === "production"
  */
 export async function resolveSmtpTarget(
   host: string,
-  opts: { production?: boolean; lookup?: LookupAll } = {}
+  opts: { production?: boolean; lookup?: LookupAll; timeoutMs?: number } = {}
 ): Promise<SmtpTarget> {
   if (!(opts.production ?? isProduction())) return { kind: "ok", address: host }
   if (isLocalhostName(host)) return { kind: "blocked" }
@@ -76,7 +90,10 @@ export async function resolveSmtpTarget(
       : { kind: "ok", address: host }
   let addresses: ReadonlyArray<{ address: string }>
   try {
-    addresses = await (opts.lookup ?? lookupAll)(host)
+    addresses = await withTimeout(
+      (opts.lookup ?? lookupAll)(host),
+      opts.timeoutMs ?? SMTP_LOOKUP_TIMEOUT_MS
+    )
   } catch {
     return { kind: "unresolved" }
   }

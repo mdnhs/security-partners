@@ -1,6 +1,7 @@
 import { Button, Heading, Link, Text } from "react-email"
 
 import { EmailLayout, emailStyles } from "./layout"
+import { MessageLines } from "./message-lines"
 
 export type LeadNotificationEmailProps = {
   siteName: string
@@ -59,7 +60,7 @@ export function LeadNotificationEmail({
         {lead.sourcePage ? ` from ${lead.sourcePage}` : ""}
       </Text>
       <Text style={{ ...emailStyles.text, whiteSpace: "pre-wrap" }}>
-        {lead.message}
+        <MessageLines text={lead.message} />
       </Text>
       <Button href={adminUrl} style={emailStyles.button}>
         Open in the {siteName} admin

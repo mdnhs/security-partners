@@ -9,10 +9,11 @@ import {
 } from "@/lib/admin/settings-keys"
 import type { SettingsDto, SettingsListItem } from "@/lib/schemas/api/settings"
 import { settingsSchemas } from "@/lib/schemas/settings"
-import { getDb } from "@/server/db/client"
+import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { tag } from "@/server/lib/cache-tags"
 import { forbidden, notFound } from "@/server/lib/errors"
+import type { SettingsKey, SettingsValue } from "@/server/lib/settings-store"
 import {
   publish,
   restoreRevision,
@@ -24,6 +25,7 @@ import {
 
 import {
   findSettingsForEdit,
+  findSettingsRow,
   listSettingsForEdit,
   type SettingsEditRow,
   updateSettingsIfVersion,
@@ -144,4 +146,19 @@ export async function restoreSettings(
     actor,
     await restoreRevision(getDb(), storeFor(actor), actor, key, input)
   )
+}
+
+/**
+ * Published value of a content settings key for server code that runs
+ * outside the cached public queries (leads, jobs). null when unpublished
+ * or when the stored value no longer matches its schema.
+ */
+export async function getPublishedSettings<K extends SettingsKey>(
+  key: K,
+  db: DbOrTx = getDb()
+): Promise<SettingsValue<K> | null> {
+  const row = await findSettingsRow(db, key)
+  if (!row?.published) return null
+  const parsed = settingsSchemas[key].safeParse(row.published)
+  return parsed.success ? (parsed.data as SettingsValue<K>) : null
 }

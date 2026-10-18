@@ -96,6 +96,7 @@ function createAuth(db: Db) {
         await mailer.send({
           to: user.email,
           subject: "Reset your Security Partners admin password",
+          template: "reset-password",
           react: createElement(ResetPasswordEmail, {
             name: user.name,
             url: adminUrl("/admin/reset-password", { token }),

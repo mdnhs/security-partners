@@ -9,9 +9,18 @@ import { resolveSmtpTarget, type SmtpTarget } from "@/server/lib/smtp-target"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 import { smtpTransportOptions } from "@/server/modules/integrations/testers"
 
+/** Fixed names for logs: subjects can carry a visitor's name. */
+export type MailTemplate =
+  | "invite"
+  | "reset-password"
+  | "account-recovery"
+  | "lead-notification"
+  | "lead-acknowledgement"
+
 export type MailMessage = {
   to: string | readonly string[]
   subject: string
+  template: MailTemplate
   react: ReactElement
   replyTo?: string
 }
@@ -88,6 +97,22 @@ const defaultDeps: MailerDeps = {
 
 const errorName = (err: unknown) =>
   err instanceof Error ? err.name : "unknown error"
+
+/**
+ * Recipients for logs: domains only ("*@example.ie"), de-duplicated, so a
+ * visitor's address (lead acknowledgement) never reaches the log.
+ */
+export function recipientDomains(to: string | readonly string[]): string {
+  const list = typeof to === "string" ? [to] : [...to]
+  const domains = list.map((address) => {
+    const at = address.lastIndexOf("@")
+    if (at < 0) return "*"
+    const domain = address.slice(at + 1).trim()
+    return `*@${domain.toLowerCase()}`
+  })
+  return [...new Set(domains)].join(", ")
+}
+
 const errorCode = (err: unknown) => {
   const code = (err as { code?: unknown } | null)?.code
   return typeof code === "string" ? code : errorName(err)
@@ -95,8 +120,9 @@ const errorCode = (err: unknown) => {
 
 /**
  * Transactional email (spec §9). Never throws: every failure is
- * `{ delivered: false }`. Logs name the subject and recipients only — never
- * bodies, settings or error messages, which can contain single-use links.
+ * `{ delivered: false }`. Logs name the template and recipient domains only —
+ * never subjects, addresses, bodies, settings or error messages (visitor
+ * PII, single-use links).
  */
 export function createMailer(deps: MailerDeps = defaultDeps) {
   async function resolveConfig(): Promise<SmtpConfig | null> {
@@ -117,10 +143,11 @@ export function createMailer(deps: MailerDeps = defaultDeps) {
     async send({
       to,
       subject,
+      template,
       react,
       replyTo,
     }: MailMessage): Promise<SendResult> {
-      const recipients = typeof to === "string" ? to : to.join(", ")
+      const recipients = recipientDomains(to)
       let html: string
       let text: string
       try {
@@ -128,14 +155,14 @@ export function createMailer(deps: MailerDeps = defaultDeps) {
         text = await render(react, { plainText: true })
       } catch (err) {
         console.error(
-          `[mailer] could not render "${subject}" to ${recipients} (${errorName(err)})`
+          `[mailer] could not render ${template} to ${recipients} (${errorName(err)})`
         )
         return { delivered: false }
       }
       const config = await resolveConfig()
       if (!config) {
         console.info(
-          `[mailer] SMTP is not configured; not sent: "${subject}" to ${recipients}`
+          `[mailer] SMTP is not configured; not sent: ${template} to ${recipients}`
         )
         return { delivered: false }
       }
@@ -153,7 +180,7 @@ export function createMailer(deps: MailerDeps = defaultDeps) {
         return { delivered: true }
       } catch (err) {
         console.error(
-          `[mailer] sending "${subject}" to ${recipients} failed (${errorCode(err)})`
+          `[mailer] sending ${template} to ${recipients} failed (${errorCode(err)})`
         )
         return { delivered: false }
       } finally {

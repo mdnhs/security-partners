@@ -4,6 +4,7 @@ import {
   isBlockedSmtpAddress,
   isLoopbackHost,
   resolveSmtpTarget,
+  SMTP_LOOKUP_TIMEOUT_MS,
 } from "@/server/lib/smtp-target"
 
 describe("isBlockedSmtpAddress", () => {
@@ -102,6 +103,21 @@ describe("resolveSmtpTarget", () => {
     expect(
       await resolveSmtpTarget("nope.example", { production: true, lookup })
     ).toEqual({ kind: "unresolved" })
+  })
+
+  it("production: a hanging DNS lookup is unresolved after the timeout (lead emails send inline)", async () => {
+    const lookup = vi.fn(() => new Promise<never>(() => undefined))
+    const started = Date.now()
+    expect(
+      await resolveSmtpTarget("slow.example", {
+        production: true,
+        lookup,
+        timeoutMs: 30,
+      })
+    ).toEqual({ kind: "unresolved" })
+    expect(Date.now() - started).toBeLessThan(1_000)
+    expect(SMTP_LOOKUP_TIMEOUT_MS).toBeGreaterThan(0)
+    expect(SMTP_LOOKUP_TIMEOUT_MS).toBeLessThanOrEqual(3_000)
   })
 
   it("defaults to NODE_ENV", async () => {

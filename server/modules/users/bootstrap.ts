@@ -57,6 +57,7 @@ function sendInviteEmail(msg: {
   return mailer.send({
     to: msg.to,
     subject: "You're invited to the Security Partners admin",
+    template: "invite",
     react: createElement(InviteEmail, {
       name: msg.name,
       inviterName: OPERATOR_NAME,
@@ -143,6 +144,7 @@ export async function recoverOwner(input: {
     ? await mailer.send({
         to: email,
         subject: "Recover your Security Partners admin account",
+        template: "account-recovery",
         react: createElement(ResetPasswordEmail, {
           name: target.name,
           url,

@@ -1,6 +1,7 @@
 import { Heading, Text } from "react-email"
 
 import { EmailLayout, emailStyles } from "./layout"
+import { MessageLines } from "./message-lines"
 
 export type LeadAcknowledgementEmailProps = {
   name: string
@@ -32,7 +33,7 @@ export function LeadAcknowledgementEmail({
       ) : null}
       <Text style={emailStyles.small}>Your message:</Text>
       <Text style={{ ...emailStyles.text, whiteSpace: "pre-wrap" }}>
-        {message}
+        <MessageLines text={message} />
       </Text>
     </EmailLayout>
   )

@@ -6,6 +6,10 @@ import { settings } from "@/server/db/schema"
  * Saves integrations.smtp the way the Phase 6 integrations service stores
  * it (values in `draft`, empty secret as "", published null). Defaults to
  * the dev Mailpit without authentication.
+ *
+ * Only an empty `password` is supported: it is stored as "" (no secret).
+ * A real password would have to be encrypted with `encryptSecret(…,
+ * "integrations.smtp.password")` the way the integrations service does.
  */
 export async function configureSmtp(values: Partial<SmtpConfig> = {}) {
   const draft: SmtpConfig = {

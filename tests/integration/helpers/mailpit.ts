@@ -50,6 +50,8 @@ export async function waitForMail(
     )
     if (hit) {
       const res = await fetch(`${MAILPIT_URL}/api/v1/message/${hit.ID}`)
+      if (!res.ok)
+        throw new Error(`Mailpit message fetch failed (${res.status})`)
       return (await res.json()) as MailpitMessage
     }
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -58,7 +60,8 @@ export async function waitForMail(
 }
 
 export async function deleteMail(to: string): Promise<void> {
-  await fetch(`${MAILPIT_URL}/api/v1/search?query=${query(to)}`, {
+  const res = await fetch(`${MAILPIT_URL}/api/v1/search?query=${query(to)}`, {
     method: "DELETE",
   })
+  if (!res.ok) throw new Error(`Mailpit delete failed (${res.status})`)
 }

@@ -57,7 +57,14 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
     const code = codeForStatus(status)
     const message =
       status >= 500 ? "Internal server error" : err.message || "Request failed"
-    return c.json(errorEnvelope(c, code, message), status)
+    const response = c.json(errorEnvelope(c, code, message), status)
+    // Keep headers the thrower set (e.g. Retry-After); the body is ours.
+    err.res?.headers.forEach((value, name) => {
+      const lower = name.toLowerCase()
+      if (lower !== "content-type" && lower !== "content-length")
+        response.headers.set(name, value)
+    })
+    return response
   }
   // Unknown error: log with the request id, never send the message or stack.
   console.error(`[api] ${c.get("requestId")} unhandled error`, err)

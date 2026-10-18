@@ -109,8 +109,7 @@ describe("email templates", () => {
     expect(html).toContain("white-space:pre-wrap")
     expect(text).toContain("Dinn Rí")
     expect(text).toContain("085 000 0000")
-    expect(text).toContain("Line one")
-    expect(text).toContain("Line two & more")
+    expect(text).toContain("Line one\nLine two & more")
     expect(text).toContain("/contact")
     expect(text).toContain("16 Oct 2026, 14:05")
     expect(text).not.toContain("Company")
@@ -121,13 +120,13 @@ describe("email templates", () => {
       <LeadAcknowledgementEmail
         name="Sam"
         siteName="Security Partners"
-        message="Need a quote"
+        message={"Need a quote\nfor two sites"}
         phone24h="0818 000 000"
       />
     )
     const text = await render(email, { plainText: true })
     expect(text).toContain("Hi Sam,")
-    expect(text).toContain("Need a quote")
+    expect(text).toContain("Need a quote\nfor two sites")
     expect(text).toContain("0818 000 000")
     const without = await render(
       <LeadAcknowledgementEmail
@@ -155,6 +154,7 @@ describe("mailer (master 7.2)", () => {
       to: ["a@example.ie", "b@example.ie"],
       replyTo: "visitor@example.ie",
       subject: "You're invited",
+      template: "invite",
       react: invite,
     })
     expect(result).toEqual({ delivered: true })
@@ -172,20 +172,23 @@ describe("mailer (master 7.2)", () => {
     expect(transport.close).toHaveBeenCalledTimes(1)
   })
 
-  it("unconfigured in production: not delivered, one info line with subject + recipient only (never the link)", async () => {
+  it("unconfigured in production: not delivered, one info line with template + recipient domain only (never the link)", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined)
     const { deps: d, createTransport } = deps()
     const result = await createMailer(d).send({
       to: "someone@example.test",
       subject: "You're invited",
+      template: "invite",
       react: invite,
     })
     expect(result).toEqual({ delivered: false })
     expect(createTransport).not.toHaveBeenCalled()
     expect(info).toHaveBeenCalledTimes(1)
     const logged = String(info.mock.calls[0][0])
-    expect(logged).toContain("You're invited")
-    expect(logged).toContain("someone@example.test")
+    expect(logged).toContain("invite")
+    expect(logged).toContain("*@example.test")
+    expect(logged).not.toContain("someone")
+    expect(logged).not.toContain("You're invited")
     expect(logged).not.toContain("abc123")
   })
 
@@ -194,6 +197,7 @@ describe("mailer (master 7.2)", () => {
     const result = await createMailer(d).send({
       to: "someone@example.test",
       subject: "Hi",
+      template: "invite",
       react: invite,
     })
     expect(result).toEqual({ delivered: true })
@@ -208,6 +212,7 @@ describe("mailer (master 7.2)", () => {
       await createMailer(d).send({
         to: "x@example.test",
         subject: "S",
+        template: "invite",
         react: invite,
       })
     ).toEqual({ delivered: false })
@@ -224,6 +229,7 @@ describe("mailer (master 7.2)", () => {
     const result = await createMailer(d).send({
       to: "someone@example.test",
       subject: "You're invited",
+      template: "invite",
       react: invite,
     })
     expect(result).toEqual({ delivered: false })
@@ -231,6 +237,26 @@ describe("mailer (master 7.2)", () => {
     const line = error.mock.calls.map((c) => c.map(String).join(" ")).join("\n")
     expect(line).toContain("EENVELOPE")
     expect(line).not.toContain("abc123")
+    expect(line).not.toContain("someone")
+  })
+
+  it("lead emails: logs carry the template name and recipient domains, never the visitor's name or address", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const transport = fakeTransport(async () => {
+      throw Object.assign(new Error("boom"), { code: "ECONNECTION" })
+    })
+    const { deps: d } = deps({ loadConfig: async () => SAVED, transport })
+    await createMailer(d).send({
+      to: ["ops@example.ie", "hr@example.ie", "boss@corp.example"],
+      replyTo: "dinn.ri@visitor.example",
+      subject: "Website enquiry from Dinn Rí",
+      template: "lead-notification",
+      react: invite,
+    })
+    const line = error.mock.calls.map((c) => c.map(String).join(" ")).join("\n")
+    expect(line).toBe(
+      "[mailer] sending lead-notification to *@example.ie, *@corp.example failed (ECONNECTION)"
+    )
   })
 
   it("unreadable SMTP settings count as unconfigured (never throws)", async () => {
@@ -245,6 +271,7 @@ describe("mailer (master 7.2)", () => {
       await createMailer(d).send({
         to: "x@example.test",
         subject: "S",
+        template: "invite",
         react: invite,
       })
     ).toEqual({ delivered: false })
@@ -259,6 +286,7 @@ describe("mailer (master 7.2)", () => {
     const result = await createMailer(d).send({
       to: "someone@example.test",
       subject: "You're invited",
+      template: "invite",
       react: <Broken />,
     })
     expect(result).toEqual({ delivered: false })
@@ -267,7 +295,9 @@ describe("mailer (master 7.2)", () => {
       .map((call) => call.map(String).join(" "))
       .filter((line) => line.startsWith("[mailer]"))
     expect(ours).toHaveLength(1)
-    expect(ours[0]).toContain("You're invited")
+    expect(ours[0]).toContain("invite")
+    expect(ours[0]).not.toContain("You're invited")
+    expect(ours[0]).not.toContain("someone")
     expect(ours[0]).not.toContain("abc123")
   })
 })
@@ -329,23 +359,26 @@ describe("real SMTP transport (Phase 6 target guard on every send)", () => {
     ).rejects.toMatchObject({ code: "EDNS" })
   })
 
-  it("uses resolveSmtpTarget by default: loopback is blocked in production", async () => {
-    vi.stubEnv("NODE_ENV", "production")
-    try {
-      const factory = create()
-      await expect(
-        createSmtpTransport(
-          { ...SAVED, host: "169.254.169.254" },
-          {
-            create: factory,
-          }
-        )
-      ).rejects.toMatchObject({ code: "EBLOCKEDHOST" })
-      expect(factory).not.toHaveBeenCalled()
-    } finally {
-      vi.unstubAllEnvs()
+  it.each(["169.254.169.254", "127.0.0.1"])(
+    "uses resolveSmtpTarget by default: %s (link-local/metadata, loopback) is blocked in production",
+    async (host) => {
+      vi.stubEnv("NODE_ENV", "production")
+      try {
+        const factory = create()
+        await expect(
+          createSmtpTransport(
+            { ...SAVED, host },
+            {
+              create: factory,
+            }
+          )
+        ).rejects.toMatchObject({ code: "EBLOCKEDHOST" })
+        expect(factory).not.toHaveBeenCalled()
+      } finally {
+        vi.unstubAllEnvs()
+      }
     }
-  })
+  )
 
   it("a blocked send is { delivered: false }, logged with the code only", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
@@ -357,7 +390,12 @@ describe("real SMTP transport (Phase 6 target guard on every send)", () => {
           resolveTarget: async () => ({ kind: "blocked" }),
           create: create(),
         }),
-    }).send({ to: "someone@example.test", subject: "S", react: invite })
+    }).send({
+      to: "someone@example.test",
+      subject: "S",
+      template: "invite",
+      react: invite,
+    })
     expect(result).toEqual({ delivered: false })
     const line = error.mock.calls.map((c) => c.map(String).join(" ")).join("\n")
     expect(line).toContain("EBLOCKEDHOST")
