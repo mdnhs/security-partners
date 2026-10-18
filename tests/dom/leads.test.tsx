@@ -454,4 +454,52 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
     await screen.findByText("This lead does not exist")
     expect(screen.getByTestId("shared")).toHaveTextContent("nothing")
   })
+
+  it("“All leads” returns to the list as it was left (final review I8)", async () => {
+    window.sessionStorage.setItem(
+      "sp-admin:list:/admin/leads",
+      "status=open&assignee=me&page=3"
+    )
+    renderAs(["intake"], <LeadDetail id={ID} />)
+    await screen.findByRole("heading", { level: 1, name: "Dinn Rí" })
+    expect(screen.getByRole("link", { name: "All leads" })).toHaveAttribute(
+      "href",
+      "/admin/leads?status=open&assignee=me&page=3"
+    )
+  })
+
+  it("filters keep the table's search and follow Back/Forward (I8, M9)", async () => {
+    const user = userEvent.setup()
+    search = "status=open"
+    window.history.replaceState(null, "", "/admin/leads?status=open&q=Dinn")
+    renderAs(["intake"], <LeadsScreen />)
+    expect(await screen.findByLabelText("Status")).toHaveValue("open")
+    await user.selectOptions(screen.getByLabelText("Status"), "spam")
+    // The search stays; the page resets.
+    expect(replace).toHaveBeenLastCalledWith(
+      "/admin/leads?status=spam&q=Dinn",
+      { scroll: false }
+    )
+    // Back: the URL says "contacted" again; the screen follows it on its
+    // next render (here: the search box's debounced update).
+    search = "status=contacted"
+    await user.type(screen.getByRole("searchbox"), "x")
+    await waitFor(() =>
+      expect(screen.getByLabelText("Status")).toHaveValue("contacted")
+    )
+    search = ""
+  })
+
+  it("a note typed but not added asks before leaving (final review I2)", async () => {
+    const user = userEvent.setup()
+    renderAs(["intake"], <LeadDetail id={ID} />)
+    await screen.findByRole("heading", { level: 1, name: "Dinn Rí" })
+    await user.click(screen.getByRole("tab", { name: /^Notes/ }))
+    await user.type(screen.getByLabelText("Add a note"), "Rang them")
+    await user.click(screen.getByRole("link", { name: "All leads" }))
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+    expect(push).not.toHaveBeenCalled()
+  })
 })

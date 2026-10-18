@@ -570,3 +570,90 @@ describe("slugify", () => {
     ["  Café  24/7 ", "cafe-24-7"],
   ])("%s → %s", (title, slug) => expect(slugify(title)).toBe(slug))
 })
+
+describe("record sheet: unsaved changes, footer, list URL (final review I1/I2/I4/I8)", () => {
+  it("Esc with edits asks before discarding; Keep editing keeps them", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    await user.click(screen.getByRole("button", { name: "Add category" }))
+    const sheet = await screen.findByRole("dialog", { name: "Category" })
+    const name = within(sheet).getByRole("textbox", { name: "Name" })
+    await user.type(name, "Half done")
+    await user.keyboard("{Escape}")
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Discard changes?",
+    })
+    await user.click(
+      within(confirm).getByRole("button", { name: "Keep editing" })
+    )
+    expect(screen.getByRole("dialog", { name: "Category" })).toBeVisible()
+    expect(name).toHaveValue("Half done")
+
+    // Cancel goes through the same guard; Discard closes the sheet.
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Discard changes?" })
+      ).getByRole("button", { name: "Discard changes" })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Category" })).toBeNull()
+    )
+  })
+
+  it("an untouched sheet closes on Esc without asking", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    await user.click(screen.getByRole("button", { name: "Add category" }))
+    await screen.findByRole("dialog", { name: "Category" })
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Category" })).toBeNull()
+    )
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("is full width on phones with a wrapping footer and 44 px Delete", async () => {
+    const user = userEvent.setup()
+    renderScreen(["admin"])
+    const table = await screen.findByRole("table", { name: "Categories" })
+    await user.click(
+      within(table).getByRole("button", { name: "Edit Category 1" })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "Category" })
+    // The caller's widths win over the primitive's (no 384 px cap).
+    expect(sheet).toHaveClass("w-full", "sm:max-w-xl")
+    expect(sheet).not.toHaveClass("sm:max-w-sm")
+    expect(sheet.className).not.toMatch(/w-3\/4/)
+    const del = within(sheet).getByRole("button", { name: /^Delete/ })
+    expect(del).toHaveClass("h-11")
+    expect(del.closest('[data-slot="sheet-footer"]')).toHaveClass("flex-wrap")
+  })
+
+  it("keeps page, sort and search in the URL and starts from it", async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, "", "/admin/categories?page=2&q=cat")
+    search.current = new URLSearchParams("page=2&q=cat")
+    renderScreen()
+    await screen.findByRole("table", { name: "Categories" })
+    expect(lastUrl().searchParams.get("page")).toBe("2")
+    expect(lastUrl().searchParams.get("q")).toBe("cat")
+    expect(
+      screen.getByRole("searchbox", { name: "Search categories" })
+    ).toHaveValue("cat")
+    await user.click(
+      within(screen.getByRole("table", { name: "Categories" })).getByRole(
+        "button",
+        { name: /Name/ }
+      )
+    )
+    await waitFor(() =>
+      expect(window.location.search).toBe("?q=cat&sort=name%3Aasc")
+    )
+    expect(
+      window.sessionStorage.getItem("sp-admin:list:/admin/categories")
+    ).toBe("q=cat&sort=name%3Aasc")
+  })
+})

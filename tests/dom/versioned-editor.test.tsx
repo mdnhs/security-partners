@@ -216,7 +216,7 @@ describe("page editor (master 4.4)", () => {
     ).toHaveTextContent("Saved")
   })
 
-  it("asks before leaving with unsaved changes", async () => {
+  it("asks before leaving with unsaved changes, even an invalid draft (I3)", async () => {
     const user = userEvent.setup()
     const confirm = vi.fn(() => false)
     vi.stubGlobal("confirm", confirm)
@@ -232,7 +232,15 @@ describe("page editor (master 4.4)", () => {
         { name: "Services" }
       )
     )
-    expect(confirm).toHaveBeenCalledTimes(1)
+    // The shell's styled dialog, not the native confirm().
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Leave without saving?",
+    })
+    expect(confirm).not.toHaveBeenCalled()
+    await user.click(
+      within(dialog).getByRole("button", { name: "Keep editing" })
+    )
+    expect(await headingInput()).toHaveValue("")
   })
   const saveStatus = () => screen.getByRole("status", { name: /^Save status/ })
   const conflictBody = (heading: string) => ({
@@ -669,7 +677,13 @@ describe("page editor section tabs", () => {
     // entry (it was not a click).
     await waitFor(async () => expect(await headingInput()).toHaveFocus())
     expect(window.location.search).toBe("?tab=hero")
-    expect(push).toHaveBeenCalledTimes(1) // the click on "Blog section"
+    // The click on "Blog section" (the unsaved-changes guard's own Back
+    // entry, pushed on the first edit, does not count).
+    expect(
+      push.mock.calls.filter(
+        ([state]) => !(state as Record<string, unknown> | null)?.__spUnsaved
+      )
+    ).toHaveLength(1)
     push.mockRestore()
     expect(
       screen.queryByRole("dialog", { name: "Publish changes?" })

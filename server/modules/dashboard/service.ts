@@ -5,6 +5,7 @@ import { isoDate } from "@/lib/format"
 import {
   type DashboardDto,
   type NextUpItem,
+  type ShellNotification,
   TREND_DAYS,
 } from "@/lib/schemas/api/dashboard"
 import { getDb } from "@/server/db/client"
@@ -156,4 +157,46 @@ export async function getDashboard(
       : null,
     nextUp,
   }
+}
+
+/**
+ * The topbar bell (final review I6), from data the panel already keeps (no
+ * table of its own): unassigned new leads (lead:read; the count the sidebar
+ * badge shows, passed in), and for integration:read the spam-protection
+ * warning and failed background jobs, as on the dashboard's "Next up".
+ */
+export async function getShellNotifications(
+  actor: Actor,
+  newLeads: number | null
+): Promise<ShellNotification[]> {
+  const db = getDb()
+  const canIntegrations = hasPermission(actor.roles, { integration: ["read"] })
+  const [jobProblems, turnstile] = await Promise.all([
+    canIntegrations ? repo.listJobProblems(db) : null,
+    canIntegrations ? integrationReadState("integrations.turnstile", db) : null,
+  ])
+  const items: ShellNotification[] = []
+  if (turnstile === "unreadable")
+    items.push({
+      id: "turnstile-unreadable",
+      title: "Spam protection is off",
+      description:
+        "Turnstile settings can't be read — re-enter the keys in Integrations.",
+      href: "/admin/settings/integrations/turnstile",
+    })
+  if (newLeads && hasPermission(actor.roles, { lead: ["read"] }))
+    items.push({
+      id: "new-leads",
+      title: `${newLeads} new enquir${newLeads === 1 ? "y" : "ies"}`,
+      description: "Nobody has picked them up yet.",
+      href: "/admin/leads?status=new&assignee=none",
+    })
+  if (jobProblems && jobProblems.length > 0)
+    items.push({
+      id: "failed-jobs",
+      title: "Background jobs need attention",
+      description: jobProblems.map((job) => job.name).join(", "),
+      href: "/admin/settings/integrations",
+    })
+  return items
 }

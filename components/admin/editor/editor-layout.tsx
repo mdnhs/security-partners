@@ -18,6 +18,7 @@ import {
   type StatusPillSpec,
   StatusPills,
 } from "@/components/admin/kit/content-status"
+import { useListHref } from "@/components/admin/data-table/list-url"
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { cn } from "@/lib/utils"
 
@@ -92,6 +93,8 @@ export function EditorLayout({
   children: ReactNode
 }) {
   const inTabs = useInSectionTabs()
+  // Back to the list as it was left (page, sort, search, filters).
+  const backTo = useListHref(backHref ?? "")
   const barRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const barHeight = useHeight(barRef)
@@ -129,7 +132,7 @@ export function EditorLayout({
           >
             {backHref ? (
               <Link
-                href={backHref}
+                href={backTo}
                 className="inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <ArrowLeft aria-hidden className="size-4" />

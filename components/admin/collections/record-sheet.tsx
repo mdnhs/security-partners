@@ -1,15 +1,17 @@
 "use client"
 
 import { useMutation } from "@tanstack/react-query"
-import { useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { z } from "zod"
 
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
+import { useGuardedClose } from "@/components/admin/editor/discard-changes"
 import { issuesToFieldErrors } from "@/components/admin/editor/versioned-editor"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -28,6 +30,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { ApiError, errorMessage } from "@/lib/api-client"
+import { isDeepEqual } from "@/lib/json"
 
 /**
  * Create/edit one small-collection record in a side sheet. Saving publishes
@@ -58,6 +61,18 @@ export function RecordSheet({
   deleteLabel?: string
 }) {
   const [value, setValue] = useState<unknown>(initial)
+  // Until the person interacts with the form, what it emits is its own
+  // normalization of `initial` (the baseline), not an edit.
+  const [baseline, setBaseline] = useState<unknown>(initial)
+  const touched = useRef(false)
+  const markTouched = () => {
+    touched.current = true
+  }
+  const onFormChange = (next: unknown) => {
+    if (!touched.current) setBaseline(next)
+    setValue(next)
+  }
+  const dirty = useMemo(() => !isDeepEqual(value, baseline), [value, baseline])
   const [errors, setErrors] = useState<Record<string, string[]> | undefined>()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -100,28 +115,44 @@ export function RecordSheet({
     },
   })
 
+  const close = useGuardedClose({
+    dirty: dirty && !save.isSuccess && !remove.isSuccess,
+    onClose: () => onOpenChange(false),
+  })
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={close.onOpenChange}>
       <SheetContent side="right" className="w-full gap-0 bg-card sm:max-w-xl">
+        {/* Inside the popup: Esc closes only the confirm. */}
+        {close.guard}
         <SheetHeader className="border-b">
           <SheetTitle className="text-lg font-semibold">{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto p-4">
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          onKeyDownCapture={markTouched}
+          onPointerDownCapture={markTouched}
+          onInputCapture={markTouched}
+          onPasteCapture={markTouched}
+          onDropCapture={markTouched}
+        >
           <SchemaForm
             schema={schema}
             meta={meta}
             value={value as never}
-            onChange={setValue}
+            onChange={onFormChange}
             errors={errors}
             idPrefix="record"
           />
         </div>
-        <SheetFooter className="flex-row justify-between border-t">
+        {/* Wraps on narrow phones: Save must never be pushed off-screen. */}
+        <SheetFooter className="flex-row flex-wrap justify-between border-t">
           {onDelete ? (
             <Button
               type="button"
               variant="destructive"
+              className={FORM_ACTION}
               onClick={() => setConfirmDelete(true)}
             >
               {deleteLabel ?? "Delete"}
@@ -129,12 +160,12 @@ export function RecordSheet({
           ) : (
             <span />
           )}
-          <div className="flex gap-2">
+          <div className="ml-auto flex gap-2">
             <Button
               type="button"
               variant="outline"
               className={FORM_ACTION}
-              onClick={() => onOpenChange(false)}
+              onClick={close.requestClose}
             >
               Cancel
             </Button>
@@ -161,14 +192,14 @@ export function RecordSheet({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => remove.mutate()}
             >
               Delete
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

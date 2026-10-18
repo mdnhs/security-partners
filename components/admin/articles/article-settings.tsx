@@ -16,6 +16,7 @@ import {
 } from "@/components/admin/schema-form/widgets/field-shell"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -438,14 +439,14 @@ function DeleteCard({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => remove.mutate()}
             >
               Delete article
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

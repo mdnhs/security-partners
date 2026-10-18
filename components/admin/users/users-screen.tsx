@@ -1,13 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
 
 import {
   columnsFor,
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
+import { useUrlFilters } from "@/components/admin/data-table/list-url"
 import { FilterSelect } from "@/components/admin/filter-field"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { PageHeader } from "@/components/admin/page-header"
@@ -81,8 +81,14 @@ const columns = ch.columns([
 /** Users list (spec §8.1): search, role/status filters, invite. */
 export function UsersScreen() {
   const canInvite = usePermission({ user: ["invite"] })
-  const [role, setRole] = useState<Role | "">("")
-  const [status, setStatus] = useState<Status | "">("")
+  // Kept in ?role=&status= so returning from a user restores the list.
+  const [params, setParams] = useUrlFilters(["role", "status"] as const)
+  const role = (ROLES as readonly string[]).includes(params.role)
+    ? (params.role as Role)
+    : ""
+  const status = (USER_STATUSES as readonly string[]).includes(params.status)
+    ? (params.status as Status)
+    : ""
   const filters = { role: role || undefined, status: status || undefined }
   const filterKey = role || status ? `${role}|${status}` : ""
   return (
@@ -93,6 +99,7 @@ export function UsersScreen() {
         actions={canInvite ? <InviteUserDialog /> : null}
       />
       <DataTable<Row>
+        syncUrl
         label="Users"
         queryKey={["users", filters]}
         filterKey={filterKey}
@@ -105,7 +112,7 @@ export function UsersScreen() {
               id="users-role"
               label="Role"
               value={role}
-              onChange={(value) => setRole(value as Role | "")}
+              onChange={(value) => setParams({ role: value })}
             >
               <option value="">All roles</option>
               {ROLES.map((r) => (
@@ -118,7 +125,7 @@ export function UsersScreen() {
               id="users-status"
               label="Status"
               value={status}
-              onChange={(value) => setStatus(value as Status | "")}
+              onChange={(value) => setParams({ status: value })}
             >
               <option value="">All statuses</option>
               {USER_STATUSES.map((s) => (

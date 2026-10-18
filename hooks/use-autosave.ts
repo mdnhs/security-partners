@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { ApiError } from "@/lib/api-client"
 import { isDeepEqual } from "@/lib/json"
@@ -16,6 +16,7 @@ export const AUTOSAVE_DELAY_MS = 1500
  * values are never sent (the form shows the errors); a 409 parks the hook
  * in "conflict" until `resolveConflict()`; other failures → "error" with
  * `flush()` to retry. `flush()` saves now (⌘S, before publish).
+ * Pass a stable `isValid` (useCallback): it runs once per changed value.
  */
 export function useAutosave<T>({
   value,
@@ -51,8 +52,13 @@ export function useAutosave<T>({
     lastSaved.current = savedValue
   }, [savedValue])
 
-  const dirty = !isDeepEqual(value, savedValue)
-  const valid = isValid(value)
+  // Once per new value, not on every render (final review M3): a full
+  // schema parse is costly on large pages, and a saved value needs none.
+  const dirty = useMemo(
+    () => !isDeepEqual(value, savedValue),
+    [value, savedValue]
+  )
+  const valid = useMemo(() => !dirty || isValid(value), [dirty, value, isValid])
 
   const flush = useCallback(async (): Promise<boolean> => {
     while (inFlight.current) await inFlight.current

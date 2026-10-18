@@ -4,9 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ExternalLink, FileText } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { type RefObject, useRef, useState } from "react"
+import { type RefObject, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { useGuardedClose } from "@/components/admin/editor/discard-changes"
 import { ADMIN_TEXTAREA } from "@/components/admin/form/form-ui"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { FieldShell } from "@/components/admin/schema-form/widgets/field-shell"
@@ -88,14 +89,17 @@ export function MediaDetails({
   if (item.data && item.data !== last) setLast(item.data)
   const shown = item.data ?? (id === null ? last : null)
   const deleted = useRef(false)
+  // Unsaved alt text / focal point (reported by the body): closing asks.
+  const [dirty, setDirty] = useState(false)
+  const close = useGuardedClose({
+    dirty: dirty && id !== null,
+    onClose,
+    title: "Discard your changes to this file?",
+    description:
+      "The alt text or focal point you changed is not saved. The file keeps its current details.",
+  })
   return (
-    <Sheet
-      open={id !== null}
-      onOpenChange={(open) => {
-        if (open) return
-        onClose()
-      }}
-    >
+    <Sheet open={id !== null} onOpenChange={close.onOpenChange}>
       <SheetContent
         side="right"
         className="w-full gap-0 bg-card sm:max-w-lg"
@@ -105,10 +109,13 @@ export function MediaDetails({
           return wasDeleted ? (afterDelete?.current ?? true) : true
         }}
       >
+        {/* Inside the popup: Esc closes only the confirm. */}
+        {close.guard}
         {shown ? (
           <DetailsBody
             key={shown.id}
             item={shown}
+            onDirtyChange={setDirty}
             onDeleted={() => {
               deleted.current = true
               onClose()
@@ -185,9 +192,11 @@ function UsageLink({ usage }: { usage: MediaUsage }) {
 function DetailsBody({
   item,
   onDeleted,
+  onDirtyChange,
 }: {
   item: MediaItem
   onDeleted: () => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const queryClient = useQueryClient()
   const canUpdate = usePermission({ media: ["update"] })
@@ -274,6 +283,11 @@ function DetailsBody({
   const dirty =
     alt !== item.alt || JSON.stringify(focal) !== JSON.stringify(focalOf(item))
   const canSave = dirty && !save.isPending
+  useEffect(
+    () => onDirtyChange(dirty && canDescribe),
+    [dirty, canDescribe, onDirtyChange]
+  )
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
   const replacing = replaceProgress !== null
   const blocked =
     remove.error instanceof ApiError && remove.error.isConflict

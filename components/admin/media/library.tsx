@@ -3,9 +3,17 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { FileText, ImageOff, LayoutGrid, List, Search } from "lucide-react"
 import Image from "next/image"
-import { useCallback, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { DataTablePagination } from "@/components/admin/data-table/data-table-pagination"
+import {
+  LIST_PAGE,
+  LIST_QUERY,
+  mergeListSearch,
+  replaceListSearch,
+} from "@/components/admin/data-table/list-url"
+import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { NowProvider, RelativeTime } from "@/components/admin/kit/relative-time"
 import { FORM_ACTION } from "@/components/admin/page-header"
@@ -79,16 +87,49 @@ function Thumb({
 /** Media library (spec §8.1): grid/list, search, kind filter, drag & drop upload, details sheet. */
 export function MediaLibrary() {
   const canUpload = usePermission({ media: ["create"] })
-  const [query, setQuery] = useState("")
-  const [kind, setKind] = useState<MediaKind | "all">("all")
-  const [view, setView] = useState<"grid" | "list">("grid")
-  const [page, setPage] = useState(1)
+  // Search, kind, view and page start from the URL and are written back
+  // (final review I8), so a reload or Back returns to the same spot.
+  const searchParams = useSearchParams()
+  const [initial] = useState(() => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
+    const kindParam = params.get("kind") ?? ""
+    const pageParam = Number(params.get(LIST_PAGE))
+    return {
+      q: params.get(LIST_QUERY) ?? "",
+      kind: (KINDS as readonly { value: string }[]).some(
+        (k) => k.value === kindParam
+      )
+        ? (kindParam as MediaKind | "all")
+        : "all",
+      view:
+        params.get("view") === "list" ? ("list" as const) : ("grid" as const),
+      page: Number.isInteger(pageParam) && pageParam > 1 ? pageParam : 1,
+    }
+  })
+  const [query, setQuery] = useState(initial.q)
+  const [kind, setKind] = useState<MediaKind | "all">(initial.kind)
+  const [view, setView] = useState<"grid" | "list">(initial.view)
+  const [page, setPage] = useState(initial.page)
   const [selected, setSelected] = useState<string | null>(null)
   const search = useRef<HTMLInputElement>(null)
   const choose = useRef<HTMLButtonElement>(null)
   const debounced = useDebouncedValue(query.trim(), 250)
   // Clearing the search applies at once; typing waits for a pause.
   const q = query.trim() ? debounced : ""
+  useEffect(() => {
+    replaceListSearch(
+      mergeListSearch(
+        window.location.search,
+        {
+          [LIST_QUERY]: q,
+          kind: kind === "all" ? undefined : kind,
+          view: view === "grid" ? undefined : view,
+          [LIST_PAGE]: page > 1 ? String(page) : undefined,
+        },
+        { keepPage: true }
+      )
+    )
+  }, [q, kind, view, page])
   // Back to page 1 when the applied search changes (adjusted during render).
   const [pagedQ, setPagedQ] = useState(q)
   if (pagedQ !== q) {
@@ -137,6 +178,12 @@ export function MediaLibrary() {
             }}
           />
           <UploadAnnouncer message={uploads.announcement} />
+          {/* Leaving mid-upload aborts it: ask first (final review M12). */}
+          <UnsavedGuard
+            when={uploads.entries.some(
+              (e) => e.status === "uploading" || e.status === "queued"
+            )}
+          />
         </div>
       ) : null}
 

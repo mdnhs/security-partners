@@ -6,6 +6,7 @@ import { useState } from "react"
 
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -136,7 +137,7 @@ export function RevisionDrawer({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               disabled={pending}
               onClick={async () => {
@@ -154,7 +155,7 @@ export function RevisionDrawer({
               }}
             >
               Restore into draft
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

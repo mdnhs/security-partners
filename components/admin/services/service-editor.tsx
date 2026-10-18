@@ -20,6 +20,7 @@ import {
 } from "@/components/admin/schema-form/widgets/field-shell"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -304,14 +305,14 @@ function DeleteService({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => remove.mutate()}
             >
               Delete service
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

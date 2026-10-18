@@ -14,6 +14,8 @@ import {
   ADMIN_TEXTAREA,
   FormCard,
 } from "@/components/admin/form/form-ui"
+import { useListHref } from "@/components/admin/data-table/list-url"
+import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import {
@@ -127,6 +129,8 @@ export function LeadDetail({ id }: { id: string }) {
   const canDelete = usePermission({ lead: ["delete"] })
   const canExport = usePermission({ lead: ["export"] })
   const [note, setNote] = useState("")
+  // "All leads" returns to the inbox as it was left (filters, page, search).
+  const listHref = useListHref("/admin/leads")
   const [confirmDelete, setConfirmDelete] = useState(false)
   const statusId = useId()
   const assigneeId = useId()
@@ -173,7 +177,7 @@ export function LeadDetail({ id }: { id: string }) {
     onSuccess: (dto, change) => {
       // A newer choice is still on its way: keep showing that one.
       if (change.seq === latestChange.current) applied(dto)
-      toast.success("Lead updated")
+      // The select already shows the change: only failures toast (M8).
     },
     onError: (error, change) => {
       toast.error("Not saved", { description: errorMessage(error) })
@@ -257,7 +261,7 @@ export function LeadDetail({ id }: { id: string }) {
             : errorMessage(lead.error)
         }
         action={
-          <Link href="/admin/leads" className={LINK_FORM}>
+          <Link href={listHref} className={LINK_FORM}>
             All leads
           </Link>
         }
@@ -276,7 +280,7 @@ export function LeadDetail({ id }: { id: string }) {
       <PageHeader
         breadcrumbs={
           <Link
-            href="/admin/leads"
+            href={listHref}
             className="inline-flex w-fit items-center gap-1 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <ArrowLeft aria-hidden className="size-4" />
@@ -461,6 +465,8 @@ export function LeadDetail({ id }: { id: string }) {
                   if (note.trim()) addNote.mutate(note.trim())
                 }}
               >
+                {/* A note typed but not added is not dropped silently. */}
+                <UnsavedGuard when={note.trim() !== ""} />
                 <FieldShell id={noteId} label="Add a note">
                   <Textarea
                     ref={noteRef}

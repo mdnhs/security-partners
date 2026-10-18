@@ -16,6 +16,7 @@ import {
   PRIMARY_ACTION,
   SECONDARY_ACTION,
 } from "@/components/admin/page-header"
+import { mergeListSearch } from "@/components/admin/data-table/list-url"
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
@@ -83,9 +84,18 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
     queryClient.removeQueries({ queryKey: ["collection-item", name] })
     return queryClient.invalidateQueries({ queryKey })
   }
+  // Drops ?edit= only: the list's page, sort and search stay.
+  const withoutEdit = () => {
+    const rest = mergeListSearch(
+      window.location.search,
+      { edit: undefined },
+      { keepPage: true }
+    )
+    return rest ? `${pathname}?${rest}` : pathname
+  }
   const closeEdit = () => {
     setEditing(null)
-    if (editId) router.replace(pathname)
+    if (editId) router.replace(withoutEdit())
   }
   // ⌘K links to ?edit=<id>; without update permission there is no editor.
   const readOnlyEdit = !!editId && !canUpdate
@@ -94,7 +104,8 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
     toast.info("You can view this list but not edit it", {
       description: "Ask an administrator if you need to make changes.",
     })
-    router.replace(pathname)
+    router.replace(withoutEdit())
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per ?edit
   }, [readOnlyEdit, router, pathname])
 
   // Stable per collection + permission (TanStack Table v9 wants stable columns).
@@ -180,6 +191,7 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
         />
       ) : (
         <DataTable<AnyItem>
+          syncUrl
           label={config.title}
           queryKey={queryKey}
           fetchPage={async (params) => {

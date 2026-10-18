@@ -124,6 +124,8 @@ export function AssistantPanel({
     toast.success(`Inserted into “${field.label}”`, {
       description: "Check it, then save or publish as usual.",
       action: { label: "Undo", onClick: () => void field.apply(previous) },
+      // Time to reach Undo (final review M5).
+      duration: 10_000,
     })
     onOpenChange(false)
   }

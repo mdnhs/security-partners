@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query"
 import { type FormEvent, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { useGuardedClose } from "@/components/admin/editor/discard-changes"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -103,14 +104,22 @@ export function RedirectDialog({
   }
   const fromError = errors.fromPath?.[0]
   const toError = errors.toPath?.[0]
+  const dirty =
+    !save.isSuccess &&
+    (fromPath !== (redirect?.fromPath ?? "") ||
+      toPath !== (redirect?.toPath ?? "") ||
+      code !== (redirect?.code ?? 301))
+  const close = useGuardedClose({
+    dirty,
+    onClose,
+    title: "Discard this redirect?",
+    description: "The addresses you entered are not saved yet.",
+  })
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-    >
+    <Dialog open onOpenChange={close.onOpenChange}>
       <DialogContent className="bg-card sm:max-w-lg">
+        {/* Inside the popup: Esc closes only the confirm. */}
+        {close.guard}
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -176,7 +185,7 @@ export function RedirectDialog({
               type="button"
               variant="outline"
               className={FORM_ACTION}
-              onClick={onClose}
+              onClick={close.requestClose}
             >
               Cancel
             </Button>

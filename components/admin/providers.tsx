@@ -58,7 +58,8 @@ export function AdminProviders({
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         {children}
-        <Toaster position="top-center" richColors closeButton />
+        {/* Bottom right: never over the topbar or the sticky editor bar (M5). */}
+        <Toaster position="bottom-right" richColors closeButton />
       </TooltipProvider>
     </QueryClientProvider>
   )

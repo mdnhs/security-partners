@@ -543,4 +543,41 @@ describe("MediaLibrary (master 6.3)", () => {
     )
     expect(await screen.findByText("Nothing matches “zebra”.")).toBeVisible()
   })
+
+  it("asks before closing the details with unsaved alt text (final review I2)", async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    await user.type(within(sheet).getByLabelText("Alternative text"), "Car")
+    await user.keyboard("{Escape}")
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Discard your changes to this file?",
+    })
+    await user.click(
+      within(confirm).getByRole("button", { name: "Keep editing" })
+    )
+    expect(within(sheet).getByLabelText("Alternative text")).toHaveValue("Car")
+    await user.keyboard("{Escape}")
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "Discard your changes to this file?",
+        })
+      ).getByRole("button", { name: "Discard changes" })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "photo-1.png" })).toBeNull()
+    )
+  })
+
+  it("keeps search and kind in the URL (final review I8)", async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    await screen.findByRole("button", { name: /photo-1\.png/ })
+    await user.click(screen.getByRole("button", { name: "Documents" }))
+    await waitFor(() => expect(window.location.search).toBe("?kind=document"))
+  })
 })
