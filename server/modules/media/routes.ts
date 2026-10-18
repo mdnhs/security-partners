@@ -38,7 +38,9 @@ export const mediaRoutes = new Hono<AppEnv>()
   )
   .patch(
     "/:id",
-    can({ media: ["update"] }),
+    // The service narrows this: media:update for any file, otherwise only
+    // the uploader's own files (alt text and focal point).
+    can({ media: ["read"] }),
     zv("param", idParam),
     zv("json", mediaUpdateInput),
     async (c) =>

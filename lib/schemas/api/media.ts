@@ -38,6 +38,8 @@ export type MediaItem = {
   driver: MediaDriverName
   focalX: number | null
   focalY: number | null
+  /** Who uploaded it (null for seeded files): uploaders may describe their own files. */
+  createdBy: string | null
 }
 
 export const MEDIA_ALT_MAX = 500

@@ -90,6 +90,7 @@ export function toItem(row: MediaRow): MediaItem {
     driver: row.driver,
     focalX: row.focalX,
     focalY: row.focalY,
+    createdBy: row.createdBy,
   }
 }
 
@@ -420,10 +421,14 @@ export async function updateMedia(
   id: string,
   input: MediaUpdateInput
 ): Promise<MediaItem> {
-  assertCan(actor, { media: ["update"] })
+  // media:update edits any file; an uploader (media:create, e.g. authors)
+  // may describe their own uploads: alt text and focal point only (WCAG 1.1.1).
+  const editsAny = hasPermission(actor.roles, { media: ["update"] })
+  if (!editsAny) assertCan(actor, { media: ["create"] })
   const row = await getDb().transaction(async (tx) => {
     const existing = await lockMediaRow(tx, id)
     if (!existing) throw notFound("Media")
+    if (!editsAny && existing.createdBy !== actor.userId) throw forbidden()
     const patch: Parameters<typeof updateMediaRow>[2] = {}
     if (input.alt !== undefined) patch.alt = cleanAltText(input.alt)
     if (input.focal !== undefined) {
