@@ -14,17 +14,24 @@ import {
   type BackupStore,
   getBackupStore,
   pruneBackups,
+  safeDatabaseName,
 } from "./store"
 
-/** Ephemeral counters: their rows are not worth restoring. */
+/**
+ * Ephemeral counters (not worth restoring) and pending verifications: their
+ * identifiers are live single-use links in plain text ("reset-password:
+ * <token>" for invites and recovery), redeemable by anyone who reads a dump
+ * (final review M2). After a restore, pending invites/links are re-sent.
+ */
 export const BACKUP_SKIPPED_DATA = [
   "public.rate_limits",
   "public.public_rate_limits",
+  "public.verifications",
 ] as const
 
 /** "sp-<db>-20261016T120000Z" (UTC, sortable). */
 export function backupBaseName(database: string, now: Date): string {
-  const safe = database.replace(/[^A-Za-z0-9_-]/g, "_") || "db"
+  const safe = safeDatabaseName(database)
   const stamp = now
     .toISOString()
     .replace(/\.\d{3}Z$/, "Z")
@@ -50,7 +57,8 @@ export async function runBackup(
   const store = opts.store ?? (await getBackupStore())
   const dir = await mkdtemp(join(tmpdir(), "sp-backup-"))
   try {
-    const base = backupBaseName(parse(url).database ?? "db", now)
+    const database = parse(url).database ?? "db"
+    const base = backupBaseName(database, now)
     const dumpFile = join(dir, `${base}.dump`)
     const manifest = await dumpDatabase(url, dumpFile, {
       excludeTableData: BACKUP_SKIPPED_DATA,
@@ -60,7 +68,11 @@ export async function runBackup(
     await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
     await store.put(`${base}.dump`, dumpFile)
     await store.put(`${base}.json`, manifestFile)
-    const pruned = await pruneBackups(store, opts.keep ?? BACKUPS_KEPT)
+    const pruned = await pruneBackups(
+      store,
+      opts.keep ?? BACKUPS_KEPT,
+      database
+    )
     return {
       name: `${base}.dump`,
       store: store.kind,

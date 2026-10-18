@@ -10,6 +10,7 @@ import {
 import { z } from "zod"
 
 import { parseRoles } from "@/lib/auth/permissions"
+import { selfProfileInput } from "@/lib/schemas/api/users"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { type AuditEntry, writeAudit } from "@/server/lib/audit"
@@ -120,6 +121,10 @@ export const SELF_SERVICE_PATHS: ReadonlySet<string> = new Set([
   "/revoke-other-sessions",
   "/unlink-account",
   "/link-social",
+  // Reads: the target's session tokens, IPs and linked accounts (final
+  // review M4).
+  "/list-sessions",
+  "/list-accounts",
 ])
 
 /**
@@ -152,6 +157,29 @@ export function securityHooks(): BetterAuthPlugin {
               throw new APIError("FORBIDDEN", {
                 message: "Account settings are disabled while impersonating",
               })
+          }),
+        },
+        {
+          // Own profile edits follow the admin API's name/title rules
+          // (final review M1): trimmed, 1–100 / 0–100 chars. Only the
+          // fields sent are checked. The trimmed name replaces the input;
+          // the title is normalised (blank → null) by its additionalFields
+          // validator, since a hook's null would not override the body.
+          matcher: (ctx) => ctx.path === "/update-user",
+          handler: createAuthMiddleware(async (ctx) => {
+            const body = (ctx.body ?? {}) as Record<string, unknown>
+            const parsed = selfProfileInput.safeParse({
+              name: body.name,
+              title: body.title,
+            })
+            if (!parsed.success) {
+              const issue = parsed.error.issues[0]
+              throw new APIError("BAD_REQUEST", {
+                message: `${String(issue?.path[0] ?? "body")}: ${issue?.message ?? "invalid"}`,
+              })
+            }
+            if (parsed.data.name === undefined) return
+            return { context: { body: { ...body, name: parsed.data.name } } }
           }),
         },
         {

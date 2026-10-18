@@ -130,8 +130,12 @@ restore) bypass the app's cache: restart the app afterwards.
   demand (`backup`): `pg_dump` custom format in one consistent snapshot plus
   a `.json` manifest (row count per table, taken in the same snapshot, and
   the dump's SHA-256). Named `sp-<db>-<UTC stamp>.dump`. The newest 14 are
-  kept. The data of `rate_limits` and `public_rate_limits` is not dumped
-  (short-lived counters).
+  kept. Pruning and the restore drill only consider this database's
+  `sp-<db>-` files, ordered by the stamp, so a store shared by two
+  environments never prunes or drills the other one's dumps. The data of
+  `rate_limits` and `public_rate_limits` (short-lived counters) and of
+  `verifications` (pending invite, password-reset and 2FA links, which are
+  redeemable by whoever reads them) is not dumped.
 - Where: the R2 bucket, prefix `backups/`, once Settings ▸ Integrations ▸ R2
   is saved; until then `/data/backups` on the app volume (lost with the
   server — set up R2). Local files are readable by the app user only.
@@ -176,7 +180,7 @@ restore) bypass the app's cache: restart the app afterwards.
 4. Start the app; check `/api/v1/health` and sign in.
 
 Sessions in the dump stay valid (same secret). Rate-limit tables come back
-empty. If the dump came from another environment, use `db:sync` instead: it
+empty, and so do pending invites and password links: re-send them. If the dump came from another environment, use `db:sync` instead: it
 re-encrypts the integration secrets for this environment's key.
 
 ## Rotate BETTER_AUTH_SECRET
@@ -216,6 +220,14 @@ the **target app stopped**, from a one-off container on the Dokploy network:
   integration decrypts, AI test-connection when enabled, `--verify-url`
   health). Any `FAIL` line → exit code 1.
 - Sessions, verifications and rate-limit counters are never copied.
+- The source's R2 and SMTP settings are removed from the target after the
+  restore (audit `integration.deleted`, `via: db:sync`; the script prints
+  what it removed): set the target's own bucket and mail account in
+  Settings ▸ Integrations. Media rows stored in the source's R2 stay in the
+  database but their files will not load until they exist in the target's
+  bucket. `--keep-integrations` keeps them — **dangerous**: the target then
+  shares the source's bucket (its media deletes remove the source's files)
+  and sends real mail as the source. Only for a short-lived copy you control.
 - The target role must own every object the restore drops (use the target
   database's own user, as Dokploy creates it).
 - Start the target app afterwards; it applies newer migrations itself.
@@ -305,8 +317,8 @@ in practice the limit is about 7 days of inactivity. Rate limits (production
 only, in Postgres): sign-in 5/min, 2FA 5/min, password reset 3 per 5 min,
 everything else under `/api/auth` 100/min per IP; public enquiries 5 per
 10 min per IP; AI chat 30 messages per user per 10 min. Revoking a session
-takes effect at once for every admin page and API call; a few cookie-cached
-reads may serve up to 5 minutes longer. "Sign out everywhere" also ends
+takes effect at once for every admin page, API call and `/api/auth`
+request (Better Auth's session cookie cache is off). "Sign out everywhere" also ends
 "View as" sessions the user started. Passwords: 12–128 characters. While
 "View as" (impersonation) is active, account settings and the AI assistant
 are read-only, but the impersonating admin can read the user's AI
@@ -336,6 +348,13 @@ once per page load. Drafts never run on the site; publishing applies at once.
 - Only paste code from vendors you trust: it runs with full access to every
   visitor's page and is not covered by the cookie banner. Consent-dependent
   tags (Google, Meta) belong under Marketing › Tracking.
+- The Tracking tag IDs (GTM, GA4, Meta Pixel) load third-party script, and
+  a GTM container can carry any code ("Custom HTML" tags). The admin and API
+  share the public origin, so such code runs with the session of any admin
+  who visits the site. Changing an ID therefore needs the owner (the API
+  refuses it for others on draft save, publish and restore; other roles see
+  the IDs read-only). A separate admin origin would remove this class of
+  risk (owner decision, `docs/launch.md`).
 - Verify domains by DNS (Google Search Console, Meta Business), not with a
   `<meta>` tag: the tag only exists after JavaScript runs.
 - Tracking (Marketing › Tracking) loads nothing until a visitor consents:

@@ -175,38 +175,76 @@ export async function getBackupStore(): Promise<BackupStore> {
 
 const manifestName = (dump: string) => dump.replace(/\.dump$/, ".json")
 
+/** The database part of a backup name ("sp-<db>-<stamp>"). */
+export function safeDatabaseName(database: string): string {
+  return database.replace(/[^A-Za-z0-9_-]/g, "_") || "db"
+}
+
+const STAMP = /^(\d{8}T\d{6}Z)\.(dump|json)$/
+
 /**
- * Complete backups, newest first: .dump files whose .json manifest exists.
- * The manifest is stored after the dump, so a dump without one is an
- * interrupted backup and is never restored or counted as kept.
+ * The UTC stamp of `name` when it is one of `database`'s backup files
+ * ("sp-<db>-<stamp>.dump|json"), else null. Several databases' dumps can
+ * share a store (final review I2: staging synced with production's R2), so
+ * each database lists, prunes and restores only its own.
  */
-export function completeDumps(objects: BackupObject[]): BackupObject[] {
-  const names = new Set(objects.map((o) => o.name))
-  return objects.filter(
+export function backupStamp(name: string, database: string): string | null {
+  const prefix = `sp-${safeDatabaseName(database)}-`
+  if (!name.startsWith(prefix)) return null
+  return STAMP.exec(name.slice(prefix.length))?.[1] ?? null
+}
+
+/** `database`'s backup files, newest first by their stamp. */
+function ownBackups(
+  objects: BackupObject[],
+  database: string
+): (BackupObject & { stamp: string })[] {
+  return objects
+    .flatMap((o) => {
+      const stamp = backupStamp(o.name, database)
+      return stamp === null ? [] : [{ ...o, stamp }]
+    })
+    .sort((a, b) => (a.stamp === b.stamp ? 0 : a.stamp < b.stamp ? 1 : -1))
+}
+
+/**
+ * `database`'s complete backups, newest first: .dump files whose .json
+ * manifest exists. The manifest is stored after the dump, so a dump without
+ * one is an interrupted backup and is never restored or counted as kept.
+ */
+export function completeDumps(
+  objects: BackupObject[],
+  database: string
+): BackupObject[] {
+  const own = ownBackups(objects, database)
+  const names = new Set(own.map((o) => o.name))
+  return own.filter(
     (o) => o.name.endsWith(".dump") && names.has(manifestName(o.name))
   )
 }
 
 /**
- * Keeps the newest `keep` complete backups. Deletes older complete ones
- * (dump + manifest) and interrupted dumps older than the oldest kept backup;
- * returns the deleted .dump names.
+ * Keeps `database`'s newest `keep` complete backups. Deletes its older
+ * complete ones (dump + manifest) and its interrupted dumps older than the
+ * oldest kept backup; other databases' files are never touched. Returns the
+ * deleted .dump names.
  */
 export async function pruneBackups(
   store: BackupStore,
-  keep = BACKUPS_KEPT
+  keep: number,
+  database: string
 ): Promise<string[]> {
-  const all = await store.list()
-  const complete = completeDumps(all)
-  const kept = complete.slice(0, keep)
-  const oldestKept = kept.at(-1)?.name
-  const keptNames = new Set(kept.map((o) => o.name))
+  const all = ownBackups(await store.list(), database)
+  const complete = new Set(completeDumps(all, database).map((o) => o.name))
+  const keptList = all.filter((o) => complete.has(o.name)).slice(0, keep)
+  const oldestKept = keptList.at(-1)?.stamp
+  const kept = new Set(keptList.map((o) => o.name))
   const old = all.filter(
     (o) =>
       o.name.endsWith(".dump") &&
-      !keptNames.has(o.name) &&
-      (complete.includes(o) ||
-        (oldestKept !== undefined && o.name < oldestKept))
+      !kept.has(o.name) &&
+      (complete.has(o.name) ||
+        (oldestKept !== undefined && o.stamp < oldestKept))
   )
   for (const dump of old) {
     await store.delete(dump.name)

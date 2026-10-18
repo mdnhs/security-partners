@@ -45,6 +45,8 @@ export type FieldMeta = {
    * joined ("count" 18 + "suffix" "+" → "18+").
    */
   composeFrom?: string[]
+  /** text: shown but not editable (say why in `help`). */
+  readOnly?: boolean
   /**
    * Column span in a two-column field grid (from 36rem of card width).
    * Default: half for short inputs (text, number, select, toggle,

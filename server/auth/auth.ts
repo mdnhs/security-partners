@@ -11,6 +11,7 @@ import { ResetPasswordEmail } from "@/emails/reset-password"
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth/password"
 import { hasPermission } from "@/lib/auth/permissions"
 import { ROLES, type Role } from "@/lib/auth/roles"
+import { selfProfileInput } from "@/lib/schemas/api/users"
 import { type Db, getDb } from "@/server/db/client"
 import * as schema from "@/server/db/schema"
 import { getEnv } from "@/server/env"
@@ -73,7 +74,14 @@ function createAuth(db: Db) {
     }),
     user: {
       additionalFields: {
-        title: { type: "string", required: false, input: true },
+        // Same rules as the admin API (final review M1): trimmed, ≤ 100,
+        // blank → null. The validator's output is what is stored.
+        title: {
+          type: "string",
+          required: false,
+          input: true,
+          validator: { input: selfProfileInput.shape.title },
+        },
       },
     },
     databaseHooks: {
@@ -120,7 +128,12 @@ function createAuth(db: Db) {
     session: {
       expiresIn: SESSION_EXPIRES_IN,
       updateAge: 60 * 60 * 24,
-      cookieCache: { enabled: true, maxAge: 5 * 60 },
+      // Off (final review M3): a cached session cookie let Better Auth's own
+      // endpoints (/get-session, /update-user, /list-sessions) accept a
+      // banned or revoked session for up to its maxAge. The app's reads
+      // already bypass it (session.ts), so the cost is one indexed session
+      // lookup per /api/auth request.
+      cookieCache: { enabled: false },
     },
     rateLimit: {
       // Spec §6: production only, stored in Postgres (rate_limits).

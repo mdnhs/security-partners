@@ -4,6 +4,8 @@ import {
   GROWTH_SETTINGS,
   type GrowthSettingsKey,
   isGrowthSettingsKey,
+  TRACKING_TAG_UPDATE,
+  trackingTagsChanged,
 } from "@/lib/admin/growth-settings"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { GrowthSettingsDto } from "@/lib/schemas/api/marketing"
@@ -11,7 +13,7 @@ import { settingsSchemas } from "@/lib/schemas/settings"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { tag } from "@/server/lib/cache-tags"
-import { forbidden, notFound } from "@/server/lib/errors"
+import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import {
   publish,
   restoreRevision,
@@ -72,9 +74,33 @@ const storeFor = (actor: Actor): VersionedStore<unknown, Row> => ({
   find: async (db, key) => asVersioned(await findSettingsForEdit(db, key)),
   update: async (db, key, version, patch) =>
     asVersioned(await updateSettingsIfVersion(db, key, version, patch)),
+  authorizeWrite: (row, next, action) =>
+    assertMayChangeTrackingTags(actor, row, next, action),
   tags: (row) => [tag.settings(row.key as GrowthSettingsKey)],
   present: (row) => toDto(actor, row),
 })
+
+/**
+ * Final review I1: a tracking tag ID loads third-party script on the
+ * admin's origin, so only customCode:update (owner) may change one. The
+ * draft is compared with the current draft (save, restore) and the value
+ * going live with the live one (publish), so a marketer can still edit the
+ * other fields and publish a draft whose IDs an owner set and published.
+ */
+function assertMayChangeTrackingTags(
+  actor: Actor,
+  row: Row,
+  next: unknown,
+  action: "draft" | "publish" | "restore"
+) {
+  if (row.key !== "tracking" || can(actor, TRACKING_TAG_UPDATE)) return
+  const before = action === "publish" ? row.published : row.draft
+  if (trackingTagsChanged(before, next))
+    throw new AppError(
+      "FORBIDDEN",
+      "Only an owner can change the Tag Manager, Analytics or Meta Pixel ID"
+    )
+}
 
 export async function getGrowthSettings(
   actor: Actor,

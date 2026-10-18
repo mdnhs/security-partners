@@ -68,6 +68,16 @@ export type VersionedStore<
     version: number,
     patch: VersionedPatch<T>
   ): Promise<R | null>
+  /**
+   * Field-level authorisation on the value about to be written (after
+   * validation, inside the transaction): throw to refuse. "draft" and
+   * "restore" write `next` into the draft; "publish" makes `next` live.
+   */
+  authorizeWrite?(
+    record: R,
+    next: T,
+    action: "draft" | "publish" | "restore"
+  ): void
   /** Cache tags to expire when this record is published. */
   tags(record: R): string[]
   /** Wire shape sent back with a 409 (the current state, Review Focus 2). */
@@ -161,6 +171,7 @@ export async function saveDraft<T, R extends VersionedRecord<T>>(
     const existing = await requireRecord(store, tx, id)
     assertCurrentVersion(store, existing, input.version)
     const draft = validateContent(store.schema(existing), input.draft)
+    store.authorizeWrite?.(existing, draft, "draft")
     const updated = await store.update(tx, id, input.version, {
       draft,
       updatedBy: actor.userId,
@@ -226,6 +237,7 @@ function publishInTx<T, R extends VersionedRecord<T>>(
     const existing = await requireRecord(store, tx, id)
     assertCurrentVersion(store, existing, input.version)
     const data = validateContent(store.schema(existing), existing.draft)
+    store.authorizeWrite?.(existing, data, "publish")
     const updated = await store.update(tx, id, input.version, {
       draft: data,
       published: data,
@@ -282,6 +294,7 @@ export async function restoreRevision<T, R extends VersionedRecord<T>>(
         `This version no longer fits the ${store.label.toLowerCase()}'s fields and cannot be restored`,
         { fieldErrors: fieldErrorsFromIssues(parsed.error.issues) }
       )
+    store.authorizeWrite?.(existing, parsed.data, "restore")
     const updated = await store.update(tx, id, input.version, {
       draft: parsed.data,
       updatedBy: actor.userId,

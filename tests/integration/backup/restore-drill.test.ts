@@ -85,6 +85,31 @@ describe("restoreDrill (spec §14)", () => {
     expect(result).toMatchObject({ backup: name, ok: true })
   })
 
+  // Final review I2: environments can share one store (db:sync with
+  // --keep-integrations); the drill verifies this database's newest dump.
+  it("ignores another database's dumps, however they sort", async () => {
+    const store = diskBackupStore(dir)
+    const { name } = await runBackup({
+      url: TEST_DATABASE_URL,
+      store,
+      now: new Date("2026-10-16T12:00:00Z"),
+    })
+    const manifest = JSON.parse(
+      await readFile(join(dir, name.replace(/\.dump$/, ".json")), "utf8")
+    )
+    manifest.counts["public.users"] = 99
+    for (const other of ["sp-sp_test_staging", "sp-zz"]) {
+      const base = `${other}-20991231T000000Z`
+      await writeFile(
+        join(dir, `${base}.dump`),
+        await readFile(join(dir, name))
+      )
+      await writeFile(join(dir, `${base}.json`), JSON.stringify(manifest))
+    }
+    const result = await restoreDrill({ url: TEST_DATABASE_URL, store })
+    expect(result).toMatchObject({ backup: name, ok: true })
+  })
+
   it("explains an empty store", async () => {
     await expect(
       restoreDrill({ url: TEST_DATABASE_URL, store: diskBackupStore(dir) })

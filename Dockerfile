@@ -49,12 +49,16 @@ RUN apk add --no-cache postgresql17-client tini
 RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nextjs \
     && mkdir -p /data/uploads /data/backups && chown -R nextjs:nodejs /data
 
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/dist ./scripts/dist
-COPY --from=builder --chown=nextjs:nodejs /app/server/db/migrations ./server/db/migrations
-COPY --chown=nextjs:nodejs --chmod=755 docker-entrypoint.sh ./docker-entrypoint.sh
+# App files stay root-owned, read-only for the runtime user: a code-execution
+# bug cannot rewrite server.js or chunks. nextjs may write only /data and
+# Next's own cache dir (optimised images: data, never loaded as code).
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/scripts/dist ./scripts/dist
+COPY --from=builder /app/server/db/migrations ./server/db/migrations
+COPY --chmod=755 docker-entrypoint.sh ./docker-entrypoint.sh
+RUN mkdir -p .next/cache && chown nextjs:nodejs .next/cache
 
 USER nextjs
 EXPOSE 3000

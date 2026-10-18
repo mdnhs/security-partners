@@ -83,12 +83,10 @@ describe("disk backup store", () => {
     }
     await store.put(`${stamp(0)}.dump`, src) // old orphan
     await store.put(`${stamp(4)}.dump`, src) // newest, no manifest
-    expect(completeDumps(await store.list()).map((o) => o.name)).toEqual([
-      `${stamp(3)}.dump`,
-      `${stamp(2)}.dump`,
-      `${stamp(1)}.dump`,
-    ])
-    expect(await pruneBackups(store, 2)).toEqual([
+    expect(
+      completeDumps(await store.list(), "sp_test").map((o) => o.name)
+    ).toEqual([`${stamp(3)}.dump`, `${stamp(2)}.dump`, `${stamp(1)}.dump`])
+    expect(await pruneBackups(store, 2, "sp_test")).toEqual([
       `${stamp(1)}.dump`,
       `${stamp(0)}.dump`,
     ])
@@ -99,6 +97,39 @@ describe("disk backup store", () => {
       `${stamp(2)}.json`,
       `${stamp(2)}.dump`,
     ])
+  })
+
+  // Final review I2: one store can hold several databases' dumps; each
+  // database prunes and restores only its own, ordered by the stamp.
+  it("prunes and picks only this database's dumps", async () => {
+    const store = diskBackupStore(join(dir, "backups"))
+    const other = (db: string, day: number) =>
+      `sp-${db}-202610${String(day).padStart(2, "0")}T020000Z`
+    const names: string[] = []
+    for (let day = 1; day <= 3; day++)
+      names.push(stamp(day), other("sp_test_staging", day), other("zz", day))
+    names.push("sp-sp_test-oops") // not a backup name of ours
+    for (const base of names) {
+      await store.put(`${base}.dump`, src)
+      await store.put(`${base}.json`, src)
+    }
+    const all = await store.list()
+    expect(completeDumps(all, "sp_test").map((o) => o.name)).toEqual([
+      `${stamp(3)}.dump`,
+      `${stamp(2)}.dump`,
+      `${stamp(1)}.dump`,
+    ])
+    expect(await pruneBackups(store, 1, "sp_test")).toEqual([
+      `${stamp(2)}.dump`,
+      `${stamp(1)}.dump`,
+    ])
+    const left = (await store.list()).map((o) => o.name)
+    expect(left).toHaveLength(all.length - 4)
+    for (let day = 1; day <= 3; day++) {
+      expect(left).toContain(`${other("sp_test_staging", day)}.dump`)
+      expect(left).toContain(`${other("zz", day)}.json`)
+    }
+    expect(left).toContain("sp-sp_test-oops.dump")
   })
 
   it("lists nothing when the directory does not exist yet", async () => {
@@ -121,7 +152,7 @@ describe("disk backup store", () => {
       await store.put(`${stamp(day)}.dump`, src)
       await store.put(`${stamp(day)}.json`, src)
     }
-    expect(await pruneBackups(store, 14)).toEqual([
+    expect(await pruneBackups(store, 14, "sp_test")).toEqual([
       `${stamp(2)}.dump`,
       `${stamp(1)}.dump`,
     ])
