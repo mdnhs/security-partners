@@ -21,8 +21,19 @@ import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import type { ArticleDto } from "@/lib/schemas/api/articles"
 import { cn } from "@/lib/utils"
 
-import { FEATURED_NOTE_ID, useArticleOptions } from "./article-settings"
+import {
+  FEATURED_NOTE_ID,
+  takeTheirsOnConflict,
+  useArticleOptions,
+} from "./article-settings"
 import { ScheduleDialog } from "./schedule-dialog"
+
+/** The draft has errors (now marked in the form). */
+class InvalidDraft extends Error {
+  constructor() {
+    super("Fix the marked fields first.")
+  }
+}
 
 type Step =
   | { kind: "submit" }
@@ -67,12 +78,13 @@ export function WorkflowActions({
   const featured = options.data?.featured?.includes(record.slug) ?? false
   const [scheduling, setScheduling] = useState(false)
   const [confirmUnpublish, setConfirmUnpublish] = useState(false)
+  // The server's 422 on the schedule time, shown in the dialog.
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
 
   const run = useMutation({
     mutationFn: async (step: Step): Promise<ArticleDto> => {
       const needsValidDraft = step.kind === "submit" || step.kind === "schedule"
-      if (needsValidDraft && ctx.showAllErrors())
-        throw new Error("Fix the marked fields first.")
+      if (needsValidDraft && ctx.showAllErrors()) throw new InvalidDraft()
       // Save pending edits so the request carries the latest version.
       const saved = !ctx.canEdit || (await ctx.flush())
       if (needsValidDraft && !saved) throw new Error("Save your changes first.")
@@ -103,6 +115,7 @@ export function WorkflowActions({
     onSuccess: (dto, step) => {
       ctx.accept(dto)
       setScheduling(false)
+      setScheduleError(null)
       setConfirmUnpublish(false)
       void queryClient.invalidateQueries({
         queryKey: ["revisions", "article", record.id],
@@ -116,8 +129,23 @@ export function WorkflowActions({
         description: DONE[step.kind].description,
       })
     },
-    onError: (err) => {
+    onError: (err, step) => {
       setConfirmUnpublish(false)
+      // The marked fields must not stay hidden under the dialog.
+      if (err instanceof InvalidDraft) {
+        setScheduling(false)
+        return
+      }
+      if (takeTheirsOnConflict(ctx, err)) {
+        setScheduling(false)
+        return
+      }
+      const timeError =
+        err instanceof ApiError ? err.fieldErrors.scheduledAt?.[0] : undefined
+      if (step.kind === "schedule" && timeError) {
+        setScheduleError(timeError)
+        return
+      }
       toast.error("Not done", {
         description:
           err instanceof ApiError ? errorMessage(err) : (err as Error).message,
@@ -156,7 +184,12 @@ export function WorkflowActions({
           variant="outline"
           className={EDITOR_ACTION}
           disabled={run.isPending}
-          onClick={() => setScheduling(true)}
+          onClick={() => {
+            // Invalid draft: the fields are marked, the dialog stays shut.
+            if (ctx.showAllErrors()) return
+            setScheduleError(null)
+            setScheduling(true)
+          }}
         >
           <CalendarClock aria-hidden />
           {record.status === "scheduled" ? "Reschedule" : "Schedule"}
@@ -183,6 +216,8 @@ export function WorkflowActions({
         onOpenChange={setScheduling}
         initial={record.scheduledAt}
         pending={run.isPending}
+        serverError={scheduleError}
+        onEdit={() => setScheduleError(null)}
         onConfirm={(at) => run.mutate({ kind: "schedule", at })}
       />
       <AlertDialog open={confirmUnpublish} onOpenChange={setConfirmUnpublish}>

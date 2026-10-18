@@ -133,7 +133,8 @@ export function fromDublinInput(value: string): Date | null {
     month < 1 ||
     month > 12 ||
     day < 1 ||
-    day > 31 ||
+    // Days in that month (day 0 of the next month), leap years included.
+    day > new Date(Date.UTC(year, month, 0)).getUTCDate() ||
     hour > 23 ||
     minute > 59
   )

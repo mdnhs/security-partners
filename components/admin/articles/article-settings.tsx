@@ -36,6 +36,26 @@ type Ctx = EditorActionContext<ArticleDto>
 /** The note that says why the featured article stays (described-by target). */
 export const FEATURED_NOTE_ID = "article-featured-note"
 
+/** Toast after a 409: the editor now shows the other person's record. */
+export const CONFLICT_MESSAGE =
+  "Someone else changed this article — it now shows their version."
+
+/**
+ * A stale version (409 with the current record): the editor takes their
+ * record (header, form, version), so a retry sends the new version. False
+ * for any other error (e.g. a 409 without a record: featured, slug taken).
+ */
+export function takeTheirsOnConflict(ctx: Ctx, err: unknown): boolean {
+  if (!(err instanceof ApiError && err.isConflict && err.current)) return false
+  ctx.takeTheirs(err.current as ArticleDto)
+  // One toast however many requests hit the same stale version.
+  toast.error("Not done", {
+    id: "article-conflict",
+    description: CONFLICT_MESSAGE,
+  })
+  return true
+}
+
 /** Card buttons: 40 px, 44 px on touch (WCAG 2.5.8 with margin). */
 const CARD_ACTION = "h-10 rounded-xl px-4 font-semibold pointer-coarse:h-11"
 
@@ -141,7 +161,11 @@ function PlacementCard({
   const slugValid = SLUG_PATTERN.test(slug)
   const save = useMutation({
     mutationFn: async () => {
-      await ctx.flush()
+      // Pending text first (the meta call needs the version it returns).
+      if (!(await ctx.flush()))
+        throw new Error(
+          "The text has unsaved changes that could not be saved. Fix or save them first."
+        )
       return (await unwrap(
         api.articles[":id"].meta.$patch({
           param: { id: article.id },
@@ -156,8 +180,14 @@ function PlacementCard({
       })
     },
     onError: (err) => {
+      if (takeTheirsOnConflict(ctx, err)) return
       if (err instanceof ApiError) setErrors(err.fieldErrors)
-      toast.error("Not saved", { description: errorMessage(err) })
+      toast.error("Not saved", {
+        description:
+          err instanceof ApiError || !(err instanceof Error)
+            ? errorMessage(err)
+            : err.message,
+      })
     },
   })
   const slugError =
@@ -375,6 +405,7 @@ function DeleteCard({
     },
     onError: (err) => {
       setOpen(false)
+      if (takeTheirsOnConflict(ctx, err)) return
       toast.error("Not deleted", { description: errorMessage(err) })
     },
   })

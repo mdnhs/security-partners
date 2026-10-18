@@ -32,6 +32,25 @@ describe("Irish wall-clock time ↔ instant (schedule dialog, Europe/Dublin)", (
     )
   })
 
+  it("rejects dates that do not exist (days in the month)", () => {
+    for (const bad of [
+      "2026-02-29T10:00",
+      "2026-02-30T10:00",
+      "2026-04-31T10:00",
+      "2026-06-31T10:00",
+      "2026-09-31T10:00",
+      "2026-11-31T10:00",
+    ])
+      expect(fromDublinInput(bad)).toBeNull()
+    // Leap day, and the last day of each long month, are real.
+    expect(fromDublinInput("2028-02-29T10:00")?.toISOString()).toBe(
+      "2028-02-29T10:00:00.000Z"
+    )
+    expect(fromDublinInput("2026-01-31T10:00")?.toISOString()).toBe(
+      "2026-01-31T10:00:00.000Z"
+    )
+  })
+
   it("round-trips and rejects malformed values", () => {
     const at = new Date("2026-10-20T08:15:00Z")
     expect(fromDublinInput(toDublinInput(at))?.toISOString()).toBe(

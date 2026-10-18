@@ -607,6 +607,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("tablist", { name: "User sections" })
       ).toBeVisible()
+      // The click on the list row leaves the pointer over the tab rail:
+      // park it, so no hover state depends on the list's row count.
+      await page.mouse.move(0, 0)
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("user-detail"), {
         mask: await masks(page),

@@ -101,6 +101,11 @@ export type EditorActionContext<Dto> = {
   version: () => number
   /** Takes a record returned by another request (new status/version). */
   accept: (dto: Dto) => void
+  /**
+   * Someone else changed the record (a 409's `current`): the form, the
+   * header and the version switch to their record, so a retry is current.
+   */
+  takeTheirs: (dto: Dto) => void
   /** Marks every invalid field; true when there were errors. */
   showAllErrors: () => boolean
   /** True while the form may be edited. */
@@ -330,6 +335,12 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     flush: autosave.flush,
     version: () => baseRef.current.version,
     accept: (dto) => accept(dto),
+    takeTheirs: (dto) => {
+      replaceDraft(dto)
+      void queryClient.invalidateQueries({
+        queryKey: ["revisions", props.revisions.entity, props.revisions.id],
+      })
+    },
     showAllErrors,
     canEdit: props.canEdit,
   }

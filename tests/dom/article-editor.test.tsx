@@ -305,4 +305,201 @@ describe("article editor (master 5.3)", () => {
       screen.getByRole("button", { name: "Cancel schedule" })
     ).toBeEnabled()
   })
+
+  describe("fix round 1: stale versions, schedule errors, settings save", () => {
+    const conflict = (current: ArticleDto) =>
+      json(409, {
+        error: { code: "CONFLICT", message: "Changed meanwhile", current },
+      })
+    const theirs = dto({
+      permissions: EDITOR,
+      version: 5,
+      status: "in_review",
+      title: "Their title",
+      draft: { ...dto().draft, title: "Their title" },
+    })
+
+    it("a 409 on Schedule takes their version (header, form); a retry sends it", async () => {
+      const user = userEvent.setup()
+      routes[`GET /api/v1/admin/articles/${ID}`] = () =>
+        json(200, dto({ permissions: EDITOR }))
+      let attempts = 0
+      routes[`POST /api/v1/admin/articles/${ID}/schedule`] = (init) => {
+        attempts += 1
+        if (attempts === 1) return conflict(theirs)
+        const body = JSON.parse(String(init?.body)) as { scheduledAt: string }
+        return json(
+          200,
+          dto({
+            permissions: EDITOR,
+            version: 6,
+            status: "scheduled",
+            scheduledAt: body.scheduledAt,
+          })
+        )
+      }
+      renderEditor(["editor"])
+      const schedule = async () => {
+        await user.click(
+          await screen.findByRole("button", { name: "Schedule" })
+        )
+        const dialog = await screen.findByRole("dialog", {
+          name: "Schedule publishing",
+        })
+        fireEvent.change(within(dialog).getByLabelText("Publish on"), {
+          target: { value: "2099-07-01T10:00" },
+        })
+        await user.click(
+          within(dialog).getByRole("button", { name: "Schedule" })
+        )
+      }
+      await schedule()
+      expect(
+        await screen.findByText(
+          "Someone else changed this article — it now shows their version."
+        )
+      ).toBeInTheDocument()
+      await waitFor(() => expect(badge()).toHaveTextContent("In review"))
+      expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(
+        "Their title"
+      )
+      expect(
+        screen.queryByRole("dialog", { name: "Schedule publishing" })
+      ).toBeNull()
+      await schedule()
+      await waitFor(() => expect(badge()).toHaveTextContent(/^Scheduled · /))
+      const posts = calls.filter(
+        (c) => c.key === `POST /api/v1/admin/articles/${ID}/schedule`
+      )
+      expect(posts.map((c) => (c.body as { version: number }).version)).toEqual(
+        [1, 5]
+      )
+    })
+
+    it("a 409 on Save settings takes their version; a retry sends it", async () => {
+      const user = userEvent.setup()
+      routes[`GET /api/v1/admin/articles/${ID}`] = () =>
+        json(200, dto({ permissions: EDITOR }))
+      let attempts = 0
+      routes[`PATCH /api/v1/admin/articles/${ID}/meta`] = (init) => {
+        attempts += 1
+        if (attempts === 1) return conflict(theirs)
+        const body = JSON.parse(String(init?.body)) as { slug: string }
+        return json(
+          200,
+          dto({ permissions: EDITOR, version: 6, slug: body.slug })
+        )
+      }
+      renderEditor(["editor"])
+      const address = await screen.findByLabelText("Address")
+      await user.clear(address)
+      await user.type(address, "night-patrols-2")
+      await user.click(screen.getByRole("button", { name: "Save settings" }))
+      expect(
+        await screen.findByText(
+          "Someone else changed this article — it now shows their version."
+        )
+      ).toBeInTheDocument()
+      await waitFor(() => expect(badge()).toHaveTextContent("In review"))
+      // Their record did not change the address: the edit is kept for a retry.
+      await user.click(screen.getByRole("button", { name: "Save settings" }))
+      expect(await screen.findByText("Settings saved")).toBeInTheDocument()
+      const patches = calls.filter(
+        (c) => c.key === `PATCH /api/v1/admin/articles/${ID}/meta`
+      )
+      expect(patches.map((c) => c.body)).toEqual([
+        { version: 1, slug: "night-patrols-2" },
+        { version: 5, slug: "night-patrols-2" },
+      ])
+    })
+
+    it("a 409 on Delete takes their version and stays on the article", async () => {
+      const user = userEvent.setup()
+      routes[`GET /api/v1/admin/articles/${ID}`] = () =>
+        json(200, dto({ permissions: EDITOR }))
+      routes[`DELETE /api/v1/admin/articles/${ID}`] = () => conflict(theirs)
+      renderEditor(["editor"])
+      await user.click(
+        await screen.findByRole("button", { name: "Delete article" })
+      )
+      const confirm = await screen.findByRole("alertdialog")
+      await user.click(
+        within(confirm).getByRole("button", { name: "Delete article" })
+      )
+      expect(
+        await screen.findByText(
+          "Someone else changed this article — it now shows their version."
+        )
+      ).toBeInTheDocument()
+      await waitFor(() => expect(badge()).toHaveTextContent("In review"))
+    })
+
+    it("shows the server's schedule-time error inside the dialog", async () => {
+      const user = userEvent.setup()
+      routes[`GET /api/v1/admin/articles/${ID}`] = () =>
+        json(200, dto({ permissions: EDITOR }))
+      routes[`POST /api/v1/admin/articles/${ID}/schedule`] = () =>
+        json(422, {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Choose a time in the future",
+            fieldErrors: { scheduledAt: ["Choose a time in the future"] },
+          },
+        })
+      renderEditor(["editor"])
+      await user.click(await screen.findByRole("button", { name: "Schedule" }))
+      const dialog = await screen.findByRole("dialog", {
+        name: "Schedule publishing",
+      })
+      fireEvent.change(within(dialog).getByLabelText("Publish on"), {
+        target: { value: "2099-07-01T10:00" },
+      })
+      await user.click(within(dialog).getByRole("button", { name: "Schedule" }))
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+        "Choose a time in the future"
+      )
+      expect(within(dialog).getByLabelText("Publish on")).toHaveAttribute(
+        "aria-invalid",
+        "true"
+      )
+    })
+
+    it("an invalid draft marks its fields instead of opening the Schedule dialog", async () => {
+      const user = userEvent.setup()
+      routes[`GET /api/v1/admin/articles/${ID}`] = () =>
+        json(200, dto({ permissions: EDITOR }))
+      renderEditor(["editor"])
+      const title = await screen.findByRole("textbox", { name: "Title" })
+      await user.clear(title)
+      await user.click(screen.getByRole("button", { name: "Schedule" }))
+      expect(
+        screen.queryByRole("dialog", { name: "Schedule publishing" })
+      ).toBeNull()
+      await waitFor(() => expect(title).toHaveAttribute("aria-invalid", "true"))
+    })
+
+    it("Save settings does not report success when the pending text could not be saved", async () => {
+      const user = userEvent.setup()
+      routes[`GET /api/v1/admin/articles/${ID}`] = () =>
+        json(200, dto({ permissions: EDITOR }))
+      routes[`PUT /api/v1/admin/articles/${ID}/draft`] = () =>
+        json(500, { error: { code: "INTERNAL", message: "Boom" } })
+      renderEditor(["editor"])
+      await user.type(
+        await screen.findByRole("textbox", { name: "Title" }),
+        " 2"
+      )
+      const address = screen.getByLabelText("Address")
+      await user.clear(address)
+      await user.type(address, "night-patrols-2")
+      // Toasts outlive a test (sonner's store): count, do not assert absence.
+      const saved = screen.queryAllByText("Settings saved").length
+      await user.click(screen.getByRole("button", { name: "Save settings" }))
+      expect(await screen.findByText(/could not be saved/)).toBeInTheDocument()
+      expect(screen.queryAllByText("Settings saved")).toHaveLength(saved)
+      expect(
+        calls.some((c) => c.key === `PATCH /api/v1/admin/articles/${ID}/meta`)
+      ).toBe(false)
+    })
+  })
 })

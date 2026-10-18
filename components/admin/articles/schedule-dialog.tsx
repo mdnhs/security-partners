@@ -30,6 +30,8 @@ export function ScheduleDialog({
   onOpenChange,
   initial,
   pending,
+  serverError = null,
+  onEdit,
   onConfirm,
   now = () => new Date(),
 }: {
@@ -38,6 +40,10 @@ export function ScheduleDialog({
   /** The current schedule (ISO), if any. */
   initial: string | null
   pending: boolean
+  /** The API's message about the time (422 fieldErrors.scheduledAt). */
+  serverError?: string | null
+  /** The time was edited (clears serverError). */
+  onEdit?: () => void
   onConfirm: (scheduledAt: string) => void
   /** Clock (tests). */
   now?: () => Date
@@ -49,6 +55,8 @@ export function ScheduleDialog({
           <ScheduleForm
             initial={initial}
             pending={pending}
+            serverError={serverError}
+            onEdit={onEdit}
             onConfirm={onConfirm}
             onCancel={() => onOpenChange(false)}
             now={now}
@@ -63,12 +71,16 @@ export function ScheduleDialog({
 function ScheduleForm({
   initial,
   pending,
+  serverError,
+  onEdit,
   onConfirm,
   onCancel,
   now,
 }: {
   initial: string | null
   pending: boolean
+  serverError: string | null
+  onEdit?: () => void
   onConfirm: (scheduledAt: string) => void
   onCancel: () => void
   now: () => Date
@@ -78,7 +90,8 @@ function ScheduleForm({
       initial ? new Date(initial) : new Date(now().getTime() + HOUR)
     )
   )
-  const [error, setError] = useState<string | null>(null)
+  const [localError, setError] = useState<string | null>(null)
+  const error = localError ?? serverError
   const at = fromDublinInput(value)
   // How the picked time reads, in words (the input's own display follows
   // the browser's locale).
@@ -132,6 +145,7 @@ function ScheduleForm({
           onChange={(event) => {
             setValue(event.target.value)
             setError(null)
+            onEdit?.()
           }}
         />
       </FieldShell>
