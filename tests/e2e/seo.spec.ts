@@ -215,3 +215,20 @@ test.describe("structured data", () => {
     ])
   })
 })
+
+test.describe("generated share cards", () => {
+  test("a 1200×630 PNG per published page; unknown → 404", async ({
+    request,
+  }) => {
+    const res = await request.get("/og/service/alarm-responses")
+    expect(res.status()).toBe(200)
+    expect(res.headers()["content-type"]).toBe("image/png")
+    const png = await res.body()
+    expect(png.readUInt32BE(16)).toBe(1200)
+    expect(png.readUInt32BE(20)).toBe(630)
+    expect((await request.get("/og/service/no-such-service")).status()).toBe(
+      404
+    )
+    expect((await request.get("/og/nope/home")).status()).toBe(404)
+  })
+})

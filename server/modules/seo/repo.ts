@@ -1,10 +1,11 @@
 import "server-only"
 
-import { asc, desc, eq, isNotNull, type SQL, sql } from "drizzle-orm"
+import { and, asc, desc, eq, isNotNull, type SQL, sql } from "drizzle-orm"
 import type { AnyPgColumn } from "drizzle-orm/pg-core"
 
 import type { SeoKind } from "@/lib/schemas/api/seo"
 import type { Seo } from "@/lib/schemas/common"
+import type { OgKind } from "@/lib/seo/urls"
 import type { DbOrTx } from "@/server/db/client"
 import { articles, pages, revisions, services } from "@/server/db/schema"
 
@@ -223,4 +224,38 @@ export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
     ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
     ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
   ]
+}
+
+/**
+ * The published name of a record: a page's hero title (home: null = use
+ * the site title), a service's or article's title. undefined when the
+ * record is unknown or not published (drafts never reach share cards).
+ */
+export async function findPublishedName(
+  db: DbOrTx,
+  kind: OgKind,
+  id: string
+): Promise<string | null | undefined> {
+  if (kind === "page") {
+    const [row] = await db
+      .select({ published: pages.published })
+      .from(pages)
+      .where(eq(pages.key, id))
+    if (!row?.published) return undefined
+    if (id === "home") return null
+    const title = (row.published as { hero?: { title?: unknown } }).hero?.title
+    return typeof title === "string" ? title : undefined
+  }
+  if (kind === "service") {
+    const [row] = await db
+      .select({ title: sql<string | null>`${services.published}->>'title'` })
+      .from(services)
+      .where(and(eq(services.slug, id), isNotNull(services.published)))
+    return row?.title ?? undefined
+  }
+  const [row] = await db
+    .select({ title: sql<string | null>`${articles.published}->>'title'` })
+    .from(articles)
+    .where(and(eq(articles.slug, id), isNotNull(articles.published)))
+  return row?.title ?? undefined
 }

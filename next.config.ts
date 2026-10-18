@@ -4,6 +4,8 @@ import type { NextConfig } from "next"
 // ships a small server.js instead of the full node_modules.
 const nextConfig: NextConfig = {
   output: "standalone",
+  // The share-card route reads its fonts from disk (standalone trace).
+  outputFileTracingIncludes: { "/og/**": ["./assets/fonts/**"] },
   poweredByHeader: false,
   // Cache Components: routes are dynamic unless data is cached with
   // 'use cache' (server/modules/*/queries.ts). Public pages read the DB
