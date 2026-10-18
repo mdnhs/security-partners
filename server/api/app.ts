@@ -25,7 +25,7 @@ import { dashboardRoutes } from "@/server/modules/dashboard/routes"
 import { healthRoutes } from "@/server/modules/health/routes"
 import { integrationsRoutes } from "@/server/modules/integrations/routes"
 import { internalRoutes } from "@/server/modules/internal/routes"
-import { publicLeadsRoutes } from "@/server/modules/leads/routes"
+import { leadsRoutes, publicLeadsRoutes } from "@/server/modules/leads/routes"
 import { mediaFileRoutes, mediaRoutes } from "@/server/modules/media/routes"
 import { pagesRoutes } from "@/server/modules/pages/routes"
 import {
@@ -61,6 +61,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/reorder", reorderRoutes)
   .route("/dashboard", dashboardRoutes)
   .route("/integrations", integrationsRoutes)
+  .route("/leads", leadsRoutes)
 export type AdminApi = typeof adminRoutes
 
 /** Builds the API. Mount order follows spec §7; Phase 2 adds Better Auth + session middleware. */

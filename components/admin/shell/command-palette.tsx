@@ -5,6 +5,7 @@ import {
   Building2,
   ExternalLink,
   FileText,
+  Inbox,
   Newspaper,
   Plus,
   ShieldCheck,
@@ -42,6 +43,7 @@ const TYPE_ICONS: Record<SearchType, typeof FileText> = {
   client: ShieldCheck,
   groupCompany: Building2,
   category: Tags,
+  lead: Inbox,
 }
 
 const TYPE_LABELS: Record<SearchType, string> = {
@@ -52,6 +54,7 @@ const TYPE_LABELS: Record<SearchType, string> = {
   client: "Client",
   groupCompany: "Group company",
   category: "Category",
+  lead: "Lead",
 }
 
 /** True for ⌘K (macOS) / Ctrl+K (elsewhere). */

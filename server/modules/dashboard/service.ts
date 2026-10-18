@@ -117,7 +117,7 @@ export async function getDashboard(
         ? `Assign ${unassigned} new enquir${unassigned === 1 ? "y" : "ies"}`
         : "Every new enquiry has an owner",
       description: "New enquiries nobody has picked up yet.",
-      href: "/admin/leads",
+      href: "/admin/leads?status=new&assignee=none",
       done: unassigned === 0,
     })
 

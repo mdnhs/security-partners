@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { listQuery, sortParam } from "./list"
+
 /** Same order as the DB enum lead_status (server/db/schema/leads.ts). */
 export const LEAD_STATUSES = [
   "new",
@@ -102,3 +104,107 @@ export const leadSubmission = z.object({
 export type LeadSubmission = z.output<typeof leadSubmission>
 
 export type LeadPublicConfig = { turnstileSiteKey: string | null }
+
+export const LEAD_STATUS_FILTERS = [...LEAD_STATUSES, "open", "all"] as const
+export type LeadStatusFilter = (typeof LEAD_STATUS_FILTERS)[number]
+
+/** Free-text search: no control characters (Postgres rejects NUL). */
+const searchText = z
+  .string()
+  .trim()
+  .max(200)
+  .refine((v) => !hasControlChars(v), "Remove special characters")
+  .optional()
+
+const leadFilters = {
+  /** none = everything except spam; open = new|contacted|qualified; all = everything */
+  status: z.enum(LEAD_STATUS_FILTERS).optional(),
+  assignee: z.union([z.literal("me"), z.literal("none"), z.uuid()]).optional(),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+}
+
+/** GET /api/v1/admin/leads */
+export const leadListQuery = listQuery.extend({
+  sort: sortParam(["createdAt", "name", "status"], {
+    field: "createdAt",
+    dir: "desc",
+  }),
+  q: searchText,
+  ...leadFilters,
+})
+export type LeadListQuery = z.output<typeof leadListQuery>
+
+/** GET /api/v1/admin/leads/export.csv — `email` for subject-access requests. */
+export const leadExportQuery = z.object({
+  q: searchText,
+  ...leadFilters,
+  email: z.email().optional(),
+})
+export type LeadExportQuery = z.output<typeof leadExportQuery>
+
+export const updateLeadInput = z
+  .object({
+    status: z.enum(LEAD_STATUSES).optional(),
+    assigneeId: z.uuid().nullable().optional(),
+  })
+  .refine((v) => v.status !== undefined || v.assigneeId !== undefined, {
+    message: "Change the status or the assignee",
+  })
+export type UpdateLeadInput = z.output<typeof updateLeadInput>
+
+export const leadNoteInput = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, "Write a note")
+    .max(5000, "Keep notes under 5,000 characters")
+    .refine((v) => !hasControlChars(v, "\t\n\r"), "Remove special characters"),
+})
+
+export type LeadPerson = { id: string; name: string }
+export type LeadListItem = {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  company: string | null
+  status: LeadStatus
+  assignee: LeadPerson | null
+  sourcePage: string | null
+  createdAt: string
+}
+export type LeadEventItem = {
+  id: string
+  type: LeadEventType
+  body: string | null
+  /** null = the website (created/email events) or a deleted user */
+  actor: LeadPerson | null
+  createdAt: string
+}
+export type LeadDto = LeadListItem & {
+  service: string | null
+  message: string
+  consent: boolean
+  updatedAt: string
+  events: LeadEventItem[]
+}
+export type LeadAssignee = { id: string; name: string; email: string }
+export type LeadBadge = { newLeads: number }
+
+export const LEAD_EXPORT_LIMIT = 50_000
+export const LEAD_CSV_HEADER = [
+  "Received (UTC)",
+  "Status",
+  "Name",
+  "Email",
+  "Phone",
+  "Company",
+  "Service",
+  "Message",
+  "Consent",
+  "Source page",
+  "Assignee",
+  "Notes",
+  "Lead ID",
+] as const

@@ -13,6 +13,7 @@ export const SEARCH_TYPES = [
   "client",
   "groupCompany",
   "category",
+  "lead",
 ] as const
 export type SearchType = (typeof SEARCH_TYPES)[number]
 

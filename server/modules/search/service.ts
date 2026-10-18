@@ -108,6 +108,16 @@ export async function search(
       })
   }
 
+  if (can({ lead: ["read"] }))
+    for (const row of await repo.searchLeads(db, q, LIMIT))
+      items.push({
+        type: "lead",
+        id: row.id,
+        title: row.name,
+        subtitle: row.email,
+        href: `/admin/leads/${row.id}`,
+      })
+
   return { items }
 }
 

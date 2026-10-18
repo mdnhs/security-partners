@@ -4,14 +4,37 @@ import { createElement } from "react"
 
 import { LeadAcknowledgementEmail } from "@/emails/lead-acknowledgement"
 import { LeadNotificationEmail } from "@/emails/lead-notification"
+import {
+  hasPermission,
+  parseRoles,
+  type PermissionRequest,
+} from "@/lib/auth/permissions"
+import { CSV_BOM, toCsv } from "@/lib/csv"
 import type { TurnstileConfig } from "@/lib/schemas/integrations"
-import type { LeadPublicConfig, LeadSubmission } from "@/lib/schemas/api/leads"
-import { formatDateTime } from "@/lib/format"
+import {
+  LEAD_CSV_HEADER,
+  LEAD_EXPORT_LIMIT,
+  LEAD_STATUS_LABELS,
+  type LeadAssignee,
+  type LeadBadge,
+  type LeadDto,
+  type LeadEventType,
+  type LeadExportQuery,
+  type LeadListItem,
+  type LeadListQuery,
+  type LeadPublicConfig,
+  type LeadStatus,
+  type LeadSubmission,
+  type UpdateLeadInput,
+} from "@/lib/schemas/api/leads"
+import type { Paginated } from "@/lib/schemas/api/list"
+import { formatDateTime, isoDate } from "@/lib/format"
 import { interpolate } from "@/lib/interpolate"
 import { getDb } from "@/server/db/client"
 import { getEnv } from "@/server/env"
+import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
-import { AppError } from "@/server/lib/errors"
+import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { hashIp } from "@/server/lib/ip"
 import { mailer } from "@/server/lib/mailer"
 import { verifyTurnstileToken } from "@/server/lib/turnstile"
@@ -203,4 +226,266 @@ async function notifyNewLead(
       body,
       actorId: null,
     })
+}
+
+function assertCan(actor: Actor, req: PermissionRequest) {
+  if (!hasPermission(actor.roles, req)) throw forbidden()
+}
+
+const canWorkLeads = (role: string | null, banned: boolean | null) =>
+  !banned && hasPermission(parseRoles(role), { lead: ["update"] })
+
+function toListItem(row: repo.LeadWithAssignee): LeadListItem {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    company: row.company,
+    status: row.status,
+    assignee: row.assigneeId
+      ? { id: row.assigneeId, name: row.assigneeName ?? "Deleted user" }
+      : null,
+    sourcePage: row.sourcePage,
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+function filtersFrom(
+  actor: Actor,
+  q: Pick<
+    LeadExportQuery,
+    "q" | "status" | "assignee" | "from" | "to" | "email"
+  >
+): repo.LeadFilters {
+  return {
+    status: q.status,
+    assigneeId: q.assignee === "me" ? actor.userId : q.assignee,
+    q: q.q || undefined,
+    from: q.from ? new Date(q.from) : undefined,
+    to: q.to ? new Date(q.to) : undefined,
+    email: q.email,
+  }
+}
+
+export async function listLeads(
+  actor: Actor,
+  query: LeadListQuery
+): Promise<Paginated<LeadListItem>> {
+  assertCan(actor, { lead: ["read"] })
+  const { rows, total } = await repo.listLeadRows(getDb(), {
+    filters: filtersFrom(actor, query),
+    sort: query.sort,
+    page: query.page,
+    pageSize: query.pageSize,
+  })
+  return {
+    items: rows.map(toListItem),
+    page: query.page,
+    pageSize: query.pageSize,
+    total,
+  }
+}
+
+export async function getLead(actor: Actor, id: string): Promise<LeadDto> {
+  assertCan(actor, { lead: ["read"] })
+  const db = getDb()
+  const row = await repo.findLeadRow(db, id)
+  if (!row) throw notFound("Lead")
+  const events = await repo.listLeadEventRows(db, id)
+  return {
+    ...toListItem(row),
+    service: row.service,
+    message: row.message,
+    consent: row.consent,
+    updatedAt: row.updatedAt.toISOString(),
+    events: events.map((e) => ({
+      id: e.id,
+      type: e.type as LeadEventType,
+      body: e.body,
+      actor: e.actorId
+        ? { id: e.actorId, name: e.actorName ?? "Deleted user" }
+        : null,
+      createdAt: e.createdAt.toISOString(),
+    })),
+  }
+}
+
+/** Status workflow new → contacted → qualified → won | lost | spam, and assignee. */
+export async function updateLead(
+  actor: Actor,
+  id: string,
+  input: UpdateLeadInput
+): Promise<LeadDto> {
+  assertCan(actor, { lead: ["update"] })
+  await getDb().transaction(async (tx) => {
+    const row = await repo.lockLeadRow(tx, id)
+    if (!row) throw notFound("Lead")
+    const patch: { status?: LeadStatus; assigneeId?: string | null } = {}
+    const diff: Record<string, { from: unknown; to: unknown }> = {}
+    const events: { type: LeadEventType; body: string }[] = []
+    if (input.status !== undefined && input.status !== row.status) {
+      patch.status = input.status
+      diff.status = { from: row.status, to: input.status }
+      events.push({
+        type: "status",
+        body: `${LEAD_STATUS_LABELS[row.status]} → ${LEAD_STATUS_LABELS[input.status]}`,
+      })
+    }
+    if (input.assigneeId !== undefined && input.assigneeId !== row.assigneeId) {
+      let name: string | null = null
+      if (input.assigneeId) {
+        const user = await repo.findStaffUser(tx, input.assigneeId)
+        if (!user || !canWorkLeads(user.role, user.banned))
+          throw new AppError("VALIDATION_FAILED", "Invalid input", {
+            fieldErrors: {
+              assigneeId: ["Choose someone who can work on leads"],
+            },
+          })
+        name = user.name
+      }
+      patch.assigneeId = input.assigneeId
+      diff.assigneeId = { from: row.assigneeId, to: input.assigneeId }
+      events.push({
+        type: "assigned",
+        body: name ? `Assigned to ${name}` : "Unassigned",
+      })
+    }
+    if (events.length === 0) return
+    await repo.updateLeadRow(tx, id, patch)
+    for (const event of events)
+      await repo.insertLeadEvent(tx, {
+        leadId: id,
+        ...event,
+        actorId: actor.userId,
+      })
+    await writeAudit(tx, actor, {
+      action: "lead.updated",
+      entityType: "lead",
+      entityId: id,
+      diff,
+    })
+  })
+  return getLead(actor, id)
+}
+
+export async function addLeadNote(
+  actor: Actor,
+  id: string,
+  input: { body: string }
+): Promise<LeadDto> {
+  assertCan(actor, { lead: ["update"] })
+  await getDb().transaction(async (tx) => {
+    if (!(await repo.lockLeadRow(tx, id))) throw notFound("Lead")
+    await repo.insertLeadEvent(tx, {
+      leadId: id,
+      type: "note",
+      body: input.body,
+      actorId: actor.userId,
+    })
+    await writeAudit(tx, actor, {
+      action: "lead.note_added",
+      entityType: "lead",
+      entityId: id,
+    })
+  })
+  return getLead(actor, id)
+}
+
+/** GDPR erasure: the lead and its events (cascade). The audit row keeps no personal data. */
+export async function deleteLead(
+  actor: Actor,
+  id: string
+): Promise<{ ok: true }> {
+  assertCan(actor, { lead: ["delete"] })
+  await getDb().transaction(async (tx) => {
+    if (!(await repo.deleteLeadRow(tx, id))) throw notFound("Lead")
+    await writeAudit(tx, actor, {
+      action: "lead.deleted",
+      entityType: "lead",
+      entityId: id,
+    })
+  })
+  return { ok: true }
+}
+
+const NOTE_ID_CHUNK = 1000
+
+/**
+ * CSV export (RFC 4180, formula-guarded); `email` serves subject-access
+ * requests. Bounded by LEAD_EXPORT_LIMIT rows; never includes ip_hash.
+ */
+export async function exportLeads(
+  actor: Actor,
+  query: LeadExportQuery,
+  now: Date = new Date()
+): Promise<{ csv: string; filename: string; count: number }> {
+  assertCan(actor, { lead: ["export"] })
+  const db = getDb()
+  const rows = await repo.exportLeadRows(
+    db,
+    filtersFrom(actor, query),
+    LEAD_EXPORT_LIMIT
+  )
+  const notes = new Map<string, string[]>()
+  // Chunked: one bind parameter per id, Postgres allows 65,535 per query.
+  for (let i = 0; i < rows.length; i += NOTE_ID_CHUNK) {
+    const ids = rows.slice(i, i + NOTE_ID_CHUNK).map((r) => r.id)
+    for (const note of await repo.listNoteRows(db, ids)) {
+      const line = `${note.createdAt.toISOString()} ${note.actorName ?? "Deleted user"}: ${note.body ?? ""}`
+      const list = notes.get(note.leadId)
+      if (list) list.push(line)
+      else notes.set(note.leadId, [line])
+    }
+  }
+  const csv =
+    CSV_BOM +
+    toCsv(
+      LEAD_CSV_HEADER,
+      rows.map((r) => [
+        r.createdAt.toISOString(),
+        LEAD_STATUS_LABELS[r.status],
+        r.name,
+        r.email,
+        r.phone,
+        r.company,
+        r.service,
+        r.message,
+        r.consent ? "yes" : "no",
+        r.sourcePage,
+        r.assigneeId ? (r.assigneeName ?? "Deleted user") : null,
+        (notes.get(r.id) ?? []).join("\n"),
+        r.id,
+      ])
+    )
+  await writeAudit(db, actor, {
+    action: "lead.exported",
+    entityType: "lead",
+    diff: {
+      count: rows.length,
+      filters: Object.entries(query)
+        .filter(([, value]) => value !== undefined && value !== "")
+        .map(([key]) => key),
+    },
+  })
+  return { csv, filename: `leads-${isoDate(now)}.csv`, count: rows.length }
+}
+
+export async function listAssignees(
+  actor: Actor
+): Promise<{ items: LeadAssignee[] }> {
+  assertCan(actor, { lead: ["read"] })
+  const rows = await repo.listStaffUsers(getDb())
+  return {
+    items: rows
+      .filter((u) => canWorkLeads(u.role, u.banned))
+      .map((u) => ({ id: u.id, name: u.name, email: u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }
+}
+
+/** Sidebar badge: unassigned new leads. */
+export async function leadBadge(actor: Actor): Promise<LeadBadge> {
+  assertCan(actor, { lead: ["read"] })
+  return { newLeads: await repo.countUnassignedNewLeads(getDb()) }
 }
