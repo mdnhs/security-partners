@@ -8,7 +8,11 @@ import type { z } from "zod"
 
 import type { StatusPillSpec } from "@/components/admin/kit/content-status"
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
-import { SchemaForm } from "@/components/admin/schema-form/schema-form"
+import { useAssistantScreen } from "@/components/admin/ai/assistant-context"
+import {
+  type FocusedTextField,
+  SchemaForm,
+} from "@/components/admin/schema-form/schema-form"
 import { Button, buttonClassName } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -201,6 +205,26 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   const markTouched = () => {
     touched.current = true
   }
+  // AI assistant (spec §8.3): the open record and the focused text field.
+  const assistant = useAssistantScreen({
+    title: props.title,
+    entityType: props.revisions.entity,
+    entityId: props.revisions.id,
+    record: draft,
+  })
+  const onFieldFocus = (field: FocusedTextField) =>
+    assistant.setField({
+      path: field.path,
+      label: field.label,
+      maxLength: field.maxLength,
+      elementId: field.elementId,
+      read: field.read,
+      // An inserted suggestion is an edit like typing: autosave picks it up.
+      apply: (text) => {
+        markTouched()
+        field.setValue(text)
+      },
+    })
   const onFormChange = (value: unknown) => {
     if (!touched.current) {
       baseRef.current = { ...baseRef.current, saved: value }
@@ -450,6 +474,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             resetKey={resetKey}
             disabled={!props.canEdit}
             sectionTabs="Sections"
+            onFieldFocus={props.canEdit ? onFieldFocus : undefined}
           />
         </div>
       </EditorLayout>
