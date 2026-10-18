@@ -227,6 +227,42 @@ describe("scheduler (master 5.4)", () => {
     expect((await job("prune-revisions")).runAt).toEqual(before.runAt)
   })
 
+  it("a tick told to stop (shutdown) finishes the running job and releases the claims it has not started", async () => {
+    await ensureRecurringJobs(new Date())
+    const now = later()
+    const before = await getDb().select().from(jobs)
+    expect(before.length).toBeGreaterThan(1)
+    let ran = 0
+    const counting = RECURRING_JOBS.map((definition) => ({
+      ...definition,
+      run: async () => {
+        ran++
+        return {}
+      },
+    }))
+    const results = await tick({
+      now,
+      jobs: counting,
+      revalidate: vi.fn(),
+      shouldStop: () => ran > 0,
+    })
+    expect(results).toHaveLength(1)
+    const rows = await getDb().select().from(jobs)
+    // Nothing stays locked: no claim waits out LOCK_TIMEOUT_MS after a restart.
+    expect(rows.every((row) => row.lockedAt === null)).toBe(true)
+    const untouched = rows.filter((row) => row.key !== results[0].key)
+    expect(untouched).toHaveLength(before.length - 1)
+    for (const row of untouched) {
+      const was = before.find((b) => b.id === row.id)!
+      // Released as if never claimed: still due, attempt not counted.
+      expect(row).toMatchObject({
+        attempts: was.attempts,
+        runAt: was.runAt,
+        lastRunAt: null,
+      })
+    }
+  })
+
   it("takes over a crashed worker's claim after the lock timeout, not before", async () => {
     await ensureRecurringJobs(new Date())
     const now = later()

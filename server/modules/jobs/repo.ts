@@ -112,6 +112,21 @@ export async function findJobByKey(
   return row ?? null
 }
 
+/**
+ * Hands back a claim whose job never started (shutdown): unlocked, still
+ * due, and the attempt the claim counted is undone.
+ */
+export async function releaseClaimedJob(
+  db: DbOrTx,
+  id: string,
+  claimedAt: Date
+): Promise<void> {
+  await db
+    .update(jobs)
+    .set({ lockedAt: null, attempts: sql`greatest(${jobs.attempts} - 1, 0)` })
+    .where(and(eq(jobs.id, id), eq(jobs.lockedAt, claimedAt)))
+}
+
 /** Removes a finished one-off job (only while this claim still holds it). */
 export async function deleteClaimedJob(
   db: DbOrTx,

@@ -8,6 +8,7 @@ import {
   claimDueJobs,
   deleteClaimedJob,
   finishJob,
+  releaseClaimedJob,
   upsertRecurringJob,
 } from "@/server/modules/jobs/repo"
 
@@ -125,6 +126,8 @@ export async function tick(
     now?: Date
     jobs?: readonly JobDefinition[]
     revalidate?: (tags: string[]) => Promise<void>
+    /** Checked before each job: true (shutdown) releases the claims not yet started. */
+    shouldStop?: () => boolean
   } = {}
 ): Promise<TickResult[]> {
   const now = options.now ?? new Date()
@@ -137,7 +140,14 @@ export async function tick(
     limit: CLAIM_LIMIT,
   })
   const results: TickResult[] = []
-  for (const job of claimed) {
+  for (const [index, job] of claimed.entries()) {
+    if (options.shouldStop?.()) {
+      // Shutting down: the next instance (or restart) runs these at once
+      // instead of waiting LOCK_TIMEOUT_MS for a stale claim.
+      for (const rest of claimed.slice(index))
+        await releaseClaimedJob(db, rest.id, now)
+      break
+    }
     const definition = definitions.find((d) => d.name === job.name)
     let ok = true
     let done = false
@@ -207,7 +217,9 @@ export async function tick(
 type SchedulerState = {
   first: NodeJS.Timeout
   interval: NodeJS.Timeout
-  running: boolean
+  /** The tick in progress, if any. */
+  current: Promise<void> | null
+  stopped: boolean
 }
 // On globalThis: one scheduler per process, even across dev HMR reloads.
 const store = globalThis as unknown as { __spScheduler?: SchedulerState }
@@ -226,34 +238,43 @@ export function startScheduler(): boolean {
     console.error("[scheduler] not started:", message(err))
     return false
   }
-  const run = async () => {
-    const state = store.__spScheduler
-    if (!state || state.running) return // a slow tick never overlaps the next
-    state.running = true
+  const once = async (state: SchedulerState) => {
     try {
       await ensureRecurringJobs()
-      for (const result of await tick())
+      for (const result of await tick({ shouldStop: () => state.stopped }))
         if (result.error)
           console.error(`[scheduler] ${result.name}: ${result.error}`)
     } catch (err) {
       console.error("[scheduler] tick failed:", message(err))
     } finally {
-      state.running = false
+      state.current = null
     }
   }
-  const first = setTimeout(() => void run(), FIRST_TICK_DELAY_MS)
-  const interval = setInterval(() => void run(), TICK_INTERVAL_MS)
+  const run = () => {
+    const state = store.__spScheduler
+    // A slow tick never overlaps the next; a stopped scheduler starts none.
+    if (!state || state.stopped || state.current) return
+    state.current = once(state)
+  }
+  const first = setTimeout(run, FIRST_TICK_DELAY_MS)
+  const interval = setInterval(run, TICK_INTERVAL_MS)
   first.unref?.()
   interval.unref?.()
-  store.__spScheduler = { first, interval, running: false }
+  store.__spScheduler = { first, interval, current: null, stopped: false }
   return true
 }
 
-/** Stops the tick (tests, graceful shutdown). */
-export function stopScheduler(): void {
+/**
+ * Stops the tick (tests, graceful shutdown). Resolves once the tick in
+ * progress, if any, has finished its running job and released the claims
+ * it had not started; it never keeps the process alive by itself.
+ */
+export async function stopScheduler(): Promise<void> {
   const state = store.__spScheduler
   if (!state) return
   clearTimeout(state.first)
   clearInterval(state.interval)
+  state.stopped = true
   store.__spScheduler = undefined
+  await state.current
 }
