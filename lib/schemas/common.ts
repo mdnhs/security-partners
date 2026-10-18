@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { isSafeHref, isSafeRichTextHref } from "../href"
+import { CONTROL_CHAR, isSafeHref, isSafeRichTextHref } from "../href"
 import { linkPlaceholderProblems } from "../link-rules"
 
 // Building blocks shared by settings, template and collection schemas.
@@ -41,8 +41,12 @@ export const link = z
       ctx.addIssue({ code: "custom", path: [key], message })
   })
 
-/** Absolute http(s) URL only (never javascript:, data:, ftp:…). */
-export const httpUrl = z.url({ protocol: /^https?$/ })
+/** Absolute http(s) URL only (never javascript:, data:, ftp:…), no control characters. */
+export const httpUrl = z
+  .url({ protocol: /^https?$/ })
+  .refine((value) => !CONTROL_CHAR.test(value), {
+    message: "Must not contain control characters",
+  })
 
 /** Reference to a row in the media library (resolved to a URL at render). */
 export const mediaRef = z.object({ mediaId: z.uuid() })

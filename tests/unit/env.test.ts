@@ -88,6 +88,35 @@ describe("parseEnv", () => {
     expect(parseEnv(VALID).BETTER_AUTH_URL).toBe("https://staging.example.ie")
   })
 
+  it("requires https in production except on loopback hosts", () => {
+    expect(() =>
+      parseEnv({ ...VALID, BETTER_AUTH_URL: "http://security.raynx.ie" })
+    ).toThrow(
+      "  - BETTER_AUTH_URL: must use https in production (http only for localhost)"
+    )
+    for (const url of [
+      "http://localhost:3000",
+      "http://127.0.0.1:3100",
+      "http://[::1]:3000",
+    ])
+      expect(parseEnv({ ...VALID, BETTER_AUTH_URL: url }).BETTER_AUTH_URL).toBe(
+        url
+      )
+    expect(
+      parseEnv({
+        ...VALID,
+        NODE_ENV: "development",
+        BETTER_AUTH_URL: "http://dev.example.ie",
+      }).BETTER_AUTH_URL
+    ).toBe("http://dev.example.ie")
+  })
+
+  it("names NODE_ENV when it is not development, production or test", () => {
+    expect(() => parseEnv({ ...VALID, NODE_ENV: "staging" })).toThrow(
+      "  - NODE_ENV:"
+    )
+  })
+
   it("rejects a non-postgres DATABASE_URL", () => {
     expect(() =>
       parseEnv({ ...VALID, DATABASE_URL: "mysql://x@y/z" })
@@ -137,6 +166,15 @@ describe("getSiteEnv (spec §1.4)", () => {
     expect(getSiteEnv("https://www.example.ie")).toBe("development")
     setEnv({ ...VALID, NODE_ENV: undefined })
     expect(getSiteEnv()).toBe("development")
+  })
+
+  it("checks the production origin before NODE_ENV (a dev server on the production URL is production)", () => {
+    setEnv({
+      ...VALID,
+      NODE_ENV: "development",
+      BETTER_AUTH_URL: "https://www.example.ie",
+    })
+    expect(getSiteEnv("https://www.example.ie")).toBe("production")
   })
 
   it("is staging for a production build on any other origin", () => {

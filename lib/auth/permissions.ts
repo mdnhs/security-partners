@@ -146,8 +146,12 @@ export function hasPermission(
   const entries = Object.entries(req) as [Resource, readonly string[]][]
   if (entries.length === 0) return false
   const known = userRoles.filter(isRole)
+  // Fail closed on malformed requests: only own keys of `statements`
+  // (never "__proto__"/"toString") and real, non-empty action arrays.
   return entries.every(
     ([resource, actions]) =>
+      Object.hasOwn(statements, resource) &&
+      Array.isArray(actions) &&
       actions.length > 0 &&
       actions.every((action) =>
         known.some(

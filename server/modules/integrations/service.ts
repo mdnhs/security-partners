@@ -283,6 +283,16 @@ export async function saveIntegration(
   input: SaveIntegrationInput
 ): Promise<IntegrationDto> {
   assertCan(actor, { integration: ["update"] })
+  // The SMTP host check may wait for DNS (up to its timeout): do it before
+  // the transaction so no connection/transaction is held meanwhile.
+  const enteredHost =
+    key === "integrations.smtp" && typeof input.values.host === "string"
+      ? input.values.host
+      : null
+  const preResolved =
+    enteredHost === null
+      ? null
+      : { host: enteredHost, target: await resolveSmtpTarget(enteredHost) }
   return getDb().transaction(async (tx) => {
     const row = await findIntegrationRow(tx, key)
     if ((row?.version ?? 0) !== input.version) throw conflict(toDto(key, row))
@@ -302,13 +312,14 @@ export async function saveIntegration(
         parsed.success ? (parsed.data as Values) : merged
       ),
     }
-    if (
-      parsed.success &&
-      key === "integrations.smtp" &&
-      (await resolveSmtpTarget(String((parsed.data as Values).host))).kind ===
-        "blocked"
-    )
-      fieldErrors.host = [BLOCKED_HOST_MESSAGE]
+    if (parsed.success && key === "integrations.smtp") {
+      const host = String((parsed.data as Values).host)
+      const target =
+        preResolved?.host === host
+          ? preResolved.target
+          : await resolveSmtpTarget(host)
+      if (target.kind === "blocked") fieldErrors.host = [BLOCKED_HOST_MESSAGE]
+    }
     if (!parsed.success || Object.keys(fieldErrors).length > 0)
       throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
         fieldErrors,

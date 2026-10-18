@@ -22,21 +22,42 @@ const isPostgresUrl = (value: string) => {
   }
 }
 
-const envSchema = z.object({
-  DATABASE_URL: z
-    .string({ error: "is required" })
-    .min(1, "is required")
-    .refine(isPostgresUrl, "must be a postgres:// or postgresql:// URL"),
-  BETTER_AUTH_SECRET: z
-    .string({ error: "is required" })
-    .min(1, "is required")
-    .min(32, "must be at least 32 characters"),
-  BETTER_AUTH_URL: z
-    .string({ error: "is required" })
-    .min(1, "is required")
-    .refine(isHttpUrl, "must be an absolute http(s) URL"),
-  NODE_ENV: z.enum(NODE_ENVS).default("development"),
-})
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"])
+
+/** Plain http to anything but this machine: auth cookies would travel without Secure. */
+const isInsecureRemote = (value: string) => {
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" && !LOOPBACK.has(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+const envSchema = z
+  .object({
+    DATABASE_URL: z
+      .string({ error: "is required" })
+      .min(1, "is required")
+      .refine(isPostgresUrl, "must be a postgres:// or postgresql:// URL"),
+    BETTER_AUTH_SECRET: z
+      .string({ error: "is required" })
+      .min(1, "is required")
+      .min(32, "must be at least 32 characters"),
+    BETTER_AUTH_URL: z
+      .string({ error: "is required" })
+      .min(1, "is required")
+      .refine(isHttpUrl, "must be an absolute http(s) URL"),
+    NODE_ENV: z.enum(NODE_ENVS).default("development"),
+  })
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV === "production" && isInsecureRemote(env.BETTER_AUTH_URL))
+      ctx.addIssue({
+        code: "custom",
+        path: ["BETTER_AUTH_URL"],
+        message: "must use https in production (http only for localhost)",
+      })
+  })
 
 export type Env = z.infer<typeof envSchema>
 

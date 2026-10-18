@@ -7,6 +7,7 @@ import {
   existingMediaIds,
   listMediaReferencingEntities,
   lockMediaReferencingEntity,
+  nonImageMediaIds,
   replaceMediaUsages,
 } from "@/server/modules/media/repo"
 
@@ -27,6 +28,16 @@ function missingMedia(usages: MediaField[]): AppError {
   })
 }
 
+const NOT_IMAGE_MESSAGE = "This file is not an image. Choose an image."
+
+function notAnImage(usages: MediaField[]): AppError {
+  const fieldErrors: Record<string, string[]> = {}
+  for (const usage of usages) fieldErrors[usage.field] = [NOT_IMAGE_MESSAGE]
+  return new AppError("VALIDATION_FAILED", "Some files are not images", {
+    fieldErrors,
+  })
+}
+
 /** The media id named by an FK violation's detail: `Key (media_id)=(<id>) …`. */
 function mediaIdOfFkError(err: unknown): string | undefined {
   const e = err as { detail?: unknown; cause?: { detail?: unknown } } | null
@@ -41,12 +52,24 @@ function mediaIdOfFkError(err: unknown): string | undefined {
  * restricts deleting media in use (ledger ruling), so every save keeps
  * these rows exact. A reference to a missing media row → 422 on its field,
  * also when the row is deleted between the check and the insert (FK 23503).
+ * Every media field in the content schemas is an image field, so a reference
+ * to a non-image (a PDF picked through the API) → 422 on its field too.
  */
 export async function syncMediaUsages(
   tx: DbOrTx,
   entityType: string,
   entityId: string,
   ...values: unknown[]
+): Promise<MediaField[]> {
+  return syncUsages(tx, entityType, entityId, values, true)
+}
+
+async function syncUsages(
+  tx: DbOrTx,
+  entityType: string,
+  entityId: string,
+  values: unknown[],
+  requireImages: boolean
 ): Promise<MediaField[]> {
   const unique = new Map<string, MediaField>()
   for (const value of values)
@@ -58,6 +81,12 @@ export async function syncMediaUsages(
   ])
   const missing = usages.filter((u) => !found.has(u.mediaId))
   if (missing.length > 0) throw missingMedia(missing)
+  if (requireImages) {
+    // The picker only offers images; the server must not trust that.
+    const notImages = await nonImageMediaIds(tx, [...found])
+    const wrongKind = usages.filter((u) => notImages.has(u.mediaId))
+    if (wrongKind.length > 0) throw notAnImage(wrongKind)
+  }
   try {
     await replaceMediaUsages(tx, entityType, entityId, usages)
   } catch (err) {
@@ -102,12 +131,15 @@ export async function backfillMediaUsages(db: DbOrTx): Promise<number> {
       total += await db.transaction(async (tx) => {
         const values = await lockMediaReferencingEntity(tx, entity)
         if (!values) return 0 // deleted meanwhile (its delete cleared its rows)
+        // Records what is stored as-is (no image check): the rows must
+        // protect every referenced file from deletion, whatever its kind.
         return (
-          await syncMediaUsages(
+          await syncUsages(
             tx,
             entity.entityType,
             entity.entityId,
-            ...values
+            values,
+            false
           )
         ).length
       })
