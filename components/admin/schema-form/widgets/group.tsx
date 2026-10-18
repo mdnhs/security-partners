@@ -284,6 +284,8 @@ export function GroupWidget({ field, path }: WidgetProps) {
     return (
       <div
         role="group"
+        // The item's position ("Stat 2"), as on its list item.
+        aria-label={field.label}
         aria-describedby={errorRef}
         className="flex flex-col gap-4"
       >

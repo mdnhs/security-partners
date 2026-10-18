@@ -213,7 +213,7 @@ export function MediaLibrary() {
           }
         />
       ) : list.isPending ? (
-        <div role="status" aria-busy="true">
+        <div role="status">
           <span className="sr-only">Loading media…</span>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {Array.from({ length: 12 }, (_, i) => (

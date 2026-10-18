@@ -257,7 +257,7 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
           }
         />
       ) : query.isPending ? (
-        <div role="status" aria-busy="true">
+        <div role="status">
           <span className="sr-only">Loading {label.toLowerCase()}…</span>
           <CardSkeleton />
         </div>

@@ -285,7 +285,7 @@ export function IntegrationForm({
       <div>
         {header}
         {/* The header stays outside the live region (it is not news). */}
-        <div role="status" aria-busy="true">
+        <div role="status">
           <p className="sr-only">Loading settings…</p>
           <CardSkeleton className="h-96" />
         </div>

@@ -279,6 +279,8 @@ describe("SchemaForm list-item errors (ledger P04-5)", () => {
     )
     expect(described).not.toBeNull()
     expect(described).toHaveAttribute("role", "group")
+    // Named like its list item, so the group is not anonymous (axe).
+    expect(described).toHaveAccessibleName("Stat 2")
     expect(error.mock.calls.flat().join(" ")).not.toContain("same key")
     error.mockRestore()
   })

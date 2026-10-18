@@ -486,6 +486,67 @@ describe("page editor (master 4.4)", () => {
     )
   })
 
+  it("overwriting after a restore conflict says the restore did not run", async () => {
+    const user = userEvent.setup()
+    routes["GET /api/v1/admin/revisions/page/home"] = () =>
+      json(200, {
+        items: [
+          {
+            id: "0190a6e0-0000-7000-8000-0000000000aa",
+            version: 1,
+            createdAt: "2026-10-16T08:00:00.000Z",
+            actor: null,
+          },
+        ],
+      })
+    routes["POST /api/v1/admin/pages/home/restore"] = () =>
+      json(409, conflictBody("Their heading"))
+    const bodies: PutBody[] = []
+    routes["PUT /api/v1/admin/pages/home/draft"] = (init) => {
+      const body = bodyOf(init)
+      bodies.push(body)
+      return json(200, {
+        ...dto(6, body.draft.hero.heading),
+        draft: body.draft,
+      })
+    }
+    renderEditor()
+    await headingInput()
+    await user.click(screen.getByRole("button", { name: "History" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Restore version 1" })
+    )
+    await user.click(
+      await screen.findByRole("button", { name: "Restore into draft" })
+    )
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Overwrite with mine" })
+    )
+    expect(
+      await screen.findByText(/restore again if needed/)
+    ).toBeInTheDocument()
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0].version).toBe(5)
+  })
+
+  it("Publish is unavailable while a conflict is open", async () => {
+    const user = userEvent.setup()
+    routes["PUT /api/v1/admin/pages/home/draft"] = () =>
+      json(409, conflictBody("Their heading"))
+    renderEditor()
+    const heading = await headingInput()
+    await user.type(heading, " mine")
+    await user.keyboard("{Control>}s{/Control}")
+    await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    // Behind the modal dialog (inert): found by its text.
+    expect(screen.getByText("Publish", { selector: "button" })).toBeDisabled()
+  })
+
   it("overwrite without their version keeps the dialog open and sends nothing", async () => {
     const user = userEvent.setup()
     const bodies: PutBody[] = []
