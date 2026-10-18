@@ -27,7 +27,8 @@
     "owner:recover": "pnpm tsx:server scripts/owner-recover.ts",
     "demo:seed": "pnpm tsx:server scripts/demo-seed.ts",
     "db:seed": "pnpm tsx:server scripts/seed.ts",
-    "backup": "pnpm tsx:server scripts/backup.ts"
+    "backup": "pnpm tsx:server scripts/backup.ts",
+    "restore-drill": "pnpm tsx:server scripts/restore-drill.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1146.0",
