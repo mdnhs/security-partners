@@ -35,18 +35,15 @@ async function Article({ params }: Pick<PageProps<"/blog/[slug]">, "params">) {
   // Unknown slugs are a real 404 in proxy.ts; previews keep the soft 404
   // (see services/[slug]/page.tsx).
   if (!view) notFound()
+  const jsonLd = articleJsonLdFor(
+    s,
+    slug,
+    publicOrigin(s.settings.site.productionUrl)
+  )
   return (
     <>
       <ArticleTemplate view={view} />
-      <JsonLd
-        data={
-          articleJsonLdFor(
-            s,
-            slug,
-            publicOrigin(s.settings.site.productionUrl)
-          ) ?? []
-        }
-      />
+      {jsonLd && <JsonLd data={jsonLd} />}
     </>
   )
 }

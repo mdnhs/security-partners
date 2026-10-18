@@ -88,14 +88,13 @@ export function articleJsonLdFor(
         article.seo.ogImage?.url ?? article.content.cover.url
       ),
       datePublished: article.publishedAt?.toISOString() ?? null,
+      // SiteSources carries no last-publish time for an article (the row's
+      // updatedAt also moves on draft saves, which do not change the live
+      // text), so dateModified is omitted rather than guessed.
       dateModified: null,
       authorName: article.author?.name ?? null,
       section: article.category.name,
-      publisher: {
-        origin,
-        name: s.settings.site.name,
-        logo: absoluteUrl(origin, s.settings.site.logo.url),
-      },
+      publisher: { origin },
     }),
     breadcrumbJsonLd([
       { name: crumbs.home, url: absoluteUrl(origin, "/") },

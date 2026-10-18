@@ -40,15 +40,15 @@ async function ServiceDetail({
   // 404; drafts in preview keep this soft 404 (200 + noindex, inside
   // Suspense the shell has already streamed).
   if (!view) notFound()
+  const jsonLd = serviceJsonLd(
+    s,
+    slug,
+    publicOrigin(s.settings.site.productionUrl)
+  )
   return (
     <>
       <ServiceDetailTemplate view={view} />
-      <JsonLd
-        data={
-          serviceJsonLd(s, slug, publicOrigin(s.settings.site.productionUrl)) ??
-          []
-        }
-      />
+      {jsonLd && <JsonLd data={jsonLd} />}
     </>
   )
 }

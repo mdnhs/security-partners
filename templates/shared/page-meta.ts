@@ -93,7 +93,7 @@ function metadataFor(s: SiteSources, subject: Subject): Metadata {
       card: "summary_large_image",
       title,
       description,
-      images: [image.url],
+      images: [{ url: image.url, ...(image.alt ? { alt: image.alt } : {}) }],
     },
   }
 }

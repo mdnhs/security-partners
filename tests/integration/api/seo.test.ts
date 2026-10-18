@@ -10,7 +10,13 @@ vi.mock("next/cache", () => ({
 
 import type { SeoEntry, SeoOverviewDto } from "@/lib/schemas/api/seo"
 import { getDb } from "@/server/db/client"
-import { auditLog, media, mediaUsages } from "@/server/db/schema"
+import {
+  auditLog,
+  media,
+  mediaUsages,
+  pages,
+  services,
+} from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { backfillMediaUsages } from "@/server/lib/media-usages"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
@@ -72,6 +78,34 @@ describe("SEO API (master 8.1)", () => {
       passed: live.length * 4 - issues,
       total: live.length * 4,
     })
+  })
+
+  it("overview: stored blank SEO fields fall back like the public page", async () => {
+    // The API strips blanks on save; older or imported rows may still hold "".
+    await getDb()
+      .update(services)
+      .set({ seo: { title: "", description: "  " } })
+      .where(eq(services.slug, "alarm-responses"))
+    await getDb()
+      .update(pages)
+      .set({ seo: { title: "" } })
+      .where(eq(pages.key, "home"))
+    const res = await adminRequest("/seo/overview", { cookie: viewer })
+    const dto = (await res.json()) as SeoOverviewDto
+    const fx = fixtureSiteSources()
+    const intro = fx.services.find((x) => x.slug === "alarm-responses")!.content
+      .detail.intro
+    expect(
+      dto.entries.find(
+        (e) => e.kind === "service" && e.path === "/services/alarm-responses"
+      )
+    ).toMatchObject({
+      title: "Alarm Responses | Security Partners Ltd.",
+      description: intro,
+    })
+    expect(
+      dto.entries.find((e) => e.kind === "page" && e.id === "home")?.title
+    ).toBe(fx.settings["seo.defaults"].title)
   })
 
   it("marketer saves a service's SEO: live at once, version untouched, audited", async () => {

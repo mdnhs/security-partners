@@ -68,19 +68,16 @@ describe("JSON-LD builders", () => {
       dateModified: null,
       authorName: "Jane",
       section: "News",
-      publisher: {
-        origin: "https://x.ie",
-        name: "SP",
-        logo: "https://x.ie/l.png",
-      },
+      publisher: { origin: "https://x.ie" },
     })
     expect(data).toMatchObject({
       "@type": "Article",
       mainEntityOfPage: "https://x.ie/blog/a",
       datePublished: "2026-09-20T09:00:00.000Z",
       author: { "@type": "Person", name: "Jane" },
-      publisher: { "@id": "https://x.ie/#organization" },
     })
+    // A reference to the site-wide business node, not a second description.
+    expect(data.publisher).toEqual({ "@id": "https://x.ie/#organization" })
     expect(data).not.toHaveProperty("dateModified")
   })
 

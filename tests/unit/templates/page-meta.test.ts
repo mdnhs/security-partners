@@ -27,7 +27,7 @@ describe("public page metadata (spec §10)", () => {
     })
     expect(meta.twitter).toMatchObject({
       card: "summary_large_image",
-      images: ["/og/page/home"],
+      images: [{ url: "/og/page/home" }],
     })
   })
 
@@ -62,6 +62,9 @@ describe("public page metadata (spec §10)", () => {
       images: [
         { url: "/images/about.png", width: 800, height: 600, alt: "Our team" },
       ],
+    })
+    expect(meta.twitter).toMatchObject({
+      images: [{ url: "/images/about.png", alt: "Our team" }],
     })
   })
 

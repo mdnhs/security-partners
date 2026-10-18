@@ -75,7 +75,8 @@ export type ArticleInput = {
   dateModified: string | null
   authorName: string | null
   section: string
-  publisher: { origin: string; name: string; logo: string }
+  /** Site origin: the publisher is the business node `<origin>/#organization`. */
+  publisher: { origin: string }
 }
 
 export function articleJsonLd(i: ArticleInput): WithContext<Article> {
@@ -92,12 +93,9 @@ export function articleJsonLd(i: ArticleInput): WithContext<Article> {
       ? { author: { "@type": "Person", name: i.authorName } }
       : {}),
     articleSection: i.section,
-    publisher: {
-      "@type": "Organization",
-      "@id": organizationId(i.publisher.origin),
-      name: i.publisher.name,
-      logo: { "@type": "ImageObject", url: i.publisher.logo },
-    },
+    // The site-wide business node (siteJsonLd) on the same page; a
+    // reference only, so the node is not described twice with two types.
+    publisher: { "@id": organizationId(i.publisher.origin) },
   }
 }
 
