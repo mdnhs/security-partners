@@ -30,9 +30,15 @@ describe("prepareUpload (spec §11 pipeline before storage)", () => {
 
   it("strips bidi, C1 and zero-width characters from the name", async () => {
     const name =
-      "in\u202evoice\u2066\u2069\u202a\u200b\u200d\u200f\ufeff\u0085\u009f.png"
+      "in\u202evoice\u2066\u2069\u202a\u200b\u200f\ufeff\u0085\u009f\u2028\u2060\u061c\u180e\u{e0041}.png"
     const prepared = await prepareUpload(new File([await png()], name))
     expect(prepared.originalName).toBe("invoice.png")
+  })
+
+  it("keeps ZWJ in names (emoji sequences)", async () => {
+    const name = "team \u{1f468}\u200d\u{1f469}.png"
+    const prepared = await prepareUpload(new File([await png()], name))
+    expect(prepared.originalName).toBe(name)
   })
 
   it("names a file without a usable name after its type", async () => {

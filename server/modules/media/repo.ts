@@ -328,83 +328,108 @@ export async function deleteMediaRow(db: DbOrTx, id: string): Promise<boolean> {
   return deleted.length > 0
 }
 
+/** One entity that can reference media (media_usages entity type + id). */
+export type MediaReferencingEntity = { entityType: string; entityId: string }
+
 /**
- * Every entity that can reference media, with the values its service syncs
- * (Phase 4/5 shapes: versioned JSON draft + published; collections as
- * { photo } / { logo }). Integration settings never hold media.
+ * Every entity that can reference media: pages, non-integration settings
+ * (integrations never hold media), services, articles, team members,
+ * clients, group companies.
  */
 export async function listMediaReferencingEntities(
   db: DbOrTx
-): Promise<{ entityType: string; entityId: string; values: unknown[] }[]> {
-  const out: { entityType: string; entityId: string; values: unknown[] }[] = []
-  for (const row of await db
-    .select({ key: pages.key, draft: pages.draft, published: pages.published })
-    .from(pages))
-    out.push({
-      entityType: "page",
-      entityId: row.key,
-      values: [row.draft, row.published],
-    })
-  for (const row of await db
-    .select({
-      key: settings.key,
-      draft: settings.draft,
-      published: settings.published,
-    })
-    .from(settings)
-    .where(notLike(settings.key, "integrations.%")))
-    out.push({
-      entityType: "settings",
-      entityId: row.key,
-      values: [row.draft, row.published],
-    })
-  for (const row of await db
-    .select({
-      id: services.id,
-      draft: services.draft,
-      published: services.published,
-    })
-    .from(services))
-    out.push({
-      entityType: "service",
-      entityId: row.id,
-      values: [row.draft, row.published],
-    })
-  for (const row of await db
-    .select({
-      id: articles.id,
-      draft: articles.draft,
-      published: articles.published,
-    })
-    .from(articles))
-    out.push({
-      entityType: "article",
-      entityId: row.id,
-      values: [row.draft, row.published],
-    })
-  for (const row of await db
-    .select({ id: teamMembers.id, photoId: teamMembers.photoId })
-    .from(teamMembers))
-    out.push({
-      entityType: "team",
-      entityId: row.id,
-      values: [{ photo: row.photoId ? { mediaId: row.photoId } : null }],
-    })
-  for (const row of await db
-    .select({ id: clients.id, logoId: clients.logoId })
-    .from(clients))
-    out.push({
-      entityType: "client",
-      entityId: row.id,
-      values: [{ logo: { mediaId: row.logoId } }],
-    })
-  for (const row of await db
-    .select({ id: groupCompanies.id, logoId: groupCompanies.logoId })
-    .from(groupCompanies))
-    out.push({
-      entityType: "groupCompany",
-      entityId: row.id,
-      values: [{ logo: { mediaId: row.logoId } }],
-    })
-  return out
+): Promise<MediaReferencingEntity[]> {
+  const of = (entityType: string, rows: { id: string }[]) =>
+    rows.map((row) => ({ entityType, entityId: row.id }))
+  return [
+    ...of("page", await db.select({ id: pages.key }).from(pages)),
+    ...of(
+      "settings",
+      await db
+        .select({ id: settings.key })
+        .from(settings)
+        .where(notLike(settings.key, "integrations.%"))
+    ),
+    ...of("service", await db.select({ id: services.id }).from(services)),
+    ...of("article", await db.select({ id: articles.id }).from(articles)),
+    ...of("team", await db.select({ id: teamMembers.id }).from(teamMembers)),
+    ...of("client", await db.select({ id: clients.id }).from(clients)),
+    ...of(
+      "groupCompany",
+      await db.select({ id: groupCompanies.id }).from(groupCompanies)
+    ),
+  ]
+}
+
+/**
+ * Locks one entity's row FOR UPDATE and returns the values its service
+ * syncs into media_usages (Phase 4/5 shapes: versioned JSON draft +
+ * published; collections as { photo } / { logo }). null = row gone.
+ */
+export async function lockMediaReferencingEntity(
+  db: DbOrTx,
+  { entityType, entityId }: MediaReferencingEntity
+): Promise<unknown[] | null> {
+  switch (entityType) {
+    case "page": {
+      const [row] = await db
+        .select({ draft: pages.draft, published: pages.published })
+        .from(pages)
+        .where(eq(pages.key, entityId))
+        .for("update")
+      return row ? [row.draft, row.published] : null
+    }
+    case "settings": {
+      const [row] = await db
+        .select({ draft: settings.draft, published: settings.published })
+        .from(settings)
+        .where(eq(settings.key, entityId))
+        .for("update")
+      return row ? [row.draft, row.published] : null
+    }
+    case "service": {
+      const [row] = await db
+        .select({ draft: services.draft, published: services.published })
+        .from(services)
+        .where(eq(services.id, entityId))
+        .for("update")
+      return row ? [row.draft, row.published] : null
+    }
+    case "article": {
+      const [row] = await db
+        .select({ draft: articles.draft, published: articles.published })
+        .from(articles)
+        .where(eq(articles.id, entityId))
+        .for("update")
+      return row ? [row.draft, row.published] : null
+    }
+    case "team": {
+      const [row] = await db
+        .select({ photoId: teamMembers.photoId })
+        .from(teamMembers)
+        .where(eq(teamMembers.id, entityId))
+        .for("update")
+      return row
+        ? [{ photo: row.photoId ? { mediaId: row.photoId } : null }]
+        : null
+    }
+    case "client": {
+      const [row] = await db
+        .select({ logoId: clients.logoId })
+        .from(clients)
+        .where(eq(clients.id, entityId))
+        .for("update")
+      return row ? [{ logo: { mediaId: row.logoId } }] : null
+    }
+    case "groupCompany": {
+      const [row] = await db
+        .select({ logoId: groupCompanies.logoId })
+        .from(groupCompanies)
+        .where(eq(groupCompanies.id, entityId))
+        .for("update")
+      return row ? [{ logo: { mediaId: row.logoId } }] : null
+    }
+    default:
+      return null
+  }
 }

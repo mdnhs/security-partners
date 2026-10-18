@@ -6,6 +6,7 @@ import {
   deleteMediaUsages,
   existingMediaIds,
   listMediaReferencingEntities,
+  lockMediaReferencingEntity,
   replaceMediaUsages,
 } from "@/server/modules/media/repo"
 
@@ -15,10 +16,13 @@ import { FOREIGN_KEY_VIOLATION, pgErrorCode } from "./pg-errors"
 const MISSING_MESSAGE =
   "This image is no longer in the media library. Choose another."
 
+/** 422 for references to media rows that do not exist (the backfill skips these entities). */
+class MissingMediaError extends AppError {}
+
 function missingMedia(usages: MediaField[]): AppError {
   const fieldErrors: Record<string, string[]> = {}
   for (const usage of usages) fieldErrors[usage.field] = [MISSING_MESSAGE]
-  return new AppError("VALIDATION_FAILED", "Some images are missing", {
+  return new MissingMediaError("VALIDATION_FAILED", "Some images are missing", {
     fieldErrors,
   })
 }
@@ -81,17 +85,40 @@ export async function clearMediaUsages(
  * (ledger carry: seeded references were never tracked). Same shapes as the
  * services' syncs, so the rows equal what the next save would write.
  * Returns the number of usage rows.
+ *
+ * Each entity runs in its own (nested) transaction: its row is locked FOR
+ * UPDATE and re-read right before the sync, so an admin save that commits
+ * meanwhile is not overwritten with stale references (the save holds the
+ * row until its own sync commits; we then read what it wrote). An entity
+ * that references missing media is skipped (savepoint rolled back, its
+ * existing rows kept) and logged by id, so one bad reference never rolls
+ * back a whole seed.
  */
-export async function backfillMediaUsages(tx: DbOrTx): Promise<number> {
+export async function backfillMediaUsages(db: DbOrTx): Promise<number> {
   let total = 0
-  for (const entity of await listMediaReferencingEntities(tx))
-    total += (
-      await syncMediaUsages(
-        tx,
-        entity.entityType,
-        entity.entityId,
-        ...entity.values
-      )
-    ).length
+  const skipped: string[] = []
+  for (const entity of await listMediaReferencingEntities(db)) {
+    try {
+      total += await db.transaction(async (tx) => {
+        const values = await lockMediaReferencingEntity(tx, entity)
+        if (!values) return 0 // deleted meanwhile (its delete cleared its rows)
+        return (
+          await syncMediaUsages(
+            tx,
+            entity.entityType,
+            entity.entityId,
+            ...values
+          )
+        ).length
+      })
+    } catch (err) {
+      if (!(err instanceof MissingMediaError)) throw err
+      skipped.push(`${entity.entityType}:${entity.entityId}`)
+    }
+  }
+  if (skipped.length > 0)
+    console.warn(
+      `[media] usages backfill skipped entities with missing media: ${skipped.join(", ")}`
+    )
   return total
 }

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs"
+import { readdir } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import {
@@ -30,30 +31,38 @@ vi.mock("next/cache", () => ({
 
 import type { MediaItem, MediaUsage } from "@/lib/schemas/api/media"
 import { app } from "@/server/api/app"
-import { getDb } from "@/server/db/client"
+import { type DbOrTx, getDb } from "@/server/db/client"
 import {
   auditLog,
   clients,
   groupCompanies,
   media,
   mediaUsages,
+  services,
   settings,
   teamMembers,
 } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import type { Actor } from "@/server/lib/actor"
 import { resetR2Client } from "@/server/lib/r2-client"
-import { diskStorage } from "@/server/lib/storage"
+import { AppError } from "@/server/lib/errors"
+import { syncMediaUsages } from "@/server/lib/media-usages"
+import { defaultUploadsRoot, diskStorage } from "@/server/lib/storage"
 import {
   deleteIntegration,
   saveIntegration,
 } from "@/server/modules/integrations/service"
-import { lockMediaRow } from "@/server/modules/media/repo"
+import {
+  deleteMediaRow,
+  lockMediaRow,
+  replaceMediaUsages,
+} from "@/server/modules/media/repo"
 
 import { resetDb } from "../db"
 import { adminRequest, createUser, ORIGIN, signedInUser } from "../helpers/auth"
 
 let editor: string
+let author: string
 let owner: Actor
 const created: string[] = []
 
@@ -61,6 +70,7 @@ beforeAll(async () => {
   await resetDb()
   await seedContent(getDb())
   editor = (await signedInUser(["editor"])).cookie
+  author = (await signedInUser(["author"])).cookie
   const user = await createUser({ roles: ["owner"] })
   owner = {
     userId: user.id,
@@ -302,6 +312,153 @@ describe("replace runs the upload pipeline", () => {
     expect(await disk.read(final.key)).not.toBeNull()
     for (const key of [keyOf(first), keyOf(a.body), keyOf(b.body)])
       if (key !== final.key) expect(await disk.read(key), key).toBeNull()
+  })
+})
+
+/** Waits until `n` backends of the test DB are blocked on a row lock. */
+async function lockWaiters(n: number) {
+  await vi.waitFor(
+    async () => {
+      const { rows } = await getDb().execute<{ n: number }>(
+        sql`select count(*)::int as n from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'`
+      )
+      expect(rows[0].n).toBe(n)
+    },
+    { timeout: 10_000, interval: 50 }
+  )
+}
+
+/** Runs `body` in a transaction that stays open until the returned release() is called. */
+async function heldTransaction(
+  body: (tx: DbOrTx) => Promise<void>,
+  after?: (tx: DbOrTx) => Promise<void>
+) {
+  let release: (() => void) | undefined
+  const done = getDb().transaction(async (tx) => {
+    await body(tx)
+    await new Promise<void>((resolve) => (release = resolve))
+    await after?.(tx)
+  })
+  await vi.waitFor(() => expect(release).toBeDefined())
+  return async () => {
+    release!()
+    await done
+  }
+}
+
+describe("usage labels follow the reader's permissions", () => {
+  it("authors see that a service uses the file, not its draft title or link", async () => {
+    const [usage] = await getDb()
+      .select({ mediaId: mediaUsages.mediaId, serviceId: mediaUsages.entityId })
+      .from(mediaUsages)
+      .where(eq(mediaUsages.entityType, "service"))
+      .limit(1)
+    const [service] = await getDb()
+      .select({ draft: services.draft })
+      .from(services)
+      .where(eq(services.id, usage.serviceId))
+    const title = (service.draft as { title: string }).title
+    const list = async (cookie: string) =>
+      (
+        (await (
+          await adminRequest(`/media/${usage.mediaId}/usages`, { cookie })
+        ).json()) as { items: MediaUsage[] }
+      ).items.filter((u) => u.entityType === "service")
+
+    expect(await list(editor)).toContainEqual(
+      expect.objectContaining({
+        entityId: usage.serviceId,
+        label: `Service: ${title}`,
+        href: `/admin/services/${usage.serviceId}`,
+      })
+    )
+    const forAuthor = await list(author)
+    expect(forAuthor).toContainEqual(
+      expect.objectContaining({
+        entityId: usage.serviceId,
+        label: "A service",
+        href: null,
+      })
+    )
+    expect(JSON.stringify(forAuthor)).not.toContain(title)
+  })
+})
+
+describe("races (409 or 422, never 500)", () => {
+  it("a delete racing a usage insert waits for it and answers 409", async () => {
+    const { body } = await send("/upload", await png(), "race.png")
+    // A save inserting a usage row, still open (holds FOR KEY SHARE on the media row).
+    const commit = await heldTransaction((tx) =>
+      replaceMediaUsages(tx, "page", "race-test", [
+        { mediaId: body.id, field: "hero.image" },
+      ])
+    )
+    const pending = adminRequest(`/media/${body.id}`, {
+      cookie: editor,
+      method: "DELETE",
+    })
+    await lockWaiters(1)
+    await commit()
+    const res = await pending
+    expect(res.status).toBe(409)
+    expect(await rowOf(body.id)).toBeDefined()
+    await getDb()
+      .delete(mediaUsages)
+      .where(eq(mediaUsages.entityId, "race-test"))
+  })
+
+  it("a usage insert racing a delete answers 422", async () => {
+    const { body } = await send("/upload", await png(), "race2.png")
+    // A delete in progress: row locked, then removed on release.
+    const commit = await heldTransaction(
+      async (tx) => {
+        await lockMediaRow(tx, body.id)
+      },
+      async (tx) => {
+        await deleteMediaRow(tx, body.id)
+      }
+    )
+    const saving = getDb().transaction((tx) =>
+      syncMediaUsages(tx, "page", "race-test-2", {
+        hero: { image: { mediaId: body.id } },
+      })
+    )
+    const outcome = saving.then(
+      () => null,
+      (err: unknown) => err
+    )
+    await lockWaiters(1)
+    await commit()
+    const err = await outcome
+    expect(err).toBeInstanceOf(AppError)
+    expect((err as AppError).status).toBe(422)
+  })
+
+  it("a replace racing a delete answers 404 and removes its new file", async () => {
+    const { body } = await send("/upload", await png(), "gone.png")
+    const dir = resolve(
+      defaultUploadsRoot(),
+      ...keyOf(body).split("/").slice(0, 2)
+    )
+    const commit = await heldTransaction(
+      async (tx) => {
+        await lockMediaRow(tx, body.id)
+      },
+      async (tx) => {
+        await deleteMediaRow(tx, body.id)
+      }
+    )
+    const before = (await readdir(dir)).sort()
+    const pending = send(`/${body.id}/replace`, await png("#555"), "new.png")
+    await lockWaiters(1)
+    // The replacement is stored before the row lock is taken.
+    expect((await readdir(dir)).length).toBe(before.length + 1)
+    await commit()
+    const res = await pending
+    expect(res.status).toBe(404)
+    expect((await readdir(dir)).sort()).toEqual(before)
+    expect(await rowOf(body.id)).toBeUndefined()
   })
 })
 

@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { stripHiddenChars } from "@/lib/hidden-chars"
+
 import { listQuery, sortParam } from "./list"
 
 /** Largest accepted file (spec §11). The request body may add a small multipart envelope. */
@@ -40,16 +42,8 @@ export type MediaItem = {
 
 export const MEDIA_ALT_MAX = 500
 
-/**
- * Control, zero-width and bidi characters: never meaningful in alt text,
- * and they could disguise it in the library or for screen readers.
- */
-const ALT_HIDDEN_CHARS =
-  /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g
-
-/** Alt text as stored: hidden characters removed, trimmed. */
-export const cleanAltText = (value: string) =>
-  value.replace(ALT_HIDDEN_CHARS, "").trim()
+/** Alt text as stored: hidden characters (lib/hidden-chars) removed, trimmed. */
+export const cleanAltText = (value: string) => stripHiddenChars(value).trim()
 
 /** PATCH /media/:id. focal: point to keep in view when cropped (0..1 from the left/top); null resets. */
 export const mediaUpdateInput = z

@@ -8,6 +8,7 @@ import {
   SETTINGS_ENTRIES,
 } from "@/lib/admin/settings-keys"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
+import { stripHiddenChars } from "@/lib/hidden-chars"
 import type { Paginated } from "@/lib/schemas/api/list"
 import {
   cleanAltText,
@@ -94,18 +95,13 @@ function parseAlt(value: unknown): string {
 }
 
 /**
- * Invisible or reordering characters: C0/C1 controls, DEL, zero-width
- * characters and marks, bidi embeddings/overrides/isolates, BOM. They could
- * disguise a name in the library (e.g. "invoice\u202Efdp.exe").
+ * Last path segment, no hidden characters (lib/hidden-chars: they could
+ * disguise a name, e.g. "invoice\u202efdp.exe"), at most 200 characters
+ * (code points, so an emoji is never cut in half).
  */
-// eslint-disable-next-line no-control-regex
-const HIDDEN_CHARS =
-  /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g
-
-/** Last path segment, no hidden characters, at most 200 characters. */
 function cleanFileName(name: string, ext: string): string {
   const base = name.split(/[\\/]/).pop() ?? ""
-  const clean = base.replace(HIDDEN_CHARS, "").trim().slice(0, 200)
+  const clean = [...stripHiddenChars(base).trim()].slice(0, 200).join("")
   return clean || `upload.${ext}`
 }
 
@@ -295,17 +291,45 @@ export async function uploadMedia(
 const kindOf = (mime: string) =>
   mime.startsWith("image/") ? "image" : "document"
 
+/**
+ * Usage entity types → the resource whose `read` permission shows their
+ * name and link, and the label shown without it (type only).
+ */
+const USAGE_ACCESS: Record<
+  string,
+  {
+    resource: "page" | "settings" | "service" | "article" | "collection"
+    hidden: string
+  }
+> = {
+  page: { resource: "page", hidden: "A page" },
+  settings: { resource: "settings", hidden: "Site settings" },
+  service: { resource: "service", hidden: "A service" },
+  article: { resource: "article", hidden: "An article" },
+  team: { resource: "collection", hidden: "A team member" },
+  client: { resource: "collection", hidden: "A client" },
+  groupCompany: { resource: "collection", hidden: "A group company" },
+}
+
+const canReadUsage = (actor: Actor, entityType: string) => {
+  const access = USAGE_ACCESS[entityType]
+  return !access || hasPermission(actor.roles, { [access.resource]: ["read"] })
+}
+
 function describeUsage(
+  actor: Actor,
   usage: { entityType: string; entityId: string; field: string },
   names: Map<string, string>
 ): MediaUsage {
   const { entityType: type, entityId: id } = usage
-  const name = names.get(`${type}:${id}`) ?? ""
   const with_ = (label: string, href: string | null) => ({
     ...usage,
     label,
     href,
   })
+  // No read on the target: no title or link (drafts may be unpublished).
+  if (!canReadUsage(actor, type)) return with_(USAGE_ACCESS[type].hidden, null)
+  const name = names.get(`${type}:${id}`) ?? ""
   switch (type) {
     case "page":
       return with_(
@@ -337,10 +361,18 @@ function describeUsage(
   }
 }
 
-async function usagesOf(db: DbOrTx, id: string): Promise<MediaUsage[]> {
+async function usagesOf(
+  db: DbOrTx,
+  actor: Actor,
+  id: string
+): Promise<MediaUsage[]> {
   const rows = await listMediaUsages(db, id)
-  const names = await usageTargets(db, rows)
-  return rows.map((row) => describeUsage(row, names))
+  // Names are only looked up for targets the actor may read.
+  const names = await usageTargets(
+    db,
+    rows.filter((row) => canReadUsage(actor, row.entityType))
+  )
+  return rows.map((row) => describeUsage(actor, row, names))
 }
 
 const inUse = (usages: MediaUsage[]) =>
@@ -360,7 +392,7 @@ export async function listUsages(
   assertCan(actor, { media: ["read"] })
   const db = getDb()
   if (!(await findMediaById(db, id))) throw notFound("Media")
-  return { items: await usagesOf(db, id) }
+  return { items: await usagesOf(db, actor, id) }
 }
 
 /** Alt text and focal point (spec §8.1). Media is not versioned: last write wins. */
@@ -417,7 +449,7 @@ export async function deleteMedia(
   const row = await getDb().transaction(async (tx) => {
     const existing = await lockMediaRow(tx, id)
     if (!existing) throw notFound("Media")
-    const usages = await usagesOf(tx, id)
+    const usages = await usagesOf(tx, actor, id)
     if (usages.length > 0) throw inUse(usages)
     try {
       await deleteMediaRow(tx, id)

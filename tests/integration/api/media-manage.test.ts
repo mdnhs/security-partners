@@ -128,7 +128,7 @@ describe("PATCH /api/v1/admin/media/:id", () => {
 describe("usages and DELETE (media_usages RESTRICT → 409)", () => {
   it("lists where a file is used, with labels and links", async () => {
     const res = await adminRequest(`/media/${await heroId()}/usages`, {
-      cookie: author,
+      cookie: editor,
     })
     expect(res.status).toBe(200)
     const { items } = (await res.json()) as { items: MediaUsage[] }
