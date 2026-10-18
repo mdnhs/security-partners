@@ -712,6 +712,14 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page).toHaveScreenshot(shot("integration-r2"), {
         mask: await masks(page),
       })
+      // The "Move existing uploads" panel sits below the fold (Phase 6
+      // Task 8): its own shot, scrolled into view.
+      await page
+        .getByText("Move existing uploads to R2", { exact: true })
+        .scrollIntoViewIfNeeded()
+      await expect(page).toHaveScreenshot(shot("integration-r2-move"), {
+        mask: await masks(page),
+      })
     })
 
     test(`admin contact settings with the live preview ${colorScheme}`, async ({

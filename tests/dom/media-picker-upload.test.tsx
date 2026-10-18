@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { uploadMediaFile } = vi.hoisted(() => ({ uploadMediaFile: vi.fn() }))
@@ -32,6 +33,7 @@ const uploaded: MediaItem = {
   driver: "disk",
   focalX: null,
   focalY: null,
+  createdBy: null,
 }
 
 beforeEach(() => {
@@ -188,7 +190,9 @@ describe("MediaPickerDialog upload (master 6.3)", () => {
     expect(bar).toHaveAttribute("aria-valuenow", "40")
     expect(bar).toHaveTextContent("Uploading new-hero.png… 40%")
     const live = screen.getByRole("status", { name: "Upload progress" })
-    expect(live).toHaveTextContent("Uploading new-hero.png…")
+    await waitFor(() =>
+      expect(live).toHaveTextContent("Uploading new-hero.png…")
+    )
     expect(live).not.toHaveTextContent("40")
     // Unavailable while uploading, but focus stays on it (WCAG 2.4.3).
     expect(button).toHaveAttribute("aria-disabled", "true")
@@ -220,15 +224,117 @@ describe("MediaPickerDialog upload (master 6.3)", () => {
       {
         target: {
           files: [
-            new File([new Uint8Array([1])], "scan.tiff", {
-              type: "image/tiff",
+            new File([new Uint8Array([1])], "scan.png", {
+              type: "image/png",
             }),
           ],
         },
       }
     )
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "scan.tiff: Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file"
+      "scan.png: Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file"
     )
+  })
+
+  const choose = (name: string, type: string) =>
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>("[data-upload-input]")!,
+      { target: { files: [new File([new Uint8Array([1])], name, { type })] } }
+    )
+
+  it("refuses a file that is not an image before sending it", async () => {
+    renderPicker(["editor"])
+    await screen.findByRole("button", { name: "Upload new image" })
+    choose("prices.pdf", "application/pdf")
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "prices.pdf: This file is not an image this field can use."
+    )
+    expect(uploadMediaFile).not.toHaveBeenCalled()
+  })
+
+  it("never selects an upload the server did not take as an image", async () => {
+    uploadMediaFile.mockResolvedValue({
+      ...uploaded,
+      mime: "application/pdf",
+      originalName: "renamed.png",
+    })
+    renderPicker(["editor"])
+    await screen.findByRole("button", { name: "Upload new image" })
+    choose("renamed.png", "image/png")
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "renamed.png: This file is not an image this field can use."
+    )
+    expect(
+      screen.getByRole("button", { name: "Use this image" })
+    ).toBeDisabled()
+  })
+
+  it("sends the optional alternative text with the upload", async () => {
+    const user = userEvent.setup()
+    uploadMediaFile.mockResolvedValue(uploaded)
+    renderPicker(["author"])
+    await user.type(
+      await screen.findByLabelText(/^Alternative text for the upload/),
+      "Guard at the gate"
+    )
+    choose("new-hero.png", "image/png")
+    expect(uploadMediaFile).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.objectContaining({ alt: "Guard at the gate" })
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Use this image" })
+      ).toBeEnabled()
+    )
+    expect(
+      screen.getByLabelText(/^Alternative text for the upload/)
+    ).toHaveValue("")
+  })
+
+  it("an upload finishing after the dialog reopened leaves the new opening alone", async () => {
+    let finish!: (item: MediaItem) => void
+    uploadMediaFile.mockImplementation(
+      () => new Promise<MediaItem>((resolve) => (finish = resolve))
+    )
+    const session: AdminSession = {
+      user: {
+        id: "u1",
+        name: "E",
+        email: "e@example.test",
+        title: null,
+        twoFactorEnabled: false,
+      },
+      roles: ["editor"],
+      impersonatedBy: null,
+    }
+    const client = makeQueryClient()
+    const view = (open: boolean) => (
+      <QueryClientProvider client={client}>
+        <AdminSessionProvider value={session}>
+          <MediaPickerDialog
+            open={open}
+            onOpenChange={() => undefined}
+            onSelect={vi.fn()}
+            title="Choose: Background image"
+          />
+        </AdminSessionProvider>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(view(true))
+    await screen.findByRole("button", { name: "Upload new image" })
+    choose("late.png", "image/png")
+    rerender(view(false))
+    rerender(view(true))
+    await screen.findByRole("button", { name: "Upload new image" })
+    await act(async () => finish(uploaded))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(
+      screen.getByRole("button", { name: "Use this image" })
+    ).toBeDisabled()
+    expect(screen.queryByRole("progressbar")).toBeNull()
+    expect(
+      screen.getByRole("status", { name: "Upload progress" })
+    ).toHaveTextContent("")
   })
 })

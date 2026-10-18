@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query"
 import { ImageOff, Search, Upload } from "lucide-react"
 import Image from "next/image"
-import { useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import { useOptionalAdminSession } from "@/components/admin/session-provider"
 import { Button } from "@/components/ui/button"
@@ -24,13 +24,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import { hasPermission } from "@/lib/auth/permissions"
-import { ACCEPTED_IMAGE_TYPES, type MediaItem } from "@/lib/schemas/api/media"
+import {
+  ACCEPTED_IMAGE_TYPES,
+  MEDIA_ALT_MAX,
+  type MediaItem,
+} from "@/lib/schemas/api/media"
 import { cn } from "@/lib/utils"
 
 import { mediaName } from "./format"
 import { uploadMediaFile } from "./upload-request"
+import { useAnnouncer } from "./uploader"
 
 const PAGE_SIZE = 24
+const IMAGE_TYPES = new Set(ACCEPTED_IMAGE_TYPES.split(","))
+const NOT_AN_IMAGE =
+  "This file is not an image this field can use. Upload a JPEG, PNG, WebP, AVIF or SVG image."
 
 /**
  * Buttons that keep focus while unavailable (WCAG 2.4.3): aria-disabled
@@ -70,8 +78,12 @@ export function MediaPickerDialog({
     !!adminSession && hasPermission(adminSession.roles, { media: ["create"] })
   const fileInput = useRef<HTMLInputElement>(null)
   const [upload, setUpload] = useState<UploadState | null>(null)
+  const [uploadAlt, setUploadAlt] = useState("")
+  const altId = useId()
   // Polite: start and finish only (the bar carries the percent).
-  const [announcement, setAnnouncement] = useState("")
+  const [announcement, announce] = useAnnouncer()
+  // The opening the announcement belongs to (none after a reopen).
+  const [announcedFor, setAnnouncedFor] = useState<number | null>(null)
   const uploading = !!upload && "progress" in upload
   // Each opening starts fresh: no stale search, page or choice.
   const [wasOpen, setWasOpen] = useState(open)
@@ -84,9 +96,15 @@ export function MediaPickerDialog({
       setPage(1)
       setChosen(null)
       setUpload(null)
-      setAnnouncement("")
+      setUploadAlt("")
     }
   }
+  // Which opening an upload belongs to: one that finishes after the dialog
+  // was closed and opened again leaves the new opening alone.
+  const openingRef = useRef(session)
+  useEffect(() => {
+    openingRef.current = session
+  }, [session])
   // The debounced search is tagged with its opening, so a term typed in an
   // earlier opening never leaks into this one. Clearing applies at once.
   const tag = `${session}:`
@@ -115,22 +133,41 @@ export function MediaPickerDialog({
   const current = chosen?.id ?? selectedId ?? null
 
   const uploadFile = async (file: File) => {
+    // An image field takes images only: anything else is refused here
+    // (the input's accept list is only a hint to the file chooser).
+    if (!IMAGE_TYPES.has(file.type)) {
+      setUpload({ name: file.name, error: NOT_AN_IMAGE })
+      return
+    }
+    const opening = session
+    const current = () => openingRef.current === opening
     setUpload({ name: file.name, progress: 0 })
-    setAnnouncement(`Uploading ${file.name}…`)
+    setAnnouncedFor(opening)
+    announce(`Uploading ${file.name}…`)
     try {
       const item = await uploadMediaFile(file, {
-        onProgress: (progress) => setUpload({ name: file.name, progress }),
+        alt: uploadAlt.trim() || undefined,
+        onProgress: (progress) => {
+          if (current()) setUpload({ name: file.name, progress })
+        },
       })
       await queryClient.invalidateQueries({ queryKey: ["media"] })
+      if (!current()) return
+      setUpload(null)
+      setUploadAlt("")
+      if (!item.mime.startsWith("image/")) {
+        // The server sniffs the bytes: a renamed PDF stays in the library
+        // but never lands in an image field.
+        setUpload({ name: file.name, error: NOT_AN_IMAGE })
+        return
+      }
       // Newest first on page 1 with no search: the new image is in view.
       setQuery("")
       setPage(1)
       setChosen(item)
-      setUpload(null)
-      setAnnouncement(`${file.name} uploaded and selected.`)
+      announce(`${file.name} uploaded and selected.`)
     } catch (err) {
-      setUpload({ name: file.name, error: errorMessage(err) })
-      setAnnouncement("")
+      if (current()) setUpload({ name: file.name, error: errorMessage(err) })
     }
   }
 
@@ -168,7 +205,23 @@ export function MediaPickerDialog({
           />
         </div>
         {canUpload ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-48 flex-1 flex-col gap-1">
+              <label htmlFor={altId} className="text-xs font-medium">
+                Alternative text for the upload{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </label>
+              <Input
+                id={altId}
+                value={uploadAlt}
+                maxLength={MEDIA_ALT_MAX}
+                placeholder="Describe the image you upload"
+                className="h-9 rounded-xl pointer-coarse:h-11"
+                onChange={(event) => setUploadAlt(event.target.value)}
+              />
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -204,7 +257,7 @@ export function MediaPickerDialog({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(upload.progress * 100)}
-                className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-muted-foreground"
+                className="flex min-w-0 basis-full flex-col gap-1 text-xs text-muted-foreground"
               >
                 <span className="flex min-w-0 gap-1">
                   <span className="truncate">Uploading {upload.name}…</span>{" "}
@@ -222,14 +275,14 @@ export function MediaPickerDialog({
             ) : upload?.error ? (
               <p
                 role="alert"
-                className="min-w-0 flex-1 text-xs text-destructive"
+                className="min-w-0 basis-full text-xs text-destructive"
               >
                 <span className="sr-only">{upload.name}: </span>
                 {upload.error}
               </p>
             ) : null}
             <p role="status" aria-label="Upload progress" className="sr-only">
-              {announcement}
+              {announcedFor === session ? announcement : ""}
             </p>
           </div>
         ) : null}

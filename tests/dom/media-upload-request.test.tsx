@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { act, renderHook, waitFor } from "@testing-library/react"
+
 import { sendMediaFile } from "@/components/admin/media/upload-request"
+import { useAnnouncer } from "@/components/admin/media/uploader"
 import { ApiError } from "@/lib/api-client"
 import { MAX_UPLOAD_BYTES } from "@/lib/schemas/api/media"
 
@@ -106,5 +109,16 @@ describe("sendMediaFile (master 6.3)", () => {
     controller.abort()
     await expect(done).rejects.toMatchObject({ name: "AbortError" })
     expect(FakeXhr.last!.aborted).toBe(true)
+  })
+})
+
+describe("useAnnouncer", () => {
+  it("clears the region before each message, so a repeat is spoken again", async () => {
+    const { result } = renderHook(() => useAnnouncer())
+    act(() => result.current[1]("new.png uploaded."))
+    await waitFor(() => expect(result.current[0]).toBe("new.png uploaded."))
+    act(() => result.current[1]("new.png uploaded."))
+    expect(result.current[0]).toBe("")
+    await waitFor(() => expect(result.current[0]).toBe("new.png uploaded."))
   })
 })

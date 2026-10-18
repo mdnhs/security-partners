@@ -9,10 +9,14 @@ import {
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { uploadMediaFile } = vi.hoisted(() => ({ uploadMediaFile: vi.fn() }))
+const { uploadMediaFile, replaceMediaFile } = vi.hoisted(() => ({
+  uploadMediaFile: vi.fn(),
+  replaceMediaFile: vi.fn(),
+}))
 vi.mock("@/components/admin/media/upload-request", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   uploadMediaFile,
+  replaceMediaFile,
 }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -40,6 +44,7 @@ const item = (n: number, extra: Partial<MediaItem> = {}): MediaItem => ({
   driver: "disk",
   focalX: null,
   focalY: null,
+  createdBy: null,
   ...extra,
 })
 
@@ -69,6 +74,7 @@ beforeEach(() => {
   deleteStatus = 200
   blockedUsages = []
   uploadMediaFile.mockReset()
+  replaceMediaFile.mockReset()
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -115,9 +121,12 @@ beforeEach(() => {
           updatedAt: "2026-10-16T11:00:00.000Z",
         })
       if (id) return json(library.find((i) => i.id === id))
+      const page = Number(
+        new URL(url, "http://x").searchParams.get("page") ?? 1
+      )
       return json({
-        items: library,
-        page: 1,
+        items: library.slice((page - 1) * 24, page * 24),
+        page,
         pageSize: 24,
         total: library.length,
       })
@@ -125,10 +134,10 @@ beforeEach(() => {
   )
 })
 
-function renderLibrary(roles: Role[] = ["editor"]) {
+function renderLibrary(roles: Role[] = ["editor"], userId = "u1") {
   const session: AdminSession = {
     user: {
-      id: "u1",
+      id: userId,
       name: "Edith Editor",
       email: "e@example.test",
       title: null,
@@ -253,12 +262,12 @@ describe("MediaLibrary (master 6.3)", () => {
     let finish!: (item: MediaItem) => void
     uploadMediaFile.mockImplementation(
       (file: File, opts: { onProgress?: (n: number) => void }) => {
-        if (file.name === "bad.gif")
+        if (file.name === "broken.png")
           return Promise.reject(
             new ApiError(422, {
               error: {
                 code: "VALIDATION_FAILED",
-                message: "This file type is not supported.",
+                message: "This image could not be read.",
               },
             })
           )
@@ -274,6 +283,9 @@ describe("MediaLibrary (master 6.3)", () => {
         target: {
           files: [
             new File([new Uint8Array([1])], "big.png", { type: "image/png" }),
+            new File([new Uint8Array([1])], "broken.png", {
+              type: "image/png",
+            }),
             new File([new Uint8Array([1])], "bad.gif", { type: "image/gif" }),
           ],
         },
@@ -284,15 +296,169 @@ describe("MediaLibrary (master 6.3)", () => {
       name: "Uploading big.png",
     })
     expect(bar).toHaveAttribute("aria-valuenow", "37")
+    // A GIF never leaves the browser: the type is checked first.
+    expect(uploadMediaFile).toHaveBeenCalledTimes(2)
     // The polite region speaks on start and finish, never per percent.
     const live = screen.getByRole("status", { name: "Upload progress" })
-    expect(live).toHaveTextContent("Uploading 2 files…")
-    expect(await within(uploads).findByRole("alert")).toHaveTextContent(
-      "bad.gif: This file type is not supported."
-    )
+    await waitFor(() => expect(live).toHaveTextContent("Uploading 2 files…"))
+    const alerts = await within(uploads).findAllByRole("alert")
+    expect(alerts.map((a) => a.textContent)).toEqual([
+      "broken.png: This image could not be read.",
+      "bad.gif: This type of file is not supported. Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file.",
+    ])
     finish(item(4, { originalName: "big.png" }))
     await waitFor(() => expect(live).toHaveTextContent("big.png uploaded."))
     expect(live).not.toHaveTextContent("37")
+  })
+
+  it("sends at most three files at a time; a file without a type is sent", async () => {
+    const pending: ((item: MediaItem) => void)[] = []
+    uploadMediaFile.mockImplementation(
+      () => new Promise<MediaItem>((resolve) => pending.push(resolve))
+    )
+    const { container } = renderLibrary()
+    await screen.findByRole("button", { name: /photo-1\.png/ })
+    fireEvent.change(
+      container.querySelector<HTMLInputElement>("[data-upload-input]")!,
+      {
+        target: {
+          files: ["a", "b", "c", "d", "e"].map(
+            (n) => new File([new Uint8Array([1])], `${n}.dat`, { type: "" })
+          ),
+        },
+      }
+    )
+    expect(uploadMediaFile).toHaveBeenCalledTimes(3)
+    const uploads = screen.getByRole("list", { name: "Uploads" })
+    expect(within(uploads).getAllByText("Waiting")).toHaveLength(2)
+    pending[0]!(item(5))
+    await waitFor(() => expect(uploadMediaFile).toHaveBeenCalledTimes(4))
+    pending[1]!(item(6))
+    await waitFor(() => expect(uploadMediaFile).toHaveBeenCalledTimes(5))
+  })
+
+  it("sends the optional alternative text with a single upload", async () => {
+    const user = userEvent.setup()
+    uploadMediaFile.mockResolvedValue(item(3, { originalName: "gate.png" }))
+    const { container } = renderLibrary()
+    await screen.findByRole("button", { name: /photo-1\.png/ })
+    const zone = screen.getByRole("region", { name: "Upload files" })
+    const alt = within(zone).getByLabelText(/^Alternative text/)
+    await user.type(alt, "The main gate at night")
+    fireEvent.change(
+      container.querySelector<HTMLInputElement>("[data-upload-input]")!,
+      {
+        target: {
+          files: [
+            new File([new Uint8Array([1])], "gate.png", { type: "image/png" }),
+          ],
+        },
+      }
+    )
+    expect(uploadMediaFile).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.objectContaining({ alt: "The main gate at night" })
+    )
+    expect(alt).toHaveValue("")
+  })
+
+  it("shows replace progress beside a button whose name stays put", async () => {
+    const user = userEvent.setup()
+    let progress!: (n: number) => void
+    replaceMediaFile.mockImplementation(
+      (_id: string, _f: File, o: { onProgress: (n: number) => void }) => {
+        progress = o.onProgress
+        return new Promise(() => undefined)
+      }
+    )
+    renderLibrary()
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    const button = within(sheet).getByRole("button", { name: "Replace file…" })
+    fireEvent.change(
+      sheet.querySelector<HTMLInputElement>('input[type="file"]')!,
+      {
+        target: {
+          files: [
+            new File([new Uint8Array([1])], "new.png", { type: "image/png" }),
+          ],
+        },
+      }
+    )
+    progress(0.5)
+    const bar = await within(sheet).findByRole("progressbar", {
+      name: "Replacing the file",
+    })
+    expect(bar).toHaveAttribute("aria-valuenow", "50")
+    expect(button).toHaveAccessibleName("Replace file…")
+    expect(button).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("lets an uploader describe their own file, nothing more", async () => {
+    library = [item(1, { createdBy: "u7" }), item(2, { createdBy: "u8" })]
+    const user = userEvent.setup()
+    renderLibrary(["author"], "u7")
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    let sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    expect(
+      within(sheet).getByLabelText("Alternative text")
+    ).not.toHaveAttribute("readonly")
+    expect(
+      within(sheet).queryByRole("button", { name: "Replace file…" })
+    ).toBeNull()
+    expect(within(sheet).queryByRole("button", { name: "Delete" })).toBeNull()
+    await user.type(within(sheet).getByLabelText("Alternative text"), "Mine")
+    await user.click(
+      within(sheet).getByRole("button", { name: "Save details" })
+    )
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
+        alt: "Mine",
+        focal: null,
+      })
+    )
+    // Someone else's upload stays read-only.
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(sheet).not.toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /photo-2\.png/ }))
+    sheet = await screen.findByRole("dialog", { name: "photo-2.png" })
+    expect(within(sheet).getByLabelText("Alternative text")).toHaveAttribute(
+      "readonly"
+    )
+    expect(
+      within(sheet).queryByRole("button", { name: "Save details" })
+    ).toBeNull()
+  })
+
+  it("goes back to the last page when its files are gone", async () => {
+    const user = userEvent.setup()
+    library = Array.from({ length: 25 }, (_, n) =>
+      item(n % 10, {
+        id: `0190a6e0-0000-7000-8000-0000000001${String(n).padStart(2, "0")}`,
+      })
+    )
+    renderLibrary()
+    await screen.findAllByRole("button", { name: /photo-1\.png/ })
+    // Someone deletes a file meanwhile: page 2 comes back empty.
+    library = library.slice(0, 24)
+    await user.click(screen.getByRole("button", { name: "Next page" }))
+    // Page 2 answered "24 in all": the library shows page 1 again.
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("page=2"))).toBe(true)
+    )
+    await waitFor(() =>
+      expect(document.querySelector("[aria-busy=true]")).toBeNull()
+    )
+    expect(await screen.findByText(/^1–24 of /)).toBeVisible()
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled()
+    expect(
+      (await screen.findAllByRole("button", { name: /photo-1\.png/ }))[0]
+    ).toBeVisible()
+    expect(screen.queryByText("No files yet")).toBeNull()
   })
 
   it("keeps focus on Save details after saving", async () => {

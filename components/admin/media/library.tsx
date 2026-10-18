@@ -119,6 +119,9 @@ export function MediaLibrary() {
   )
   const uploads = useMediaUploads(onUploaded)
   const items = list.data?.items ?? []
+  // A page past the end (its last files deleted): go to the last page.
+  const lastPage = Math.max(1, Math.ceil((list.data?.total ?? 0) / PAGE_SIZE))
+  if (list.data && !list.isPlaceholderData && page > lastPage) setPage(lastPage)
   const filtered = kind !== "all"
 
   return (

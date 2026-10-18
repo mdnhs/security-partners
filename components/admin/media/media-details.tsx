@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { useAdminSession } from "@/components/admin/session-provider"
 import { usePermission } from "@/hooks/use-permission"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
@@ -81,6 +82,11 @@ export function MediaDetails({
   afterDelete?: RefObject<HTMLElement | null>
 }) {
   const item = useMediaItem(id)
+  // While the sheet closes (id null) it keeps showing the last file, so the
+  // exit animation never flashes "Loading…" (nor refetches a deleted file).
+  const [last, setLast] = useState<MediaItem | null>(null)
+  if (item.data && item.data !== last) setLast(item.data)
+  const shown = item.data ?? (id === null ? last : null)
   const deleted = useRef(false)
   return (
     <Sheet
@@ -99,10 +105,10 @@ export function MediaDetails({
           return wasDeleted ? (afterDelete?.current ?? true) : true
         }}
       >
-        {item.data ? (
+        {shown ? (
           <DetailsBody
-            key={item.data.id}
-            item={item.data}
+            key={shown.id}
+            item={shown}
             onDeleted={() => {
               deleted.current = true
               onClose()
@@ -167,7 +173,7 @@ function UsageLink({ usage }: { usage: MediaUsage }) {
   return usage.href ? (
     <Link
       href={usage.href}
-      className="font-medium text-primary underline-offset-4 hover:underline"
+      className="inline-flex min-h-6 items-center font-medium text-primary underline-offset-4 hover:underline pointer-coarse:min-h-11"
     >
       {usage.label}
     </Link>
@@ -186,6 +192,11 @@ function DetailsBody({
   const queryClient = useQueryClient()
   const canUpdate = usePermission({ media: ["update"] })
   const canDelete = usePermission({ media: ["delete"] })
+  const canCreate = usePermission({ media: ["create"] })
+  const { user } = useAdminSession()
+  // Uploaders describe their own files (alt text, focal point; the API
+  // allows the same); replacing and deleting need media:update/delete.
+  const canDescribe = canUpdate || (canCreate && item.createdBy === user.id)
   const [alt, setAlt] = useState(item.alt)
   const [focal, setFocal] = useState<Point | null>(focalOf(item))
   // A saved or replaced file comes back with a new updatedAt: show what was
@@ -288,7 +299,7 @@ function DetailsBody({
             height={item.height}
             value={focal}
             onChange={setFocal}
-            disabled={!canUpdate}
+            disabled={!canDescribe}
           />
         ) : (
           <Preview item={item} />
@@ -345,7 +356,7 @@ function DetailsBody({
             className={ADMIN_TEXTAREA}
             value={alt}
             maxLength={MEDIA_ALT_MAX}
-            readOnly={!canUpdate}
+            readOnly={!canDescribe}
             rows={3}
             aria-describedby={`${altId}-help ${altId}-count`}
             onChange={(e) => setAlt(e.target.value)}
@@ -414,7 +425,7 @@ function DetailsBody({
         ) : null}
       </div>
 
-      {canUpdate || canDelete ? (
+      {canDescribe || canDelete ? (
         <SheetFooter className="flex-row flex-wrap justify-between gap-2 border-t">
           {canDelete ? (
             <Button
@@ -428,33 +439,35 @@ function DetailsBody({
           ) : (
             <span />
           )}
-          {canUpdate ? (
+          {canDescribe ? (
             <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(FORM_ACTION, SOFT_DISABLED)}
-                aria-disabled={replacing || undefined}
-                onClick={() => {
-                  if (!replacing) replaceInput.current?.click()
-                }}
-              >
-                {replacing
-                  ? `Replacing… ${Math.round(replaceProgress * 100)}%`
-                  : "Replace file…"}
-              </Button>
-              <input
-                ref={replaceInput}
-                type="file"
-                hidden
-                tabIndex={-1}
-                accept={image ? ACCEPTED_IMAGE_TYPES : "application/pdf"}
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  e.target.value = ""
-                  if (file) void replace(file)
-                }}
-              />
+              {canUpdate ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(FORM_ACTION, SOFT_DISABLED)}
+                    aria-disabled={replacing || undefined}
+                    onClick={() => {
+                      if (!replacing) replaceInput.current?.click()
+                    }}
+                  >
+                    Replace file…
+                  </Button>
+                  <input
+                    ref={replaceInput}
+                    type="file"
+                    hidden
+                    tabIndex={-1}
+                    accept={image ? ACCEPTED_IMAGE_TYPES : "application/pdf"}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ""
+                      if (file) void replace(file)
+                    }}
+                  />
+                </>
+              ) : null}
               <Button
                 type="button"
                 className={cn(FORM_ACTION, SOFT_DISABLED)}
@@ -463,8 +476,28 @@ function DetailsBody({
                   if (canSave) save.mutate()
                 }}
               >
-                {save.isPending ? "Saving…" : "Save details"}
+                Save details
               </Button>
+            </div>
+          ) : null}
+          {replacing ? (
+            <div
+              role="progressbar"
+              aria-label="Replacing the file"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(replaceProgress * 100)}
+              className="flex w-full flex-col gap-1 text-xs text-muted-foreground"
+            >
+              <span className="tabular-nums">
+                Replacing the file… {Math.round(replaceProgress * 100)}%
+              </span>
+              <span className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="block h-full bg-primary transition-[width] motion-reduce:transition-none"
+                  style={{ width: `${replaceProgress * 100}%` }}
+                />
+              </span>
             </div>
           ) : null}
         </SheetFooter>

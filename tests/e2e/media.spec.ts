@@ -12,6 +12,8 @@ import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 // the second one replaces the first one's hero draft and publishes.
 
 const MB = 1024 * 1024
+/** The large upload of the first test; the second one deletes it. */
+let largeId: string | null = null
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
@@ -97,7 +99,9 @@ test("the page editor's picker uploads an image over 10 MB and selects it", asyn
 
   await signIn(page, readFixtures().editor)
   const hero = await openHomeHero(page)
-  await hero.getByRole("button", { name: "Change image: Background image" }).click()
+  await hero
+    .getByRole("button", { name: "Change image: Background image" })
+    .click()
   const picker = page.getByRole("dialog", { name: "Choose: Background image" })
   await expect(
     picker.getByRole("button", { name: "Upload new image" })
@@ -141,6 +145,7 @@ test("the page editor's picker uploads an image over 10 MB and selects it", asyn
     await page.request.get("/api/v1/admin/pages/home")
   ).json()) as { draft: { hero: { backgroundImage: { mediaId: string } } } }
   expect(draft.draft.hero.backgroundImage.mediaId).toBe(item.id)
+  largeId = item.id
 })
 
 test("library upload → hero image in the page editor → publish → public home", async ({
@@ -183,7 +188,9 @@ test("library upload → hero image in the page editor → publish → public ho
 
   // 2. Pick it as the home hero.
   const hero = await openHomeHero(page)
-  await hero.getByRole("button", { name: "Change image: Background image" }).click()
+  await hero
+    .getByRole("button", { name: "Change image: Background image" })
+    .click()
   const picker = page.getByRole("dialog", { name: "Choose: Background image" })
   await picker
     .getByRole("searchbox", { name: "Search images" })
@@ -205,4 +212,18 @@ test("library upload → hero image in the page editor → publish → public ho
   expect(src).toContain(encodeURIComponent(fileUrl!))
   expect(src.startsWith("/_next/image?url=")).toBe(true)
   expect(loaded).toBeGreaterThan(0)
+
+  // 5. Clean up: the 12 MB file of the first test is no longer the hero's.
+  if (largeId) {
+    const removed = await page.request.delete(
+      `/api/v1/admin/media/${largeId}`,
+      {
+        headers: { origin: new URL(page.url()).origin },
+      }
+    )
+    expect(removed.status()).toBe(200)
+    expect(
+      (await page.request.get(`/api/v1/admin/media/${largeId}`)).status()
+    ).toBe(404)
+  }
 })

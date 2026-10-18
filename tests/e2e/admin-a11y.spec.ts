@@ -259,6 +259,45 @@ for (const colorScheme of ["light", "dark"] as const) {
     test(`integrations in ${colorScheme}`, async ({ page }) => {
       await signIn(page, E2E_ADMIN)
       const failures = await auditEach(page, INTEGRATIONS)
+      // R2's "Move existing uploads" panel (Phase 6 Task 8): ready to start,
+      // moving, and stopped with the files it could not move.
+      for (const state of [
+        { state: "idle", label: "ready" },
+        { state: "running", label: "moving" },
+        { state: "stopped", label: "stopped" },
+      ] as const) {
+        await page.unroute(
+          "**/api/v1/admin/integrations/integrations.r2/migrate-media"
+        )
+        await page.route(
+          "**/api/v1/admin/integrations/integrations.r2/migrate-media",
+          (route) =>
+            route.fulfill({
+              json: {
+                r2Configured: true,
+                r2Error: null,
+                onDisk: 12,
+                inR2: 3,
+                state: state.state,
+                failed:
+                  state.state === "stopped"
+                    ? [
+                        "2026/10/0190f0e0-0000-7000-8000-0000000000c1.png: The file is missing on the server disk.",
+                      ]
+                    : [],
+                lastRunAt:
+                  state.state === "idle" ? null : "2026-10-16T09:00:00.000Z",
+                lastError: null,
+              },
+            })
+        )
+        await page.goto("/admin/settings/integrations/r2")
+        await expect(
+          page.getByText("12 files on the server disk · 3 in R2")
+        ).toBeVisible()
+        for (const violation of await blocking(page))
+          failures.push(`r2 move panel (${state.label}) → ${violation}`)
+      }
       // A saved integration: the secret's saved state, a failed and a
       // passed test result, and the Disconnect confirmation.
       await page.route(

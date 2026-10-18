@@ -2,11 +2,24 @@
 
 import { useQueryClient } from "@tanstack/react-query"
 import { CircleAlert, CircleCheck, Upload } from "lucide-react"
-import { type DragEvent, type Ref, useCallback, useRef, useState } from "react"
+import {
+  type DragEvent,
+  type Ref,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { errorMessage } from "@/lib/api-client"
-import { ACCEPTED_UPLOAD_TYPES, type MediaItem } from "@/lib/schemas/api/media"
+import {
+  ACCEPTED_UPLOAD_TYPES,
+  MEDIA_ALT_MAX,
+  type MediaItem,
+} from "@/lib/schemas/api/media"
 import { cn } from "@/lib/utils"
 
 import { uploadMediaFile } from "./upload-request"
@@ -15,59 +28,130 @@ export type UploadEntry = {
   id: number
   name: string
   progress: number
-  status: "uploading" | "done" | "error"
+  /** "queued": waiting for a free slot (at most UPLOAD_CONCURRENCY at once). */
+  status: "queued" | "uploading" | "done" | "error"
   error?: string
 }
 
+/** Files sent at the same time; the rest wait their turn. */
+export const UPLOAD_CONCURRENCY = 3
+
+const ACCEPTED = new Set(ACCEPTED_UPLOAD_TYPES.split(","))
+
 /**
- * One XHR per file; refreshes every media query after each success.
- * `announcement` is for a polite live region: it changes when uploads
- * start and finish, never with each percent (failures speak through the
- * entry's own alert).
+ * A polite live-region message. Each call clears the region first, so the
+ * same text twice (two files with one name) is spoken twice.
+ */
+export function useAnnouncer() {
+  const [message, setMessage] = useState("")
+  const timer = useRef<number | undefined>(undefined)
+  const announce = useCallback((next: string) => {
+    window.clearTimeout(timer.current)
+    setMessage("")
+    if (next) timer.current = window.setTimeout(() => setMessage(next), 100)
+  }, [])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  return [message, announce] as const
+}
+
+/**
+ * A queue of uploads, UPLOAD_CONCURRENCY XHRs at a time; refreshes every
+ * media query after each success. Files of a type the library does not
+ * take fail here without a request (an empty type is sent: the server
+ * sniffs the bytes anyway). `announcement` is for a polite live region: it
+ * changes when uploads start and finish, never with each percent
+ * (failures speak through the entry's own alert).
  */
 export function useMediaUploads(onUploaded?: (item: MediaItem) => void) {
   const queryClient = useQueryClient()
   const [entries, setEntries] = useState<UploadEntry[]>([])
-  const [announcement, setAnnouncement] = useState("")
+  const [announcement, announce] = useAnnouncer()
   const nextId = useRef(1)
-  const update = (id: number, patch: Partial<UploadEntry>) =>
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...patch } : e))
-    )
+  const queue = useRef<{ id: number; file: File; alt?: string }[]>([])
+  const active = useRef(0)
+  const latest = useRef(onUploaded)
+  useEffect(() => {
+    latest.current = onUploaded
+  })
+  const update = useCallback(
+    (id: number, patch: Partial<UploadEntry>) =>
+      setEntries((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, ...patch } : e))
+      ),
+    []
+  )
 
-  const start = useCallback(
-    (files: File[]) => {
-      if (files.length === 0) return
-      setAnnouncement(
-        files.length === 1
-          ? `Uploading ${files[0]!.name}…`
-          : `Uploading ${files.length} files…`
-      )
-      for (const file of files) {
-        const id = nextId.current++
-        setEntries((prev) => [
-          ...prev,
-          { id, name: file.name, progress: 0, status: "uploading" },
-        ])
+  const pump = useCallback(
+    function drain() {
+      while (active.current < UPLOAD_CONCURRENCY && queue.current.length) {
+        const { id, file, alt } = queue.current.shift()!
+        active.current++
+        update(id, { status: "uploading" })
         uploadMediaFile(file, {
+          alt,
           onProgress: (p) => update(id, { progress: p }),
         })
           .then((item) => {
             update(id, { status: "done", progress: 1 })
-            setAnnouncement(`${file.name} uploaded.`)
+            announce(`${file.name} uploaded.`)
             void queryClient.invalidateQueries({ queryKey: ["media"] })
-            onUploaded?.(item)
+            latest.current?.(item)
           })
           .catch((err: unknown) =>
             update(id, { status: "error", error: errorMessage(err) })
           )
+          .finally(() => {
+            active.current--
+            drain()
+          })
       }
     },
-    [queryClient, onUploaded]
+    [announce, queryClient, update]
+  )
+
+  /** `alt` applies when exactly one file is uploaded. */
+  const start = useCallback(
+    (files: File[], alt?: string) => {
+      const added: UploadEntry[] = []
+      const sendable: File[] = []
+      for (const file of files) {
+        const id = nextId.current++
+        if (file.type && !ACCEPTED.has(file.type)) {
+          added.push({
+            id,
+            name: file.name,
+            progress: 0,
+            status: "error",
+            error:
+              "This type of file is not supported. Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file.",
+          })
+          continue
+        }
+        added.push({ id, name: file.name, progress: 0, status: "queued" })
+        sendable.push(file)
+        queue.current.push({
+          id,
+          file,
+          alt: files.length === 1 && alt?.trim() ? alt.trim() : undefined,
+        })
+      }
+      if (added.length === 0) return
+      setEntries((prev) => [...prev, ...added])
+      if (sendable.length)
+        announce(
+          sendable.length === 1
+            ? `Uploading ${sendable[0]!.name}…`
+            : `Uploading ${sendable.length} files…`
+        )
+      pump()
+    },
+    [announce, pump]
   )
 
   const clearFinished = () =>
-    setEntries((prev) => prev.filter((e) => e.status === "uploading"))
+    setEntries((prev) =>
+      prev.filter((e) => e.status === "uploading" || e.status === "queued")
+    )
   return { entries, start, clearFinished, announcement }
 }
 
@@ -83,7 +167,8 @@ export function MediaDropzone({
   multiple = true,
   buttonRef,
 }: {
-  onFiles: (files: File[]) => void
+  /** `alt`: the optional description typed above (used for one file). */
+  onFiles: (files: File[], alt?: string) => void
   accept?: string
   disabled?: boolean
   label?: string
@@ -92,13 +177,21 @@ export function MediaDropzone({
   buttonRef?: Ref<HTMLButtonElement>
 }) {
   const input = useRef<HTMLInputElement>(null)
+  const altId = useId()
+  const [alt, setAlt] = useState("")
   const [dragging, setDragging] = useState(false)
+  const send = (files: File[]) => {
+    if (files.length === 0) return
+    onFiles(files, alt)
+    // The description belonged to that one file.
+    if (files.length === 1) setAlt("")
+  }
   const onDrop = (event: DragEvent) => {
     event.preventDefault()
     setDragging(false)
     if (disabled) return
     const files = [...event.dataTransfer.files]
-    if (files.length) onFiles(multiple ? files : files.slice(0, 1))
+    send(multiple ? files : files.slice(0, 1))
   }
   return (
     <section
@@ -136,6 +229,25 @@ export function MediaDropzone({
       <p className="text-xs">
         JPEG, PNG, WebP, AVIF, SVG or PDF, up to 20 MB each.
       </p>
+      <div className="flex w-full max-w-md flex-col gap-1.5 text-left">
+        <label htmlFor={altId} className="text-sm font-medium text-foreground">
+          Alternative text{" "}
+          <span className="font-normal text-muted-foreground">(optional)</span>
+        </label>
+        <p id={`${altId}-help`} className="text-xs">
+          Describes the next image you upload for people who cannot see it. With
+          several files, describe each one in its details.
+        </p>
+        <Input
+          id={altId}
+          value={alt}
+          maxLength={MEDIA_ALT_MAX}
+          disabled={disabled}
+          aria-describedby={`${altId}-help`}
+          className="h-10 rounded-xl bg-card pointer-coarse:h-11"
+          onChange={(e) => setAlt(e.target.value)}
+        />
+      </div>
       <input
         ref={input}
         type="file"
@@ -147,7 +259,7 @@ export function MediaDropzone({
         onChange={(e) => {
           const files = [...(e.target.files ?? [])]
           e.target.value = ""
-          if (files.length) onFiles(files)
+          send(files)
         }}
       />
     </section>
@@ -172,7 +284,9 @@ export function UploadList({
   onClear: () => void
 }) {
   if (entries.length === 0) return null
-  const finished = entries.some((e) => e.status !== "uploading")
+  const finished = entries.some(
+    (e) => e.status === "done" || e.status === "error"
+  )
   return (
     <div className="flex flex-col gap-2">
       <ul aria-label="Uploads" className="flex flex-col gap-2">
@@ -204,7 +318,9 @@ export function UploadList({
                   ? "Uploaded"
                   : entry.status === "error"
                     ? "Failed"
-                    : `${Math.round(entry.progress * 100)}%`}
+                    : entry.status === "queued"
+                      ? "Waiting"
+                      : `${Math.round(entry.progress * 100)}%`}
               </span>
             </span>
             {entry.status === "uploading" ? (
