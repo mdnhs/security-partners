@@ -35,7 +35,9 @@ async function blocking(page: Page) {
       null,
       { timeout: 5_000 }
     )
-    .catch(() => {})
+    .catch(() =>
+      console.warn("[a11y] animations still running after 5 s; auditing anyway")
+    )
   const { violations } = await new AxeBuilder({ page })
     .withTags(TAGS)
     .disableRules([...ALLOW])
