@@ -53,4 +53,11 @@ describe("startScheduler (master 5.4)", () => {
     stopScheduler()
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it("stopScheduler resolves at once when no tick is running", async () => {
+    await expect(stopScheduler()).resolves.toBeUndefined()
+    stubEnv()
+    startScheduler()
+    await expect(stopScheduler()).resolves.toBeUndefined()
+  })
 })

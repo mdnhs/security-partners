@@ -1,5 +1,7 @@
 import "server-only"
 
+import { createHash } from "node:crypto"
+
 import { uuidv7 } from "uuidv7"
 
 import {
@@ -51,6 +53,7 @@ import {
   storageFor,
 } from "@/server/lib/storage"
 import { mediaUrl } from "@/server/lib/storage/paths"
+import type { ByteRange, StoredStream } from "@/server/lib/storage/types"
 import { sanitizeSvg, SvgSanitizeError } from "@/server/lib/svg-sanitize"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 import { enqueueKeyedJob, findJobByKey } from "@/server/modules/jobs/repo"
@@ -558,24 +561,49 @@ export async function replaceMedia(
   return toItem(updated)
 }
 
-/**
- * Bytes of a disk/R2 file for the public file route; null = 404. Whole
- * files are buffered (≤ 20 MB) and Range is not supported; streaming and
- * Range requests are deferred to Phase 10.
- */
-export async function readMediaFile(
+/** A disk/R2 file the public file route may serve, described by its row. */
+export type MediaFile = {
   key: string
-): Promise<{ bytes: Uint8Array; mime: string; originalName: string } | null> {
-  const db = getDb()
-  // Twice: a migration may move the file between the lookup and the read.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const row = await findServableMedia(db, key)
-    if (!row) return null
-    const storage = await storageFor(row.driver, db)
-    const bytes = storage ? await storage.read(key) : null
-    if (bytes) return { bytes, mime: row.mime, originalName: row.originalName }
+  driver: "disk" | "r2"
+  mime: string
+  originalName: string
+  size: number
+  /**
+   * Strong validator: a key's bytes never change (replace writes a new key)
+   * and a move to R2 copies them as they are.
+   */
+  etag: string
+}
+
+/** The servable file named by `key` (null = 404); no storage is touched. */
+export async function findMediaFile(key: string): Promise<MediaFile | null> {
+  const row = await findServableMedia(getDb(), key)
+  if (!row || row.driver === "static") return null
+  const hash = createHash("sha256")
+    .update(`${row.key}\n${row.size}\n${row.mime}`)
+    .digest("hex")
+    .slice(0, 32)
+  return {
+    key: row.key,
+    driver: row.driver,
+    mime: row.mime,
+    originalName: row.originalName,
+    size: row.size,
+    etag: `"${hash}"`,
   }
-  return null
+}
+
+/**
+ * Streams the file (or a range of it) from its driver without buffering it.
+ * null = the object is gone or R2 is no longer configured: a migration may
+ * have moved it since findMediaFile, so the caller looks the row up again.
+ */
+export async function openMediaFile(
+  file: MediaFile,
+  range?: ByteRange
+): Promise<StoredStream | null> {
+  const storage = await storageFor(file.driver, getDb())
+  return storage ? storage.stream(file.key, range) : null
 }
 
 // Move existing uploads to R2 (master 6.4, spec §11). The job module imports

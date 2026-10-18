@@ -9,6 +9,7 @@ import {
 } from "@/lib/schemas/api/dashboard"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
+import { integrationReadState } from "@/server/modules/integrations/service"
 
 import * as repo from "./repo"
 
@@ -58,6 +59,7 @@ export async function getDashboard(
     configured,
     twoFactor,
     jobProblems,
+    turnstile,
   ] = await Promise.all([
     canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
     canLeads ? repo.countOpenLeads(db) : null,
@@ -70,10 +72,24 @@ export async function getDashboard(
       : null,
     isOwnerOrAdmin ? repo.twoFactorEnabled(db, actor.userId) : null,
     can({ integration: ["read"] }) ? repo.listJobProblems(db) : null,
+    can({ integration: ["read"] })
+      ? integrationReadState("integrations.turnstile", db)
+      : null,
   ])
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
   const nextUp: NextUpItem[] = []
+  // First, so it is the headline: the public form takes enquiries without
+  // the spam check while this lasts (fail-open by ruling, leads service).
+  if (turnstile === "unreadable")
+    nextUp.push({
+      id: "turnstile-unreadable",
+      title: "Spam protection is off",
+      description:
+        "Turnstile settings can't be read — re-enter the keys in Integrations.",
+      href: "/admin/settings/integrations/turnstile",
+      done: false,
+    })
   if (configured) {
     // Settings ▸ Integrations (Phase 6 Task 2).
     nextUp.push({

@@ -431,6 +431,26 @@ export async function readIntegrationConfig<K extends IntegrationKey>(
   return loaded.config
 }
 
+/**
+ * Whether server code can use the saved settings: "unreadable" is the
+ * AppError("INTERNAL") readIntegrationConfig throws for a saved row it
+ * cannot use (a secret that no longer decrypts, or stored values that no
+ * longer validate), so callers that fail open on it — the public leads
+ * route skips Turnstile — can be surfaced on the dashboard. Anything else
+ * (a database error) is rethrown: it says nothing about the settings.
+ */
+export async function integrationReadState(
+  key: IntegrationKey,
+  db: DbOrTx = getDb()
+): Promise<"missing" | "ok" | "unreadable"> {
+  try {
+    return (await readIntegrationConfig(key, db)) ? "ok" : "missing"
+  } catch (err) {
+    if (err instanceof AppError && err.code === "INTERNAL") return "unreadable"
+    throw err
+  }
+}
+
 /** "Test connection" with the saved settings. A failed test is a result (200), not an error. */
 export async function testIntegration(
   actor: Actor,

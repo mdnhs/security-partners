@@ -3,7 +3,10 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 
+import { eq } from "drizzle-orm"
 import { URI } from "otpauth"
+
+import type { Role } from "@/lib/auth/roles"
 
 import { getAuth } from "@/server/auth/auth"
 import {
@@ -14,18 +17,18 @@ import {
 import { closeDb, getDb } from "@/server/db/client"
 import { seedContent } from "@/server/db/seed"
 import { runMigrations } from "@/server/db/migrate"
+import { settings } from "@/server/db/schema"
 import { getEnv } from "@/server/env"
+import { seedDemoUsers } from "@/server/modules/users/bootstrap"
 
 import { resetDb } from "../integration/db"
 
 import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
+import { assertE2eDatabase } from "./env"
 import { E2E_PASSWORD, type E2EFixtures, FIXTURES_FILE } from "./fixtures"
 
 const { DATABASE_URL } = getEnv()
-if (new URL(DATABASE_URL).pathname !== "/sp_e2e")
-  throw new Error(
-    `Refusing to reset a non-E2E database (${new URL(DATABASE_URL).pathname})`
-  )
+assertE2eDatabase(DATABASE_URL)
 
 await runMigrations(DATABASE_URL)
 await resetDb()
@@ -47,30 +50,39 @@ const inviteUrl = passwordUrl(
   await createPasswordToken(invited.id, INVITE_TOKEN_EXPIRES_IN)
 )
 
+/** Creates a user with a password, turns TOTP on, returns the otpauth URI. */
+async function enrolTotp(
+  person: { email: string; name: string },
+  roles: Role[]
+): Promise<string> {
+  await auth.api.createUser({
+    body: { ...person, role: roles, password: E2E_PASSWORD },
+  })
+  const signedIn = await auth.api.signInEmail({
+    body: { email: person.email, password: E2E_PASSWORD },
+    returnHeaders: true,
+  })
+  const headers = new Headers({
+    cookie: signedIn.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; "),
+  })
+  const enabled = await auth.api.enableTwoFactor({
+    body: { password: E2E_PASSWORD },
+    headers,
+  })
+  if (enabled.method !== "totp") throw new Error("expected a TOTP enrolment")
+  await auth.api.verifyTOTP({
+    body: { code: URI.parse(enabled.totpURI).generate() },
+    headers,
+  })
+  return enabled.totpURI
+}
+
 // Two-factor user: sign in, enable TOTP, confirm with a generated code.
 const twoFactor = { email: "twofactor@e2e.test", name: "Tess Twofactor" }
-await auth.api.createUser({
-  body: { ...twoFactor, role: ["admin"], password: E2E_PASSWORD },
-})
-const signedIn = await auth.api.signInEmail({
-  body: { email: twoFactor.email, password: E2E_PASSWORD },
-  returnHeaders: true,
-})
-const headers = new Headers({
-  cookie: signedIn.headers
-    .getSetCookie()
-    .map((c) => c.split(";")[0])
-    .join("; "),
-})
-const enabled = await auth.api.enableTwoFactor({
-  body: { password: E2E_PASSWORD },
-  headers,
-})
-if (enabled.method !== "totp") throw new Error("expected a TOTP enrolment")
-await auth.api.verifyTOTP({
-  body: { code: URI.parse(enabled.totpURI).generate() },
-  headers,
-})
+const twoFactorUri = await enrolTotp(twoFactor, ["admin"])
 
 // Account page user (Task 2.6): turns 2FA on through the UI.
 const account = { email: "account@e2e.test", name: "Avery Account" }
@@ -92,12 +104,50 @@ await auth.api.createUser({
   body: { ...author, role: ["author"], password: E2E_PASSWORD },
 })
 
+// Leads (Phase 7): an intake user, staff notifications to a Mailpit inbox.
+const intake = { email: "intake@e2e.test", name: "Ian Intake" }
+await auth.api.createUser({
+  body: { ...intake, role: ["intake"], password: E2E_PASSWORD },
+})
+const leadsInbox = "leads@e2e.test"
+const leadsSettings = {
+  recipients: [leadsInbox],
+  retentionMonths: 24,
+  acknowledgement: false,
+}
+await getDb()
+  .update(settings)
+  .set({ draft: leadsSettings, published: leadsSettings })
+  .where(eq(settings.key, "leads"))
+
+// Spec §15: one user per role (<role>@demo.local, password E2E_PASSWORD).
+await seedDemoUsers(E2E_PASSWORD)
+
+// account.spec turns 2FA off for this one.
+const twoFactorOff = { email: "twofactor-off@e2e.test", name: "Toby Twofactor" }
+const twoFactorOffUri = await enrolTotp(twoFactorOff, ["editor"])
+
+// password-reset.spec: the production server refuses the loopback Mailpit
+// (SMTP SSRF guard), so the seed mints the link the email would carry.
+const resetPerson = { email: "reset@e2e.test", name: "Rita Reset" }
+const { user: resetAccount } = await auth.api.createUser({
+  body: { ...resetPerson, role: ["editor"], password: E2E_PASSWORD },
+})
+const resetUrl = passwordUrl(
+  "reset-password",
+  await createPasswordToken(resetAccount.id, INVITE_TOKEN_EXPIRES_IN)
+)
+
 const fixtures: E2EFixtures = {
   editor,
   invitee: { ...invitee, inviteUrl },
-  twoFactor: { ...twoFactor, totpUri: enabled.totpURI },
+  twoFactor: { ...twoFactor, totpUri: twoFactorUri },
   account,
   author,
+  intake,
+  leadsInbox,
+  twoFactorOff: { ...twoFactorOff, totpUri: twoFactorOffUri },
+  resetUser: { ...resetPerson, resetUrl },
 }
 mkdirSync(dirname(FIXTURES_FILE), { recursive: true })
 writeFileSync(FIXTURES_FILE, JSON.stringify(fixtures, null, 2))

@@ -137,5 +137,8 @@ export async function askAssistant(
     .fill("Make the hero heading shorter")
   await page.keyboard.press("Enter")
   await expect(panel.getByRole("button", { name: "Copy" })).toBeVisible()
-  await expect(panel.getByRole("button", { name: "Send" })).toBeVisible()
+  // exact: the composer also has "Don't send <screen> with the next message".
+  await expect(
+    panel.getByRole("button", { name: "Send", exact: true })
+  ).toBeVisible()
 }

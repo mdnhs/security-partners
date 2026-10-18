@@ -15,10 +15,22 @@ export type E2EFixtures = {
   account: { email: string; name: string }
   /** Articles workflow (Phase 5): drafts and submits, never publishes. */
   author: { email: string; name: string }
+  /** Leads (Phase 7): sees only Dashboard, Leads and Account. */
+  intake: { email: string; name: string }
+  /** settings.leads.recipients[0] in sp_e2e; mail lands in Mailpit. */
+  leadsInbox: string
+  /** 2FA on; account.spec turns it off. */
+  twoFactorOff: { email: string; name: string; totpUri: string }
+  /**
+   * Its password changes in password-reset.spec. `resetUrl` is a reset link
+   * minted by the seed: the production server never sends to the loopback
+   * Mailpit (SMTP SSRF guard), so the email leg is integration-tested.
+   */
+  resetUser: { email: string; name: string; resetUrl: string }
 }
 
 /**
- * `next start` runs with production rate limits (sign-in 5/min per IP, keyed
+ * server.js runs with production rate limits (sign-in 5/min per IP, keyed
  * on X-Forwarded-For). Each test signs in from its own documentation-range
  * address so the suite never trips a limit meant for one client.
  */

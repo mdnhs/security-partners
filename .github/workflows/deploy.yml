@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      skip_ci:
+        description: "Emergency only: deploy without waiting for CI"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -14,7 +19,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The trigger is unchanged; the deploy now waits for the full CI run.
+  ci:
+    if: ${{ github.event_name == 'push' || !inputs.skip_ci }}
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   build-and-push:
+    needs: ci
+    if: ${{ !cancelled() && (needs.ci.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.skip_ci)) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

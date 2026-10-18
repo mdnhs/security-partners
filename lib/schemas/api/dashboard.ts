@@ -13,7 +13,13 @@ export type DashboardDto = {
 
 export type NextUpItem = {
   id:
-    "smtp" | "r2" | "two-factor" | "review" | "unassigned-leads" | "failed-jobs"
+    | "smtp"
+    | "r2"
+    | "two-factor"
+    | "review"
+    | "unassigned-leads"
+    | "failed-jobs"
+    | "turnstile-unreadable"
   title: string
   description: string
   href: string

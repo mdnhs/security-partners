@@ -51,3 +51,21 @@ describe("scripts bundle", () => {
     expect(run.stderr).toContain("  - BETTER_AUTH_URL: is required")
   })
 })
+
+describe("scripts:build from another working directory (ledger P01-6)", () => {
+  it("resolves entries and tsconfig from the repo, not the cwd", () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), "sp-cwd-"))
+    try {
+      const run = spawnSync(
+        join(process.cwd(), "node_modules/.bin/tsx"),
+        [join(process.cwd(), "scripts/build-scripts.ts")],
+        { cwd: elsewhere, encoding: "utf8" }
+      )
+      expect(run.stderr).toBe("")
+      expect(run.status).toBe(0)
+      expect(run.stdout).toContain("script(s) → scripts/dist")
+    } finally {
+      rmSync(elsewhere, { recursive: true, force: true })
+    }
+  }, 120_000)
+})

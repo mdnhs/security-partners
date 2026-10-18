@@ -27,6 +27,11 @@ export type ConsentBannerCopy = {
 const OPTIONAL = ["analytics", "marketing"] as const
 const NONE: ConsentChoice = { analytics: false, marketing: false }
 const ALL: ConsentChoice = { analytics: true, marketing: true }
+/**
+ * White on brand green is 2.36:1 (WCAG 1.4.3 needs 4.5:1 at this size): the
+ * banner's green pills use navy text (7.25:1; 4.86:1 on the hover green).
+ */
+const ON_GREEN = "text-brand-navy hover:text-brand-navy"
 
 /**
  * Keeps focused content visible above the fixed banner (WCAG 2.4.11): while
@@ -112,13 +117,13 @@ export function ConsentBanner({ copy }: { copy: ConsentBannerCopy }) {
         }}
         className={buttonClassName(
           { variant: "brand", size: "pill-sm" },
-          "fixed bottom-4 left-4 z-40 shadow-lg"
+          `${ON_GREEN} fixed bottom-4 left-4 z-40 shadow-lg`
         )}
       >
         {copy.manageLabel}
       </button>
     )
-  const pill = buttonClassName({ variant: "brand", size: "pill-sm" })
+  const pill = buttonClassName({ variant: "brand", size: "pill-sm" }, ON_GREEN)
   const outline = buttonClassName({ variant: "brand-outline", size: "pill-sm" })
   return (
     <section

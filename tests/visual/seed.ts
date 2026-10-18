@@ -1,7 +1,7 @@
 // Gives the server under test (playwright.config.ts webServer) a database
 // with exactly the seeded content, so screenshots compare seed → Phase 0
 // baselines, plus the admin the shell screenshots sign in as. Runs before
-// `next start` on every Playwright run:
+// the standalone server.js on every Playwright run:
 //   pnpm tsx:server tests/visual/seed.ts   (env from tests/e2e/env.ts)
 import { getAuth } from "@/server/auth/auth"
 import { closeDb, getDb } from "@/server/db/client"
@@ -9,14 +9,14 @@ import { runMigrations } from "@/server/db/migrate"
 import { seedContent } from "@/server/db/seed"
 import { getEnv } from "@/server/env"
 
+import { assertE2eDatabase } from "../e2e/env"
 import { resetDb } from "../integration/db"
 
 import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
 
 const { DATABASE_URL } = getEnv()
+assertE2eDatabase(DATABASE_URL)
 const name = new URL(DATABASE_URL).pathname
-if (!name.endsWith("_e2e"))
-  throw new Error(`Refusing to reset a non-E2E database (${name})`)
 
 await runMigrations(DATABASE_URL)
 await resetDb()

@@ -1,10 +1,13 @@
 // Bundles the operational scripts into self-contained ESM files for the
 // production image (which has no tsx and only the traced node_modules).
 //   pnpm scripts:build  →  scripts/dist/<name>.mjs
-import { resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { build, type Plugin } from "esbuild"
+
+/** Repo root: scripts:build works from any working directory (ledger P01-6). */
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 /** Scripts shipped in the image. Later phases append their script names. */
 export const SCRIPT_ENTRIES = [
@@ -65,17 +68,20 @@ const nextCacheStub: Plugin = {
 }
 
 export async function buildScripts(
-  outdir = resolve("scripts/dist")
+  outdir = resolve(ROOT, "scripts/dist")
 ): Promise<string[]> {
   await build({
-    entryPoints: SCRIPT_ENTRIES.map((name) => resolve("scripts", `${name}.ts`)),
+    entryPoints: SCRIPT_ENTRIES.map((name) =>
+      resolve(ROOT, "scripts", `${name}.ts`)
+    ),
+    absWorkingDir: ROOT,
     outdir,
     outExtension: { ".js": ".mjs" },
     bundle: true,
     platform: "node",
     target: "node22",
     format: "esm",
-    tsconfig: resolve("tsconfig.json"),
+    tsconfig: resolve(ROOT, "tsconfig.json"),
     // pg lazily requires the optional native binding (never installed); sharp
     // is native and ships in the standalone node_modules (Next traces it).
     external: ["pg-native", "sharp"],
