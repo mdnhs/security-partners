@@ -207,6 +207,35 @@ const SEO_OVERVIEW = {
   checks: { passed: 11, total: 12 },
 }
 
+/** SEO › Redirects, pinned (Phase 8 Task 9): hits change with every run. */
+const REDIRECT_TIMES = {
+  createdAt: "2026-10-01T09:00:00.000Z",
+  updatedAt: "2026-10-16T09:00:00.000Z",
+}
+const REDIRECTS = {
+  items: [
+    {
+      id: "0190f0e0-0000-7000-8000-0000000000c1",
+      fromPath: "/old-alarms",
+      toPath: "/services/alarm-responses",
+      code: 301,
+      hits: 1234,
+      ...REDIRECT_TIMES,
+    },
+    {
+      id: "0190f0e0-0000-7000-8000-0000000000c2",
+      fromPath: "/winter-offer",
+      toPath: "/contact",
+      code: 302,
+      hits: 18,
+      ...REDIRECT_TIMES,
+    },
+  ],
+  page: 1,
+  pageSize: 20,
+  total: 2,
+}
+
 /** The dashboard's numbers and the audit log, pinned. */
 async function pinData(page: Page) {
   await page.route("**/api/v1/admin/dashboard", (route) =>
@@ -742,6 +771,32 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       await expect(page).toHaveScreenshot(shot("seo-defaults"), {
         mask: await masks(page),
+      })
+    })
+
+    test(`admin redirects ${colorScheme}`, async ({ page }) => {
+      await page.route("**/api/v1/admin/redirects?*", (route) =>
+        route.fulfill({ json: REDIRECTS })
+      )
+      await signIn(page)
+      await page.goto("/admin/seo/redirects")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Redirects" })
+      ).toBeVisible()
+      // Two pinned rows, as table rows or as cards.
+      await expect(
+        page.getByRole("button", { name: /^Edit redirect from/ })
+      ).toHaveCount(2)
+      await expect(page).toHaveScreenshot(shot("seo-redirects"), {
+        mask: await masks(page),
+      })
+      // The add dialog.
+      await page.getByRole("button", { name: "Add redirect" }).first().click()
+      await expect(
+        page.getByRole("dialog", { name: "Add redirect" })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("redirect-dialog"), {
+        mask: await overlayOnly(page),
       })
     })
 
