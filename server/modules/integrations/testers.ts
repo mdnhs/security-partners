@@ -39,16 +39,6 @@ const errorCode = (err: unknown) => {
   return typeof code === "string" ? code : null
 }
 
-/** Error texts may echo what they were given: mask every secret (4+ chars). */
-export function redactSecrets(
-  message: string,
-  secrets: readonly string[]
-): string {
-  return secrets
-    .filter((secret) => secret.length >= 4)
-    .reduce((text, secret) => text.split(secret).join("••••"), message)
-}
-
 /**
  * Fixed texts for nodemailer failures. Error messages and server replies are
  * never echoed: they would turn "Test connection" into a probe of internal

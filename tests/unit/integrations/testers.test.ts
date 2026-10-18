@@ -9,7 +9,6 @@ import type {
 } from "@/lib/schemas/integrations"
 import { r2Endpoint } from "@/server/lib/r2-client"
 import {
-  redactSecrets,
   smtpFailureMessage,
   smtpTransportOptions,
   testAi,
@@ -23,15 +22,6 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { "content-type": "application/json" },
   })
-
-describe("redactSecrets", () => {
-  it("replaces every occurrence of each secret (4+ chars)", () => {
-    expect(redactSecrets("key abcd1234 and abcd1234", ["abcd1234"])).toBe(
-      "key •••• and ••••"
-    )
-    expect(redactSecrets("abc", ["abc"])).toBe("abc")
-  })
-})
 
 describe("testSmtp", () => {
   it("reports a refused connection without the password", async () => {
