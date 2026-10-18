@@ -133,7 +133,14 @@ export async function applyTransition(
     data: updated.draft,
     actorId: actor?.userId ?? null,
   })
-  await syncMediaUsages(tx, "article", row.id, updated.draft, updated.published)
+  await syncMediaUsages(
+    tx,
+    "article",
+    row.id,
+    updated.draft,
+    updated.published,
+    { seo: updated.seo }
+  )
   await writeAudit(tx, actor, {
     action: `article.${transition.action}`,
     entityType: "article",

@@ -63,6 +63,7 @@ export const serviceStore: VersionedStore<unknown, ServiceEditRow> = {
   update: (db, id, version, patch) =>
     updateServiceIfVersion(db, id, version, patch),
   tags: (row) => [tag.services, tag.service(row.slug)],
+  mediaValues: (row) => [row.draft, row.published, { seo: row.seo }],
   present: (row) => toDto(row),
 }
 

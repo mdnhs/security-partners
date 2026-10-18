@@ -53,6 +53,7 @@ export const pageStore: VersionedStore<unknown, PageEditRow> = {
   update: (db, key, version, patch) =>
     updatePageIfVersion(db, key, version, patch),
   tags: (row) => [tag.page(row.key)],
+  mediaValues: (row) => [row.draft, row.published, { seo: row.seo }],
   present: (row) => toDto(row),
 }
 

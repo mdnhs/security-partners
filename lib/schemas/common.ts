@@ -144,7 +144,16 @@ export const iconCard = z.object({
 export const seo = z.object({
   title: z.string().max(200).optional(),
   description: z.string().max(500).optional(),
-  canonical: httpUrl.optional(),
+  // z.url() normalises (drops tabs/newlines, encodes spaces): check the raw
+  // text first so a pasted value is refused, never silently rewritten.
+  canonical: z
+    .string()
+    .max(2000)
+    .refine((value) => !/[\s\u0000-\u001f\u007f]/.test(value), {
+      message: "Remove spaces and line breaks from the address",
+    })
+    .pipe(httpUrl)
+    .optional(),
   ogImage: mediaRef.optional(),
   noindex: z.boolean().optional(),
 })

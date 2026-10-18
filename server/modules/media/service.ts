@@ -2,6 +2,10 @@ import "server-only"
 
 import { uuidv7 } from "uuidv7"
 
+import {
+  GROWTH_SETTINGS,
+  isGrowthSettingsKey,
+} from "@/lib/admin/growth-settings"
 import { PAGE_LABELS } from "@/lib/admin/page-labels"
 import {
   isEditableSettingsKey,
@@ -355,7 +359,9 @@ function describeUsage(
             `Settings › ${SETTINGS_ENTRIES[id].label}`,
             `/admin/settings/${id}`
           )
-        : with_(`Settings › ${id}`, null)
+        : isGrowthSettingsKey(id)
+          ? with_(GROWTH_SETTINGS[id].label, GROWTH_SETTINGS[id].href)
+          : with_(`Settings › ${id}`, null)
     case "service":
       return with_(`Service: ${name}`, `/admin/services/${id}`)
     case "article":

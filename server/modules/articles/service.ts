@@ -99,6 +99,7 @@ const storeFor = (
   update: (db, id, version, patch) =>
     repo.updateArticleIfVersion(db, id, version, patch),
   tags: (row) => [tag.articles, tag.article(row.slug)],
+  mediaValues: (row) => [row.draft, row.published, { seo: row.seo }],
   present: (row) => toDto(row, actor),
 })
 

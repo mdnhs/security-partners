@@ -374,11 +374,15 @@ export async function lockMediaReferencingEntity(
   switch (entityType) {
     case "page": {
       const [row] = await db
-        .select({ draft: pages.draft, published: pages.published })
+        .select({
+          draft: pages.draft,
+          published: pages.published,
+          seo: pages.seo,
+        })
         .from(pages)
         .where(eq(pages.key, entityId))
         .for("update")
-      return row ? [row.draft, row.published] : null
+      return row ? [row.draft, row.published, { seo: row.seo }] : null
     }
     case "settings": {
       const [row] = await db
@@ -390,19 +394,27 @@ export async function lockMediaReferencingEntity(
     }
     case "service": {
       const [row] = await db
-        .select({ draft: services.draft, published: services.published })
+        .select({
+          draft: services.draft,
+          published: services.published,
+          seo: services.seo,
+        })
         .from(services)
         .where(eq(services.id, entityId))
         .for("update")
-      return row ? [row.draft, row.published] : null
+      return row ? [row.draft, row.published, { seo: row.seo }] : null
     }
     case "article": {
       const [row] = await db
-        .select({ draft: articles.draft, published: articles.published })
+        .select({
+          draft: articles.draft,
+          published: articles.published,
+          seo: articles.seo,
+        })
         .from(articles)
         .where(eq(articles.id, entityId))
         .for("update")
-      return row ? [row.draft, row.published] : null
+      return row ? [row.draft, row.published, { seo: row.seo }] : null
     }
     case "team": {
       const [row] = await db

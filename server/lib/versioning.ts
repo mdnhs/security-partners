@@ -72,6 +72,12 @@ export type VersionedStore<
   tags(record: R): string[]
   /** Wire shape sent back with a 409 (the current state, Review Focus 2). */
   present(record: R): unknown
+  /**
+   * Values whose media refs this record uses (media_usages). Default:
+   * draft + published. Pages, services and articles add their seo column
+   * so a share image stays "in use".
+   */
+  mediaValues?(record: R): unknown[]
 }
 
 /** Wire fields shared by every versioned DTO (pages, services, settings). */
@@ -90,6 +96,11 @@ export function versionedDto<T>(row: VersionedRecord<T>): VersionedDto<T> {
         : null,
   }
 }
+
+const mediaValuesOf = <T, R extends VersionedRecord<T>>(
+  store: VersionedStore<T, R>,
+  record: R
+): unknown[] => store.mediaValues?.(record) ?? [record.draft, record.published]
 
 /** Parses with the record's schema; 422 with field paths ("hero.heading"). */
 export function validateContent<T>(schema: z.ZodType<T>, data: unknown): T {
@@ -159,8 +170,7 @@ export async function saveDraft<T, R extends VersionedRecord<T>>(
       tx,
       store.entityType,
       id,
-      updated.draft,
-      updated.published
+      ...mediaValuesOf(store, updated)
     )
     await writeCoalescedAudit(tx, actor, {
       action: `${store.entityType}.draft_saved`,
@@ -235,8 +245,7 @@ function publishInTx<T, R extends VersionedRecord<T>>(
       tx,
       store.entityType,
       id,
-      updated.draft,
-      updated.published
+      ...mediaValuesOf(store, updated)
     )
     await writeAudit(tx, actor, {
       action: `${store.entityType}.published`,
@@ -282,8 +291,7 @@ export async function restoreRevision<T, R extends VersionedRecord<T>>(
       tx,
       store.entityType,
       id,
-      updated.draft,
-      updated.published
+      ...mediaValuesOf(store, updated)
     )
     await writeAudit(tx, actor, {
       action: `${store.entityType}.restored`,
