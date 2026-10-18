@@ -32,6 +32,8 @@ export const leads = pgTable(
     company: text("company"),
     service: text("service"),
     message: text("message").notNull(),
+    // Submitted for a reply (Art. 6(1)(b)/(f)), not marketing consent —
+    // never use for marketing lists.
     consent: boolean("consent").notNull().default(false),
     status: leadStatus("status").notNull().default("new"),
     assigneeId: uuid("assignee_id").references(() => users.id, {

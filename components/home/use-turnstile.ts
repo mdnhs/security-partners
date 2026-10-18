@@ -30,7 +30,7 @@ declare global {
 
 export const TURNSTILE_SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-const TOKEN_TIMEOUT_MS = 15_000
+const TOKEN_TIMEOUT_MS = 8_000
 
 let scriptPromise: Promise<TurnstileApi> | null = null
 
@@ -67,15 +67,27 @@ type Widget = {
 export function useTurnstile(container: RefObject<HTMLDivElement | null>) {
   const ready = useRef<Promise<Widget | null> | null>(null)
   const widget = useRef<Widget | null>(null)
+  const unmounted = useRef(false)
 
   const prepare = useCallback(() => {
-    ready.current ??= (async (): Promise<Widget | null> => {
+    if (ready.current) return ready.current
+    // A failure (network, non-OK, script error) clears the cache so the
+    // next getToken() retries; only "no site key" stays cached as null.
+    const retryLater = () => {
+      if (ready.current === attempt) ready.current = null
+      return null
+    }
+    const attempt = (async (): Promise<Widget | null> => {
       try {
         const res = await fetch(LEADS_CONFIG_ENDPOINT)
-        if (!res.ok) return null
+        if (!res.ok) return retryLater()
         const { turnstileSiteKey } = (await res.json()) as LeadPublicConfig
-        if (!turnstileSiteKey || !container.current) return null
+        if (!turnstileSiteKey) return null
+        if (unmounted.current || !container.current) return retryLater()
         const api = await loadTurnstileScript()
+        // Unmounted during the awaits: the cleanup has already run, so a
+        // widget rendered now would never be removed. No await follows.
+        if (unmounted.current || !container.current) return retryLater()
         const w: Widget = { api, id: "", pending: null }
         const settle = (token: string | null) => {
           const pending = w.pending
@@ -92,10 +104,11 @@ export function useTurnstile(container: RefObject<HTMLDivElement | null>) {
         widget.current = w
         return w
       } catch {
-        return null
+        return retryLater()
       }
     })()
-    return ready.current
+    ready.current = attempt
+    return attempt
   }, [container])
 
   const getToken = useCallback(async (): Promise<string | null> => {
@@ -120,13 +133,16 @@ export function useTurnstile(container: RefObject<HTMLDivElement | null>) {
     if (w) w.api.reset(w.id)
   }, [])
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    unmounted.current = false
+    return () => {
+      unmounted.current = true
       const w = widget.current
+      widget.current = null
+      ready.current = null
       if (w) w.api.remove(w.id)
-    },
-    []
-  )
+    }
+  }, [])
 
   return { prepare, getToken, reset }
 }
