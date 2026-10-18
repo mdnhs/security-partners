@@ -1,6 +1,7 @@
 import "server-only"
 
 import { backupJob } from "./backup"
+import { deleteRetiredMediaJob } from "./delete-retired-media"
 import { migrateMediaJob } from "./migrate-media"
 import { publishScheduledJob } from "./publish-scheduled"
 import { pruneRevisionsJob } from "./prune-revisions"
@@ -37,7 +38,10 @@ export const RECURRING_JOBS: readonly JobDefinition[] = [
 ]
 
 /** One-off jobs queued by a request (enqueueKeyedJob); tick() runs them, ensureRecurringJobs never creates them. */
-export const TRIGGERED_JOBS: readonly JobDefinition[] = [migrateMediaJob]
+export const TRIGGERED_JOBS: readonly JobDefinition[] = [
+  migrateMediaJob,
+  deleteRetiredMediaJob,
+]
 
 /** Every handler tick() can dispatch. */
 export const ALL_JOBS: readonly JobDefinition[] = [

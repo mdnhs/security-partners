@@ -288,7 +288,16 @@ replicas never run one twice:
   that fail are skipped; when a run makes no progress it stops ("stopped",
   failures listed) and must be started again after fixing the files. One
   tick may block for up to ~40 s; an object copied to R2 whose database
-  update then failed is logged by key and left in the bucket.
+  update then failed is logged by key and left in the bucket;
+- replaced media files (one `delete-retired-media` row per old file): a
+  replaced file stays servable at its old URL for 24 hours (pages already
+  open keep their images), then it is deleted. Disconnecting or re-pointing
+  R2 within those 24 hours leaves the old object in the old bucket (warning
+  on the job).
+
+A job row whose name no release handles any more (renamed or removed) is
+logged and parked with "No handler for job …" instead of retrying; delete
+the row once you have checked it.
 
 Jobs expire caches through `http://127.0.0.1:$PORT` (signed request) — the
 image binds `HOSTNAME=0.0.0.0`, which includes loopback; do not override

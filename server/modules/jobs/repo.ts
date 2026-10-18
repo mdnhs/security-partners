@@ -115,6 +115,14 @@ export async function enqueueKeyedJob(
   return rows.length > 0
 }
 
+/** Inserts a keyed one-off job with its payload; an existing row with that key is left as is. */
+export async function insertKeyedJobIfAbsent(
+  db: DbOrTx,
+  job: { name: string; key: string; runAt: Date; payload: unknown }
+): Promise<void> {
+  await db.insert(jobs).values(job).onConflictDoNothing({ target: jobs.key })
+}
+
 export async function findJobByKey(
   db: DbOrTx,
   key: string
