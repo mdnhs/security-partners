@@ -16,6 +16,7 @@ import { findRevision, listRevisionRows } from "./repo"
 const READ: Record<RevisionEntity, PermissionRequest> = {
   page: { page: ["read"] },
   service: { service: ["read"] },
+  article: { article: ["read"] },
   settings: { settings: ["read"] },
   team: { collection: ["read"] },
   client: { collection: ["read"] },

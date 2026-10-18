@@ -27,6 +27,7 @@ export const pageKeyParam = z.object({
 export const REVISION_ENTITIES = [
   "page",
   "service",
+  "article",
   "settings",
   "team",
   "client",
