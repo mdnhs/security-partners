@@ -15,7 +15,6 @@ tsconfig.tsbuildinfo
 Dockerfile
 docker-compose.yml
 docker-compose.dev.yml
-Caddyfile
 README.md
 AGENTS.original.md
 .data
