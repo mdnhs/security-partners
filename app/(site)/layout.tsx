@@ -12,7 +12,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
-import { siteMetadata } from "@/templates/shared/page-meta"
+import { DEFAULT_FAVICON, siteMetadata } from "@/templates/shared/page-meta"
 
 const lato = Lato({
   subsets: ["latin"],
@@ -37,7 +37,7 @@ export async function generateMetadata(): Promise<Metadata> {
     return siteMetadata(s, publicOrigin(s.settings.site.productionUrl))
   } catch (error) {
     unstable_rethrow(error)
-    return {}
+    return { icons: { icon: DEFAULT_FAVICON } }
   }
 }
 

@@ -26,7 +26,14 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         help: "{year} is replaced with the current year.",
       },
       logo: { label: "Logo", aspect: "square" },
-      logoOnDark: { label: "Logo on dark backgrounds", aspect: "square" },
+      // Kept in the schema (stored values stay valid) but not edited: the
+      // public design has no dark surface with a logo (the footer logo sits
+      // on a white plate), so the field would have no effect.
+      logoOnDark: {
+        label: "Logo on dark backgrounds",
+        aspect: "square",
+        hidden: true,
+      },
       favicon: { label: "Browser tab icon", aspect: "square" },
     },
     groups: {

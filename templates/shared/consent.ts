@@ -1,6 +1,9 @@
 import type { ConsentBannerCopy } from "@/components/consent/consent-banner"
 import { interpolate } from "@/lib/interpolate"
-import type { ConsentSettings } from "@/lib/schemas/settings/consent"
+import {
+  type ConsentSettings,
+  DEFAULT_CLOSE_LABEL,
+} from "@/lib/schemas/settings/consent"
 
 import type { SiteSources } from "./sources"
 import { linkView, placeholders } from "./views"
@@ -24,6 +27,9 @@ export function consentBannerCopy(
     customiseLabel: t(consent.customiseLabel),
     saveLabel: t(consent.saveLabel),
     manageLabel: t(consent.manageLabel),
+    // Public reads are not re-parsed: a value stored before closeLabel
+    // existed has none, so the schema default applies here too.
+    closeLabel: t(consent.closeLabel || DEFAULT_CLOSE_LABEL),
     policyLink: linkView(s, consent.policyLink),
     categories: {
       necessary: category(consent.categories.necessary),

@@ -115,6 +115,10 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
         label: "Reopen button",
         help: "The small button that lets visitors change their choice later.",
       },
+      closeLabel: {
+        label: "Close button (screen readers)",
+        help: "Read aloud for the × that closes the reopened banner.",
+      },
       policyLink: { label: "Privacy policy link" },
       categories: { label: "Cookie categories", section: true },
       "categories.necessary": { label: "Necessary (always on)" },

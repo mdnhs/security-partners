@@ -17,6 +17,7 @@ const COPY: ConsentBannerCopy = {
   customiseLabel: "Customise",
   saveLabel: "Save choices",
   manageLabel: "Cookie settings",
+  closeLabel: "Close",
   policyLink: { label: "Privacy Policy", href: "/privacy" },
   categories: {
     necessary: { label: "Necessary", description: "Always on." },
@@ -42,10 +43,10 @@ beforeEach(() => {
   delete (window as AnalyticsWindow).__spConsent
 })
 
-function renderBanner(reload = vi.fn()) {
+function renderBanner(reload = vi.fn(), copy: ConsentBannerCopy = COPY) {
   render(
     <ConsentProvider reload={reload}>
-      <ConsentBanner copy={COPY} />
+      <ConsentBanner copy={copy} />
     </ConsentProvider>
   )
   return reload
@@ -127,6 +128,16 @@ describe("consent banner focus and visibility (WCAG 2.4.3, 2.4.11)", () => {
     expect(
       screen.getByRole("button", { name: "Cookie settings" })
     ).toHaveFocus()
+  })
+
+  it("the close button's accessible name comes from settings.consent.closeLabel", async () => {
+    stored()
+    const user = userEvent.setup()
+    renderBanner(vi.fn(), { ...COPY, closeLabel: "Dún" })
+    await user.click(screen.getByRole("button", { name: "Cookie settings" }))
+    const banner = screen.getByRole("region", { name: "We use cookies" })
+    expect(within(banner).getByRole("button", { name: "Dún" })).toBeVisible()
+    expect(within(banner).queryByRole("button", { name: "Close" })).toBeNull()
   })
 
   it("reopening focuses the heading and offers Reject / Accept / Save and Close", async () => {

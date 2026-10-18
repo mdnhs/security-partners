@@ -65,8 +65,8 @@ From spec §1.2.
 2. Every user-visible string, image, link, phone, email and list on the public site is editable in the admin; a publish shows on the site immediately (tag revalidation).
 3. Every role signs in and sees exactly what the role matrix allows (E2E per role).
 4. `pnpm lint && pnpm typecheck && pnpm test && pnpm build` pass; `next build` succeeds with no env vars set.
-5. Fresh clone works with: `docker compose -f docker-compose.dev.yml up -d && pnpm db:migrate && pnpm db:seed && pnpm demo:seed && pnpm dev`.
-6. Production bootstraps with only: 3 env vars set, deploy, `admin:create` inside the container; SMTP/R2/etc. then configured from Settings ▸ Integrations.
+5. Fresh clone works with: `docker compose -f docker-compose.dev.yml up -d --wait && pnpm db:migrate && pnpm db:seed && pnpm demo:seed && pnpm dev` (`--wait` added 2026-10-19, see Changes).
+6. Production bootstraps with only: 3 env vars set, deploy, `admin:create` inside the container; SMTP/R2/etc. then configured from Settings ▸ Integrations. The deploy seeds the content itself: the container auto-seeds a database that has no pages (2026-10-19, see Changes).
 
 ## 6. Target architecture
 
@@ -150,7 +150,7 @@ Additions from the field inventory (see Changes): `article_categories.showInFilt
 | `microcopy` | form labels, success/error messages, button labels, aria labels |
 | `leads` | notification recipients[], retention months, acknowledgement on/off |
 | `integrations.smtp` | host, port, secure, user, **password**, from name, from address |
-| `integrations.r2` | accountId, bucket, **accessKeyId**, **secretAccessKey**, public base URL |
+| `integrations.r2` | accountId, jurisdiction, bucket, **accessKeyId**, **secretAccessKey** (no public base URL: the bucket stays private and media is served same-origin, see Changes) |
 | `integrations.turnstile` | enabled, siteKey, **secretKey** |
 | `integrations.ai` | provider, model, **apiKey**, allowed roles[] |
 
@@ -315,7 +315,7 @@ An entry counts once for every page it renders on, so shared header and footer e
 - **Share links**: `settings.microcopy.share.networks[].href` holds one URL template per network and the shape varies: Facebook and LinkedIn interpolate `{url}` only (`https://www.facebook.com/sharer/sharer.php?u={url}`, `https://www.linkedin.com/sharing/share-offsite/?url={url}`), while X interpolates `{url}` and `{title}` (`https://x.com/intent/post?url={url}&text={title}`). Values are URL-encoded at render; the URL is the live page address.
 - **Contact form** has no backend: it opens a `mailto:` to `info@securitypartnersltd.com` with subject "Website enquiry from {name}". No success or error messages exist on the page today. Phase 7 replaces this with the leads endpoint.
 - **Group companies** carry a `phoneHref` that the footer does not use (the phone renders as plain text).
-- **Favicon** (`app/favicon.ico`) maps to `settings.site.favicon`; it is binary, so it has no inventory line.
+- **Favicon** (`app/favicon.ico`, moved to `public/favicon.ico` on 2026-10-19) maps to `settings.site.favicon`; it is binary, so it has no inventory line.
 
 ### 14.5 Data to confirm with the owner
 
@@ -331,5 +331,29 @@ An entry counts once for every page it renders on, so shared header and footer e
 - 2026-10-16: Phase 3 content model. Fields added beyond the inventory: `settings.site.{name,legalName,logoOnDark,favicon,productionUrl,timezone}`, `settings.microcopy.article.readTime` ("{n} min read"), defaults for `seo.defaults`, `consent`, `tracking`, `customCode`, `leads`. About copy and service overviews are paragraph-only rich text; article bodies are TipTap JSON. Byline authors are seeded as banned users `@authors.invalid`. `<html lang>` is fixed in the static shell and `settings.site.locale` is applied after hydration. Unknown service/article slugs show the 404 page with `noindex` but HTTP 200 (Cache Components streaming); unmatched URLs return 404. `/privacy` and `/terms` carry placeholder copy for owner review.
 - 2026-10-16: correction to §14.3: `{phone24hHref}` and `{officeHref}` are not `settings.contact` fields; they are derived at render from `{phone24h}` / `{office}` (tel: links). `{mapsHref}` is a stored field.
 - 2026-10-19: Phase 10 operations: daily backups (dump + manifest, 14 kept, R2 `backups/` or `/data/backups`), `restore-drill`, `secrets:rotate`, `db:sync`, `demo:remove`; CI gates the deploy (trigger unchanged, `skip_ci` for emergencies); security headers with a non-blocking Content-Security-Policy; failing background jobs show on the dashboard; operator docs in `docs/runbook.md`. Owner items: `docs/launch.md`.
+
+Entries below are dated 2026-10-19, when they were written into this brief; the phase in brackets is when the decision was taken (ledger ruling). Each changes behaviour this brief or the spec describes.
+
+- 2026-10-19 (Phase 6): R2 has no public base URL. The bucket stays private (with an optional EU jurisdiction) and every upload, from local disk or R2, is served same-origin through `/api/v1/media/file/<key>` (streamed, `Range`/`ETag`). `integrations.r2` above is updated; spec §5.4/§11 "public base URL" no longer applies. Runbook "Known limitations".
+- 2026-10-19 (Phase 6): uploads are re-encoded to strip EXIF/GPS (originals are not byte-exact). Authors may edit the alt text and focal point of media they uploaded themselves without `media:update` (WCAG 1.1.1).
+- 2026-10-19 (Phase 7): the contact form has no consent checkbox (frozen design). Leads are stored with an implicit `consent: true`, meaning only "submitted to be contacted about this enquiry". Owner must confirm the legal basis (`docs/launch.md` "Owner must confirm").
+- 2026-10-19 (Phase 7): Turnstile fails open: when its stored settings cannot be decrypted, enquiries are still accepted without the spam check, and the dashboard shows "Spam protection is off". Runbook "Known limitations".
+- 2026-10-19 (Phase 7): the visitor acknowledgement email is sent only when Turnstile verified the submission (otherwise the form could relay mail to any address).
+- 2026-10-19 (Phase 7): Mailpit is the default SMTP target only when `NODE_ENV=development` (spec §9 says "not production"); in any other environment mail goes only through the SMTP settings saved in the admin. The mailer logs only the recipient's domain and a template name (no visitor PII in logs).
+- 2026-10-19 (Phase 8): redirects and real 404s for unknown service/article slugs are resolved in `proxy.ts` (301/302 and HTTP 404), not in the not-found route; this supersedes the Phase 3 note above ("HTTP 200" soft 404). The lookups are indexed but uncached queries (spec §10 says "cached lookup"). A client sending its own `__prerender_bypass` cookie skips the slug check and gets a 200 soft 404. Runbook "Known limitations".
+- 2026-10-19 (Phase 8): custom code (`settings.customCode`) is injected by a client-side inline loader (`#sp-custom-code-head|body`) after the page loads, not rendered into the server `<head>`: Cache Components static shells cannot carry per-request markup. Verification `<meta>` tags therefore only exist after JavaScript runs; verify domains by DNS. Runbook "Custom code and Content-Security-Policy".
+- 2026-10-19 (Phase 10): a non-blocking Content-Security-Policy is sent (`base-uri 'self'; object-src 'none'; frame-ancestors 'self'`, `'none'` under `/admin`) instead of no CSP; nonces conflict with static shells.
+- 2026-10-19 (Phase 1/5): scheduled work runs in an in-process scheduler, not a cron endpoint. Jobs expire caches through the internal `/api/v1/internal/revalidate` route, authenticated with an HMAC key derived from `BETTER_AUTH_SECRET` (no `CRON_SECRET`). `publish-scheduled` is due every 30 s but runs on the 60 s tick, so a scheduled article appears up to about 60 s late.
+- 2026-10-19 (Phase 10): `admin:create` has no "owner exists" guard: every run creates another owner. It is operator-only (container shell); use it once (runbook "First production deploy").
+- 2026-10-19 (Phase 4b, D9): the editor's live preview is an opt-in "Live preview" toggle (off by default, remembered per user in the browser, only on screens ≥ 1536 px wide); draft mode is switched on only when someone opts in. Preview access is bound to the signed-in user (not one record), so a previewer sees all drafts site-wide for up to 1 hour.
+- 2026-10-19 (Phase 4): autosaves are audited as one coalesced `draft_saved` row per person and record within 10 minutes (with a save count), not one row per save. SEO edits on a single record are last-write-wins (no version check).
+- 2026-10-19 (Phase 8): staging is not noindexed by the app (`robots.txt` is the same everywhere); owner decision in `docs/launch.md`.
+- 2026-10-19 (Phase 0): visual pixel tests run on macOS only and are not part of CI; CI runs E2E.
+- 2026-10-19 (final review): production bootstrap. The container entrypoint now runs `seed.mjs --if-empty` after the migrations: it auto-seeds a database whose `pages` table has no rows, and otherwise logs that it skipped and writes nothing (deleted or unpublished content is never re-created). Success criterion 6 (3 env vars, deploy, `admin:create`) now holds without a manual seed; `seed.mjs --allow-production` must not be run on a live site.
+- 2026-10-19 (final review): run exactly one app container (`replicas: 1`). The `'use cache'` store and the scheduler's cache expiry are per process, so a second replica would serve stale pages after a publish. A shared `cacheHandlers` store is future work.
+- 2026-10-19 (final review): `settings.site.favicon` is now the public site's browser tab icon; without it the bundled icon is used (moved from `app/favicon.ico` to `public/favicon.ico`, same `/favicon.ico` URL). Article dates use `settings.site.timezone` (Europe/Dublin when blank or not a valid IANA zone). `settings.site.logoOnDark` stays in the schema but is hidden in the admin: no dark surface of the public design shows a logo.
+- 2026-10-19 (final review): the consent banner's close button label is the new `settings.consent.closeLabel` (default "Close", so stored values need no migration), per spec §5.2 (ARIA labels are settings).
+- 2026-10-19 (final review): the fresh-clone command waits for Postgres (`up -d --wait`); `docker-compose.dev.yml` pins `postgres:17.11` like CI; the inherited `^` ranges in `package.json` are exact pins (same versions as the lockfile).
+- 2026-10-19 (final review): known limitations accepted for launch, listed in the runbook: the database-down error page has fixed English copy and no header/footer; public images do not use the stored blur placeholders; the contact map tiles are static images; public pages render per request and their speed has not been measured against the static site. The seeded Privacy and Terms placeholders are published and indexable: the owner replaces them (or sets noindex) before launch (`docs/launch.md`).
 - 2026-10-19: final review ruling (security): changing any third-party tag ID under Marketing › Tracking (GTM, GA4, Meta Pixel) requires `customCode:update` (owner only), enforced by the API on draft save, publish and revision restore; marketers keep the enable switch and consent copy, and see the IDs read-only. A separate admin origin is noted as the stronger long-term fix (`docs/launch.md`).
 - 2026-10-19: final review ruling (operations): `db:sync` removes the target's `integrations.r2` and `integrations.smtp` settings after the restore (audited) unless `--keep-integrations` is passed (dangerous: shared bucket and mail account); backups are listed, pruned and drilled per database (`sp-<db>-` prefix), ordered by their timestamp.

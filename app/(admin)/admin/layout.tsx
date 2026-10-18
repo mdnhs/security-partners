@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     template: "%s · Security Partners admin",
   },
   robots: { index: false, follow: false },
+  // The bundled icon (public/favicon.ico); the public site's root layout
+  // uses settings.site.favicon when set.
+  icons: { icon: "/favicon.ico" },
 }
 
 /**

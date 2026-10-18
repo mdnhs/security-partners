@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm"
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
 import { Pool } from "pg"
 
+import { getEnv } from "@/server/env"
 import { AppError } from "@/server/lib/errors"
 
 import * as schema from "./schema"
@@ -19,10 +20,19 @@ const store = globalThis as unknown as { __spDb?: Holder }
 /**
  * Lazy pg Pool + Drizzle. Nothing connects at import time, so `next build`
  * works without DATABASE_URL. A changed DATABASE_URL (tests) gets a new pool.
+ * The URL comes from server/env.ts (validated, memoised); a bad or missing
+ * env is an INTERNAL error listing the variables, never their values.
  */
 export function getDb(): Db {
-  const url = process.env.DATABASE_URL
-  if (!url) throw new AppError("INTERNAL", "DATABASE_URL is not set")
+  let url: string
+  try {
+    url = getEnv().DATABASE_URL
+  } catch (err) {
+    throw new AppError(
+      "INTERNAL",
+      err instanceof Error ? err.message : String(err)
+    )
+  }
   const current = store.__spDb
   if (current?.url === url) return current.db
   if (current) void current.pool.end().catch(() => undefined)

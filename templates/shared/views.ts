@@ -13,7 +13,7 @@ import type {
 } from "@/components/home/services"
 import type { SiteFooterProps } from "@/components/home/site-footer"
 import type { SiteHeaderProps } from "@/components/home/site-header"
-import { formatPostDate, isoDate } from "@/lib/format"
+import { formatPostDate, isoDate, siteTimeZone } from "@/lib/format"
 import {
   contactPlaceholders,
   interpolate,
@@ -250,25 +250,31 @@ export function serviceCardLabels(s: SiteSources): ServiceCardLabels {
   }
 }
 
-/** Published date as shown on cards ("2026-09-20" / "20 Sep 2026"); nulls without one. */
+/**
+ * Published date as shown on cards ("2026-09-20" / "20 Sep 2026") in
+ * settings.site.timezone (Europe/Dublin when blank or unknown); nulls
+ * without one.
+ */
 export function articleDates(
+  s: SiteSources,
   article: SiteArticle
 ): Pick<BlogCardPost, "date" | "displayDate"> {
   const at = article.publishedAt
   // No publish date (not expected for published rows): show no date rather
   // than an invented one.
   if (!at) return { date: null, displayDate: null }
-  return { date: isoDate(at), displayDate: formatPostDate(at) }
+  const zone = siteTimeZone(s.settings.site.timezone)
+  return { date: isoDate(at, zone), displayDate: formatPostDate(at, zone) }
 }
 
-export function blogCard(article: SiteArticle): BlogCardPost {
+export function blogCard(s: SiteSources, article: SiteArticle): BlogCardPost {
   return {
     slug: article.slug,
     title: article.content.title,
     excerpt: article.content.excerpt,
     category: article.category.name,
     cover: article.content.cover.url,
-    ...articleDates(article),
+    ...articleDates(s, article),
   }
 }
 

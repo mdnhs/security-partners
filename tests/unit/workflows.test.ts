@@ -25,7 +25,8 @@ describe("CI + deploy gating (master 10.4, spec §14)", () => {
       "pnpm build",
       "pnpm test:e2e",
       "scripts/check-log-secrets.ts",
-      "node scripts/dist/seed.mjs --allow-production",
+      "node scripts/dist/seed.mjs --if-empty",
+      "[db:seed] empty database (no pages): content seeded",
       "node scripts/dist/restore-drill.mjs",
     ])
       expect(ci).toContain(command)
@@ -77,6 +78,17 @@ describe("CI + deploy gating (master 10.4, spec §14)", () => {
     expect(jobIf(deploy, "deploy")).toContain(
       "needs.build-and-push.result == 'success'"
     )
+  })
+
+  it("the image entrypoint migrates, auto-seeds an empty database, then execs", () => {
+    const entrypoint = readFileSync("docker-entrypoint.sh", "utf8")
+    const migrate = entrypoint.indexOf("node scripts/dist/migrate.mjs")
+    const seed = entrypoint.indexOf("node scripts/dist/seed.mjs --if-empty")
+    const exec = entrypoint.indexOf('exec "$@"')
+    expect(migrate).toBeGreaterThan(0)
+    expect(seed).toBeGreaterThan(migrate)
+    expect(exec).toBeGreaterThan(seed)
+    expect(entrypoint).not.toContain("--allow-production")
   })
 
   it("only build-and-push may write packages", () => {

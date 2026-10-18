@@ -182,8 +182,8 @@ jobs:
           push: false
           tags: sp:ci
           cache-from: type=gha
-      # Entrypoint migrates first; seed.mjs needs sharp + public/images (P03 carry).
-      - run: docker run --rm --network host --env-file smoke.env sp:ci node scripts/dist/seed.mjs --allow-production
+      # Entrypoint migrates, then auto-seeds the empty database (seed.mjs
+      # --if-empty needs sharp + public/images, P03 carry), then starts.
       - run: docker run -d --name sp --network host --env-file smoke.env sp:ci
       - name: Server ready (readiness touches the DB)
         run: |
@@ -194,6 +194,9 @@ jobs:
           docker logs sp
           exit 1
       - run: curl -fsS -o /dev/null http://127.0.0.1:3000/
+      # First start seeded the empty database; a second run changes nothing.
+      - run: docker logs sp 2>&1 | grep -F "[db:seed] empty database (no pages): content seeded"
+      - run: docker exec sp node scripts/dist/seed.mjs --if-empty | grep -F "auto-seed skipped, no data changed"
       # Loopback reachable inside the container (scheduler, HEALTHCHECK).
       - run: docker exec sp wget -qO- http://127.0.0.1:3000/api/v1/health/live
       # pg_dump in the image, /data writable, scratch restore works.

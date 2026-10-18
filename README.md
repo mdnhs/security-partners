@@ -15,7 +15,7 @@ Turnstile, AI, tracking) is configured in the admin.
 ```bash
 pnpm install
 cp .env.example .env.development   # dev-only values; `next build` never reads them
-docker compose -f docker-compose.dev.yml up -d && pnpm db:migrate && pnpm db:seed && pnpm demo:seed --password "<12+ characters>" && pnpm dev
+docker compose -f docker-compose.dev.yml up -d --wait && pnpm db:migrate && pnpm db:seed && pnpm demo:seed --password "<12+ characters>" && pnpm dev
 ```
 
 Postgres 17 (`sp_dev`, `sp_test`, `sp_e2e`) and Mailpit

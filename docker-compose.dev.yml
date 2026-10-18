@@ -7,7 +7,8 @@ name: security-partners-dev
 
 services:
   postgres:
-    image: postgres:17
+    # Same patch release as CI (ci.yml postgres services).
+    image: postgres:17.11
     restart: unless-stopped
     environment:
       POSTGRES_USER: sp

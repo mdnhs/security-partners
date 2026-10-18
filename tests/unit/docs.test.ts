@@ -51,8 +51,49 @@ describe("operations docs (spec §14)", () => {
   it("the README is the project's, not the template's", () => {
     const readme = read("README.md")
     expect(readme).not.toContain("This is a Next.js template with shadcn/ui.")
+    // --wait: migrations never race a cold Postgres (final review M12).
     expect(readme).toContain(
-      "docker compose -f docker-compose.dev.yml up -d && pnpm db:migrate && pnpm db:seed && pnpm demo:seed"
+      "docker compose -f docker-compose.dev.yml up -d --wait && pnpm db:migrate && pnpm db:seed && pnpm demo:seed"
     )
+  })
+
+  it("the docs say to run exactly one app container (final review I1)", () => {
+    const runbook = read("docs/runbook.md")
+    const launch = read("docs/launch.md")
+    for (const doc of [runbook, launch])
+      expect(doc).toContain("run exactly one app container")
+    expect(runbook).not.toContain("replicas never run one twice")
+    expect(read("docker-compose.yml")).toMatch(/deploy:\n\s+replicas: 1\n/)
+  })
+
+  it("production bootstrap is 3 env vars + deploy + admin:create (auto-seed)", () => {
+    const runbook = read("docs/runbook.md")
+    expect(runbook).toContain("seed.mjs --if-empty")
+    expect(read("docs/launch.md")).not.toContain(
+      "seed.mjs --allow-production`), then"
+    )
+  })
+
+  it("the brief's Changes log covers the final-review deviations (I4)", () => {
+    const brief = read("docs/brief.md")
+    const changes = brief.slice(brief.indexOf("## Changes"))
+    for (const text of [
+      "/api/v1/media/file",
+      "consent: true",
+      "fails open",
+      "acknowledgement",
+      "Mailpit",
+      "proxy.ts",
+      "client-side",
+      "HMAC",
+      "admin:create",
+      "live preview",
+      "auto-seed",
+      "one app container",
+      "favicon",
+      "timezone",
+      "logoOnDark",
+    ])
+      expect(changes, text).toContain(text)
   })
 })
