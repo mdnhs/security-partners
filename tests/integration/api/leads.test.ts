@@ -8,7 +8,14 @@ import type {
 } from "@/lib/schemas/api/leads"
 import type { Paginated } from "@/lib/schemas/api/list"
 import { getDb } from "@/server/db/client"
-import { auditLog, leadEvents, leads, users } from "@/server/db/schema"
+import {
+  aiConversations,
+  aiMessages,
+  auditLog,
+  leadEvents,
+  leads,
+  users,
+} from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 
 import { resetDb } from "../db"
@@ -326,6 +333,50 @@ describe("DELETE /leads/:id (GDPR erasure)", () => {
         })
       ).status
     ).toBe(404)
+  })
+
+  it("also erases the AI conversations opened on that lead, with their messages (final review I3)", async () => {
+    const lead = await addLead({ name: "Erase Me" })
+    const other = await addLead({ name: "Keep Me" })
+    const conversation = (entityId: string | null) =>
+      getDb()
+        .insert(aiConversations)
+        .values({
+          userId: admin.userId,
+          title: "Summary",
+          context:
+            entityId === null
+              ? { screen: "Dashboard", entityType: null, entityId: null }
+              : { screen: "Lead details", entityType: "lead", entityId },
+        })
+        .returning()
+        .then(([row]) => row)
+    const erased = await conversation(lead.id)
+    const kept = await conversation(other.id)
+    const unrelated = await conversation(null)
+    await getDb().insert(aiMessages).values([
+      { conversationId: erased.id, role: "user", content: "Summarise" },
+      {
+        conversationId: erased.id,
+        role: "assistant",
+        content: "Erase Me wants guarding",
+      },
+      { conversationId: kept.id, role: "user", content: "Summarise" },
+    ])
+    expect(
+      (
+        await adminRequest(`/leads/${lead.id}`, {
+          cookie: admin.cookie,
+          method: "DELETE",
+        })
+      ).status
+    ).toBe(200)
+    expect(
+      (await getDb().select().from(aiConversations)).map((c) => c.id).sort()
+    ).toEqual([kept.id, unrelated.id].sort())
+    expect(
+      (await getDb().select().from(aiMessages)).map((m) => m.conversationId)
+    ).toEqual([kept.id])
   })
 })
 

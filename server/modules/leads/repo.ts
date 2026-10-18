@@ -27,7 +27,7 @@ import {
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
 import { containsPattern } from "@/server/db/like"
-import { leadEvents, leads, users } from "@/server/db/schema"
+import { aiConversations, leadEvents, leads, users } from "@/server/db/schema"
 
 export type LeadRow = typeof leads.$inferSelect
 export type NewLeadRow = typeof leads.$inferInsert
@@ -204,12 +204,35 @@ export async function updateLeadRow(
   await db.update(leads).set(patch).where(eq(leads.id, id))
 }
 
+/**
+ * Erasure: the lead and its events (cascade), plus the AI conversations
+ * opened on it (their messages cascade) — assistant answers about a lead
+ * hold its personal data. Run in the caller's transaction.
+ */
 export async function deleteLeadRow(db: DbOrTx, id: string): Promise<boolean> {
   const rows = await db
     .delete(leads)
     .where(eq(leads.id, id))
     .returning({ id: leads.id })
-  return rows.length > 0
+  if (rows.length === 0) return false
+  await deleteLeadConversations(db, [id])
+  return true
+}
+
+/** AI conversations whose stored context is one of these leads (messages cascade). */
+export async function deleteLeadConversations(
+  db: DbOrTx,
+  leadIds: readonly string[]
+): Promise<void> {
+  if (leadIds.length === 0) return
+  await db
+    .delete(aiConversations)
+    .where(
+      and(
+        sql`${aiConversations.context}->>'entityType' = 'lead'`,
+        inArray(sql`${aiConversations.context}->>'entityId'`, [...leadIds])
+      )
+    )
 }
 
 export async function exportLeadRows(
@@ -300,6 +323,10 @@ export async function deleteLeadsCreatedBefore(
       .delete(leads)
       .where(inArray(leads.id, batch))
       .returning({ id: leads.id })
+    await deleteLeadConversations(
+      db,
+      rows.map((row) => row.id)
+    )
     total += rows.length
     if (rows.length < batchSize) return total
   }
