@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Layers,
   type LucideIcon,
+  Megaphone,
   Newspaper,
   ScrollText,
   Settings,
@@ -148,6 +149,37 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Images,
         permission: { media: ["read"] },
         match: "prefix",
+      },
+    ],
+  },
+  {
+    // Phase 8 (04b "Patterns for later phases"): SEO and Marketing, each a
+    // section whose sub-pages are route tabs.
+    label: "Growth",
+    items: [
+      {
+        label: "Marketing",
+        href: "/admin/marketing/tracking",
+        icon: Megaphone,
+        permission: { marketing: ["read"] },
+        match: "prefix",
+        children: [
+          {
+            label: "Tracking",
+            href: "/admin/marketing/tracking",
+            permission: { marketing: ["read"] },
+          },
+          {
+            label: "Consent banner",
+            href: "/admin/marketing/consent",
+            permission: { marketing: ["read"] },
+          },
+          {
+            label: "Custom code",
+            href: "/admin/marketing/custom-code",
+            permission: { customCode: ["update"] },
+          },
+        ],
       },
     ],
   },

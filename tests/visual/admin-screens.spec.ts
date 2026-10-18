@@ -634,6 +634,26 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
+    // Phase 8 Task 11: Marketing tabs. Custom code is owner-only and the
+    // visual seed has no owner (adding one would change the Users list
+    // baseline); it is covered by tests/e2e/admin-a11y.spec.ts and consent.spec.ts.
+    for (const [path, title, name] of [
+      ["/admin/marketing/tracking", "Tracking", "marketing-tracking"],
+      ["/admin/marketing/consent", "Consent banner", "marketing-consent"],
+    ] as const) {
+      test(`admin ${name} ${colorScheme}`, async ({ page }) => {
+        await signIn(page)
+        await page.goto(path)
+        await expect(
+          page.getByRole("navigation", { name: "Marketing" })
+        ).toBeVisible()
+        await editorReady(page, title)
+        await expect(page).toHaveScreenshot(shot(name), {
+          mask: await masks(page),
+        })
+      })
+    }
+
     test(`admin integrations ${colorScheme}`, async ({ page }) => {
       await pinIntegrations(page)
       await signIn(page)

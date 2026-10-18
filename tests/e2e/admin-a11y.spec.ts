@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, type Page, test } from "@playwright/test"
 
-import { E2E_ADMIN } from "./admin-accounts"
+import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 import { freezeUploads, pinMedia, PNG_1PX } from "./media-pins"
 
@@ -253,6 +253,28 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`/admin/audit + detail sheet → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`marketing screens in ${colorScheme}`, async ({ page }) => {
+      // Phase 8: the owner sees all three tabs (custom code is owner-only).
+      await signIn(page, E2E_OWNER)
+      const failures: string[] = []
+      for (const [path, title] of [
+        ["/admin/marketing/tracking", "Tracking"],
+        ["/admin/marketing/consent", "Consent banner"],
+        ["/admin/marketing/custom-code", "Custom code"],
+      ] as const) {
+        await page.goto(path)
+        await expect(
+          page.getByRole("heading", { level: 1, name: title })
+        ).toBeVisible()
+        await expect(
+          page.getByRole("navigation", { name: "Marketing" })
+        ).toBeVisible()
+        for (const violation of await blocking(page))
+          failures.push(`${path} → ${violation}`)
+      }
       expect(failures).toEqual([])
     })
 
