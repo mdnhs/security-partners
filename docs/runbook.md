@@ -23,8 +23,9 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   `.github/workflows/ci.yml`: lint, `next typegen` + types, unit and DOM
   tests, `pnpm audit:deps`; integration tests (Postgres + Mailpit); build
   without env; E2E on the standalone server; and an image smoke test (builds
-  the Docker image, then migrate → `seed.mjs` → server → readiness →
-  `backup.mjs` → `restore-drill.mjs` inside it). Only when CI passes is the
+  the Docker image, then migrate → auto-seed of the empty database
+  (`seed.mjs --if-empty`) → server → readiness → a second `--if-empty` run
+  that must change nothing → `backup.mjs` → `restore-drill.mjs` inside it). Only when CI passes is the
   image pushed to GHCR (`:latest` and `:<commit sha>`) and Dokploy asked to
   redeploy the compose app. Every job in `deploy.yml` runs only on
   `refs/heads/main`; the Dokploy step uses the GitHub environment
@@ -39,11 +40,26 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   broken); it exists only for `workflow_dispatch`, never for a push.
 - The container's PID 1 is `tini`, which forwards `SIGTERM`. On start the
   container applies pending migrations (`docker-entrypoint.sh` →
-  `node scripts/dist/migrate.mjs`), then starts `node server.js`. A failed
-  migration makes the container exit; the compose restart policy
+  `node scripts/dist/migrate.mjs`), then auto-seeds the content if the
+  database is empty (`node scripts/dist/seed.mjs --if-empty`), then starts
+  `node server.js`. The seed step writes only when the `pages` table has no
+  rows at all (a fresh database); otherwise it logs
+  `[db:seed] <n> page(s) already exist: auto-seed skipped, no data changed`
+  and touches nothing, so deleted or unpublished content is never
+  re-created. On a fresh database it logs
+  `[db:seed] empty database (no pages): content seeded (…)`. A failed
+  migration or seed makes the container exit; the compose restart policy
   (`unless-stopped`) restarts it, so it crash-loops until the cause is fixed
   (the previous container is already gone). Read `docker logs <container>`
-  right after a deploy; the cause is printed as `[migrate] …`.
+  right after a deploy; the cause is printed as `[migrate] …` or
+  `[db:seed] …`.
+- Always run exactly one app container (`replicas: 1` in
+  `docker-compose.yml`; never scale the service in Dokploy). The
+  `'use cache'` store is in memory per process and `revalidateTag` (publish)
+  and the scheduler's cache expiry only reach the process that runs them: a
+  second replica would keep serving the old page after a publish, with no
+  expiry (`cacheLife("max")`). A shared `cacheHandlers` store (Postgres or
+  Redis) with tag fan-out is future work ("Known limitations").
 - `docker stop` (and a redeploy) ends the container with exit code 143
   (128 + `SIGTERM`). That is expected, not a crash.
 - The image runs as a non-root user and has no `VOLUME` line: `/data`
@@ -79,11 +95,15 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
    manager — it also derives the encryption keys; the `.env.example` value is
    refused in production), `BETTER_AUTH_URL` (`https://security.raynx.ie`;
    https is required in production, http is accepted only for localhost).
-3. Deploy (push to `main` or run the workflow). Check `/api/v1/health`.
-4. Seed the site content once:
-   `node scripts/dist/seed.mjs --allow-production`. Never run it again on
-   production: it is insert-only and re-creates rows an editor deleted.
-   Restart the app afterwards (cached empty reads are dropped).
+3. Deploy (push to `main` or run the workflow). The first start migrates
+   and seeds the empty database by itself (`docker logs` shows
+   `[db:seed] empty database (no pages): content seeded (…)`). Check
+   `/api/v1/health` and the home page. No manual seed step: the bootstrap is
+   the three variables, the deploy and `admin-create` (spec §1.2 #6).
+4. Never run `node scripts/dist/seed.mjs --allow-production` on a live
+   production database: it is insert-only and re-creates rows an editor
+   deleted. The entrypoint's `--if-empty` mode is the only seed production
+   needs.
 5. First owner:
    `node scripts/dist/admin-create.mjs --email <owner email> --name "<name>"`
    prints a set-password link (single use, valid 7 days; also emailed once
@@ -112,8 +132,10 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
 ## Running scripts in the container
 
 `docker exec -it <app container> node scripts/dist/<name>.mjs [flags]`
-(Dokploy: the app → Terminal). Scripts: `migrate`, `seed`
-(`--allow-production`), `admin-create`, `owner-recover`, `demo-seed`,
+(Dokploy: the app → Terminal). Scripts: `migrate`, `seed` (`--if-empty`:
+what the entrypoint runs, seeds only a database with no pages;
+`--allow-production`: adds every missing fixture row, never on a live
+site), `admin-create`, `owner-recover`, `demo-seed`,
 `demo-remove`, `backup`, `restore-drill` (`--keep`), `secrets-rotate`,
 `db-sync`. Locally: `pnpm <name>` with `.env.development` (`db:migrate`,
 `db:seed`, `admin:create`, `owner:recover`, `demo:seed`, `demo:remove`,
@@ -123,6 +145,12 @@ its usage when a required flag is missing.
 The scripts use the app's own database code, so they run with the
 container's three variables. Scripts that write content (seed, db-sync,
 restore) bypass the app's cache: restart the app afterwards.
+
+A one-off `docker run … ghcr.io/mdnhs/security-partners:<tag> node
+scripts/dist/<name>.mjs` (as `db-sync` uses) also goes through the
+entrypoint: it migrates the target database and auto-seeds it if it has no
+pages before the script runs. `db-sync` then replaces that content with the
+source's.
 
 ## Backups and the restore drill
 
@@ -270,12 +298,17 @@ use untouched. This only works if Traefik sets the client IP itself (no
 
 ## Background jobs
 
-An in-process scheduler ticks every 60 s (first tick 5 s after start) in
-every app container; jobs are claimed with `FOR UPDATE SKIP LOCKED`, so
-replicas never run one twice:
+An in-process scheduler ticks every 60 s (first tick 5 s after start) in the
+app container. Jobs are claimed with `FOR UPDATE SKIP LOCKED`, so a one-off
+script container or an overlapping old/new container during a redeploy
+never runs a job twice. That lock does not make replicas safe: run exactly
+one app container ("Deploy"), because the cache a job expires lives in its
+own process only.
 
-- `publish-scheduled` (every 30 s): publishes articles whose time has come;
-  a cache refresh that fails is retried on the next run;
+- `publish-scheduled` (due every 30 s, but jobs are only checked on the 60 s
+  tick, so in practice every 60 s): publishes articles whose time has come,
+  up to about 60 s after the scheduled time; a cache refresh that fails is
+  retried on the next run;
 - revision pruning (daily, keeps the newest 50 per item);
 - lead retention purge (daily; `settings.leads.retentionMonths`, default 24)
   and expired rate-limit rows;
@@ -438,3 +471,30 @@ advisory id. Current overrides: none.
 - After seeding or restoring from outside the running app, restart it.
 - `{…}` in a content field is a placeholder (e.g. `{phone24h}`), not text.
 - Migrations are forward-only; roll back schema changes with a backup.
+- One app container only ("Deploy"): the page cache is per process. Scaling
+  out needs a shared `cacheHandlers` store with tag fan-out first (future
+  work).
+- The public error page (`app/(site)/error.tsx`, shown when the database is
+  down) has fixed English copy ("Something went wrong", "Try again", "Home")
+  and no header or footer: it cannot read settings when the database is the
+  thing that failed.
+- Public images do not use blur placeholders: `blurDataUrl` is computed and
+  stored for every upload, but the frozen templates pass plain image URLs.
+- Redirect and slug lookups in `proxy.ts` are uncached indexed queries: every
+  unknown path (bot scans such as `/wp-login.php`) and every service/article
+  view costs one query before the cached render.
+- A client that sends its own `__prerender_bypass` cookie skips the proxy's
+  slug check and gets the 404 page with HTTP 200 instead of 404 for an
+  unknown slug. Draft content stays protected (preview access is re-checked
+  on every request); only that client's status code is affected.
+- The contact map is a set of static tiles (`settings.sections.contact.map.tiles`
+  → `public/images/map/*`): editing the address or the map link does not
+  change the map picture.
+- Public pages render per request (database-driven, no build-time HTML) and
+  the site sources load about three times per request from the in-memory
+  cache (metadata, page, site extras). Time to first byte has not been
+  measured against the old static site; measure once on the production
+  image.
+- `settings.site.logoOnDark` is kept in the schema but hidden in the admin:
+  no dark surface of the public design shows a logo (the footer logo sits on
+  a white plate).

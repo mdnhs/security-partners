@@ -29,8 +29,12 @@ Operations detail for every item is in `docs/runbook.md`.
 - Runbook: `docs/runbook.md`.
 
 Known limitations that remain are listed in the runbook ("Known
-limitations"), e.g. visual tests run on macOS only and stopping background
-jobs on shutdown is best effort.
+limitations"), e.g. visual tests run on macOS only, stopping background
+jobs on shutdown is best effort, only one app container may run, the
+contact map picture is static (editing the address does not redraw it),
+the database-down error page has fixed English copy, public images have no
+blur placeholders, proxy redirect/slug lookups are uncached and page speed
+has not been measured against the old static site.
 
 ## Owner must do
 
@@ -52,9 +56,15 @@ jobs on shutdown is best effort.
 - [ ] Traefik: add a `rateLimit` middleware for `/og/*`,
       `/api/v1/admin/ai/*` and `/api/v1/admin/preview` (runbook "Rate limits
       at the proxy").
-- [ ] First deploy: seed content once (`seed.mjs --allow-production`), then
-      `admin-create` the first owner **once** (every run creates another
-      owner), set the password, turn on 2FA.
+- [ ] Dokploy: run exactly one app container (keep `replicas: 1`; never
+      scale the service). The page cache and the scheduler's cache expiry
+      are per process, so a second container would serve stale pages after
+      a publish (runbook "Deploy").
+- [ ] First deploy: the container migrates and seeds the empty database by
+      itself (check `docker logs` for `[db:seed] empty database (no pages):
+      content seeded`); then `admin-create` the first owner **once** (every
+      run creates another owner), set the password, turn on 2FA. Never run
+      `seed.mjs --allow-production` on the live site.
 - [ ] Settings ▸ Integrations ▸ SMTP: real credentials; run "Test".
 - [ ] Settings ▸ Leads: a real inbox in recipients (default
       `info@securitypartnersltd.com`); retention (default 24 months).
@@ -77,8 +87,10 @@ jobs on shutdown is best effort.
 - [ ] Optional: AI provider key and allowed roles (Settings ▸ Integrations ▸
       AI); sign a data processing agreement with the provider first (see
       "Owner must confirm").
-- [ ] Replace the placeholder Privacy and Terms copy (Pages ▸ Privacy/Terms).
-      The privacy policy must cover: enquiry handling (what is stored, why,
+- [ ] **Before launch**, replace the placeholder Privacy and Terms copy
+      (Pages ▸ Privacy/Terms). The seeded placeholders are published and
+      indexable from the first deploy; until they are replaced, tick
+      "noindex" in their SEO tab. The privacy policy must cover: enquiry handling (what is stored, why,
       the 24-month retention, who receives it); Cloudflare (Turnstile
       receives the visitor's IP address) and, if used, the AI provider as
       processors; Cloudflare R2 as storage for media and backups; the
