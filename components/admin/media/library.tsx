@@ -213,7 +213,7 @@ export function MediaLibrary() {
           }
         />
       ) : list.isPending ? (
-        <div role="status" aria-busy="true">
+        <div role="status">
           <span className="sr-only">Loading media…</span>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {Array.from({ length: 12 }, (_, i) => (
@@ -241,12 +241,15 @@ export function MediaLibrary() {
       ) : (
         <NowProvider now={list.dataUpdatedAt}>
           <div
-            aria-busy={list.isPlaceholderData || undefined}
             className={cn(
               "transition-opacity",
               list.isPlaceholderData && "opacity-60"
             )}
           >
+            {/* The next page is loading: announced, not aria-busy (DataTable). */}
+            <p role="status" className="sr-only">
+              {list.isPlaceholderData ? "Loading media…" : null}
+            </p>
             {view === "grid" ? (
               <ul
                 aria-label="Files"

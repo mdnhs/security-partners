@@ -98,7 +98,7 @@ export function UserDetail({ id }: { id: string }) {
 
   if (query.isPending)
     return (
-      <div role="status" aria-busy="true">
+      <div role="status">
         <span className="sr-only">Loading user…</span>
         <CardSkeleton className="h-24" />
       </div>

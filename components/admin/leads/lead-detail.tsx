@@ -239,7 +239,7 @@ export function LeadDetail({ id }: { id: string }) {
 
   if (lead.isPending)
     return (
-      <div role="status" aria-busy="true">
+      <div role="status">
         <span className="sr-only">Loading lead…</span>
         <CardSkeleton className="h-24" />
       </div>

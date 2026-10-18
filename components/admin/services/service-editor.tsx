@@ -7,7 +7,10 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { EDITOR_ACTION } from "@/components/admin/editor/editor-layout"
-import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
+import {
+  type EditorActionContext,
+  VersionedEditor,
+} from "@/components/admin/editor/versioned-editor"
 import { ADMIN_CONTROL, FormCard } from "@/components/admin/form/form-ui"
 import { SeoLink } from "@/components/admin/seo/seo-link"
 import {
@@ -102,11 +105,14 @@ export function ServiceEditor({ id }: { id: string }) {
           ) : null}
         </>
       }
-      aside={
+      aside={(ctx: EditorActionContext<ServiceDto>) =>
         record.data ? (
           <SlugCard
             service={record.data}
             canEdit={canEdit}
+            flush={ctx.flush}
+            version={ctx.version}
+            showAllErrors={ctx.showAllErrors}
             onChanged={() => setEpoch((n) => n + 1)}
           />
         ) : null
@@ -115,26 +121,46 @@ export function ServiceEditor({ id }: { id: string }) {
   )
 }
 
+/** Thrown when pending edits could not be saved before an address change. */
+class UnsavedChangesError extends Error {
+  constructor(readonly invalid: boolean) {
+    super("Unsaved changes")
+  }
+}
+
 function SlugCard({
   service,
   canEdit,
+  flush,
+  version,
+  showAllErrors,
   onChanged,
 }: {
   service: ServiceDto
   canEdit: boolean
+  /** Saves pending editor changes; false when invalid or failed. */
+  flush: () => Promise<boolean>
+  /** The editor's current record version (after any save it just made). */
+  version: () => number
+  /** Marks the editor's invalid fields; true when there were any. */
+  showAllErrors: () => boolean
   onChanged: () => void
 }) {
   const queryClient = useQueryClient()
   const [slug, setSlug] = useState(service.slug)
   const [error, setError] = useState<string | null>(null)
   const change = useMutation({
-    mutationFn: () =>
-      unwrap(
+    mutationFn: async () => {
+      // The editor remounts after the move and reloads from the cache: an
+      // unsaved edit would be lost, so save it first (ledger P04-10).
+      if (!(await flush())) throw new UnsavedChangesError(showAllErrors())
+      return unwrap(
         api.services[":id"].slug.$patch({
           param: { id: service.id },
-          json: { slug, version: service.version },
+          json: { slug, version: version() },
         })
-      ),
+      )
+    },
     onSuccess: (dto) => {
       queryClient.setQueryData(["services", service.id], dto)
       toast.success("Address changed", {
@@ -143,7 +169,17 @@ function SlugCard({
       onChanged()
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.isConflict && err.fieldErrors.slug)
+      if (err instanceof UnsavedChangesError)
+        setError(
+          err.invalid
+            ? "Save your changes first: fix the fields marked in red, then change the address."
+            : "Save your changes first, then change the address."
+        )
+      else if (
+        err instanceof ApiError &&
+        err.isConflict &&
+        err.fieldErrors.slug
+      )
         setError(err.fieldErrors.slug[0])
       else if (err instanceof ApiError && err.isConflict)
         setError(
@@ -181,7 +217,8 @@ function SlugCard({
               id="service-slug"
               value={slug}
               className={cn(ADMIN_CONTROL, "pl-[5.25rem]")}
-              disabled={!canEdit}
+              // Locked while the move runs (it saves pending edits first).
+              disabled={!canEdit || change.isPending}
               aria-invalid={!!message}
               aria-describedby={
                 message

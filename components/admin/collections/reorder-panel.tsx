@@ -97,7 +97,7 @@ export function ReorderPanel({
   })
   if (all.isPending)
     return (
-      <div role="status" aria-busy="true">
+      <div role="status">
         <span className="sr-only">Loading {label.toLowerCase()}…</span>
         <CardSkeleton className="h-64" />
       </div>

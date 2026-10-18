@@ -200,15 +200,17 @@ export function CommandPalette() {
             onValueChange={setQuery}
             placeholder="Search pages, services, articles… or type a section"
           />
+          {/* Outside the listbox: a listbox may only own options and groups. */}
+          {failed ? (
+            <p
+              role="alert"
+              className="px-2 py-3 text-center text-sm text-destructive"
+            >
+              Search failed — try again
+            </p>
+          ) : null}
           <CommandList>
-            {failed ? (
-              <p
-                role="alert"
-                className="px-2 py-3 text-center text-sm text-destructive"
-              >
-                Search failed — try again
-              </p>
-            ) : (
+            {failed ? null : (
               <CommandEmpty>
                 {searching ? "Searching…" : `No results for “${trimmed}”.`}
               </CommandEmpty>
