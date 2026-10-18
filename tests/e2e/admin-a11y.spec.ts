@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test"
 
 import { E2E_ADMIN } from "./admin-accounts"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
+import { freezeUploads, pinMedia, PNG_1PX } from "./media-pins"
 
 // WCAG 2.2 AA gate for the admin (spec §8.2, JW tests/e2e/admin/a11y):
 // no serious or critical axe violations, light and dark, on every Phase 4
@@ -298,6 +299,58 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`smtp disconnect dialog → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`media library in ${colorScheme}`, async ({ page }) => {
+      const failures: string[] = []
+      const audit = async (label: string) => {
+        for (const violation of await blocking(page))
+          failures.push(`${label} → ${violation}`)
+      }
+      // Pinned library (Phase 6); uploads frozen at 40 % / a 422.
+      await freezeUploads(page)
+      await pinMedia(page)
+      await signIn(page, readFixtures().editor)
+      await page.goto("/admin/media")
+      const files = page.getByRole("list", { name: "Files" })
+      await expect(files.getByRole("listitem").first()).toBeVisible()
+      await audit("/admin/media (grid)")
+      await page.getByRole("button", { name: "List", exact: true }).click()
+      await expect(page.getByRole("table", { name: "Files" })).toBeVisible()
+      await audit("/admin/media (list)")
+      await page.getByRole("button", { name: "Grid", exact: true }).click()
+      // Upload in progress and a refused file.
+      await page.locator("[data-upload-input]").setInputFiles([
+        {
+          name: "night-shift-rota.png",
+          mimeType: "image/png",
+          buffer: PNG_1PX,
+        },
+        { name: "fail-scan.tiff", mimeType: "image/tiff", buffer: PNG_1PX },
+      ])
+      const uploads = page.getByRole("list", { name: "Uploads" })
+      await expect(
+        uploads.getByRole("progressbar", {
+          name: "Uploading night-shift-rota.png",
+        })
+      ).toHaveAttribute("aria-valuenow", "40")
+      await expect(uploads.getByRole("alert")).toBeVisible()
+      await audit("/admin/media (uploading)")
+      // The details sheet, the delete confirmation and the refused delete.
+      await files.getByRole("button", { name: /^patrol-car-hero\.jpg/ }).click()
+      const sheet = page.getByRole("dialog", { name: "patrol-car-hero.jpg" })
+      await expect(sheet.getByRole("link", { name: "Home page" })).toBeVisible()
+      await audit("media details sheet")
+      await sheet.getByRole("button", { name: "Delete" }).click()
+      const confirm = page.getByRole("alertdialog", {
+        name: "Delete this file?",
+      })
+      await expect(confirm).toBeVisible()
+      await audit("media delete dialog")
+      await confirm.getByRole("button", { name: "Delete" }).click()
+      await expect(sheet.getByRole("alert")).toContainText("is used in")
+      await audit("media delete refused (409)")
       expect(failures).toEqual([])
     })
 

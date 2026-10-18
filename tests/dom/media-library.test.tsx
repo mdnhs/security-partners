@@ -1,0 +1,382 @@
+import { QueryClientProvider } from "@tanstack/react-query"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const { uploadMediaFile } = vi.hoisted(() => ({ uploadMediaFile: vi.fn() }))
+vi.mock("@/components/admin/media/upload-request", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  uploadMediaFile,
+}))
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
+import { MediaLibrary } from "@/components/admin/media/library"
+import { makeQueryClient } from "@/components/admin/providers"
+import {
+  type AdminSession,
+  AdminSessionProvider,
+} from "@/components/admin/session-provider"
+import type { Role } from "@/lib/auth/roles"
+import { ApiError } from "@/lib/api-client"
+import type { MediaItem } from "@/lib/schemas/api/media"
+
+const item = (n: number, extra: Partial<MediaItem> = {}): MediaItem => ({
+  id: `0190a6e0-0000-7000-8000-00000000000${n}`,
+  url: `/api/v1/media/file/2026/10/file-${n}.png`,
+  alt: "",
+  mime: "image/png",
+  width: 64,
+  height: 48,
+  size: 2048,
+  createdAt: "2026-10-16T10:00:00.000Z",
+  updatedAt: "2026-10-16T10:00:00.000Z",
+  originalName: `photo-${n}.png`,
+  driver: "disk",
+  focalX: null,
+  focalY: null,
+  ...extra,
+})
+
+type Call = { url: string; method: string; body?: unknown }
+let calls: Call[]
+let library: MediaItem[]
+let deleteStatus: number
+let blockedUsages: unknown[]
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  })
+
+beforeEach(() => {
+  calls = []
+  library = [
+    item(1),
+    item(2, {
+      mime: "application/pdf",
+      originalName: "prices.pdf",
+      width: null,
+      height: null,
+    }),
+  ]
+  deleteStatus = 200
+  blockedUsages = []
+  uploadMediaFile.mockReset()
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? "GET"
+      calls.push({
+        url,
+        method,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      const id = url.match(/media\/([0-9a-f-]{36})/)?.[1]
+      if (url.includes("/usages"))
+        return json({
+          items: [
+            {
+              entityType: "page",
+              entityId: "home",
+              field: "hero.backgroundImage",
+              label: "Home page",
+              href: "/admin/pages/home",
+            },
+          ],
+        })
+      if (id && method === "DELETE")
+        return deleteStatus === 409
+          ? json(
+              {
+                error: {
+                  code: "CONFLICT",
+                  message:
+                    "This file is used in 1 place. Choose another file there first.",
+                  current: { usages: blockedUsages },
+                  requestId: "r",
+                },
+              },
+              409
+            )
+          : json({ ok: true })
+      if (id && method === "PATCH")
+        return json({
+          ...library.find((i) => i.id === id)!,
+          ...(calls.at(-1)!.body as object),
+          // A save stamps the row, as the API does.
+          updatedAt: "2026-10-16T11:00:00.000Z",
+        })
+      if (id) return json(library.find((i) => i.id === id))
+      return json({
+        items: library,
+        page: 1,
+        pageSize: 24,
+        total: library.length,
+      })
+    })
+  )
+})
+
+function renderLibrary(roles: Role[] = ["editor"]) {
+  const session: AdminSession = {
+    user: {
+      id: "u1",
+      name: "Edith Editor",
+      email: "e@example.test",
+      title: null,
+      twoFactorEnabled: false,
+    },
+    roles,
+    impersonatedBy: null,
+  }
+  return render(
+    <QueryClientProvider client={makeQueryClient()}>
+      <AdminSessionProvider value={session}>
+        <MediaLibrary />
+      </AdminSessionProvider>
+    </QueryClientProvider>
+  )
+}
+
+describe("MediaLibrary (master 6.3)", () => {
+  it("lists files and filters by kind", async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    expect(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: /prices\.pdf/ })).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "Documents" }))
+    await waitFor(() => expect(calls.at(-1)!.url).toContain("kind=document"))
+    expect(screen.getByRole("button", { name: "Documents" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+  })
+
+  it("uploads chosen files with progress and opens the new file", async () => {
+    const uploaded = item(3, { originalName: "new.png" })
+    uploadMediaFile.mockImplementation(
+      async (_file: File, opts: { onProgress?: (n: number) => void }) => {
+        opts.onProgress?.(0.5)
+        library = [uploaded, ...library]
+        return uploaded
+      }
+    )
+    const { container } = renderLibrary()
+    await screen.findByRole("button", { name: /photo-1\.png/ })
+    const input = container.querySelector<HTMLInputElement>(
+      "[data-upload-input]"
+    )!
+    // The input is `hidden` (the "Choose files" button opens it): dispatch the change directly.
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File([new Uint8Array([1])], "new.png", { type: "image/png" }),
+        ],
+      },
+    })
+    expect(uploadMediaFile).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole("dialog", { name: "new.png" })).toBeVisible()
+  })
+
+  it("saves alt text from the details sheet", async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    expect(
+      await within(sheet).findByRole("link", { name: "Home page" })
+    ).toHaveAttribute("href", "/admin/pages/home")
+    await user.type(
+      within(sheet).getByLabelText("Alternative text"),
+      "Patrol car"
+    )
+    await user.click(
+      within(sheet).getByRole("button", { name: "Save details" })
+    )
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "PATCH")).toBe(true)
+    )
+    expect(calls.find((c) => c.method === "PATCH")!.body).toEqual({
+      alt: "Patrol car",
+      focal: null,
+    })
+  })
+
+  it("explains a refused delete (409)", async () => {
+    const user = userEvent.setup()
+    deleteStatus = 409
+    renderLibrary()
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    await user.click(within(sheet).getByRole("button", { name: "Delete" }))
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Delete this file?",
+    })
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }))
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "This file is used in 1 place."
+    )
+  })
+
+  it("viewers see no upload, save or delete controls", async () => {
+    const user = userEvent.setup()
+    const { container } = renderLibrary(["viewer"])
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    expect(container.querySelector("[data-upload-input]")).toBeNull()
+    expect(
+      within(sheet).queryByRole("button", { name: "Save details" })
+    ).toBeNull()
+    expect(within(sheet).queryByRole("button", { name: "Delete" })).toBeNull()
+    expect(within(sheet).getByLabelText("Alternative text")).toHaveAttribute(
+      "readonly"
+    )
+  })
+
+  it("announces uploads politely and shows each file's error", async () => {
+    let finish!: (item: MediaItem) => void
+    uploadMediaFile.mockImplementation(
+      (file: File, opts: { onProgress?: (n: number) => void }) => {
+        if (file.name === "bad.gif")
+          return Promise.reject(
+            new ApiError(422, {
+              error: {
+                code: "VALIDATION_FAILED",
+                message: "This file type is not supported.",
+              },
+            })
+          )
+        opts.onProgress?.(0.37)
+        return new Promise<MediaItem>((resolve) => (finish = resolve))
+      }
+    )
+    const { container } = renderLibrary()
+    await screen.findByRole("button", { name: /photo-1\.png/ })
+    fireEvent.change(
+      container.querySelector<HTMLInputElement>("[data-upload-input]")!,
+      {
+        target: {
+          files: [
+            new File([new Uint8Array([1])], "big.png", { type: "image/png" }),
+            new File([new Uint8Array([1])], "bad.gif", { type: "image/gif" }),
+          ],
+        },
+      }
+    )
+    const uploads = screen.getByRole("list", { name: "Uploads" })
+    const bar = within(uploads).getByRole("progressbar", {
+      name: "Uploading big.png",
+    })
+    expect(bar).toHaveAttribute("aria-valuenow", "37")
+    // The polite region speaks on start and finish, never per percent.
+    const live = screen.getByRole("status", { name: "Upload progress" })
+    expect(live).toHaveTextContent("Uploading 2 files…")
+    expect(await within(uploads).findByRole("alert")).toHaveTextContent(
+      "bad.gif: This file type is not supported."
+    )
+    finish(item(4, { originalName: "big.png" }))
+    await waitFor(() => expect(live).toHaveTextContent("big.png uploaded."))
+    expect(live).not.toHaveTextContent("37")
+  })
+
+  it("keeps focus on Save details after saving", async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    const save = within(sheet).getByRole("button", { name: "Save details" })
+    expect(save).toHaveAttribute("aria-disabled", "true")
+    await user.type(within(sheet).getByLabelText("Alternative text"), "Gate")
+    expect(save).not.toHaveAttribute("aria-disabled")
+    await user.click(save)
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "PATCH")).toBe(true)
+    )
+    await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "true"))
+    expect(save).toBeInTheDocument()
+    expect(save).toHaveFocus()
+  })
+
+  it("lists the places that block a delete (409)", async () => {
+    const user = userEvent.setup()
+    deleteStatus = 409
+    blockedUsages = [
+      {
+        entityType: "page",
+        entityId: "home",
+        field: "hero.backgroundImage",
+        label: "Home page",
+        href: "/admin/pages/home",
+      },
+      {
+        entityType: "service",
+        entityId: "s1",
+        field: "image",
+        label: "A service",
+        href: null,
+      },
+    ]
+    renderLibrary()
+    await user.click(
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+    )
+    const sheet = await screen.findByRole("dialog", { name: "photo-1.png" })
+    await user.click(within(sheet).getByRole("button", { name: "Delete" }))
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Delete this file?",
+    })
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }))
+    const alert = await within(sheet).findByRole("alert")
+    const places = within(alert).getByRole("list", { name: "Where it is used" })
+    expect(
+      within(places).getByRole("link", { name: "Home page" })
+    ).toHaveAttribute("href", "/admin/pages/home")
+    expect(places).toHaveTextContent("A service")
+  })
+
+  it("switches to the list view", async () => {
+    const user = userEvent.setup()
+    renderLibrary()
+    await screen.findByRole("button", { name: /photo-1\.png/ })
+    await user.click(screen.getByRole("button", { name: "List" }))
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+    const table = screen.getByRole("table", { name: "Files" })
+    expect(
+      within(table).getByRole("button", { name: "prices.pdf" })
+    ).toBeVisible()
+    expect(within(table).getByText("PDF document")).toBeVisible()
+  })
+
+  it("explains an empty library and a search with no hits", async () => {
+    const user = userEvent.setup()
+    library = []
+    renderLibrary()
+    expect(await screen.findByText("No files yet")).toBeVisible()
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search media" }),
+      "zebra"
+    )
+    expect(await screen.findByText("Nothing matches “zebra”.")).toBeVisible()
+  })
+})

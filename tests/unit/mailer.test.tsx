@@ -335,7 +335,10 @@ describe("link expiry wording", () => {
 })
 
 describe("real SMTP transport (Phase 6 target guard on every send)", () => {
-  const create = () => vi.fn((_options: unknown) => fakeTransport())
+  const create = () =>
+    vi.fn<(options: unknown) => ReturnType<typeof fakeTransport>>(() =>
+      fakeTransport()
+    )
 
   it("connects to the checked address, verifies TLS for the host and requires STARTTLS", async () => {
     const factory = create()

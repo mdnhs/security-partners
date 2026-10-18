@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test"
 
 import { clientIpFor } from "../e2e/fixtures"
+import {
+  freezeUploads,
+  MEDIA_ITEMS,
+  pinMedia,
+  PNG_1PX,
+  visibleImagesLoaded,
+} from "../e2e/media-pins"
 
 import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
 
@@ -745,6 +752,101 @@ for (const colorScheme of ["light", "dark"] as const) {
         })
       })
     }
+
+    test(`admin media library ${colorScheme}`, async ({ page }) => {
+      await pinMedia(page)
+      await signIn(page)
+      await page.goto("/admin/media")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Media" })
+      ).toBeVisible()
+      const files = page.getByRole("list", { name: "Files" })
+      await expect(files.getByRole("listitem")).toHaveCount(MEDIA_ITEMS.length)
+      await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      await expect(page).toHaveScreenshot(shot("media"), {
+        mask: await masks(page),
+      })
+      // The list view (Dimensions and Added hidden on phones).
+      await page.getByRole("button", { name: "List", exact: true }).click()
+      await expect(page.getByRole("table", { name: "Files" })).toBeVisible()
+      await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      await expect(page).toHaveScreenshot(shot("media-list"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin media details sheet ${colorScheme}`, async ({ page }) => {
+      await pinMedia(page)
+      await signIn(page)
+      await page.goto("/admin/media")
+      await page.getByRole("button", { name: /^patrol-car-hero\.jpg/ }).click()
+      const sheet = page.getByRole("dialog", { name: "patrol-car-hero.jpg" })
+      await expect(
+        sheet.getByRole("link", { name: "Mobile Patrols" })
+      ).toBeVisible()
+      await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      await expect(page).toHaveScreenshot(shot("media-details"), {
+        mask: await overlayOnly(page),
+      })
+    })
+
+    test(`admin media delete refused ${colorScheme}`, async ({
+      page,
+    }, testInfo) => {
+      test.skip(
+        testInfo.project.name !== "desktop",
+        "one 409 baseline (desktop) is enough"
+      )
+      await pinMedia(page)
+      await signIn(page)
+      await page.goto("/admin/media")
+      await page.getByRole("button", { name: /^patrol-car-hero\.jpg/ }).click()
+      const sheet = page.getByRole("dialog", { name: "patrol-car-hero.jpg" })
+      await sheet.getByRole("button", { name: "Delete" }).click()
+      await page
+        .getByRole("alertdialog", { name: "Delete this file?" })
+        .getByRole("button", { name: "Delete" })
+        .click()
+      const alert = sheet.getByRole("alert")
+      await expect(alert).toContainText("This file is used in 2 places.")
+      await alert.scrollIntoViewIfNeeded()
+      await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      await expect(page).toHaveScreenshot(shot("media-delete-409"), {
+        mask: await overlayOnly(page),
+      })
+    })
+
+    test(`admin media upload in progress ${colorScheme}`, async ({ page }) => {
+      await freezeUploads(page)
+      await pinMedia(page)
+      await signIn(page)
+      await page.goto("/admin/media")
+      await expect(
+        page.getByRole("list", { name: "Files" }).getByRole("listitem")
+      ).toHaveCount(MEDIA_ITEMS.length)
+      await page.locator("[data-upload-input]").setInputFiles([
+        {
+          name: "night-shift-rota.png",
+          mimeType: "image/png",
+          buffer: PNG_1PX,
+        },
+        { name: "fail-scan.tiff", mimeType: "image/tiff", buffer: PNG_1PX },
+      ])
+      const uploads = page.getByRole("list", { name: "Uploads" })
+      await expect(
+        uploads.getByRole("progressbar", {
+          name: "Uploading night-shift-rota.png",
+        })
+      ).toHaveAttribute("aria-valuenow", "40")
+      await expect(uploads.getByRole("alert")).toContainText(
+        "Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file"
+      )
+      await page.locator("main#main").evaluate((main) => main.scrollTo(0, 0))
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(page).toHaveScreenshot(shot("media-upload"), {
+        mask: await masks(page),
+      })
+    })
 
     test(`admin users list ${colorScheme}`, async ({ page }) => {
       await signIn(page)

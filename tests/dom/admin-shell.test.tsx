@@ -346,6 +346,7 @@ describe("AdminShell (master 4.1)", () => {
       "Articles",
       "Services",
       "Collections",
+      "Media",
       "Settings",
     ])
     const collections = within(nav).getByRole("link", { name: "Collections" })

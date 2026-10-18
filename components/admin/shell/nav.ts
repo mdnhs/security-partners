@@ -1,6 +1,7 @@
 import {
   Building2,
   FileText,
+  Images,
   LayoutDashboard,
   Layers,
   type LucideIcon,
@@ -67,7 +68,7 @@ const COLLECTION = { collection: ["read"] } satisfies PermissionRequest
  * Admin IA (spec §8.1) in the James Whitfield structure: the sidebar lists
  * sections; a section's sub-pages are tabs in the content panel; account
  * and administration links (Users, Audit log — ruling D3) sit in the footer
- * dock. Later phases add their items here (Articles, Media, Leads, SEO,
+ * dock. Later phases add their items here (Leads, SEO,
  * Marketing).
  */
 export const NAV_SECTIONS: NavSection[] = [
@@ -140,6 +141,13 @@ export const NAV_SECTIONS: NavSection[] = [
             permission: COLLECTION,
           },
         ],
+      },
+      {
+        label: "Media",
+        href: "/admin/media",
+        icon: Images,
+        permission: { media: ["read"] },
+        match: "prefix",
       },
     ],
   },

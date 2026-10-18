@@ -23,6 +23,7 @@ const MENU_ALL = [
   "Articles",
   "Services",
   "Collections",
+  "Media",
   "Settings",
 ]
 const DEST_ALL = [
@@ -34,6 +35,7 @@ const DEST_ALL = [
   "Clients",
   "Group companies",
   "Categories",
+  "Media",
   "Settings",
   "Account",
 ]
@@ -46,6 +48,7 @@ const DEST_ADMIN = [
   "Clients",
   "Group companies",
   "Categories",
+  "Media",
   "Settings",
   "Users",
   "Audit log",
@@ -58,8 +61,8 @@ describe("navigation registry (JW structure)", () => {
     ["admin", MENU_ALL],
     ["editor", MENU_ALL],
     ["viewer", MENU_ALL],
-    ["marketer", ["Dashboard", "Pages", "Articles", "Services"]],
-    ["author", ["Dashboard", "Articles"]],
+    ["marketer", ["Dashboard", "Pages", "Articles", "Services", "Media"]],
+    ["author", ["Dashboard", "Articles", "Media"]],
     ["intake", ["Dashboard"]],
   ])("%s sees menu %j", (role, expected) => {
     expect(menu([role])).toEqual(expected)
@@ -109,6 +112,7 @@ describe("navigation registry (JW structure)", () => {
       "Pages",
       "Articles",
       "Services",
+      "Media",
       "Account",
     ])
     const team = navDestinations(["editor"]).find((d) => d.label === "Team")!
@@ -164,6 +168,18 @@ describe("navigation registry (JW structure)", () => {
     ])
     expect(menu(["intake"])).not.toContain("Articles")
     expect(destinations(["intake"])).not.toContain("Articles")
+  })
+
+  it("Media is the last item of Content (master 6.3)", () => {
+    const content = NAV_SECTIONS.find((s) => s.label === "Content")!
+    expect(content.items.at(-1)).toMatchObject({
+      label: "Media",
+      href: "/admin/media",
+      permission: { media: ["read"] },
+      match: "prefix",
+    })
+    expect(menu(["intake"])).not.toContain("Media")
+    expect(destinations(["intake"])).not.toContain("Media")
   })
 
   it("every link stays inside /admin", () => {
