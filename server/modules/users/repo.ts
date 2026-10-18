@@ -289,3 +289,22 @@ export async function clearTwoFactor(
     .set({ twoFactorEnabled: false })
     .where(eq(users.id, userId))
 }
+
+/**
+ * Two-factor off for every user (secrets:rotate / db:sync): TOTP secrets are
+ * encrypted with BETTER_AUTH_SECRET, so they are unreadable after a change.
+ */
+export async function clearAllTwoFactor(db: DbOrTx): Promise<number> {
+  const deleted = await db.delete(twoFactors).returning({ id: twoFactors.id })
+  await db
+    .update(users)
+    .set({ twoFactorEnabled: false })
+    .where(eq(users.twoFactorEnabled, true))
+  return deleted.length
+}
+
+/** Signs everyone out (session cookies are signed with the auth secret). */
+export async function deleteAllSessions(db: DbOrTx): Promise<number> {
+  const deleted = await db.delete(sessions).returning({ id: sessions.id })
+  return deleted.length
+}

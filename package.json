@@ -28,7 +28,8 @@
     "demo:seed": "pnpm tsx:server scripts/demo-seed.ts",
     "db:seed": "pnpm tsx:server scripts/seed.ts",
     "backup": "pnpm tsx:server scripts/backup.ts",
-    "restore-drill": "pnpm tsx:server scripts/restore-drill.ts"
+    "restore-drill": "pnpm tsx:server scripts/restore-drill.ts",
+    "secrets:rotate": "pnpm tsx:server scripts/secrets-rotate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1146.0",

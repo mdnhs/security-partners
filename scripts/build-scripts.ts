@@ -15,6 +15,7 @@ export const SCRIPT_ENTRIES = [
   "seed",
   "backup",
   "restore-drill",
+  "secrets-rotate",
 ] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */
