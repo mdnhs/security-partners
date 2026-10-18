@@ -29,6 +29,18 @@ export function searchServices(db: DbOrTx, q: string, limit: number) {
     .limit(limit)
 }
 
+/** Articles by draft title or slug, live ones newest first, then drafts. */
+export function searchArticles(db: DbOrTx, q: string, limit: number) {
+  return db
+    .select({ id: articles.id, slug: articles.slug, title: articleTitle })
+    .from(articles)
+    .where(
+      or(ilike(articleTitle, contains(q)), ilike(articles.slug, contains(q)))
+    )
+    .orderBy(sql`${articles.publishedAt} desc nulls first`, asc(articles.slug))
+    .limit(limit)
+}
+
 export function searchTeam(db: DbOrTx, q: string, limit: number) {
   return db
     .select({

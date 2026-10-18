@@ -39,6 +39,9 @@ const PANEL = [
   "/admin/pages",
   "/admin/pages/home",
   "/admin/services",
+  "/admin/articles",
+  "/admin/articles?status=in_review", // the review queue (empty in the seed)
+  "/admin/articles/new",
   "/admin/team",
   "/admin/clients",
   "/admin/group-companies",

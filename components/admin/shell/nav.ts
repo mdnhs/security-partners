@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Layers,
   type LucideIcon,
+  Newspaper,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -90,6 +91,13 @@ export const NAV_SECTIONS: NavSection[] = [
         href: "/admin/pages",
         icon: FileText,
         permission: { page: ["read"] },
+        match: "prefix",
+      },
+      {
+        label: "Articles",
+        href: "/admin/articles",
+        icon: Newspaper,
+        permission: { article: ["read"] },
         match: "prefix",
       },
       {

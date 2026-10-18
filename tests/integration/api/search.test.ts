@@ -34,6 +34,10 @@ describe("GET /api/v1/admin/search (⌘K, master 4.1)", () => {
     const alarm = await search(editor, "alarm")
     expect(alarm.map((r) => [r.type, r.title])).toEqual([
       ["service", "Alarm Responses"],
+      [
+        "article",
+        "Key Holding Explained: Who Responds When Your Alarm Goes Off",
+      ],
       ["category", "Alarm Response"],
     ])
     expect(alarm[0].href).toMatch(/^\/admin\/services\/[0-9a-f-]{36}$/)
@@ -56,13 +60,15 @@ describe("GET /api/v1/admin/search (⌘K, master 4.1)", () => {
 
   it("filters result types by read permission", async () => {
     expect(await search(intake, "alarm")).toEqual([])
-    // marketer reads pages and services but not collections
+    // marketer reads pages, services and articles but not collections
     expect((await search(marketer, "alarm")).map((r) => r.type)).toEqual([
       "service",
+      "article",
     ])
-    // viewer reads pages, services and collections (read-only role)
+    // viewer reads pages, services, articles and collections (read-only role)
     expect((await search(viewer, "alarm")).map((r) => r.type)).toEqual([
       "service",
+      "article",
       "category",
     ])
     expect((await search(viewer, "moran")).map((r) => r.type)).toEqual(["team"])
@@ -84,6 +90,31 @@ describe("GET /api/v1/admin/search (⌘K, master 4.1)", () => {
       (r) => r.type === "service"
     )
     expect(services).toHaveLength(5)
+  })
+
+  it("finds articles for every article reader; others' articles open read-only (Phase 5)", async () => {
+    const author = await signedInUser(["author"])
+    const results = (await search(author.cookie, "patrols")).filter(
+      (r) => r.type === "article"
+    )
+    expect(results).toEqual([
+      expect.objectContaining({
+        title: "How Mobile Patrols Protect Your Business After Hours",
+        subtitle: "/blog/mobile-patrols-protect-your-business-after-hours",
+      }),
+    ])
+    expect(results[0].href).toMatch(/^\/admin\/articles\/[0-9a-f-]{36}$/)
+    const opened = await adminRequest(results[0].href.replace("/admin", ""), {
+      cookie: author.cookie,
+    })
+    expect(opened.status).toBe(200)
+    expect(
+      ((await opened.json()) as { permissions: { update: boolean } })
+        .permissions.update
+    ).toBe(false)
+    expect(
+      (await search(intake, "patrols")).filter((r) => r.type === "article")
+    ).toEqual([])
   })
 
   it("rejects an empty query and anonymous requests", async () => {

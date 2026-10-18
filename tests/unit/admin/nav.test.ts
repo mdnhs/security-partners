@@ -17,10 +17,18 @@ const dock = (roles: Role[]) => dockItems(roles).map((i) => i.label)
 const destinations = (roles: Role[]) =>
   navDestinations(roles).map((d) => d.label)
 
-const MENU_ALL = ["Dashboard", "Pages", "Services", "Collections", "Settings"]
+const MENU_ALL = [
+  "Dashboard",
+  "Pages",
+  "Articles",
+  "Services",
+  "Collections",
+  "Settings",
+]
 const DEST_ALL = [
   "Dashboard",
   "Pages",
+  "Articles",
   "Services",
   "Team",
   "Clients",
@@ -32,6 +40,7 @@ const DEST_ALL = [
 const DEST_ADMIN = [
   "Dashboard",
   "Pages",
+  "Articles",
   "Services",
   "Team",
   "Clients",
@@ -49,8 +58,8 @@ describe("navigation registry (JW structure)", () => {
     ["admin", MENU_ALL],
     ["editor", MENU_ALL],
     ["viewer", MENU_ALL],
-    ["marketer", ["Dashboard", "Pages", "Services"]],
-    ["author", ["Dashboard"]],
+    ["marketer", ["Dashboard", "Pages", "Articles", "Services"]],
+    ["author", ["Dashboard", "Articles"]],
     ["intake", ["Dashboard"]],
   ])("%s sees menu %j", (role, expected) => {
     expect(menu([role])).toEqual(expected)
@@ -98,6 +107,7 @@ describe("navigation registry (JW structure)", () => {
     expect(destinations(["marketer"])).toEqual([
       "Dashboard",
       "Pages",
+      "Articles",
       "Services",
       "Account",
     ])
@@ -144,6 +154,16 @@ describe("navigation registry (JW structure)", () => {
       isActiveItem(users, "/admin/users/0190f0e0-0000-7000-8000-000000000001")
     ).toBe(true)
     expect(isActiveItem(users, "/admin/users-archive")).toBe(false)
+  })
+
+  it("Articles sits right after Pages in Content (spec §8.1)", () => {
+    const content = NAV_SECTIONS.find((s) => s.label === "Content")!
+    expect(content.items.slice(0, 2).map((i) => [i.label, i.href])).toEqual([
+      ["Pages", "/admin/pages"],
+      ["Articles", "/admin/articles"],
+    ])
+    expect(menu(["intake"])).not.toContain("Articles")
+    expect(destinations(["intake"])).not.toContain("Articles")
   })
 
   it("every link stays inside /admin", () => {

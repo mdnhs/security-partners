@@ -340,7 +340,14 @@ describe("AdminShell (master 4.1)", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent)
-    ).toEqual(["Dashboard", "Pages", "Services", "Collections", "Settings"])
+    ).toEqual([
+      "Dashboard",
+      "Pages",
+      "Articles",
+      "Services",
+      "Collections",
+      "Settings",
+    ])
     const collections = within(nav).getByRole("link", { name: "Collections" })
     expect(collections).toHaveAttribute("aria-current", "page")
     expect(collections).toHaveAttribute("href", "/admin/team")

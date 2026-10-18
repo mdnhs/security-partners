@@ -8,6 +8,7 @@ export const searchQuery = z.object({
 export const SEARCH_TYPES = [
   "page",
   "service",
+  "article",
   "team",
   "client",
   "groupCompany",

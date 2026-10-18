@@ -234,6 +234,7 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(actions).toEqual([
       "Edit the home page",
       "New service",
+      "New article",
       "Open the public site",
     ])
     await user.click(

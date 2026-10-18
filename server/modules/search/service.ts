@@ -55,6 +55,18 @@ export async function search(
         href: `/admin/services/${row.id}`,
       })
 
+  // Every article reader may find every article; the editor then applies
+  // that reader's rights (others' articles open read-only for authors).
+  if (can({ article: ["read"] }))
+    for (const row of await repo.searchArticles(db, q, LIMIT))
+      items.push({
+        type: "article",
+        id: row.id,
+        title: row.title,
+        subtitle: `/blog/${row.slug}`,
+        href: `/admin/articles/${row.id}`,
+      })
+
   if (can({ collection: ["read"] })) {
     const [team, clientRows, companies, categories] = await Promise.all([
       repo.searchTeam(db, q, LIMIT),

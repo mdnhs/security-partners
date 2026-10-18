@@ -81,6 +81,43 @@ const AUDIT = {
   total: 3,
 }
 
+/**
+ * The review queue, pinned (Phase 5): the seed publishes every article, so
+ * two drafts awaiting review are served for the ?status=in_review shot;
+ * the unfiltered list and the options come from the seed.
+ */
+const REVIEW_QUEUE = {
+  items: ["Night Patrols Explained", "Choosing a Key Holding Partner"].map(
+    (title, i) => ({
+      id: `0190f0e0-0000-7000-8000-0000000000a${i}`,
+      slug: title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      title,
+      live: false,
+      category: { id: "c1", slug: "mobile-patrols", name: "Mobile Patrols" },
+      author: { id: "u2", name: "Arthur Author", title: "Security writer" },
+      scheduledAt: null,
+      readTimeMinutes: null,
+      createdAt: "2026-10-16T09:00:00Z",
+      permissions: {
+        update: true,
+        delete: true,
+        submit: false,
+        publish: true,
+        changeAuthor: true,
+      },
+      version: 2,
+      status: "in_review",
+      dirty: true,
+      publishedAt: null,
+      updatedAt: "2026-10-16T09:00:00Z",
+      updatedBy: { id: "u2", name: "Arthur Author" },
+    })
+  ),
+  page: 1,
+  pageSize: 20,
+  total: 2,
+}
+
 /** The dashboard's numbers and the audit log, pinned. */
 async function pinData(page: Page) {
   await page.route("**/api/v1/admin/dashboard", (route) =>
@@ -220,6 +257,58 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("link", { name: "Alarm Responses" }).first().click()
       await editorReady(page, "Alarm Responses")
       await expect(page).toHaveScreenshot(shot("service-editor"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin articles list ${colorScheme}`, async ({ page }) => {
+      await signIn(page)
+      await page.goto("/admin/articles")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Articles" })
+      ).toBeVisible()
+      await expect(
+        page
+          .getByRole("main")
+          .getByRole("link", { name: /^Key Holding Explained/ })
+          .first()
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("articles"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin review queue ${colorScheme}`, async ({ page }) => {
+      await page.route("**/api/v1/admin/articles?*status=in_review*", (route) =>
+        route.fulfill({ json: REVIEW_QUEUE })
+      )
+      await signIn(page)
+      await page.goto("/admin/articles?status=in_review")
+      await expect(
+        page.getByRole("button", { name: "Review queue" })
+      ).toHaveAttribute("aria-pressed", "true")
+      await expect(
+        page
+          .getByRole("main")
+          .getByRole("link", { name: "Night Patrols Explained" })
+          .first()
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("review-queue"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin new article ${colorScheme}`, async ({ page }) => {
+      await signIn(page)
+      await page.goto("/admin/articles/new")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "New article" })
+      ).toBeVisible()
+      await expect(page.getByLabel("Category", { exact: true })).toContainText(
+        "Mobile Patrols"
+      )
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(shot("new-article"), {
         mask: await masks(page),
       })
     })

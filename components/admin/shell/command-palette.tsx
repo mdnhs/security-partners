@@ -5,6 +5,7 @@ import {
   Building2,
   ExternalLink,
   FileText,
+  Newspaper,
   Plus,
   ShieldCheck,
   Tags,
@@ -36,6 +37,7 @@ import { useCommandPalette } from "./palette-context"
 const TYPE_ICONS: Record<SearchType, typeof FileText> = {
   page: FileText,
   service: Wrench,
+  article: Newspaper,
   team: Users,
   client: ShieldCheck,
   groupCompany: Building2,
@@ -45,6 +47,7 @@ const TYPE_ICONS: Record<SearchType, typeof FileText> = {
 const TYPE_LABELS: Record<SearchType, string> = {
   page: "Page",
   service: "Service",
+  article: "Article",
   team: "Team member",
   client: "Client",
   groupCompany: "Group company",
@@ -70,6 +73,7 @@ export function CommandPalette() {
   const router = useRouter()
   const { roles } = useAdminSession()
   const canCreateService = usePermission({ service: ["create"] })
+  const canCreateArticle = usePermission({ article: ["create"] })
   const canEditPages = usePermission({ page: ["update"] })
   const canReadUsers = usePermission({ user: ["read"] })
   const { open, setOpen } = useCommandPalette()
@@ -142,6 +146,12 @@ export function CommandPalette() {
       icon: Plus,
       run: () => router.push("/admin/services/new"),
     },
+    canCreateArticle && {
+      id: "new-article",
+      label: "New article",
+      icon: Plus,
+      run: () => router.push("/admin/articles/new"),
+    },
     {
       id: "open-site",
       label: "Open the public site",
@@ -174,7 +184,7 @@ export function CommandPalette() {
         open={open}
         onOpenChange={setPaletteOpen}
         title="Search the admin"
-        description="Jump to a section, run an action or find a page, service, team member or user."
+        description="Jump to a section, run an action or find a page, service, article or team member."
       >
         {/*
          * Server results are already filtered: cmdk must not filter again.
@@ -185,7 +195,7 @@ export function CommandPalette() {
           <CommandInput
             value={query}
             onValueChange={setQuery}
-            placeholder="Search pages, services, team… or type a section"
+            placeholder="Search pages, services, articles… or type a section"
           />
           <CommandList>
             {failed ? (
