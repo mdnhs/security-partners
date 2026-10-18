@@ -57,9 +57,10 @@ export async function restoreDrill(
 ): Promise<DrillResult> {
   const url = opts.url ?? getEnv().DATABASE_URL
   const store = opts.store ?? (await getBackupStore())
-  const [latest] = completeDumps(await store.list())
+  const database = parse(url).database ?? ""
+  const [latest] = completeDumps(await store.list(), database)
   if (!latest) throw new Error(`No backup found in ${store.location}`)
-  const scratch = `${parse(url).database ?? ""}${DRILL_SUFFIX}`
+  const scratch = `${database}${DRILL_SUFFIX}`
   if (!/^[a-z0-9_]{1,63}$/.test(scratch))
     throw new Error(`Cannot derive a scratch database name (${scratch})`)
   const scratchUrl = withDatabase(url, scratch)

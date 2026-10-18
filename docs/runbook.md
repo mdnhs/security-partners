@@ -130,7 +130,9 @@ restore) bypass the app's cache: restart the app afterwards.
   demand (`backup`): `pg_dump` custom format in one consistent snapshot plus
   a `.json` manifest (row count per table, taken in the same snapshot, and
   the dump's SHA-256). Named `sp-<db>-<UTC stamp>.dump`. The newest 14 are
-  kept. The data of `rate_limits` and `public_rate_limits` is not dumped
+  kept. Pruning and the restore drill only consider this database's
+  `sp-<db>-` files, ordered by the stamp, so a store shared by two
+  environments never prunes or drills the other one's dumps. The data of `rate_limits` and `public_rate_limits` is not dumped
   (short-lived counters).
 - Where: the R2 bucket, prefix `backups/`, once Settings ▸ Integrations ▸ R2
   is saved; until then `/data/backups` on the app volume (lost with the
@@ -216,6 +218,14 @@ the **target app stopped**, from a one-off container on the Dokploy network:
   integration decrypts, AI test-connection when enabled, `--verify-url`
   health). Any `FAIL` line → exit code 1.
 - Sessions, verifications and rate-limit counters are never copied.
+- The source's R2 and SMTP settings are removed from the target after the
+  restore (audit `integration.deleted`, `via: db:sync`; the script prints
+  what it removed): set the target's own bucket and mail account in
+  Settings ▸ Integrations. Media rows stored in the source's R2 stay in the
+  database but their files will not load until they exist in the target's
+  bucket. `--keep-integrations` keeps them — **dangerous**: the target then
+  shares the source's bucket (its media deletes remove the source's files)
+  and sends real mail as the source. Only for a short-lived copy you control.
 - The target role must own every object the restore drops (use the target
   database's own user, as Dokploy creates it).
 - Start the target app afterwards; it applies newer migrations itself.

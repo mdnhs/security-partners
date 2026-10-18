@@ -83,6 +83,25 @@ beforeAll(async () => {
     },
     version: 1,
   })
+  await source.insert(schema.settings).values({
+    key: "integrations.r2",
+    draft: {
+      accountId: "0123456789abcdef0123456789abcdef",
+      jurisdiction: "default",
+      bucket: "prod-media",
+      accessKeyId: encryptSecret(
+        "prod-r2-key-id",
+        "integrations.r2.accessKeyId",
+        SOURCE_SECRET
+      ),
+      secretAccessKey: encryptSecret(
+        "prod-r2-secret",
+        "integrations.r2.secretAccessKey",
+        SOURCE_SECRET
+      ),
+    },
+    version: 1,
+  })
   await pool.end()
 })
 afterAll(() => admin(`drop database if exists ${SOURCE_DB} with (force)`))
@@ -148,13 +167,19 @@ describe("dbSync (spec §14 db:sync)", () => {
       fromSecret: SOURCE_SECRET,
       confirm: "sp_test",
       backupStore: diskBackupStore(dir),
+      keepIntegrations: true,
     })
     expect(report.ok).toBe(true)
-    // The source's SMTP password and TOTP secret proved --from-secret.
-    expect(report.sourceSecretsChecked).toBe(2)
+    // The source's SMTP password, R2 keys and TOTP secret proved --from-secret.
+    expect(report.sourceSecretsChecked).toBe(4)
     expect(report.backup).toMatch(/^sp-sp_test-\d{8}T\d{6}Z\.dump$/)
     expect(await readdir(dir)).toContain(report.backup)
-    expect(report.rotate.reencrypted).toEqual(["integrations.smtp.password"])
+    expect(report.integrationsRemoved).toEqual([])
+    expect(report.rotate.reencrypted.sort()).toEqual([
+      "integrations.r2.accessKeyId",
+      "integrations.r2.secretAccessKey",
+      "integrations.smtp.password",
+    ])
     expect(report.checks).toContainEqual({
       name: "integrations.smtp",
       ok: true,
@@ -168,5 +193,42 @@ describe("dbSync (spec §14 db:sync)", () => {
     expect((await readIntegrationConfig("integrations.smtp"))?.password).toBe(
       "prod-smtp-password"
     )
+  })
+
+  // Final review I2: the source's R2 bucket and SMTP account would let the
+  // target prune the source's backups, delete its media and send mail as
+  // it. Without --keep-integrations they are removed from the target.
+  it("removes the source's R2 and SMTP settings from the target by default (audited)", async () => {
+    const report = await dbSync({
+      from: SOURCE_URL,
+      fromSecret: SOURCE_SECRET,
+      confirm: "sp_test",
+      backupStore: diskBackupStore(dir),
+    })
+    expect(report.ok).toBe(true)
+    expect(report.integrationsRemoved).toEqual([
+      "integrations.r2",
+      "integrations.smtp",
+    ])
+    expect(report.rotate.reencrypted).toEqual([])
+    for (const name of ["integrations.r2", "integrations.smtp"])
+      expect(report.checks).toContainEqual({
+        name,
+        ok: true,
+        message: "not configured",
+      })
+
+    const db = getDb()
+    const keys = (await db.select().from(schema.settings)).map((r) => r.key)
+    expect(keys).not.toContain("integrations.r2")
+    expect(keys).not.toContain("integrations.smtp")
+    const audits = await db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.action, "integration.deleted"))
+    expect(audits.map((a) => [a.entityId, a.actorId, a.diff]).sort()).toEqual([
+      ["integrations.r2", null, { via: "db:sync" }],
+      ["integrations.smtp", null, { via: "db:sync" }],
+    ])
   })
 })

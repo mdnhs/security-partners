@@ -4,6 +4,11 @@
 //   pnpm db:sync --from <source url> --from-secret <source secret> --confirm <target db name>
 //     [--to <target url>] [--to-secret <target secret>]
 //     [--demo-password <12+ chars>] [--verify-url https://staging.example.ie]
+//     [--keep-integrations]
+// The source's R2 and SMTP settings are removed from the target (audited)
+// unless --keep-integrations: kept, the target would share the source's
+// bucket (its backup job prunes the source's backups, its media deletes
+// remove the source's files) and send mail as the source.
 // The target is backed up first (/data/backups or .data/backups).
 // To keep the source URL/secret out of shell history, they may instead come
 // from the input-only variables SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET
@@ -15,9 +20,20 @@ import { dbSync } from "@/server/lib/db-sync"
 import { runScript } from "./lib/run-script"
 
 const USAGE =
-  "Usage: db:sync --from <url> --from-secret <secret> --confirm <target database name> [--to <url>] [--to-secret <secret>] [--demo-password <pw>] [--verify-url <origin>] (--from / --from-secret may come from SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET)"
+  "Usage: db:sync --from <url> --from-secret <secret> --confirm <target database name> [--to <url>] [--to-secret <secret>] [--demo-password <pw>] [--verify-url <origin>] [--keep-integrations] (--from / --from-secret may come from SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET)"
 
-let values: Record<string, string | undefined>
+let values: Partial<
+  Record<
+    | "from"
+    | "to"
+    | "from-secret"
+    | "to-secret"
+    | "confirm"
+    | "demo-password"
+    | "verify-url",
+    string
+  >
+> & { "keep-integrations"?: boolean }
 try {
   ;({ values } = parseArgs({
     options: {
@@ -28,6 +44,7 @@ try {
       confirm: { type: "string" },
       "demo-password": { type: "string" },
       "verify-url": { type: "string" },
+      "keep-integrations": { type: "boolean" },
     },
   }))
 } catch (err) {
@@ -57,6 +74,7 @@ await runScript("db:sync", async () => {
     confirm,
     demoPassword: values["demo-password"],
     verifyUrl: values["verify-url"],
+    keepIntegrations: values["keep-integrations"] === true,
   })
   if (report.sourceSecretsChecked === 0)
     console.log(
@@ -64,6 +82,11 @@ await runScript("db:sync", async () => {
     )
   console.log(
     `[db:sync] target backed up: ${report.backup} → ${report.backupLocation}`
+  )
+  console.log(
+    values["keep-integrations"]
+      ? "[db:sync] --keep-integrations: the target uses the source's R2 bucket and SMTP account (if the source has them)"
+      : `[db:sync] source R2/SMTP settings removed from the target: ${report.integrationsRemoved.join(", ") || "none present"} — set the target's own in Settings › Integrations`
   )
   console.log(
     `[db:sync] secrets re-keyed: ${report.rotate.reencrypted.join(", ") || "none"}; 2FA cleared for ${report.rotate.twoFactorCleared}; demo accounts reset: ${report.demoUsers}`

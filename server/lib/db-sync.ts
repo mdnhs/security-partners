@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { symmetricDecrypt } from "better-auth/crypto"
+import { inArray } from "drizzle-orm"
 import { Client } from "pg"
 import { parse } from "pg-connection-string"
 
@@ -13,9 +14,11 @@ import {
   INTEGRATIONS,
   type IntegrationKey,
 } from "@/lib/schemas/integrations"
-import { closeDb, pingDb } from "@/server/db/client"
+import { closeDb, getDb, pingDb } from "@/server/db/client"
+import { settings } from "@/server/db/schema"
 import { describeDatabase } from "@/server/db/seed/guard"
 import { getEnv } from "@/server/env"
+import { writeAudit } from "@/server/lib/audit"
 import { type BackupResult, runBackup } from "@/server/lib/backup"
 import { dumpDatabase } from "@/server/lib/backup/dump"
 import { runPgTool } from "@/server/lib/backup/pg-tools"
@@ -40,6 +43,18 @@ export const SYNC_SKIPPED_DATA = [
   "public.public_rate_limits",
 ] as const
 
+/**
+ * Integrations that act on shared outside resources (final review I2): the
+ * source's R2 bucket (the target's backup job would prune the source's
+ * backups, its media deletes would remove the source's files) and SMTP
+ * account (the target would send mail as the source). Removed from the
+ * target after the restore unless `keepIntegrations`.
+ */
+export const SYNC_REMOVED_INTEGRATIONS = [
+  "integrations.r2",
+  "integrations.smtp",
+] as const satisfies readonly IntegrationKey[]
+
 export type SyncCheck = { name: string; ok: boolean; message: string }
 
 export type SyncOptions = {
@@ -49,6 +64,12 @@ export type SyncOptions = {
   confirm: string
   demoPassword?: string
   verifyUrl?: string
+  /**
+   * Keep the source's R2 and SMTP settings in the target. Dangerous: the
+   * target then shares the source's bucket (backup pruning, media deletes)
+   * and sends mail as the source.
+   */
+  keepIntegrations?: boolean
   backupStore?: BackupStore
   fetchImpl?: typeof fetch
 }
@@ -61,6 +82,8 @@ export type SyncReport = {
   sourceSecretsChecked: number
   backup: string
   backupLocation: string
+  /** Integration settings removed from the target (SYNC_REMOVED_INTEGRATIONS present in the source). */
+  integrationsRemoved: string[]
   rotate: RotateReport
   demoUsers: number
   checks: SyncCheck[]
@@ -233,6 +256,25 @@ async function verifyTarget(opts: SyncOptions): Promise<SyncCheck[]> {
   return checks
 }
 
+/** Deletes SYNC_REMOVED_INTEGRATIONS rows (draft and published) in the target; audited per key. */
+async function removeSharedIntegrations(): Promise<string[]> {
+  return getDb().transaction(async (tx) => {
+    const removed = await tx
+      .delete(settings)
+      .where(inArray(settings.key, [...SYNC_REMOVED_INTEGRATIONS]))
+      .returning({ key: settings.key })
+    const keys = removed.map((row) => row.key).sort()
+    for (const key of keys)
+      await writeAudit(tx, null, {
+        action: "integration.deleted",
+        entityType: "integration",
+        entityId: key,
+        diff: { via: "db:sync" },
+      })
+    return keys
+  })
+}
+
 const backupPath = (backup: BackupResult) =>
   backup.location.endsWith("/")
     ? `${backup.location}${backup.name}`
@@ -291,6 +333,9 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
       await rm(dir, { recursive: true, force: true })
     }
 
+    const integrationsRemoved = opts.keepIntegrations
+      ? []
+      : await removeSharedIntegrations()
     const rotate = await rotateSecrets({
       fromSecret: opts.fromSecret,
       via: "db:sync",
@@ -303,6 +348,7 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
       sourceSecretsChecked,
       backup: backup.name,
       backupLocation: backup.location,
+      integrationsRemoved,
       rotate,
       demoUsers,
       checks,
