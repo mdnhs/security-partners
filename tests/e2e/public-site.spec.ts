@@ -88,10 +88,9 @@ test.describe("public site from the database", () => {
     await expect(
       footer.getByRole("link", { name: "Privacy Policy" })
     ).toHaveAttribute("href", "/privacy")
-    await expect(footer.getByRole("link", { name: "Terms" })).toHaveAttribute(
-      "href",
-      "/terms"
-    )
+    await expect(
+      footer.getByRole("link", { name: "Terms", exact: true })
+    ).toHaveAttribute("href", "/terms")
   })
 })
 

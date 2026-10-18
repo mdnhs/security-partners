@@ -223,8 +223,16 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
     const page = await context.newPage()
     await page.goto("/admin/forgot-password")
     await page.getByLabel("Email").fill("leak@e2e.test")
+    // No JS: a native form POST to the page itself; wait for its answer,
+    // then for the document it renders (ledger P02-6: no load-state race).
+    const posted = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        new URL(res.url()).pathname === "/admin/forgot-password"
+    )
     await page.getByRole("button", { name: "Send reset link" }).click()
-    await page.waitForLoadState()
+    await posted
+    await page.waitForLoadState("load")
     expect(page.url()).not.toContain("leak")
     await context.close()
   })
@@ -241,6 +249,37 @@ test.describe("admin auth pages + proxy (Task 2.5)", () => {
       statuses.push(res.status())
     }
     expect(statuses).toEqual([401, 401, 401, 401, 401, 429])
+  })
+
+  // Ledger CARRY (P10 T7+8): the other Better Auth custom rules
+  // (server/auth/auth.ts rateLimit.customRules), against the real server.
+  test("password-reset requests are rate limited: the 4th in 5 minutes → 429", async ({
+    request,
+  }) => {
+    const statuses: number[] = []
+    for (let i = 0; i < 4; i++) {
+      const res = await request.post("/api/auth/request-password-reset", {
+        headers: { "x-forwarded-for": "198.18.255.2", origin: BASE_URL },
+        data: { email: "nobody@e2e.test" },
+      })
+      statuses.push(res.status())
+    }
+    expect(statuses).toEqual([200, 200, 200, 429])
+  })
+
+  test("two-factor verification is rate limited: the 6th attempt in a minute → 429", async ({
+    request,
+  }) => {
+    const statuses: number[] = []
+    for (let i = 0; i < 6; i++) {
+      const res = await request.post("/api/auth/two-factor/verify-totp", {
+        headers: { "x-forwarded-for": "198.18.255.3", origin: BASE_URL },
+        data: { code: "000000" },
+      })
+      statuses.push(res.status())
+    }
+    expect(statuses.slice(0, 5)).not.toContain(429)
+    expect(statuses[5]).toBe(429)
   })
 
   test("unknown /admin/* URLs are 404 inside the admin root layout", async ({

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test"
-import { Secret, TOTP } from "otpauth"
+import { Secret, TOTP, URI } from "otpauth"
 
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 
@@ -69,4 +69,40 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   await expect(
     page.getByRole("heading", { name: greeting(account.name) })
   ).toBeVisible()
+})
+
+test("account page: turn 2FA off, then sign in without a code (spec §15 2FA disable)", async ({
+  page,
+}) => {
+  const { twoFactorOff } = readFixtures()
+  await signIn(page, twoFactorOff.email)
+  await expect(page).toHaveURL(/\/admin\/two-factor/)
+  await page
+    .getByLabel("Authentication code")
+    .fill(URI.parse(twoFactorOff.totpUri).generate())
+  await page.getByRole("button", { name: "Verify" }).click()
+  await expect(
+    page.getByRole("heading", { name: greeting(twoFactorOff.name) })
+  ).toBeVisible()
+
+  await page.goto("/admin/account")
+  const sections = page.getByRole("tablist", { name: "Account sections" })
+  await sections.getByRole("tab", { name: "Security" }).click()
+  await expect(page.getByText("Two-factor authentication is on")).toBeVisible()
+  await page.getByLabel("Your password").fill(E2E_PASSWORD)
+  await page.getByRole("button", { name: "Turn off" }).click()
+  await expect(
+    page.getByText("Two-factor authentication turned off.")
+  ).toBeVisible()
+
+  await page
+    .getByRole("button", { name: `Account menu for ${twoFactorOff.name}` })
+    .click()
+  await page.getByRole("menuitem", { name: "Sign out" }).click()
+  await expect(page).toHaveURL(/\/admin\/sign-in\?notice=signed-out$/)
+  await signIn(page, twoFactorOff.email)
+  await expect(
+    page.getByRole("heading", { name: greeting(twoFactorOff.name) })
+  ).toBeVisible()
+  await expect(page).toHaveURL(/\/admin$/)
 })
