@@ -78,22 +78,30 @@ export async function finishJob(
 }
 
 /**
- * Queues a keyed one-off job to run at `runAt`. A waiting row is re-queued
- * (runAt reset, last error cleared); a running row (locked) is left alone,
- * so triggering twice never runs two copies.
+ * Queues a keyed one-off job to run at `runAt`. A waiting or parked row is
+ * re-queued (runAt reset, last error and parked state cleared); a running
+ * row (locked) is left alone, so triggering twice never runs two copies.
+ * Returns whether a row was inserted or re-queued.
  */
 export async function enqueueKeyedJob(
   db: DbOrTx,
   job: { name: string; key: string; runAt: Date }
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const rows = await db
     .insert(jobs)
     .values(job)
     .onConflictDoUpdate({
       target: jobs.key,
-      set: { name: job.name, runAt: job.runAt, lastError: null },
+      set: {
+        name: job.name,
+        runAt: job.runAt,
+        lastError: null,
+        payload: sql`case when jsonb_typeof(${jobs.payload}) = 'object' then nullif(${jobs.payload} - 'parked', '{}'::jsonb) else ${jobs.payload} end`,
+      },
       setWhere: isNull(jobs.lockedAt),
     })
+    .returning({ id: jobs.id })
+  return rows.length > 0
 }
 
 export async function findJobByKey(

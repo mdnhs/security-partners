@@ -75,9 +75,14 @@ export type MediaUsage = {
 /** Settings ▸ Integrations ▸ R2 "Move uploads to R2" (master 6.4). */
 export type MediaMigrationStatus = {
   r2Configured: boolean
+  /** Fixed text when saved R2 settings exist but cannot be read (e.g. undecryptable). */
+  r2Error: string | null
   onDisk: number
   inR2: number
-  state: "idle" | "queued" | "running"
+  /** stopped = the last run moved nothing (see `failed`); start it again after fixing. */
+  state: "idle" | "queued" | "running" | "stopped"
+  /** "<key>: <fixed reason>" of a stopped run. */
+  failed: string[]
   lastRunAt: string | null
   lastError: string | null
 }

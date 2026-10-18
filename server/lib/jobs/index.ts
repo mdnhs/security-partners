@@ -8,9 +8,16 @@ import { purgeLeadsJob } from "./purge-leads"
 export type JobContext = { now: Date; payload: unknown }
 /**
  * `tags`: cache tags to expire; `warning`: recorded in jobs.last_error
- * without failing the run; `done`: one-off job finished → its row is deleted.
+ * without failing the run; `done`: one-off job finished → its row is
+ * deleted; `park`: one-off job made no progress → not run again until it is
+ * queued again (enqueueKeyedJob); the value is kept as payload.parked.
  */
-export type JobResult = { tags?: string[]; warning?: string; done?: boolean }
+export type JobResult = {
+  tags?: string[]
+  warning?: string
+  done?: boolean
+  park?: Record<string, unknown>
+}
 export type JobDefinition = {
   name: string
   /** jobs.key: one row per recurring job. */

@@ -2,19 +2,39 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { eq } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { eq, sql } from "drizzle-orm"
+import sharp from "sharp"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+vi.mock("next/cache", () => ({
+  revalidateTag: vi.fn(),
+  cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
+}))
 
 import type { MediaMigrationStatus } from "@/lib/schemas/api/media"
 import { getDb } from "@/server/db/client"
 import { auditLog, jobs, media, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { ALL_JOBS } from "@/server/lib/jobs"
-import { MIGRATE_MEDIA_JOB } from "@/server/lib/jobs/migrate-media"
-import { ensureRecurringJobs, tick } from "@/server/lib/scheduler"
+import {
+  MIGRATE_MEDIA_JOB,
+  migrateMediaJob,
+  migrationOutcome,
+} from "@/server/lib/jobs/migrate-media"
+import {
+  ensureRecurringJobs,
+  PARKED_RUN_AT,
+  RETRY_DELAY_MS,
+  tick,
+} from "@/server/lib/scheduler"
+import type { Actor } from "@/server/lib/actor"
 import { diskStorage, type StorageDriver } from "@/server/lib/storage"
 import { enqueueKeyedJob } from "@/server/modules/jobs/repo"
-import { migrateDiskMediaToR2 } from "@/server/modules/media/service"
+import {
+  migrateDiskMediaToR2,
+  replaceMedia,
+} from "@/server/modules/media/service"
 
 import { resetDb } from "../db"
 import { adminRequest, signedInUser } from "../helpers/auth"
@@ -262,20 +282,51 @@ describe("migration safety (copy-then-switch, R2 guard, fixed messages)", () => 
     return r2
   }
 
-  it("a replace landing mid-copy wins: the copied object is removed and the new file moves later", async () => {
-    const NEW_KEY = "2026/10/0190a6e0-0000-7000-8000-000000000009.png"
-    await disk.put(NEW_KEY, new Uint8Array([9]), "image/png")
+  it("a replace landing mid-copy wins (replaceMedia): the copy is removed and the new file moves too", async () => {
+    const { user } = await signedInUser(["owner"])
+    const actor: Actor = {
+      userId: user.id,
+      roles: ["owner"],
+      ip: null,
+      userAgent: null,
+      impersonatorId: null,
+    }
+    const [target] = await getDb()
+      .select()
+      .from(media)
+      .where(eq(media.key, KEYS[0]))
+    // replaceMedia stores on the default disk root; the migration reads both.
+    const defaultDisk = diskStorage()
+    const bothDisks: StorageDriver = {
+      ...disk,
+      async read(key) {
+        return (await disk.read(key)) ?? (await defaultDisk.read(key))
+      },
+      async delete(key) {
+        await disk.delete(key)
+        await defaultDisk.delete(key)
+      },
+    }
+    const png = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: "#123456" },
+    })
+      .png()
+      .toBuffer()
     const r2 = hookedR2(KEYS[0], async () => {
-      await getDb()
-        .update(media)
-        .set({ key: NEW_KEY })
-        .where(eq(media.key, KEYS[0]))
+      await replaceMedia(actor, target.id, {
+        file: new File([new Uint8Array(png)], "new.png", { type: "image/png" }),
+      })
     })
     const result = await migrateDiskMediaToR2({
       deadline: Date.now() + 30_000,
       r2,
-      disk,
+      disk: bothDisks,
     })
+    const [replaced] = await getDb()
+      .select()
+      .from(media)
+      .where(eq(media.id, target.id))
+    expect(replaced.key).not.toBe(KEYS[0])
     expect(result).toEqual({
       moved: 3,
       failed: [],
@@ -284,11 +335,50 @@ describe("migration safety (copy-then-switch, R2 guard, fixed messages)", () => 
     })
     expect(r2.objects.has(KEYS[0])).toBe(false)
     expect([...r2.objects.keys()].sort()).toEqual(
-      [KEYS[1], KEYS[2], NEW_KEY].sort()
+      [KEYS[1], KEYS[2], replaced.key].sort()
     )
-    // The old file belongs to the replace (it deletes it after its commit), not to the migration.
-    expect(await disk.read(KEYS[0])).not.toBeNull()
-    expect((await drivers())[NEW_KEY]).toBe("r2")
+    expect(replaced.driver).toBe("r2")
+    expect(await defaultDisk.read(replaced.key)).toBeNull()
+  })
+
+  it("a row deleted mid-copy: the copy is removed, nothing fails", async () => {
+    const r2 = hookedR2(KEYS[0], async () => {
+      await getDb().delete(media).where(eq(media.key, KEYS[0]))
+    })
+    const result = await migrateDiskMediaToR2({
+      deadline: Date.now() + 30_000,
+      r2,
+      disk,
+    })
+    expect(result).toEqual({
+      moved: 2,
+      failed: [],
+      remaining: 0,
+      configured: true,
+    })
+    expect(r2.objects.has(KEYS[0])).toBe(false)
+  })
+
+  it("a row already switched to r2 with the same key keeps the copy", async () => {
+    const r2 = hookedR2(KEYS[0], async () => {
+      await getDb()
+        .update(media)
+        .set({ driver: "r2" })
+        .where(eq(media.key, KEYS[0]))
+    })
+    const result = await migrateDiskMediaToR2({
+      deadline: Date.now() + 30_000,
+      r2,
+      disk,
+    })
+    expect(result).toEqual({
+      moved: 2,
+      failed: [],
+      remaining: 0,
+      configured: true,
+    })
+    expect(r2.objects.has(KEYS[0])).toBe(true)
+    expect((await drivers())[KEYS[0]]).toBe("r2")
   })
 
   it("stops when the R2 settings change mid-copy: row stays on disk, copy removed, nothing lost", async () => {
@@ -308,6 +398,7 @@ describe("migration safety (copy-then-switch, R2 guard, fixed messages)", () => 
       ],
       remaining: 3,
       configured: true,
+      settingsChanged: true,
     })
     expect(r2.objects.size).toBe(0)
     for (const key of KEYS) {
@@ -421,6 +512,7 @@ describe("triggered jobs in the scheduler", () => {
       .from(jobs)
       .where(eq(jobs.key, MIGRATE_MEDIA_JOB.key))
     expect(row.lastError).toBe("boom")
+    expect(row.runAt.getTime()).toBe(now.getTime() + RETRY_DELAY_MS)
   })
 
   it("POST while a run holds the job leaves it alone; the start is audited", async () => {
@@ -458,7 +550,156 @@ describe("triggered jobs in the scheduler", () => {
       .select()
       .from(auditLog)
       .where(eq(auditLog.action, "media.migration_started"))
-    expect(audits).toHaveLength(1)
-    expect(audits[0].diff).toEqual({ onDisk: 3 })
+    // The no-op (row held by a run) writes no audit.
+    expect(audits).toEqual([])
+
+    await getDb()
+      .update(jobs)
+      .set({ lockedAt: null })
+      .where(eq(jobs.key, MIGRATE_MEDIA_JOB.key))
+    const again = await adminRequest(
+      "/integrations/integrations.r2/migrate-media",
+      {
+        cookie: owner,
+        method: "POST",
+      }
+    )
+    expect(((await again.json()) as MediaMigrationStatus).state).toBe("queued")
+    const started = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "media.migration_started"))
+    expect(started).toHaveLength(1)
+    expect(started[0].diff).toEqual({ onDisk: 3 })
+  })
+
+  it("a poison file parks the job (no endless retries); status says stopped; POST re-queues", async () => {
+    const owner = (await signedInUser(["owner"])).cookie
+    await adminRequest("/integrations/integrations.r2", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        version: 0,
+        values: {
+          accountId: "0123456789abcdef0123456789abcdef",
+          jurisdiction: "default",
+          bucket: "sp-media",
+          accessKeyId: "AKID",
+          secretAccessKey: "SECRET",
+        },
+      },
+    })
+    const r2 = memoryR2([KEYS[1]])
+    const job = {
+      ...migrateMediaJob,
+      run: async () =>
+        migrationOutcome(
+          await migrateDiskMediaToR2({
+            deadline: Date.now() + 30_000,
+            r2,
+            disk,
+          })
+        ),
+    }
+    const row = async () =>
+      (
+        await getDb()
+          .select()
+          .from(jobs)
+          .where(eq(jobs.key, MIGRATE_MEDIA_JOB.key))
+      )[0]
+    const t0 = new Date()
+    await enqueueKeyedJob(getDb(), { ...MIGRATE_MEDIA_JOB, runAt: t0 })
+
+    // Run 1 makes progress (2 moved, 1 failed): queued again for the next tick.
+    await tick({ now: t0, jobs: [job], revalidate: async () => undefined })
+    expect((await row()).runAt.getTime()).toBe(t0.getTime())
+    expect((await row()).payload).toBeNull()
+
+    // Run 2 moves nothing: parked, not due again.
+    const t1 = new Date(t0.getTime() + 60_000)
+    await tick({ now: t1, jobs: [job], revalidate: async () => undefined })
+    const parked = await row()
+    expect(parked.runAt.toISOString()).toBe(PARKED_RUN_AT.toISOString())
+    expect(parked.payload).toEqual({
+      parked: { failed: [`${KEYS[1]}: R2 put failed`] },
+    })
+    expect(parked.lastError).toBe(`Not moved: ${KEYS[1]}: R2 put failed`)
+    const t2 = new Date(t1.getTime() + 60_000)
+    expect(
+      await tick({ now: t2, jobs: [job], revalidate: async () => undefined })
+    ).toEqual([])
+
+    const status = await adminRequest(
+      "/integrations/integrations.r2/migrate-media",
+      { cookie: owner }
+    )
+    expect(await status.json()).toMatchObject({
+      state: "stopped",
+      onDisk: 1,
+      inR2: 2,
+      failed: [`${KEYS[1]}: R2 put failed`],
+    })
+
+    const res = await adminRequest(
+      "/integrations/integrations.r2/migrate-media",
+      {
+        cookie: owner,
+        method: "POST",
+      }
+    )
+    expect(res.status).toBe(202)
+    expect(await res.json()).toMatchObject({
+      state: "queued",
+      failed: [],
+      lastError: null,
+    })
+    const requeued = await row()
+    expect(requeued.payload).toBeNull()
+    expect(requeued.runAt.getTime()).toBeLessThanOrEqual(Date.now())
+  })
+
+  it("saved R2 settings that cannot be decrypted are reported, not hidden as 'not set up'", async () => {
+    const owner = (await signedInUser(["owner"])).cookie
+    await adminRequest("/integrations/integrations.r2", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        version: 0,
+        values: {
+          accountId: "0123456789abcdef0123456789abcdef",
+          jurisdiction: "default",
+          bucket: "sp-media",
+          accessKeyId: "AKID",
+          secretAccessKey: "SECRET",
+        },
+      },
+    })
+    await getDb()
+      .update(settings)
+      .set({
+        draft: sql`jsonb_set(${settings.draft}, '{secretAccessKey}', '"v1:AAAA:AAAA:AAAA"')`,
+      })
+      .where(eq(settings.key, "integrations.r2"))
+    const message = "The saved R2 settings can't be read. Save them again."
+    const status = await adminRequest(
+      "/integrations/integrations.r2/migrate-media",
+      { cookie: owner }
+    )
+    expect(await status.json()).toMatchObject({
+      r2Configured: false,
+      r2Error: message,
+    })
+    const start = await adminRequest(
+      "/integrations/integrations.r2/migrate-media",
+      {
+        cookie: owner,
+        method: "POST",
+      }
+    )
+    expect(start.status).toBe(422)
+    expect(
+      ((await start.json()) as { error: { message: string } }).error.message
+    ).toBe(message)
   })
 })

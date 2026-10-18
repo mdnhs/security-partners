@@ -362,6 +362,8 @@ async function pinIntegrations(page: Page) {
       route.fulfill({
         json: {
           r2Configured: false,
+          r2Error: null,
+          failed: [],
           onDisk: 12,
           inR2: 0,
           state: "idle",

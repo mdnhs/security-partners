@@ -18,11 +18,12 @@ export const MIGRATE_MEDIA_QUERY_KEY = [
   "migrate-media",
 ] as const
 
-const STATE_TEXT = {
-  idle: null,
+const STATE_TEXT: Record<MediaMigrationStatus["state"], string> = {
+  idle: "",
   queued: "Queued — starts within a minute.",
   running: "Moving files…",
-} as const
+  stopped: "Stopped: the last run could not move any file.",
+}
 
 const POLL_MS = 5_000
 
@@ -36,8 +37,10 @@ export function MigrateMediaPanel() {
     queryKey: MIGRATE_MEDIA_QUERY_KEY,
     queryFn: () => unwrap(migrate().$get()) as Promise<MediaMigrationStatus>,
     // Poll while a move is queued or running.
-    refetchInterval: (query) =>
-      query.state.data && query.state.data.state !== "idle" ? POLL_MS : false,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state
+      return state === "queued" || state === "running" ? POLL_MS : false
+    },
   })
   const start = useMutation({
     mutationFn: () =>
@@ -46,7 +49,8 @@ export function MigrateMediaPanel() {
       queryClient.setQueryData(MIGRATE_MEDIA_QUERY_KEY, next),
   })
   const data = status.data
-  const stateText = data ? STATE_TEXT[data.state] : null
+  const stateText = data ? STATE_TEXT[data.state] : ""
+  const alertClass = "flex items-start gap-2 text-sm text-destructive"
 
   return (
     <FormCard
@@ -55,11 +59,12 @@ export function MigrateMediaPanel() {
       description="Changing storage does not move old files. Moving keeps every link working; built-in site images stay where they are."
       className="max-w-3xl"
     >
+      {/* Always rendered, so screen readers announce each state change. */}
+      <p role="status" className={stateText ? "text-sm" : "sr-only"}>
+        {stateText}
+      </p>
       {status.isError ? (
-        <p
-          role="alert"
-          className="flex items-start gap-2 text-sm text-destructive"
-        >
+        <p role="alert" className={alertClass}>
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           {errorMessage(status.error)}
         </p>
@@ -71,21 +76,30 @@ export function MigrateMediaPanel() {
             {data.onDisk} file{data.onDisk === 1 ? "" : "s"} on the server disk
             · {data.inR2} in R2
           </p>
-          {!data.r2Configured ? (
+          {data.r2Error ? (
+            <p role="alert" className={alertClass}>
+              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+              {data.r2Error}
+            </p>
+          ) : !data.r2Configured ? (
             <p className="text-sm text-muted-foreground">
               Save the R2 settings above first.
             </p>
           ) : null}
-          {stateText ? (
-            <p role="status" className="text-sm">
-              {stateText}
-            </p>
-          ) : null}
-          {data.lastError ? (
-            <p
-              role="alert"
-              className="flex items-start gap-2 text-sm text-destructive"
-            >
+          {data.state === "stopped" && data.failed.length > 0 ? (
+            <div role="alert" className={alertClass}>
+              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <div className="flex min-w-0 flex-col gap-1">
+                <p>Not moved. Fix these files, then start again:</p>
+                <ul className="list-disc ps-5 break-all">
+                  {data.failed.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : data.lastError ? (
+            <p role="alert" className={alertClass}>
               <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
               {data.lastError}
             </p>
@@ -102,7 +116,7 @@ export function MigrateMediaPanel() {
               disabled={
                 !data.r2Configured ||
                 data.onDisk === 0 ||
-                data.state !== "idle" ||
+                (data.state !== "idle" && data.state !== "stopped") ||
                 start.isPending
               }
               onClick={() => start.mutate()}
@@ -111,10 +125,7 @@ export function MigrateMediaPanel() {
             </Button>
           ) : null}
           {start.isError ? (
-            <p
-              role="alert"
-              className="flex items-start gap-2 text-sm text-destructive"
-            >
+            <p role="alert" className={alertClass}>
               <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
               {errorMessage(start.error)}
             </p>

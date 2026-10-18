@@ -20,6 +20,7 @@ import {
 import { seedContent } from "@/server/db/seed"
 import { RECURRING_JOBS } from "@/server/lib/jobs"
 import { purgeLeadsJob } from "@/server/lib/jobs/purge-leads"
+import { deleteLeadsCreatedBefore } from "@/server/modules/leads/repo"
 import { ensureRecurringJobs, tick } from "@/server/lib/scheduler"
 
 import { resetDb } from "../db"
@@ -135,5 +136,28 @@ describe("purge-leads job (spec §9 retention, §12)", () => {
     expect(row.lastError).toBeNull()
     expect(row.lastRunAt).not.toBeNull()
     expect(await getDb().select().from(leads)).toHaveLength(0)
+  })
+
+  it("keeps a lead created exactly at the cutoff", async () => {
+    const atCutoff = await addLead("edge", new Date("2024-10-16T12:00:00.000Z"))
+    await purgeLeadsJob.run({ now: NOW, payload: null })
+    expect((await getDb().select().from(leads)).map((l) => l.id)).toEqual([
+      atCutoff.id,
+    ])
+  })
+
+  it("deletes in batches until none are left and returns the total", async () => {
+    for (let i = 0; i < 5; i++)
+      await addLead(`old${i}`, new Date("2020-01-01T00:00:00.000Z"))
+    const kept = await addLead("new", NOW)
+    expect(
+      await deleteLeadsCreatedBefore(getDb(), new Date("2021-01-01"), 2)
+    ).toBe(5)
+    expect(
+      await deleteLeadsCreatedBefore(getDb(), new Date("2021-01-01"), 2)
+    ).toBe(0)
+    expect((await getDb().select().from(leads)).map((l) => l.id)).toEqual([
+      kept.id,
+    ])
   })
 })

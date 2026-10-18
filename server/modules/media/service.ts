@@ -612,6 +612,8 @@ export async function migrateDiskMediaToR2(opts: {
   failed: string[]
   remaining: number
   configured: boolean
+  /** The R2 settings changed mid-run (the next run continues). */
+  settingsChanged?: true
 }> {
   const db = getDb()
   const disk = opts.disk ?? diskStorage()
@@ -648,6 +650,13 @@ export async function migrateDiskMediaToR2(opts: {
   } catch (err) {
     if (!(err instanceof SettingsChanged)) throw err
     failed.push(SETTINGS_CHANGED)
+    return {
+      moved,
+      failed,
+      remaining: await countMediaByDriver(db, "disk"),
+      configured: true,
+      settingsChanged: true,
+    }
   }
   return {
     moved,
@@ -719,19 +728,53 @@ async function removeCopy(r2: StorageDriver, key: string): Promise<void> {
   })
 }
 
+const R2_UNREADABLE = "The saved R2 settings can't be read. Save them again."
+
+/** The R2 config, or a fixed problem text when it is saved but unreadable. */
+async function r2ConfigState(
+  db: DbOrTx
+): Promise<{ configured: boolean; error: string | null }> {
+  try {
+    return {
+      configured: (await readIntegrationConfig("integrations.r2", db)) !== null,
+      error: null,
+    }
+  } catch {
+    return { configured: false, error: R2_UNREADABLE }
+  }
+}
+
+/** payload.parked of a stopped migrate-media job (failed files). */
+function parkedFailures(payload: unknown): string[] | null {
+  if (typeof payload !== "object" || payload === null) return null
+  const parked = (payload as { parked?: unknown }).parked
+  if (typeof parked !== "object" || parked === null) return null
+  const failed = (parked as { failed?: unknown }).failed
+  return Array.isArray(failed)
+    ? failed.filter((f): f is string => typeof f === "string")
+    : []
+}
+
 async function migrationStatus(): Promise<MediaMigrationStatus> {
   const db = getDb()
-  const config = await readIntegrationConfig("integrations.r2", db).catch(
-    () => null
-  )
+  const r2 = await r2ConfigState(db)
   const onDisk = await countMediaByDriver(db, "disk")
   const inR2 = await countMediaByDriver(db, "r2")
   const job = await findJobByKey(db, MIGRATION_JOB.key)
+  const parked = job ? parkedFailures(job.payload) : null
   return {
-    r2Configured: config !== null,
+    r2Configured: r2.configured,
+    r2Error: r2.error,
     onDisk,
     inR2,
-    state: !job ? "idle" : job.lockedAt ? "running" : "queued",
+    state: !job
+      ? "idle"
+      : job.lockedAt
+        ? "running"
+        : parked
+          ? "stopped"
+          : "queued",
+    failed: parked ?? [],
     lastRunAt: job?.lastRunAt?.toISOString() ?? null,
     lastError: job?.lastError ?? null,
   }
@@ -751,15 +794,18 @@ export async function startMediaMigration(
 ): Promise<MediaMigrationStatus> {
   assertCan(actor, { integration: ["update"] })
   const db = getDb()
-  if (!(await readIntegrationConfig("integrations.r2", db)))
+  const r2 = await r2ConfigState(db)
+  if (!r2.configured)
     throw new AppError(
       "VALIDATION_FAILED",
-      "Set up R2 before moving uploads to it."
+      r2.error ?? "Set up R2 before moving uploads to it."
     )
   const onDisk = await countMediaByDriver(db, "disk")
   if (onDisk > 0)
     await db.transaction(async (tx) => {
-      await enqueueKeyedJob(tx, { ...MIGRATION_JOB, runAt: new Date() })
+      // A run in progress is left alone, and so is the audit trail.
+      if (!(await enqueueKeyedJob(tx, { ...MIGRATION_JOB, runAt: new Date() })))
+        return
       await writeAudit(tx, actor, {
         action: "media.migration_started",
         entityType: "integration",

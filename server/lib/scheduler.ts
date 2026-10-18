@@ -26,6 +26,8 @@ export const FIRST_TICK_DELAY_MS = 5_000
 /** A claim older than this belongs to a crashed worker and may be taken over. */
 export const LOCK_TIMEOUT_MS = 10 * 60_000
 export const RETRY_DELAY_MS = 60_000
+/** run_at of a parked job: never due until enqueueKeyedJob re-queues it. */
+export const PARKED_RUN_AT = new Date("9999-12-31T00:00:00.000Z")
 const CLAIM_LIMIT = 10
 const ERROR_MAX_LENGTH = 2_000
 const REVALIDATE_TIMEOUT_MS = 10_000
@@ -60,6 +62,15 @@ function withPendingTags(payload: unknown, tags: string[]): unknown {
   delete rest.pendingTags
   if (tags.length > 0) rest.pendingTags = tags
   return Object.keys(rest).length > 0 ? rest : null
+}
+
+/** The payload with `parked` set (or left as is when the run did not park). */
+function withParked(
+  payload: unknown,
+  park: Record<string, unknown> | undefined
+): unknown {
+  if (!park) return payload
+  return { ...(isRecord(payload) ? payload : {}), parked: park }
 }
 
 /**
@@ -130,6 +141,7 @@ export async function tick(
     const definition = definitions.find((d) => d.name === job.name)
     let ok = true
     let done = false
+    let park: Record<string, unknown> | undefined
     const notes: string[] = []
     let tags: string[] = []
     // Tags a previous run could not expire (loopback down, restart): retried
@@ -147,6 +159,7 @@ export async function tick(
       if (!definition) throw new Error(`No handler for job "${job.name}"`)
       const result = await definition.run({ now, payload: job.payload })
       done = result.done === true
+      park = result.park
       tags = result.tags ?? []
       if (result.warning) notes.unshift(result.warning)
       if (tags.length > 0) {
@@ -171,14 +184,20 @@ export async function tick(
       await deleteClaimedJob(db, job.id, now)
     else
       await finishJob(db, job.id, now, {
-        runAt: new Date(
-          now.getTime() +
-            (ok && definition ? definition.everyMs : RETRY_DELAY_MS)
-        ),
+        runAt:
+          ok && park
+            ? PARKED_RUN_AT
+            : new Date(
+                now.getTime() +
+                  (ok && definition ? definition.everyMs : RETRY_DELAY_MS)
+              ),
         lastRunAt: now,
         lastError: error?.slice(0, ERROR_MAX_LENGTH) ?? null,
         succeeded: ok,
-        payload: withPendingTags(job.payload, unrefreshed),
+        payload: withParked(
+          withPendingTags(job.payload, unrefreshed),
+          ok ? park : undefined
+        ),
       })
     results.push({ name: job.name, key: job.key, ok, error, tags })
   }

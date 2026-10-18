@@ -278,14 +278,30 @@ export async function countUnassignedNewLeads(db: DbOrTx): Promise<number> {
   return total
 }
 
-/** Retention purge: leads created before `cutoff` (their events cascade). */
+/** Rows per DELETE statement of the retention purge. */
+export const PURGE_BATCH_SIZE = 1000
+
+/**
+ * Retention purge: leads created before `cutoff` (their events cascade),
+ * in batches of `batchSize` until none are left. Returns the total.
+ */
 export async function deleteLeadsCreatedBefore(
   db: DbOrTx,
-  cutoff: Date
+  cutoff: Date,
+  batchSize: number = PURGE_BATCH_SIZE
 ): Promise<number> {
-  const rows = await db
-    .delete(leads)
-    .where(lt(leads.createdAt, cutoff))
-    .returning({ id: leads.id })
-  return rows.length
+  let total = 0
+  for (;;) {
+    const batch = db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(lt(leads.createdAt, cutoff))
+      .limit(batchSize)
+    const rows = await db
+      .delete(leads)
+      .where(inArray(leads.id, batch))
+      .returning({ id: leads.id })
+    total += rows.length
+    if (rows.length < batchSize) return total
+  }
 }
