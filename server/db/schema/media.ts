@@ -32,6 +32,8 @@ export const media = pgTable(
     focalX: real("focal_x"),
     focalY: real("focal_y"),
     alt: text("alt").notNull().default(""),
+    /** File name as uploaded (library/picker label and search); static rows: the public/images name. */
+    originalName: text("original_name").notNull().default(""),
     createdBy: uuid("created_by").references(() => users.id, {
       onDelete: "set null",
     }),

@@ -35,6 +35,7 @@ import {
   insertIntegrationRow,
   type IntegrationRow,
   listIntegrationRows,
+  lockIntegrationRow,
   updateIntegrationIfVersion,
 } from "./repo"
 import { runIntegrationTest, type TestResult } from "./testers"
@@ -349,12 +350,13 @@ export async function deleteIntegration(
 ): Promise<{ ok: true }> {
   assertCan(actor, { integration: ["update"] })
   await getDb().transaction(async (tx) => {
+    // Row lock first: an upload writing an r2 media row holds this row FOR
+    // SHARE in its own transaction (media `lockR2Settings`), so the count
+    // below sees its row, and an upload that starts later sees R2 gone.
+    await lockIntegrationRow(tx, key)
     const row = await findIntegrationRow(tx, key)
     if (!row) throw notFound("Integration settings")
     if (row.version !== version) throw conflict(toDto(key, row))
-    // Best effort only: an upload committing concurrently can still write an
-    // r2 row after this count. The upload/migration path (Phase 6 Task 4)
-    // re-checks the active driver under lock before writing to R2.
     if (key === "integrations.r2") {
       const stored = await countMediaByDriver(tx, "r2")
       if (stored > 0)

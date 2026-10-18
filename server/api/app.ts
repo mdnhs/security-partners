@@ -8,7 +8,7 @@ import {
   requireSignedIn,
   sessionMiddleware,
 } from "@/server/api/middleware/auth"
-import { limitBody } from "@/server/api/middleware/body-limit"
+import { limitAdminBody, limitBody } from "@/server/api/middleware/body-limit"
 import { notFoundHandler, onError } from "@/server/api/middleware/error"
 import { requestIdMiddleware } from "@/server/api/middleware/request-id"
 import { sameOrigin } from "@/server/api/middleware/same-origin"
@@ -25,7 +25,7 @@ import { dashboardRoutes } from "@/server/modules/dashboard/routes"
 import { healthRoutes } from "@/server/modules/health/routes"
 import { integrationsRoutes } from "@/server/modules/integrations/routes"
 import { internalRoutes } from "@/server/modules/internal/routes"
-import { mediaRoutes } from "@/server/modules/media/routes"
+import { mediaFileRoutes, mediaRoutes } from "@/server/modules/media/routes"
 import { pagesRoutes } from "@/server/modules/pages/routes"
 import {
   adminPreviewRoutes,
@@ -85,13 +85,13 @@ export function createApp() {
   // 3. Public endpoints (rate limit added in Phase 7)
   api.use("/v1/public/*", limitBody("public"))
 
-  // 4. Admin endpoints: session → signed in → same origin → 1 MB body
+  // 4. Admin endpoints: session → signed in → same origin → body limit (1 MB; uploads 20 MB)
   api.use(
     "/v1/admin/*",
     sessionMiddleware,
     requireSignedIn,
     sameOrigin(),
-    limitBody("admin")
+    limitAdminBody
   )
   api.route("/v1/admin", adminRoutes)
 
@@ -106,6 +106,9 @@ export function createApp() {
 
   // 5. Health
   api.route("/v1/health", healthRoutes)
+
+  // 6. Media files (disk + R2), public and cacheable (spec §11)
+  api.route("/v1/media/file", mediaFileRoutes)
 
   return api
 }

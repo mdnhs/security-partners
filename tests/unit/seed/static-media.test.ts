@@ -21,6 +21,7 @@ describe("readStaticMedia (sharp)", () => {
       mime: "image/jpeg",
       width: 1440,
       height: 748,
+      originalName: "hero.jpg",
     })
     expect(byKey.get("/images/logo.png")).toMatchObject({
       mime: "image/png",
@@ -36,6 +37,7 @@ describe("readStaticMedia (sharp)", () => {
       width: 24,
       height: 24,
       blurDataUrl: null,
+      originalName: "icon-shield.svg",
     })
   })
 })

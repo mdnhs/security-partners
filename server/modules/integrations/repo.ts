@@ -34,6 +34,22 @@ export function listIntegrationRows(
     .where(inArray(settings.key, [...keys]))
 }
 
+/**
+ * Locks the settings row (FOR UPDATE) until the transaction ends. R2
+ * Disconnect takes it before counting r2 media rows, so an upload holding
+ * the row FOR SHARE (media repo `lockR2Settings`) finishes first.
+ */
+export async function lockIntegrationRow(
+  db: DbOrTx,
+  key: string
+): Promise<void> {
+  await db
+    .select({ key: settings.key })
+    .from(settings)
+    .where(eq(settings.key, key))
+    .for("update")
+}
+
 export async function findIntegrationRow(
   db: DbOrTx,
   key: string

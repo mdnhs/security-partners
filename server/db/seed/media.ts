@@ -1,7 +1,7 @@
 import "server-only"
 
 import { readFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { basename, resolve } from "node:path"
 
 import sharp from "sharp"
 
@@ -18,6 +18,7 @@ export type StaticMediaRow = {
   height: number | null
   blurDataUrl: string | null
   alt: string
+  originalName: string
 }
 
 /**
@@ -50,6 +51,7 @@ export async function readStaticMedia(
           ? `data:image/webp;base64,${blur.toString("base64")}`
           : null,
         alt,
+        originalName: basename(key),
       }
     })
   )
