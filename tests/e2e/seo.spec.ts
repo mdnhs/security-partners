@@ -100,3 +100,27 @@ test.describe("redirects (proxy)", () => {
     }
   })
 })
+
+test.describe("sitemap and robots", () => {
+  test("sitemap.xml lists published URLs on the site origin", async ({
+    request,
+  }) => {
+    const res = await request.get("/sitemap.xml")
+    expect(res.status()).toBe(200)
+    const xml = await res.text()
+    expect(xml).toContain(`<loc>${BASE_URL}/</loc>`)
+    expect(xml).toContain(`<loc>${BASE_URL}/services/alarm-responses</loc>`)
+    expect(xml).toContain(`<loc>${BASE_URL}/blog/key-holding-explained</loc>`)
+    expect(xml).toContain("<lastmod>")
+    expect(xml).not.toContain("/admin")
+  })
+
+  test("robots.txt keeps crawlers out of /admin and /api", async ({
+    request,
+  }) => {
+    const text = await (await request.get("/robots.txt")).text()
+    expect(text).toContain("Disallow: /admin")
+    expect(text).toContain("Disallow: /api")
+    expect(text).toContain(`Sitemap: ${BASE_URL}/sitemap.xml`)
+  })
+})

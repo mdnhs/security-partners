@@ -1,12 +1,12 @@
 import "server-only"
 
-import { asc, eq, type SQL, sql } from "drizzle-orm"
+import { asc, desc, eq, isNotNull, type SQL, sql } from "drizzle-orm"
 import type { AnyPgColumn } from "drizzle-orm/pg-core"
 
 import type { SeoKind } from "@/lib/schemas/api/seo"
 import type { Seo } from "@/lib/schemas/common"
 import type { DbOrTx } from "@/server/db/client"
-import { articles, pages, services } from "@/server/db/schema"
+import { articles, pages, revisions, services } from "@/server/db/schema"
 
 /** What the SEO overview needs of one record (no whole content documents). */
 export type SeoRow = {
@@ -166,4 +166,61 @@ export async function updateSeoColumn(
   else if (kind === "service")
     await db.update(services).set({ seo }).where(eq(services.id, id))
   else await db.update(articles).set({ seo }).where(eq(articles.id, id))
+}
+
+export type SitemapRow = {
+  kind: "page" | "service" | "article"
+  /** Page key or slug. */
+  key: string
+  seo: Seo
+  publishedAt: Date | null
+  /** Time of the newest revision (one is written per publish). */
+  lastPublish: Date | null
+}
+
+/** Newest revision of one record (prefix of revisions_entity_version_unique). */
+const lastPublish = (entityType: string, entityId: SQL) =>
+  sql<Date | null>`(select max(${revisions.createdAt}) from ${revisions} where ${revisions.entityType} = ${entityType} and ${revisions.entityId} = ${entityId})`.mapWith(
+    revisions.createdAt
+  )
+
+/** Published pages, services and articles for the sitemap (never drafts). */
+export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
+  const [pageRows, serviceRows, articleRows] = await Promise.all([
+    db
+      .select({
+        key: pages.key,
+        seo: pages.seo,
+        publishedAt: pages.publishedAt,
+        lastPublish: lastPublish("page", sql`${pages.key}`),
+      })
+      .from(pages)
+      .where(isNotNull(pages.published))
+      .orderBy(asc(pages.key)),
+    db
+      .select({
+        key: services.slug,
+        seo: services.seo,
+        publishedAt: services.publishedAt,
+        lastPublish: lastPublish("service", sql`${services.id}::text`),
+      })
+      .from(services)
+      .where(isNotNull(services.published))
+      .orderBy(asc(services.sortOrder), asc(services.slug)),
+    db
+      .select({
+        key: articles.slug,
+        seo: articles.seo,
+        publishedAt: articles.publishedAt,
+        lastPublish: lastPublish("article", sql`${articles.id}::text`),
+      })
+      .from(articles)
+      .where(isNotNull(articles.published))
+      .orderBy(desc(articles.publishedAt), asc(articles.slug)),
+  ])
+  return [
+    ...pageRows.map((row) => ({ kind: "page" as const, ...row })),
+    ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
+    ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
+  ]
 }
