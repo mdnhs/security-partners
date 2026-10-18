@@ -2,16 +2,26 @@ import "server-only"
 
 import { uuidv7 } from "uuidv7"
 
+import { PAGE_LABELS } from "@/lib/admin/page-labels"
+import {
+  isEditableSettingsKey,
+  SETTINGS_ENTRIES,
+} from "@/lib/admin/settings-keys"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { Paginated } from "@/lib/schemas/api/list"
 import {
+  cleanAltText,
   MAX_UPLOAD_BYTES,
+  MEDIA_ALT_MAX,
   type MediaItem,
   type MediaListQuery,
+  type MediaUpdateInput,
+  type MediaUsage,
 } from "@/lib/schemas/api/media"
-import { getDb } from "@/server/db/client"
+import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
+import { invalidate, tag } from "@/server/lib/cache-tags"
 import {
   ImageReadError,
   type ImageInfo,
@@ -25,18 +35,24 @@ import {
   type UploadMime,
 } from "@/server/lib/media-sniff"
 import { AppError, forbidden, notFound } from "@/server/lib/errors"
-import { getStorage, storageFor } from "@/server/lib/storage"
+import { FOREIGN_KEY_VIOLATION, pgErrorCode } from "@/server/lib/pg-errors"
+import { getStorage, type StorageName, storageFor } from "@/server/lib/storage"
 import { mediaUrl } from "@/server/lib/storage/paths"
 import { sanitizeSvg, SvgSanitizeError } from "@/server/lib/svg-sanitize"
 
 import {
+  deleteMediaRow,
   findMediaById,
   findServableMedia,
   insertMediaRow,
   listMediaRows,
+  listMediaUsages,
+  lockMediaRow,
   lockR2Settings,
   type R2SettingsStamp,
   readR2Settings,
+  updateMediaRow,
+  usageTargets,
 } from "./repo"
 
 type MediaRow = NonNullable<Awaited<ReturnType<typeof findMediaById>>>
@@ -68,15 +84,13 @@ const fileError = (message: string) =>
     fieldErrors: { file: [message] },
   })
 
-const ALT_MAX = 500
-
 function parseAlt(value: unknown): string {
   if (value === undefined || value === null || value === "") return ""
-  if (typeof value !== "string" || value.length > ALT_MAX)
+  if (typeof value !== "string" || value.length > MEDIA_ALT_MAX)
     throw new AppError("VALIDATION_FAILED", "Invalid input", {
-      fieldErrors: { alt: [`Up to ${ALT_MAX} characters`] },
+      fieldErrors: { alt: [`Up to ${MEDIA_ALT_MAX} characters`] },
     })
-  return value.trim()
+  return cleanAltText(value)
 }
 
 /**
@@ -189,21 +203,25 @@ export async function getMediaItem(
   return toItem(row)
 }
 
-/** POST /media/upload: stored with the active driver (R2 if configured, else disk). */
-export async function uploadMedia(
-  actor: Actor,
-  input: { file: unknown; alt?: unknown }
-): Promise<MediaItem> {
-  assertCan(actor, { media: ["create"] })
-  const alt = parseAlt(input.alt)
-  const prepared = await prepareUpload(input.file)
+/** Where a prepared upload was stored: its new key and the driver holding it. */
+type StoredFile = { key: string; driver: StorageName }
+
+/**
+ * Stores a prepared file under a new key with the active driver, then runs
+ * `write` (the row insert/update + audit) in one transaction. Shared by
+ * upload and replace, so both get the same R2 guard and orphan cleanup.
+ */
+async function storePrepared<T>(
+  prepared: PreparedUpload,
+  write: (tx: DbOrTx, stored: StoredFile) => Promise<T>
+): Promise<T> {
   const db = getDb()
   const r2Before = await readR2Settings(db)
   const storage = await getStorage(db)
   const key = newMediaKey(prepared.ext)
   await storage.put(key, prepared.bytes, prepared.mime)
   try {
-    const row = await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
       // An r2 row is only written while the R2 settings it was stored with
       // are still saved, held FOR SHARE so Disconnect waits for this commit.
       if (
@@ -214,32 +232,8 @@ export async function uploadMedia(
           "CONFLICT",
           "The storage settings changed during the upload. Try again."
         )
-      const created = await insertMediaRow(tx, {
-        key,
-        driver: storage.name,
-        mime: prepared.mime,
-        size: prepared.size,
-        width: prepared.width,
-        height: prepared.height,
-        blurDataUrl: prepared.blurDataUrl,
-        alt,
-        originalName: prepared.originalName,
-        createdBy: actor.userId,
-      })
-      await writeAudit(tx, actor, {
-        action: "media.uploaded",
-        entityType: "media",
-        entityId: created.id,
-        diff: {
-          name: prepared.originalName,
-          mime: prepared.mime,
-          size: prepared.size,
-          driver: storage.name,
-        },
-      })
-      return created
+      return write(tx, { key, driver: storage.name })
     })
-    return toItem(row)
   } catch (err) {
     await storage.delete(key).catch(() => {
       // The key only: driver errors may carry provider or path details.
@@ -247,6 +241,265 @@ export async function uploadMedia(
     })
     throw err
   }
+}
+
+/** Deletes a file no row points at any more (after the commit); failures are only logged. */
+async function deleteStoredFile(
+  file: { key: string; driver: "static" | "disk" | "r2" },
+  mediaId: string
+): Promise<void> {
+  // Static files live in public/ and stay; R2 rows without R2 settings cannot exist.
+  const storage = await storageFor(file.driver)
+  await storage?.delete(file.key).catch(() => {
+    console.warn(`[media] could not delete the old file of ${mediaId}`)
+  })
+}
+
+/** POST /media/upload: stored with the active driver (R2 if configured, else disk). */
+export async function uploadMedia(
+  actor: Actor,
+  input: { file: unknown; alt?: unknown }
+): Promise<MediaItem> {
+  assertCan(actor, { media: ["create"] })
+  const alt = parseAlt(input.alt)
+  const prepared = await prepareUpload(input.file)
+  const row = await storePrepared(prepared, async (tx, stored) => {
+    const created = await insertMediaRow(tx, {
+      key: stored.key,
+      driver: stored.driver,
+      mime: prepared.mime,
+      size: prepared.size,
+      width: prepared.width,
+      height: prepared.height,
+      blurDataUrl: prepared.blurDataUrl,
+      alt,
+      originalName: prepared.originalName,
+      createdBy: actor.userId,
+    })
+    await writeAudit(tx, actor, {
+      action: "media.uploaded",
+      entityType: "media",
+      entityId: created.id,
+      diff: {
+        name: prepared.originalName,
+        mime: prepared.mime,
+        size: prepared.size,
+        driver: stored.driver,
+      },
+    })
+    return created
+  })
+  return toItem(row)
+}
+
+const kindOf = (mime: string) =>
+  mime.startsWith("image/") ? "image" : "document"
+
+function describeUsage(
+  usage: { entityType: string; entityId: string; field: string },
+  names: Map<string, string>
+): MediaUsage {
+  const { entityType: type, entityId: id } = usage
+  const name = names.get(`${type}:${id}`) ?? ""
+  const with_ = (label: string, href: string | null) => ({
+    ...usage,
+    label,
+    href,
+  })
+  switch (type) {
+    case "page":
+      return with_(
+        `${PAGE_LABELS[id as keyof typeof PAGE_LABELS] ?? id} page`,
+        `/admin/pages/${id}`
+      )
+    case "settings":
+      return isEditableSettingsKey(id)
+        ? with_(
+            `Settings › ${SETTINGS_ENTRIES[id].label}`,
+            `/admin/settings/${id}`
+          )
+        : with_(`Settings › ${id}`, null)
+    case "service":
+      return with_(`Service: ${name}`, `/admin/services/${id}`)
+    case "article":
+      return with_(`Article: ${name}`, `/admin/articles/${id}`)
+    case "team":
+      return with_(`Team: ${name}`, `/admin/team?edit=${id}`)
+    case "client":
+      return with_(`Client: ${name}`, `/admin/clients?edit=${id}`)
+    case "groupCompany":
+      return with_(
+        `Group company: ${name}`,
+        `/admin/group-companies?edit=${id}`
+      )
+    default:
+      return with_(`${type} ${id}`, null)
+  }
+}
+
+async function usagesOf(db: DbOrTx, id: string): Promise<MediaUsage[]> {
+  const rows = await listMediaUsages(db, id)
+  const names = await usageTargets(db, rows)
+  return rows.map((row) => describeUsage(row, names))
+}
+
+const inUse = (usages: MediaUsage[]) =>
+  new AppError(
+    "CONFLICT",
+    usages.length > 0
+      ? `This file is used in ${usages.length} place${usages.length === 1 ? "" : "s"}. Choose another file there first.`
+      : "This file is still used on the site. Choose another file there first.",
+    { current: { usages } }
+  )
+
+/** Where a file is used, with readable labels and admin links. */
+export async function listUsages(
+  actor: Actor,
+  id: string
+): Promise<{ items: MediaUsage[] }> {
+  assertCan(actor, { media: ["read"] })
+  const db = getDb()
+  if (!(await findMediaById(db, id))) throw notFound("Media")
+  return { items: await usagesOf(db, id) }
+}
+
+/** Alt text and focal point (spec §8.1). Media is not versioned: last write wins. */
+export async function updateMedia(
+  actor: Actor,
+  id: string,
+  input: MediaUpdateInput
+): Promise<MediaItem> {
+  assertCan(actor, { media: ["update"] })
+  const row = await getDb().transaction(async (tx) => {
+    const existing = await lockMediaRow(tx, id)
+    if (!existing) throw notFound("Media")
+    const patch: Parameters<typeof updateMediaRow>[2] = {}
+    if (input.alt !== undefined) patch.alt = cleanAltText(input.alt)
+    if (input.focal !== undefined) {
+      patch.focalX = input.focal?.x ?? null
+      patch.focalY = input.focal?.y ?? null
+    }
+    const updated = await updateMediaRow(tx, id, patch)
+    if (!updated) throw notFound("Media")
+    await writeAudit(tx, actor, {
+      action: "media.updated",
+      entityType: "media",
+      entityId: id,
+      diff: {
+        ...(input.alt !== undefined
+          ? { alt: { from: existing.alt, to: updated.alt } }
+          : {}),
+        ...(input.focal !== undefined
+          ? {
+              focal: {
+                from:
+                  existing.focalX === null || existing.focalY === null
+                    ? null
+                    : { x: existing.focalX, y: existing.focalY },
+                to: input.focal,
+              },
+            }
+          : {}),
+      },
+    })
+    return updated
+  })
+  invalidate(tag.media(id))
+  return toItem(row)
+}
+
+/** Refused while the file is used anywhere (media_usages RESTRICT, ledger ruling). */
+export async function deleteMedia(
+  actor: Actor,
+  id: string
+): Promise<{ ok: true }> {
+  assertCan(actor, { media: ["delete"] })
+  const row = await getDb().transaction(async (tx) => {
+    const existing = await lockMediaRow(tx, id)
+    if (!existing) throw notFound("Media")
+    const usages = await usagesOf(tx, id)
+    if (usages.length > 0) throw inUse(usages)
+    try {
+      await deleteMediaRow(tx, id)
+    } catch (err) {
+      // A RESTRICT FK (team photo, client/group logo, or a usage row written
+      // after the check) still points at it.
+      if (pgErrorCode(err) === FOREIGN_KEY_VIOLATION) throw inUse([])
+      throw err
+    }
+    await writeAudit(tx, actor, {
+      action: "media.deleted",
+      entityType: "media",
+      entityId: id,
+      diff: {
+        key: existing.key,
+        driver: existing.driver,
+        name: existing.originalName,
+      },
+    })
+    return existing
+  })
+  await deleteStoredFile(row, id)
+  invalidate(tag.media(id))
+  return { ok: true }
+}
+
+/**
+ * New file for the same media row (spec §8.1 "replace"): usages keep
+ * pointing at the id; the new key makes a new immutable URL. Same pipeline
+ * as an upload (sniffing, sanitising, re-encoding, active driver, R2 guard);
+ * the old file is deleted only after the commit.
+ */
+export async function replaceMedia(
+  actor: Actor,
+  id: string,
+  input: { file: unknown }
+): Promise<MediaItem> {
+  assertCan(actor, { media: ["update"] })
+  const existing = await findMediaById(getDb(), id)
+  if (!existing) throw notFound("Media")
+  const prepared = await prepareUpload(input.file)
+  if (kindOf(prepared.mime) !== kindOf(existing.mime))
+    throw fileError(
+      kindOf(existing.mime) === "image"
+        ? "Replace an image with another image, so the pages using it keep working"
+        : "Replace a document with another PDF"
+    )
+  const { updated, old } = await storePrepared(prepared, async (tx, stored) => {
+    // Locked: a concurrent replace or delete runs before or after this one,
+    // so `old` is the key this commit really stops pointing at.
+    const current = await lockMediaRow(tx, id)
+    if (!current) throw notFound("Media")
+    const row = await updateMediaRow(tx, id, {
+      key: stored.key,
+      driver: stored.driver,
+      mime: prepared.mime,
+      size: prepared.size,
+      width: prepared.width,
+      height: prepared.height,
+      blurDataUrl: prepared.blurDataUrl,
+      originalName: prepared.originalName,
+      focalX: null,
+      focalY: null,
+    })
+    if (!row) throw notFound("Media")
+    await writeAudit(tx, actor, {
+      action: "media.replaced",
+      entityType: "media",
+      entityId: id,
+      diff: {
+        from: current.originalName || current.key,
+        to: prepared.originalName,
+        mime: prepared.mime,
+        size: prepared.size,
+        driver: stored.driver,
+      },
+    })
+    return { updated: row, old: current }
+  })
+  await deleteStoredFile(old, id)
+  invalidate(tag.media(id))
+  return toItem(updated)
 }
 
 /**

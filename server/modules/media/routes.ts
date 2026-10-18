@@ -2,7 +2,7 @@ import "server-only"
 
 import { Hono } from "hono"
 
-import { mediaListQuery } from "@/lib/schemas/api/media"
+import { mediaListQuery, mediaUpdateInput } from "@/lib/schemas/api/media"
 import { idParam } from "@/lib/schemas/api/params"
 import type { AppEnv } from "@/server/api/context"
 import { actorOf, can } from "@/server/api/middleware/auth"
@@ -35,6 +35,45 @@ export const mediaRoutes = new Hono<AppEnv>()
   })
   .get("/:id", can({ media: ["read"] }), zv("param", idParam), async (c) =>
     c.json(await service.getMediaItem(actorOf(c), c.req.valid("param").id), 200)
+  )
+  .patch(
+    "/:id",
+    can({ media: ["update"] }),
+    zv("param", idParam),
+    zv("json", mediaUpdateInput),
+    async (c) =>
+      c.json(
+        await service.updateMedia(
+          actorOf(c),
+          c.req.valid("param").id,
+          c.req.valid("json")
+        ),
+        200
+      )
+  )
+  .delete("/:id", can({ media: ["delete"] }), zv("param", idParam), async (c) =>
+    c.json(await service.deleteMedia(actorOf(c), c.req.valid("param").id), 200)
+  )
+  .get(
+    "/:id/usages",
+    can({ media: ["read"] }),
+    zv("param", idParam),
+    async (c) =>
+      c.json(await service.listUsages(actorOf(c), c.req.valid("param").id), 200)
+  )
+  .post(
+    "/:id/replace",
+    can({ media: ["update"] }),
+    zv("param", idParam),
+    async (c) => {
+      const form = await formOf(c)
+      return c.json(
+        await service.replaceMedia(actorOf(c), c.req.valid("param").id, {
+          file: form.file,
+        }),
+        200
+      )
+    }
   )
 
 const SVG_CSP =

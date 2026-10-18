@@ -5,6 +5,7 @@ import type { DbOrTx } from "@/server/db/client"
 import {
   deleteMediaUsages,
   existingMediaIds,
+  listMediaReferencingEntities,
   replaceMediaUsages,
 } from "@/server/modules/media/repo"
 
@@ -73,4 +74,24 @@ export async function clearMediaUsages(
   entityId: string
 ): Promise<void> {
   await deleteMediaUsages(tx, entityType, entityId)
+}
+
+/**
+ * Recomputes media_usages for every entity that can reference media
+ * (ledger carry: seeded references were never tracked). Same shapes as the
+ * services' syncs, so the rows equal what the next save would write.
+ * Returns the number of usage rows.
+ */
+export async function backfillMediaUsages(tx: DbOrTx): Promise<number> {
+  let total = 0
+  for (const entity of await listMediaReferencingEntities(tx))
+    total += (
+      await syncMediaUsages(
+        tx,
+        entity.entityType,
+        entity.entityId,
+        ...entity.values
+      )
+    ).length
+  return total
 }

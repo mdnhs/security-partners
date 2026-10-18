@@ -11,18 +11,43 @@ import {
   like,
   notLike,
   or,
+  sql,
 } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import {
+  articles,
+  clients,
+  groupCompanies,
   media,
   type MEDIA_DRIVERS,
   mediaUsages,
+  pages,
+  services,
   settings,
+  teamMembers,
 } from "@/server/db/schema"
+
+type MediaRow = typeof media.$inferSelect
 
 export async function findMediaById(db: DbOrTx, id: string) {
   const [row] = await db.select().from(media).where(eq(media.id, id))
+  return row ?? null
+}
+
+/**
+ * Same, FOR UPDATE until the transaction ends: replace, edit and delete of
+ * one file run one after another (a second replace sees the first one's key).
+ */
+export async function lockMediaRow(
+  db: DbOrTx,
+  id: string
+): Promise<MediaRow | null> {
+  const [row] = await db
+    .select()
+    .from(media)
+    .where(eq(media.id, id))
+    .for("update")
   return row ?? null
 }
 
@@ -192,4 +217,194 @@ export async function lockR2Settings(
     .where(eq(settings.key, R2_SETTINGS_KEY))
     .for("share")
   return row ?? null
+}
+
+/** Usage rows of one file (usages panel, delete refusal). */
+export function listMediaUsages(db: DbOrTx, mediaId: string) {
+  return db
+    .select({
+      entityType: mediaUsages.entityType,
+      entityId: mediaUsages.entityId,
+      field: mediaUsages.field,
+    })
+    .from(mediaUsages)
+    .where(eq(mediaUsages.mediaId, mediaId))
+    .orderBy(
+      asc(mediaUsages.entityType),
+      asc(mediaUsages.entityId),
+      asc(mediaUsages.field)
+    )
+}
+
+/** Display names of usage targets, keyed "<entityType>:<entityId>". */
+export async function usageTargets(
+  db: DbOrTx,
+  usages: { entityType: string; entityId: string }[]
+): Promise<Map<string, string>> {
+  const ids = (type: string) => [
+    ...new Set(
+      usages.filter((u) => u.entityType === type).map((u) => u.entityId)
+    ),
+  ]
+  const names = new Map<string, string>()
+  const add = (type: string, rows: { id: string; name: string | null }[]) => {
+    for (const row of rows) names.set(`${type}:${row.id}`, row.name ?? "")
+  }
+  const serviceIds = ids("service")
+  if (serviceIds.length)
+    add(
+      "service",
+      await db
+        .select({
+          id: services.id,
+          name: sql<string | null>`${services.draft}->>'title'`,
+        })
+        .from(services)
+        .where(inArray(services.id, serviceIds))
+    )
+  const articleIds = ids("article")
+  if (articleIds.length)
+    add(
+      "article",
+      await db
+        .select({
+          id: articles.id,
+          name: sql<string | null>`${articles.draft}->>'title'`,
+        })
+        .from(articles)
+        .where(inArray(articles.id, articleIds))
+    )
+  const teamIds = ids("team")
+  if (teamIds.length)
+    add(
+      "team",
+      await db
+        .select({ id: teamMembers.id, name: teamMembers.name })
+        .from(teamMembers)
+        .where(inArray(teamMembers.id, teamIds))
+    )
+  const clientIds = ids("client")
+  if (clientIds.length)
+    add(
+      "client",
+      await db
+        .select({ id: clients.id, name: clients.name })
+        .from(clients)
+        .where(inArray(clients.id, clientIds))
+    )
+  const groupIds = ids("groupCompany")
+  if (groupIds.length)
+    add(
+      "groupCompany",
+      await db
+        .select({ id: groupCompanies.id, name: groupCompanies.name })
+        .from(groupCompanies)
+        .where(inArray(groupCompanies.id, groupIds))
+    )
+  return names
+}
+
+export async function updateMediaRow(
+  db: DbOrTx,
+  id: string,
+  patch: Partial<
+    Omit<typeof media.$inferInsert, "id" | "createdAt" | "createdBy">
+  >
+): Promise<MediaRow | null> {
+  const [row] = await db
+    .update(media)
+    .set(patch)
+    .where(eq(media.id, id))
+    .returning()
+  return row ?? null
+}
+
+/** Throws the FK error (23503) when a RESTRICT reference still points at it. */
+export async function deleteMediaRow(db: DbOrTx, id: string): Promise<boolean> {
+  const deleted = await db
+    .delete(media)
+    .where(eq(media.id, id))
+    .returning({ id: media.id })
+  return deleted.length > 0
+}
+
+/**
+ * Every entity that can reference media, with the values its service syncs
+ * (Phase 4/5 shapes: versioned JSON draft + published; collections as
+ * { photo } / { logo }). Integration settings never hold media.
+ */
+export async function listMediaReferencingEntities(
+  db: DbOrTx
+): Promise<{ entityType: string; entityId: string; values: unknown[] }[]> {
+  const out: { entityType: string; entityId: string; values: unknown[] }[] = []
+  for (const row of await db
+    .select({ key: pages.key, draft: pages.draft, published: pages.published })
+    .from(pages))
+    out.push({
+      entityType: "page",
+      entityId: row.key,
+      values: [row.draft, row.published],
+    })
+  for (const row of await db
+    .select({
+      key: settings.key,
+      draft: settings.draft,
+      published: settings.published,
+    })
+    .from(settings)
+    .where(notLike(settings.key, "integrations.%")))
+    out.push({
+      entityType: "settings",
+      entityId: row.key,
+      values: [row.draft, row.published],
+    })
+  for (const row of await db
+    .select({
+      id: services.id,
+      draft: services.draft,
+      published: services.published,
+    })
+    .from(services))
+    out.push({
+      entityType: "service",
+      entityId: row.id,
+      values: [row.draft, row.published],
+    })
+  for (const row of await db
+    .select({
+      id: articles.id,
+      draft: articles.draft,
+      published: articles.published,
+    })
+    .from(articles))
+    out.push({
+      entityType: "article",
+      entityId: row.id,
+      values: [row.draft, row.published],
+    })
+  for (const row of await db
+    .select({ id: teamMembers.id, photoId: teamMembers.photoId })
+    .from(teamMembers))
+    out.push({
+      entityType: "team",
+      entityId: row.id,
+      values: [{ photo: row.photoId ? { mediaId: row.photoId } : null }],
+    })
+  for (const row of await db
+    .select({ id: clients.id, logoId: clients.logoId })
+    .from(clients))
+    out.push({
+      entityType: "client",
+      entityId: row.id,
+      values: [{ logo: { mediaId: row.logoId } }],
+    })
+  for (const row of await db
+    .select({ id: groupCompanies.id, logoId: groupCompanies.logoId })
+    .from(groupCompanies))
+    out.push({
+      entityType: "groupCompany",
+      entityId: row.id,
+      values: [{ logo: { mediaId: row.logoId } }],
+    })
+  return out
 }

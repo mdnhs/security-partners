@@ -23,6 +23,7 @@ import {
   teamMembers,
   users,
 } from "@/server/db/schema"
+import { backfillMediaUsages } from "@/server/lib/media-usages"
 import { PAGE_KEYS, PAGES, templateSchemaFor } from "@/templates/registry"
 
 import { contentFixtures } from "./fixtures"
@@ -242,6 +243,10 @@ export async function seedContent(
       )
       .onConflictDoNothing({ target: groupCompanies.name })
       .returning({ id: groupCompanies.id })
+
+    // Ledger carry: seeded references were never in media_usages. Recomputed
+    // from the current rows on every seed, so admin edits are kept.
+    await backfillMediaUsages(tx)
 
     return {
       media: insertedMedia.length,
