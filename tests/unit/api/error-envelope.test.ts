@@ -88,6 +88,13 @@ describe("API error envelope", () => {
     expect(res.headers.get("cache-control")).toBe("no-store")
   })
 
+  it("/api sends the same HSTS value as the pages (next.config.ts)", async () => {
+    const res = await app.request("/api/v1/health/live")
+    expect(res.headers.get("strict-transport-security")).toBe(
+      "max-age=31536000"
+    )
+  })
+
   it("unknown route → 404 envelope with requestId (uuid v7, echoed in X-Request-Id)", async () => {
     const res = await app.request("/api/v1/nope")
     expect(res.status).toBe(404)
@@ -182,6 +189,18 @@ describe("API error envelope", () => {
       message: "Internal server error",
     })
     expect(text).not.toContain("secret upstream detail")
+  })
+
+  it("HTTPException 5xx is logged server-side with the request id", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const res = await app.request("/api/v1/__test/http-exception-5xx", {
+      headers: { "x-request-id": "0190a6e0-0000-7000-8000-00000000abcd" },
+    })
+    expect(res.status).toBe(502)
+    expect(error).toHaveBeenCalledWith(
+      "[api] 0190a6e0-0000-7000-8000-00000000abcd HTTP 502: secret upstream detail"
+    )
+    error.mockRestore()
   })
 
   it("zv → 422 VALIDATION_FAILED with dotted fieldErrors", async () => {

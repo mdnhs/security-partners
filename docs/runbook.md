@@ -19,7 +19,11 @@ once per page load. Drafts never run on the site; publishing applies at once.
   Pixel. The choice is kept in the `sp_consent` cookie for 6 months; the
   "Cookie settings" button reopens the banner, and withdrawing a category
   clears the GA/Meta cookies and reloads the page.
-- The site sends no Content-Security-Policy today. If one is added later, it
+- Pages send a Content-Security-Policy that restricts no source:
+  `base-uri 'self'; object-src 'none'; frame-ancestors 'self'` (`'none'` under
+  `/admin`, next.config.ts). Public pages are Cache Components static shells,
+  so a per-request nonce is not possible without making every page dynamic
+  (Next CSP guide). If a stricter policy (`script-src` etc.) is added later, it
   must allow:
   - `script-src`: the inline loaders (a per-request nonce on
     `#sp-custom-code-*`, or `'unsafe-inline'`), Next's own scripts (inline
@@ -35,3 +39,31 @@ once per page load. Drafts never run on the site; publishing applies at once.
 - To remove everything quickly: clear both fields and publish (no deploy).
   To stop all tracking at once: switch "Load tracking" off under
   Marketing › Tracking and publish (the banner disappears too).
+
+## Rate limits at the proxy (Traefik)
+
+The app limits only sign-in, two-factor and password resets (Better Auth,
+production only), the public enquiry form (`public_rate_limits`) and AI chat
+(30 messages per user per 10 minutes). Add a Traefik `rateLimit` middleware in
+Dokploy for the paths that cost CPU or money per request and have no limit of
+their own:
+
+- `/og/*` — share-card images are rendered on demand (cached afterwards, but
+  every new URL variant renders once);
+- `/api/v1/admin/ai/*` — beyond the per-user chat limit, a burst limit per
+  client IP protects the provider bill if a session is stolen;
+- `/api/v1/admin/preview` — every call switches draft mode on and renders an
+  uncached page.
+
+A per-IP average of about 10 requests/second with a burst of 20 leaves normal
+use untouched. This only works if Traefik sets the client IP itself (no
+`forwardedHeaders.insecure` or trusted IPs on the public entrypoint).
+
+## Dependency audit
+
+`pnpm audit:deps` runs `pnpm audit --prod --audit-level high`. It checks
+**production dependencies only** — the packages the standalone image ships.
+Dev and build tools (drizzle-kit, eslint, shadcn, vitest, playwright) are not
+covered by the gate. Their advisories (e.g. the moderate `esbuild` advisory via
+drizzle-kit) only affect the developer machine and CI. Run a full
+`pnpm audit` before a release and review anything high or critical by hand.

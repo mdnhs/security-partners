@@ -150,6 +150,8 @@ describe("dbSync (spec §14 db:sync)", () => {
       backupStore: diskBackupStore(dir),
     })
     expect(report.ok).toBe(true)
+    // The source's SMTP password and TOTP secret proved --from-secret.
+    expect(report.sourceSecretsChecked).toBe(2)
     expect(report.backup).toMatch(/^sp-sp_test-\d{8}T\d{6}Z\.dump$/)
     expect(await readdir(dir)).toContain(report.backup)
     expect(report.rotate.reencrypted).toEqual(["integrations.smtp.password"])

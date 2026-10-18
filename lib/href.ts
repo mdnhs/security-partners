@@ -5,7 +5,7 @@
 /** A whole-value placeholder such as "{phone24hHref}". */
 export const WHOLE_PLACEHOLDER = /^\{[A-Za-z]\w*\}$/
 const ABSOLUTE = /^(https?:\/\/|tel:|mailto:)\S+$/i
-const CONTROL_CHAR = /[\u0000-\u001f\u007f-\u009f]/
+export const CONTROL_CHAR = /[\u0000-\u001f\u007f-\u009f]/
 /** Browsers treat "\" as "/" and skip tabs/newlines: "/\host" and "/\t/host" are protocol-relative. */
 const UNSAFE_PREFIX = /[\\\s]/
 
