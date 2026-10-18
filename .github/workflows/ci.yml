@@ -195,7 +195,8 @@ jobs:
           exit 1
       - run: curl -fsS -o /dev/null http://127.0.0.1:3000/
       # First start seeded the empty database; a second run changes nothing.
-      - run: docker logs sp 2>&1 | grep -F "[db:seed] empty database (no pages): content seeded"
+      - run: |
+          docker logs sp 2>&1 | grep -F "[db:seed] empty database (no pages): content seeded"
       - run: docker exec sp node scripts/dist/seed.mjs --if-empty | grep -F "auto-seed skipped, no data changed"
       # Loopback reachable inside the container (scheduler, HEALTHCHECK).
       - run: docker exec sp wget -qO- http://127.0.0.1:3000/api/v1/health/live
