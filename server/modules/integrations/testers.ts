@@ -15,7 +15,8 @@ import type {
   SmtpConfig,
   TurnstileConfig,
 } from "@/lib/schemas/integrations"
-import { createR2Client } from "@/server/lib/r2-client"
+import { isTimeoutError } from "@/server/lib/errors"
+import { createR2Client, r2Failure } from "@/server/lib/r2-client"
 import { isLoopbackHost } from "@/server/lib/smtp-target"
 
 /** "Test connection" outcome: a failure is a result, not an exception. */
@@ -37,11 +38,6 @@ const errorCode = (err: unknown) => {
   const code = (err as { code?: unknown } | null)?.code
   return typeof code === "string" ? code : null
 }
-const isTimeout = (err: unknown) =>
-  err instanceof Error &&
-  (err.name === "TimeoutError" ||
-    err.name === "AbortError" ||
-    errorCode(err) === "ETIMEDOUT")
 
 /** Error texts may echo what they were given: mask every secret (4+ chars). */
 export function redactSecrets(
@@ -136,15 +132,8 @@ export async function testR2(
         return fail(
           "Access denied: check the access key ID, the secret and the token's bucket permissions."
         )
-      return fail(
-        status
-          ? `R2 answered with HTTP ${status}.`
-          : "R2 answered with an error."
-      )
     }
-    return fail(
-      isTimeout(err) ? "R2 did not respond in time." : "Could not reach R2."
-    )
+    return fail(r2Failure(err).message)
   } finally {
     client.destroy()
   }
@@ -181,7 +170,7 @@ export async function testTurnstile(
     return pass("Cloudflare accepted the secret key.")
   } catch (err) {
     return fail(
-      isTimeout(err)
+      isTimeoutError(err)
         ? "Cloudflare did not respond in time."
         : "Could not reach Cloudflare."
     )
@@ -226,7 +215,7 @@ export async function testAi(
     return fail(`The provider answered ${res.status}.`)
   } catch (err) {
     return fail(
-      isTimeout(err)
+      isTimeoutError(err)
         ? "The provider did not respond in time."
         : "Could not reach the provider."
     )

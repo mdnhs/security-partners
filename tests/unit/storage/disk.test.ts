@@ -1,5 +1,12 @@
 import { existsSync } from "node:fs"
-import { mkdtemp, readdir, rm } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -42,7 +49,56 @@ describe("diskStorage", () => {
 
   it("test() proves the directory is writable", async () => {
     await expect(diskStorage(root).test()).resolves.toBeUndefined()
-    expect(await readdir(root)).toEqual(["healthcheck"])
+    expect(await readdir(root)).toEqual([])
+  })
+
+  it("reads a directory or a path through a file as missing", async () => {
+    const disk = diskStorage(root)
+    await mkdir(join(root, key), { recursive: true })
+    expect(await disk.read(key)).toBeNull() // EISDIR
+    await writeFile(join(root, "2027"), "x")
+    expect(await disk.read("2027/01/a.png")).toBeNull() // ENOTDIR
+  })
+
+  describe("symlinks never lead outside the root", () => {
+    let outside: string
+    beforeEach(async () => {
+      outside = await mkdtemp(join(tmpdir(), "sp-outside-"))
+      await mkdir(join(outside, "10"))
+      await writeFile(join(outside, "10", key.split("/")[2]), "secret")
+      await writeFile(join(outside, "secret.png"), "secret")
+      await symlink(outside, join(root, "2026")) // year dir → outside
+    })
+    afterEach(async () => {
+      await rm(outside, { recursive: true, force: true })
+    })
+
+    it("refuses to write, read or delete through a symlinked directory", async () => {
+      const disk = diskStorage(root)
+      const other = "2026/10/0190a6e0-0000-7000-8000-000000000002.png"
+      await expect(
+        disk.put(other, new Uint8Array([1]), "image/png")
+      ).rejects.toThrow(/leaves the uploads directory/)
+      await expect(
+        disk.put("2026/11/x.png", new Uint8Array([1]), "image/png")
+      ).rejects.toThrow(/leaves the uploads directory/)
+      expect((await readdir(outside)).sort()).toEqual(["10", "secret.png"])
+      expect(await readdir(join(outside, "10"))).toEqual([key.split("/")[2]])
+      expect(await disk.read(key)).toBeNull()
+      await expect(disk.delete(key)).rejects.toThrow(
+        /leaves the uploads directory/
+      )
+      expect(existsSync(join(outside, "10", key.split("/")[2]))).toBe(true)
+    })
+
+    it("does not follow a symlinked file outside the root", async () => {
+      await mkdir(join(root, "2025/01"), { recursive: true })
+      await symlink(join(outside, "secret.png"), join(root, "2025/01/link.png"))
+      const disk = diskStorage(root)
+      expect(await disk.read("2025/01/link.png")).toBeNull()
+      await disk.delete("2025/01/link.png") // removes the link only
+      expect(existsSync(join(outside, "secret.png"))).toBe(true)
+    })
   })
 
   it("defaults to /data/uploads only when /data exists", () => {

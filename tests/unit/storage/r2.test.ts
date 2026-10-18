@@ -1,8 +1,17 @@
-import { NoSuchKey, type S3Client } from "@aws-sdk/client-s3"
-import { describe, expect, it, vi } from "vitest"
+import {
+  NoSuchKey,
+  type S3Client,
+  S3ServiceException,
+} from "@aws-sdk/client-s3"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { R2Config } from "@/lib/schemas/integrations"
-import { createR2Client, r2Endpoint } from "@/server/lib/r2-client"
+import {
+  createR2Client,
+  r2Endpoint,
+  resetR2Client,
+  sharedR2Client,
+} from "@/server/lib/r2-client"
 import { r2Storage } from "@/server/lib/storage/r2"
 
 const config: R2Config = {
@@ -92,7 +101,6 @@ describe("r2Storage", () => {
   })
 
   it("maps other R2 failures to fixed messages (no provider text, no secrets)", async () => {
-    const { S3ServiceException } = await import("@aws-sdk/client-s3")
     const denied = new S3ServiceException({
       name: "AccessDenied",
       $fault: "client",
@@ -128,5 +136,46 @@ describe("r2Storage", () => {
         expect((err as Error & { cause?: unknown }).cause).toBeUndefined()
       }
     }
+  })
+
+  it("a missing bucket is a failure, not a missing file", async () => {
+    const { client } = fakeClient(() => {
+      throw new S3ServiceException({
+        name: "NoSuchBucket",
+        $fault: "client",
+        message: "The specified bucket does not exist",
+        $metadata: { httpStatusCode: 404 },
+      })
+    })
+    await expect(r2Storage(config, client).read(KEY)).rejects.toThrow(
+      /^R2 answered with HTTP 404\.$/
+    )
+  })
+})
+
+describe("sharedR2Client (one keep-alive client per R2 settings)", () => {
+  afterEach(() => {
+    resetR2Client()
+    vi.restoreAllMocks()
+  })
+
+  it("reuses the client while account and keys stay the same", () => {
+    const first = sharedR2Client(config)
+    expect(sharedR2Client({ ...config })).toBe(first)
+    expect(sharedR2Client({ ...config, bucket: "other" })).toBe(first)
+    expect(r2Storage(config)).toBeDefined()
+    expect(sharedR2Client(config)).toBe(first)
+  })
+
+  it("destroys the old client when the settings change or R2 is reset", () => {
+    const first = sharedR2Client(config)
+    const destroyFirst = vi.spyOn(first, "destroy")
+    const second = sharedR2Client({ ...config, secretAccessKey: "NEW" })
+    expect(second).not.toBe(first)
+    expect(destroyFirst).toHaveBeenCalledOnce()
+    const destroySecond = vi.spyOn(second, "destroy")
+    resetR2Client()
+    expect(destroySecond).toHaveBeenCalledOnce()
+    expect(sharedR2Client(config)).not.toBe(second)
   })
 })

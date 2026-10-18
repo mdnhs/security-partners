@@ -46,6 +46,13 @@ export class AppError extends Error {
   }
 }
 
+/** A timeout from fetch (AbortSignal.timeout), the AWS SDK or a socket. */
+export const isTimeoutError = (err: unknown): boolean =>
+  err instanceof Error &&
+  (err.name === "TimeoutError" ||
+    err.name === "AbortError" ||
+    (err as { code?: unknown }).code === "ETIMEDOUT")
+
 export const notFound = (what: string) =>
   new AppError("NOT_FOUND", `${what} not found`)
 export const forbidden = () =>

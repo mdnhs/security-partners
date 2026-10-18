@@ -10,42 +10,19 @@ import {
 } from "@aws-sdk/client-s3"
 
 import type { R2Config } from "@/lib/schemas/integrations"
-import { createR2Client } from "@/server/lib/r2-client"
+import { r2Failure, sharedR2Client } from "@/server/lib/r2-client"
 
 import { IMMUTABLE_CACHE, keySegments, mediaFileUrl } from "./paths"
 import type { StorageDriver } from "./types"
 
+/** GetObject on a missing key. A missing bucket (NoSuchBucket) is a failure. */
 const isMissing = (err: unknown) =>
-  err instanceof S3ServiceException &&
-  (err.name === "NoSuchKey" || err.$metadata.httpStatusCode === 404)
-
-const isTimeout = (err: unknown) =>
-  err instanceof Error &&
-  (err.name === "TimeoutError" ||
-    err.name === "AbortError" ||
-    (err as { code?: unknown }).code === "ETIMEDOUT")
-
-/**
- * Fixed text for an R2 failure (Phase 6 Task 1 convention): provider
- * messages are never echoed and the original error is not kept as `cause`,
- * so nothing from the request (keys, endpoint) can reach logs or responses.
- */
-export function r2Failure(err: unknown): Error {
-  if (err instanceof S3ServiceException) {
-    const status = err.$metadata.httpStatusCode
-    return new Error(
-      status ? `R2 answered with HTTP ${status}.` : "R2 answered with an error."
-    )
-  }
-  return new Error(
-    isTimeout(err) ? "R2 did not respond in time." : "Could not reach R2."
-  )
-}
+  err instanceof S3ServiceException && err.name === "NoSuchKey"
 
 /** Cloudflare R2 through the S3 API (libraries notes §5.5). Private bucket; files are served by our origin. */
 export function r2Storage(
   config: R2Config,
-  client: S3Client = createR2Client(config)
+  client: S3Client = sharedR2Client(config)
 ): StorageDriver {
   const Bucket = config.bucket
   const send = async <T>(run: () => Promise<T>): Promise<T> => {

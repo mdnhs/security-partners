@@ -25,6 +25,7 @@ import {
   forbidden,
   notFound,
 } from "@/server/lib/errors"
+import { resetR2Client } from "@/server/lib/r2-client"
 import { resolveSmtpTarget, type SmtpTarget } from "@/server/lib/smtp-target"
 import { countMediaByDriver } from "@/server/modules/media/repo"
 
@@ -370,6 +371,9 @@ export async function deleteIntegration(
       entityId: key,
     })
   })
+  // The shared storage client must not outlive its settings (a save is
+  // picked up by its changed fingerprint, server/lib/r2-client.ts).
+  if (key === "integrations.r2") resetR2Client()
   return { ok: true }
 }
 
