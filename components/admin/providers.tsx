@@ -58,8 +58,18 @@ export function AdminProviders({
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         {children}
-        {/* Bottom right: never over the topbar or the sticky editor bar (M5). */}
-        <Toaster position="bottom-right" richColors closeButton />
+        {/*
+         * Bottom left of the content panel (M5, re-review N4): never over the
+         * topbar, the sticky editor bar, a right sheet's footer or the AI
+         * composer; from lg it clears the 20 rem sidebar (+ gutters). Phones
+         * keep sonner's full-width bottom (its own --mobile-offset-*).
+         */}
+        <Toaster
+          position="bottom-left"
+          className="toaster group lg:[--offset-left:calc(20rem+2rem)]!"
+          richColors
+          closeButton
+        />
       </TooltipProvider>
     </QueryClientProvider>
   )

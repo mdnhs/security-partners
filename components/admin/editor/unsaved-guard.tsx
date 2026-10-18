@@ -28,6 +28,8 @@ export const UNSAVED_MESSAGE =
 
 /** History-state key of the guard entry pushed while something is dirty. */
 const SENTINEL_KEY = "__spUnsaved"
+/** History-state key marking the page's own entry below the guard entry. */
+const OWN_KEY = "__spUnsavedOwn"
 
 type UnsavedRegistry = {
   /** Marks one edit surface dirty until the returned function runs. */
@@ -50,18 +52,23 @@ const UnsavedContext = createContext<UnsavedRegistry | null>(null)
  * - same-origin `<a href>` clicks (sidebar, breadcrumbs, record links),
  * - programmatic navigation through `navigate()` (⌘K palette) and
  *   `confirmLeave()` (sign-out),
- * - the browser's Back button: while dirty a guard history entry (same URL)
- *   sits on top, so Back lands on the page's own entry and the dialog asks;
- *   "Keep editing" puts the guard entry back, "Leave" goes back for real,
+ * - the browser's Back button: on the first unsaved edit the current entry
+ *   is marked as the page's own and a guard entry (same URL) is pushed above
+ *   it. Only landing on that OWN entry asks; landing on the guard entry
+ *   (Back from a later ?tab= step, or Forward) is silent. "Keep editing"
+ *   pushes the guard entry again, "Leave" goes back for real (and guards
+ *   again if that lands on the same, still dirty page),
  * - reloads and closing the tab: the browser's own beforeunload prompt.
+ * Links are only intercepted while dirty; a confirmed click is re-dispatched
+ * to the link, so its own options (scroll={false}, replace) still apply.
+ * /api/* and download links are never intercepted.
  *
  * Limits (App Router has no navigation-blocking API): jumping several entries
- * at once from the browser's history menu, Forward after a Back, and code that
- * calls `router.push()` directly are not intercepted. The guard entry is
- * pushed on a page's first unsaved edit and kept for the visit: a Back press
- * with nothing unsaved passes straight through, and guarded links and ⌘K
- * replace it, so it does not linger in the history (a direct `router.push()`
- * leaves it behind as one same-page step).
+ * at once from the browser's history menu, and code that calls
+ * `router.push()` directly, are not intercepted. The guard entry is kept for
+ * the page visit: once saved, a Back press onto the own entry passes straight
+ * through to the previous page; a link followed after saving leaves the guard
+ * entry behind as one same-page Back step (⌘K replaces it instead).
  */
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
@@ -69,34 +76,52 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const tokens = useRef(new Set<symbol>())
   const [dirtyCount, setDirtyCount] = useState(0)
   const [prompt, setPrompt] = useState<((leave: boolean) => void) | null>(null)
+  /** The open prompt's resolver: a second ask() settles it as "stay". */
+  const pending = useRef<((leave: boolean) => void) | null>(null)
   const leavingRef = useRef(false)
-  /** URL the guard history entry was pushed for; null when none is armed. */
-  const armedHref = useRef<string | null>(null)
-  const [armed, setArmed] = useState(false)
+  /**
+   * The guard for this page visit: `own` marks the page's own history entry
+   * (where the first unsaved edit happened), and a guard entry sits above
+   * it. null when nothing is armed.
+   */
+  const guard = useRef<{ own: string; path: string } | null>(null)
+  /** A confirmed Back is under way: the next popstate is its landing. */
+  const backing = useRef(false)
+  /** A confirmed link click re-dispatched to the link itself. */
+  const bypassClick = useRef(false)
 
   const ask = useCallback(
     () =>
       new Promise<boolean>((resolve) => {
-        setPrompt(() => (leave: boolean) => {
+        // Never leave an earlier prompt's promise dangling: it stays.
+        pending.current?.(false)
+        const settle = (leave: boolean) => {
+          if (pending.current !== settle) return
+          pending.current = null
           setPrompt(null)
           resolve(leave)
-        })
+        }
+        pending.current = settle
+        setPrompt(() => settle)
       }),
     []
   )
 
+  /** Marks the current entry as the page's own and pushes the guard entry. */
   const arm = useCallback(() => {
-    armedHref.current = window.location.href
-    setArmed(true)
-    window.history.pushState(
-      { ...(window.history.state ?? {}), [SENTINEL_KEY]: true },
+    const own = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    guard.current = { own, path: window.location.pathname }
+    const state = (window.history.state ?? {}) as Record<string, unknown>
+    window.history.replaceState(
+      { ...state, [OWN_KEY]: own },
       "",
       window.location.href
     )
-  }, [])
-  const disarm = useCallback(() => {
-    armedHref.current = null
-    setArmed(false)
+    window.history.pushState(
+      { ...state, [SENTINEL_KEY]: own },
+      "",
+      window.location.href
+    )
   }, [])
 
   const registry = useMemo<UnsavedRegistry>(() => {
@@ -121,24 +146,23 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       async navigate(href) {
         if (!(await confirmLeave())) return false
         // On the guard entry, replace it: Back must not land on a stale copy.
-        if (armedHref.current === window.location.href) {
-          disarm()
-          router.replace(href)
-        } else router.push(href)
+        const onGuardEntry =
+          guard.current !== null &&
+          (window.history.state as Record<string, unknown> | null)?.[
+            SENTINEL_KEY
+          ] === guard.current.own
+        if (onGuardEntry) router.replace(href)
+        else router.push(href)
         return true
       },
       leaving: () => leavingRef.current,
     }
-  }, [ask, disarm, router])
+  }, [ask, router])
 
-  // Another page: its history entry is its own (any guard entry stays put).
-  const [seenPath, setSeenPath] = useState(pathname)
-  if (seenPath !== pathname) {
-    setSeenPath(pathname)
-    setArmed(false)
-  }
+  // Another page: the guard belonged to the previous one.
   useEffect(() => {
-    armedHref.current = null
+    if (guard.current && guard.current.path !== window.location.pathname)
+      guard.current = null
   }, [pathname])
 
   // A confirmed leave only covers that one navigation.
@@ -147,35 +171,59 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     if (dirty) leavingRef.current = false
   }, [dirty])
 
-  // The guard history entry: pushed on the first unsaved edit and kept for
-  // the page's lifetime (autosave flips dirty every few seconds; consuming
-  // and re-pushing it each time would churn the router).
+  // The guard entry: pushed on the first unsaved edit and kept for the
+  // page's visit (autosave flips dirty every few seconds; consuming and
+  // re-pushing it each time would churn the router).
   useEffect(() => {
-    if (dirty && armedHref.current === null) arm()
+    if (dirty && guard.current === null) arm()
   }, [dirty, arm])
 
   useEffect(() => {
     function onPopState() {
-      const href = armedHref.current
-      if (href === null) return
-      disarm()
-      // Several entries at once (history menu): the router is already leaving.
-      if (window.location.href !== href) return
+      const current = guard.current
+      if (!current) return
+      const state = (window.history.state ?? {}) as Record<string, unknown>
+      if (backing.current) {
+        // Where a confirmed Back landed. Still this page and still dirty
+        // (the entry below was the same page): guard again.
+        backing.current = false
+        guard.current = null
+        if (
+          window.location.pathname === current.path &&
+          tokens.current.size > 0
+        )
+          arm()
+        return
+      }
+      // Only Back onto the page's OWN entry leaves past the first edit. The
+      // guard entry itself (Back from a ?tab= step, or Forward) and other
+      // same-page steps are silent; another page is the router's.
+      if (state[OWN_KEY] !== current.own) return
       if (tokens.current.size === 0) {
         // Nothing to lose: this Back press continues to the previous page.
+        guard.current = null
         window.history.back()
         return
       }
       void ask().then((leave) => {
+        if (guard.current !== current) return
         if (leave) {
           leavingRef.current = true
+          backing.current = true
           window.history.back()
-        } else arm()
+        } else {
+          // Stay: put the guard entry back above the own entry.
+          window.history.pushState(
+            { ...state, [OWN_KEY]: undefined, [SENTINEL_KEY]: current.own },
+            "",
+            window.location.href
+          )
+        }
       })
     }
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
-  }, [ask, arm, disarm])
+  }, [ask, arm])
 
   // Reloads/closing the tab while dirty.
   useEffect(() => {
@@ -189,20 +237,28 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload)
   }, [dirty])
 
-  // In-app links: ask while dirty; on the guard entry, replace it.
+  // In-app links while dirty: ask, then let the link itself navigate (its
+  // own scroll/replace/prefetch behaviour is kept).
   useEffect(() => {
-    if (!dirty && !armed) return
+    if (!dirty) return
     function onClick(event: MouseEvent) {
-      const url = guardedLinkTarget(event)
-      if (!url) return
-      if (!dirty && armedHref.current !== window.location.href) return
+      if (bypassClick.current) {
+        bypassClick.current = false
+        return
+      }
+      const target = guardedLinkTarget(event)
+      if (!target) return
       event.preventDefault()
       event.stopPropagation()
-      void registry.navigate(`${url.pathname}${url.search}${url.hash}`)
+      void registry.confirmLeave().then((leave) => {
+        if (!leave || !target.anchor.isConnected) return
+        bypassClick.current = true
+        target.anchor.click()
+      })
     }
     document.addEventListener("click", onClick, true)
     return () => document.removeEventListener("click", onClick, true)
-  }, [dirty, armed, registry])
+  }, [dirty, registry])
 
   return (
     <UnsavedContext.Provider value={registry}>
@@ -238,7 +294,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 }
 
 /** The same-origin page a plain left click on a link would open, or null. */
-function guardedLinkTarget(event: MouseEvent): URL | null {
+function guardedLinkTarget(
+  event: MouseEvent
+): { url: URL; anchor: HTMLAnchorElement } | null {
   if (event.defaultPrevented || event.button !== 0) return null
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
     return null
@@ -248,8 +306,10 @@ function guardedLinkTarget(event: MouseEvent): URL | null {
   if (anchor.hasAttribute("download")) return null
   const url = new URL(anchor.href, window.location.href)
   if (url.origin !== window.location.origin) return null
+  // API routes (CSV exports, files) never unload the page.
+  if (url.pathname.startsWith("/api/")) return null
   if (url.pathname === window.location.pathname && url.hash) return null
-  return url
+  return { url, anchor }
 }
 
 /** The shell registry, or null outside the admin shell (tests, auth pages). */
