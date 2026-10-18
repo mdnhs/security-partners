@@ -1,6 +1,6 @@
 import "server-only"
 
-import { asc, eq } from "drizzle-orm"
+import { asc, inArray, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import {
@@ -33,13 +33,30 @@ export async function orderedIds(
   return rows.map((r) => r.id)
 }
 
-/** sortOrder = position in `ids` (caller's transaction). */
+/**
+ * sortOrder = position in `ids` (caller's transaction). The rows are locked
+ * in id order first, then written by one statement: two editors saving
+ * different orders of the same collection queue up instead of locking rows
+ * in opposite orders (deadlock → 500).
+ */
 export async function applyOrder(
   db: DbOrTx,
   name: ReorderTable,
   ids: string[]
 ): Promise<void> {
+  if (ids.length === 0) return
   const table = TABLES[name] as (typeof TABLES)["team"]
-  for (const [index, id] of ids.entries())
-    await db.update(table).set({ sortOrder: index }).where(eq(table.id, id))
+  await db
+    .select({ id: table.id })
+    .from(table)
+    .where(inArray(table.id, ids))
+    .orderBy(asc(table.id))
+    .for("update")
+  const positions = sql.join(
+    ids.map((id, index) => sql`(${id}::uuid, ${index}::integer)`),
+    sql`, `
+  )
+  await db.execute(
+    sql`update ${table} set sort_order = o.position, updated_at = now() from (values ${positions}) as o(id, position) where ${table.id} = o.id`
+  )
 }

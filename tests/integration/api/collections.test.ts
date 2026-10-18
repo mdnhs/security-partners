@@ -16,7 +16,7 @@ import type {
 import type { Paginated } from "@/lib/schemas/api/list"
 import type { ServiceDto, ServiceListItem } from "@/lib/schemas/api/services"
 import { getDb } from "@/server/db/client"
-import { media, revisions, services } from "@/server/db/schema"
+import { clients, media, revisions, services } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { listMediaUsagesFor } from "@/server/modules/media/repo"
 
@@ -356,6 +356,35 @@ describe("PUT /reorder/:collection (master 4.6)", () => {
     expect(after.items.map((t) => t.id)).toEqual(reversed)
     expect(after.items.map((t) => t.sortOrder)).toEqual([0, 1, 2, 3])
     expect(revalidateTag).toHaveBeenCalledWith("team", { expire: 0 })
+  })
+
+  it("concurrent saves of opposite orders never deadlock (final review minor 1)", async () => {
+    await getDb()
+      .insert(clients)
+      .values(
+        Array.from({ length: 60 }, (_, i) => ({
+          name: `Reorder client ${i}`,
+          logoId,
+        }))
+      )
+    const ids = (await getDb().select({ id: clients.id }).from(clients)).map(
+      (c) => c.id
+    )
+    const save = (order: string[]) =>
+      adminRequest("/reorder/clients", {
+        cookie: editor,
+        method: "PUT",
+        json: { ids: order },
+      }).then((res) => res.status)
+    for (let round = 0; round < 3; round++) {
+      const statuses = await Promise.all([
+        save(ids),
+        save([...ids].reverse()),
+        save(ids),
+        save([...ids].reverse()),
+      ])
+      expect(statuses).toEqual([200, 200, 200, 200])
+    }
   })
 
   it("409 when the list is out of date; 403 without update permission", async () => {

@@ -6,6 +6,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status"
 
 import type { AppEnv } from "@/server/api/context"
 import { AppError, type ErrorCode } from "@/server/lib/errors"
+import { pgErrorCode } from "@/server/lib/pg-errors"
 
 export type ErrorEnvelope = {
   error: {
@@ -70,6 +71,20 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
         response.headers.set(name, value)
     })
     return response
+  }
+  // Two transactions clashed (deadlock / serialization failure): nothing was
+  // saved, and saving again normally succeeds.
+  const sqlState = pgErrorCode(err)
+  if (sqlState === "40P01" || sqlState === "40001") {
+    console.error(`[api] ${c.get("requestId")} retryable ${sqlState}`)
+    return c.json(
+      errorEnvelope(
+        c,
+        "CONFLICT",
+        "Someone else saved at the same time. Try again."
+      ),
+      409
+    )
   }
   // Unknown error: log with the request id, never send the message or stack.
   console.error(`[api] ${c.get("requestId")} unhandled error`, err)
