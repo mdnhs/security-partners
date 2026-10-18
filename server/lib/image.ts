@@ -53,3 +53,45 @@ export async function inspectImage(
     throw new ImageReadError("This image could not be read.")
   }
 }
+
+export type RasterMime = Exclude<
+  UploadMime,
+  "image/svg+xml" | "application/pdf"
+>
+
+export const isRasterMime = (mime: UploadMime): mime is RasterMime =>
+  mime !== "image/svg+xml" && mime !== "application/pdf"
+
+/**
+ * Privacy: uploaded photos are re-encoded in their own format before they
+ * are stored, so EXIF (GPS position, device, timestamps), XMP and IPTC never
+ * reach the public file route. The EXIF orientation is applied to the
+ * pixels first; only the ICC colour profile is kept. Returns the stored
+ * bytes and their (now upright) size.
+ */
+export async function reencodeImage(
+  bytes: Uint8Array,
+  mime: RasterMime
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; width: number; height: number }> {
+  const image = sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS })
+    .autoOrient()
+    .keepIccProfile()
+  const encoded =
+    mime === "image/jpeg"
+      ? image.jpeg({ quality: 90, mozjpeg: true })
+      : mime === "image/png"
+        ? image.png({ compressionLevel: 9 })
+        : mime === "image/webp"
+          ? image.webp({ quality: 90 })
+          : image.avif({ quality: 80 })
+  try {
+    const { data, info } = await encoded.toBuffer({ resolveWithObject: true })
+    return {
+      bytes: new Uint8Array(data),
+      width: info.width,
+      height: info.height,
+    }
+  } catch {
+    throw new ImageReadError("This image could not be read.")
+  }
+}

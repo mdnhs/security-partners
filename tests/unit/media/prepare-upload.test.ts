@@ -28,6 +28,13 @@ describe("prepareUpload (spec §11 pipeline before storage)", () => {
     expect(prepared).toMatchObject({ mime: "image/png", ext: "png" })
   })
 
+  it("strips bidi, C1 and zero-width characters from the name", async () => {
+    const name =
+      "in\u202evoice\u2066\u2069\u202a\u200b\u200d\u200f\ufeff\u0085\u009f.png"
+    const prepared = await prepareUpload(new File([await png()], name))
+    expect(prepared.originalName).toBe("invoice.png")
+  })
+
   it("names a file without a usable name after its type", async () => {
     const prepared = await prepareUpload(new File([await png()], " \u0001 "))
     expect(prepared.originalName).toBe("upload.png")
@@ -70,5 +77,68 @@ describe("inspectImage pixel limit (decompression bombs)", () => {
         .toBuffer()
     )
     await expect(inspectImage(big, "image/png")).rejects.toThrow(ImageReadError)
+  })
+})
+
+/** GPS IFD pointer tag 0x8825, little-endian as libvips writes it. */
+const GPS_IFD = Buffer.from([0x25, 0x88])
+
+const photo = (format: "jpeg" | "png" | "webp" | "avif") =>
+  sharp({
+    create: { width: 40, height: 30, channels: 3, background: "#336699" },
+  })
+    .toFormat(format)
+    .withExif({
+      IFD0: { Make: "PhoneCo", Model: "X1" },
+      IFD3: { GPSLatitudeRef: "N", GPSLatitude: "53/1 20/1 0/1" },
+    })
+    .withMetadata({ orientation: 6 })
+    .withIccProfile("p3")
+    .toBuffer()
+
+describe("prepareUpload re-encodes raster images (privacy: no EXIF/GPS)", () => {
+  it("drops EXIF incl. GPS, applies the orientation and keeps the ICC profile (JPEG)", async () => {
+    const input = await photo("jpeg")
+    const before = await sharp(input).metadata()
+    expect(before.exif?.includes(GPS_IFD)).toBe(true)
+    expect(before.exif?.includes("PhoneCo")).toBe(true)
+    expect(before.orientation).toBe(6)
+    expect(before.icc).toBeDefined()
+
+    const prepared = await prepareUpload(new File([input], "IMG_0001.jpg"))
+    const after = await sharp(prepared.bytes).metadata()
+    expect(after.exif).toBeUndefined()
+    expect(after.xmp).toBeUndefined()
+    expect(after.iptc).toBeUndefined()
+    expect(after.orientation).toBeUndefined()
+    expect(after.icc).toBeDefined()
+    expect(after).toMatchObject({ format: "jpeg", width: 30, height: 40 })
+    expect(Buffer.from(prepared.bytes).includes("PhoneCo")).toBe(false)
+    expect(prepared).toMatchObject({
+      mime: "image/jpeg",
+      width: 30,
+      height: 40,
+      size: prepared.bytes.byteLength,
+    })
+  })
+
+  it.each(["png", "webp", "avif"] as const)(
+    "re-encodes %s in its own format without metadata",
+    async (format) => {
+      const prepared = await prepareUpload(
+        new File([await photo(format)], `a.${format}`)
+      )
+      const after = await sharp(prepared.bytes).metadata()
+      expect(after.format).toBe(format === "avif" ? "heif" : format)
+      expect(after.exif).toBeUndefined()
+      expect(after.icc).toBeDefined()
+      expect(Buffer.from(prepared.bytes).includes("PhoneCo")).toBe(false)
+    }
+  )
+
+  it("leaves PDFs untouched", async () => {
+    const pdf = new TextEncoder().encode("%PDF-1.4\n%%EOF\n")
+    const prepared = await prepareUpload(new File([pdf], "a.pdf"))
+    expect(Buffer.from(prepared.bytes).equals(Buffer.from(pdf))).toBe(true)
   })
 })

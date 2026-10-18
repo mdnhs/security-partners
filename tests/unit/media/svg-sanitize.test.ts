@@ -58,4 +58,23 @@ describe("sanitizeSvg (spec §11: SVG sanitised)", () => {
     )
     expect(() => sanitizeSvg("")).toThrow(SvgSanitizeError)
   })
+
+  it("drops style attributes and any url() that is not a local #id", () => {
+    const out = sanitizeSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="g"/><filter id="f"/><mask id="m"/><clipPath id="c"/><marker id="k"/></defs>
+  <rect fill="url(#g)" filter="url('#f')" mask="url(#m)" clip-path="url(#c)" marker-end="url(#k)" width="1" height="1"/>
+  <rect fill="url(https://evil.example/a.svg#g)" filter="url(//evil.example/f)" mask="url('http://evil.example/m')" clip-path="url(data:image/svg+xml,x)" marker-end="url(#k) url(https://evil.example/k)" width="2" height="2"/>
+  <rect fill="u\\72l(https://evil.example/e)" width="3" height="3"/>
+  <circle style="fill:url(https://evil.example/s)" r="1"/>
+  <circle style="fill:red" r="2"/>
+</svg>`)
+    expect(out).toContain(
+      '<rect fill="url(#g)" filter="url(\'#f\')" mask="url(#m)" clip-path="url(#c)" marker-end="url(#k)" width="1" height="1"/>'
+    )
+    expect(out).toContain('<rect width="2" height="2"/>')
+    expect(out).toContain('<rect width="3" height="3"/>')
+    expect(out).not.toContain("evil.example")
+    expect(out).not.toContain("style")
+    expect(out).toContain('<circle r="2"/>')
+  })
 })

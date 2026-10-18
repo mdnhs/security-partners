@@ -16,6 +16,8 @@ import {
   ImageReadError,
   type ImageInfo,
   inspectImage,
+  isRasterMime,
+  reencodeImage,
 } from "@/server/lib/image"
 import {
   sniffMime,
@@ -77,14 +79,19 @@ function parseAlt(value: unknown): string {
   return value.trim()
 }
 
-/** Last path segment, no control characters, at most 200 characters. */
+/**
+ * Invisible or reordering characters: C0/C1 controls, DEL, zero-width
+ * characters and marks, bidi embeddings/overrides/isolates, BOM. They could
+ * disguise a name in the library (e.g. "invoice\u202Efdp.exe").
+ */
+// eslint-disable-next-line no-control-regex
+const HIDDEN_CHARS =
+  /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g
+
+/** Last path segment, no hidden characters, at most 200 characters. */
 function cleanFileName(name: string, ext: string): string {
   const base = name.split(/[\\/]/).pop() ?? ""
-  // eslint-disable-next-line no-control-regex
-  const clean = base
-    .replace(/[\u0000-\u001f\u007f]/g, "")
-    .trim()
-    .slice(0, 200)
+  const clean = base.replace(HIDDEN_CHARS, "").trim().slice(0, 200)
   return clean || `upload.${ext}`
 }
 
@@ -117,6 +124,12 @@ export async function prepareUpload(file: unknown): Promise<PreparedUpload> {
   let info: ImageInfo
   try {
     info = await inspectImage(bytes, mime)
+    if (isRasterMime(mime)) {
+      // Privacy: store a metadata-free, upright copy (no EXIF/GPS).
+      const clean = await reencodeImage(bytes, mime)
+      bytes = clean.bytes
+      info = { ...info, width: clean.width, height: clean.height }
+    }
   } catch (err) {
     if (err instanceof ImageReadError) throw fileError(err.message)
     throw err
@@ -228,12 +241,19 @@ export async function uploadMedia(
     })
     return toItem(row)
   } catch (err) {
-    await storage.delete(key).catch(() => undefined)
+    await storage.delete(key).catch(() => {
+      // The key only: driver errors may carry provider or path details.
+      console.warn(`[media] could not delete orphaned upload ${key}`)
+    })
     throw err
   }
 }
 
-/** Bytes of a disk/R2 file for the public file route; null = 404. */
+/**
+ * Bytes of a disk/R2 file for the public file route; null = 404. Whole
+ * files are buffered (≤ 20 MB) and Range is not supported; streaming and
+ * Range requests are deferred to Phase 10.
+ */
 export async function readMediaFile(
   key: string
 ): Promise<{ bytes: Uint8Array; mime: string; originalName: string } | null> {

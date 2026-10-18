@@ -146,6 +146,39 @@ describe("file route hardening", () => {
     expect(file.headers.get("x-content-type-options")).toBe("nosniff")
   })
 
+  it("publishes photos without EXIF/GPS, upright, with their ICC profile", async () => {
+    const photo = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: "#336699" },
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: "PhoneCo" },
+        IFD3: { GPSLatitudeRef: "N", GPSLatitude: "53/1 20/1 0/1" },
+      })
+      .withMetadata({ orientation: 6 })
+      .withIccProfile("p3")
+      .toBuffer()
+    expect((await sharp(photo).metadata()).exif).toBeDefined()
+
+    const { status, body } = await upload({
+      bytes: photo,
+      name: "IMG_0001.jpg",
+      type: "image/jpeg",
+    })
+    expect(status).toBe(201)
+    expect(body).toMatchObject({ mime: "image/jpeg", width: 30, height: 40 })
+    const served = Buffer.from(
+      await (await app.request(body.url)).arrayBuffer()
+    )
+    expect(served.byteLength).toBe(body.size)
+    const meta = await sharp(served).metadata()
+    expect(meta.exif).toBeUndefined()
+    expect(meta.orientation).toBeUndefined()
+    expect(meta.icc).toBeDefined()
+    expect(meta).toMatchObject({ width: 30, height: 40 })
+    expect(served.includes("PhoneCo")).toBe(false)
+  })
+
   it("never uses the uploaded file name in the key", async () => {
     const { status, body } = await upload({
       bytes: await png(),
@@ -169,11 +202,13 @@ const R2_VALUES = {
 describe("uploads to R2 (Disconnect cannot race them)", () => {
   const objects = new Map<string, Uint8Array>()
   let onPut: (() => Promise<void>) | null = null
+  let failDelete = false
   let r2Version = 0
 
   beforeEach(async () => {
     objects.clear()
     onPut = null
+    failDelete = false
     await getDb().delete(media).where(eq(media.driver, "r2"))
     await getDb().delete(settings).where(eq(settings.key, "integrations.r2"))
     r2Version = (
@@ -196,6 +231,7 @@ describe("uploads to R2 (Disconnect cannot race them)", () => {
         return { Body: { transformToByteArray: async () => bytes } }
       }
       if (command instanceof DeleteObjectCommand) {
+        if (failDelete) throw new Error("provider detail AKIDEXAMPLE1234")
         objects.delete(command.input.Key!)
         return {}
       }
@@ -221,7 +257,29 @@ describe("uploads to R2 (Disconnect cannot race them)", () => {
     const file = await app.request(body.url)
     expect(file.status).toBe(200)
     expect(file.headers.get("content-type")).toBe("image/png")
-    expect(Buffer.from(await file.arrayBuffer()).equals(bytes)).toBe(true)
+    const [stored] = [...objects.values()]
+    expect(Buffer.from(await file.arrayBuffer()).equals(stored)).toBe(true)
+    expect(stored.byteLength).toBe(body.size)
+  })
+
+  it("logs only the key when the orphaned object cannot be deleted", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    failDelete = true
+    onPut = async () => {
+      await deleteIntegration(owner, "integrations.r2", r2Version)
+    }
+    const { status } = await upload({
+      bytes: await png(),
+      name: "orphan.png",
+      type: "image/png",
+    })
+    expect(status).toBe(409)
+    expect(warn).toHaveBeenCalledOnce()
+    const [message] = warn.mock.calls[0]
+    expect(message).toMatch(
+      /^\[media\] could not delete orphaned upload \d{4}\/\d{2}\/[0-9a-f-]{36}\.png$/
+    )
+    expect(warn.mock.calls[0]).toHaveLength(1)
   })
 
   it("refuses the row (and deletes the object) when R2 was disconnected mid-upload", async () => {

@@ -74,7 +74,7 @@ describe("POST /api/v1/admin/media/upload", () => {
       mime: "image/png",
       width: 64,
       height: 48,
-      size: bytes.byteLength,
+      size: expect.any(Number), // re-encoded copy; checked against the served file below
       alt: "Night patrol",
       originalName: "Hero Photo.png",
       driver: "disk",
@@ -96,7 +96,14 @@ describe("POST /api/v1/admin/media/upload", () => {
     expect(file.headers.get("cache-control")).toBe(
       "public, max-age=31536000, immutable"
     )
-    expect(Buffer.from(await file.arrayBuffer()).equals(bytes)).toBe(true)
+    // The stored file is a re-encoded, metadata-free copy (fix round 1).
+    const served = Buffer.from(await file.arrayBuffer())
+    expect(served.byteLength).toBe(body.size)
+    expect(await sharp(served).metadata()).toMatchObject({
+      format: "png",
+      width: 64,
+      height: 48,
+    })
 
     const audit = await getDb()
       .select({ action: auditLog.action })
