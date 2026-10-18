@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
-import { media, mediaUsages } from "@/server/db/schema"
+import { media, type MEDIA_DRIVERS, mediaUsages } from "@/server/db/schema"
 
 export async function findMediaById(db: DbOrTx, id: string) {
   const [row] = await db.select().from(media).where(eq(media.id, id))
@@ -116,4 +116,16 @@ export async function listMediaRows(
     .limit(opts.pageSize)
     .offset((opts.page - 1) * opts.pageSize)
   return { rows, total }
+}
+
+/** Rows stored by one driver (integrations: R2 cannot be disconnected while it holds files). */
+export async function countMediaByDriver(
+  db: DbOrTx,
+  driver: (typeof MEDIA_DRIVERS)[number]
+): Promise<number> {
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(media)
+    .where(eq(media.driver, driver))
+  return n
 }

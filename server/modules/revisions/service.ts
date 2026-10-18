@@ -1,5 +1,6 @@
 import "server-only"
 
+import { isEditableSettingsKey } from "@/lib/admin/settings-keys"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type {
   RevisionDetail,
@@ -24,8 +25,16 @@ const READ: Record<RevisionEntity, PermissionRequest> = {
   category: { collection: ["read"] },
 }
 
-function assertCanRead(actor: Actor, entity: RevisionEntity) {
+/**
+ * Settings history is limited to the content keys edited in Settings
+ * (lib/admin/settings-keys.ts): other settings rows (integrations, and the
+ * Phase 8 marketing/SEO keys until that phase extends this list) are never
+ * served here, whatever their revision rows contain.
+ */
+function assertCanRead(actor: Actor, entity: RevisionEntity, entityId: string) {
   if (!hasPermission(actor.roles, READ[entity])) throw forbidden()
+  if (entity === "settings" && !isEditableSettingsKey(entityId))
+    throw notFound("Revision")
 }
 
 const summary = (row: {
@@ -50,7 +59,7 @@ export async function listRevisions(
   entity: RevisionEntity,
   entityId: string
 ): Promise<{ items: RevisionSummary[] }> {
-  assertCanRead(actor, entity)
+  assertCanRead(actor, entity, entityId)
   const rows = await listRevisionRows(getDb(), entity, entityId)
   return { items: rows.map(summary) }
 }
@@ -61,7 +70,7 @@ export async function getRevision(
   entityId: string,
   revisionId: string
 ): Promise<RevisionDetail> {
-  assertCanRead(actor, entity)
+  assertCanRead(actor, entity, entityId)
   const row = await findRevision(getDb(), revisionId)
   if (!row || row.entityType !== entity || row.entityId !== entityId)
     throw notFound("Revision")
