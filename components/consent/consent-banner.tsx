@@ -16,6 +16,8 @@ export type ConsentBannerCopy = {
   customiseLabel: string
   saveLabel: string
   manageLabel: string
+  /** Accessible name of the reopened banner's × button. */
+  closeLabel: string
   /** Already through linkView (placeholders filled, href re-checked). */
   policyLink: Link
   categories: Record<
@@ -142,7 +144,7 @@ export function ConsentBanner({ copy }: { copy: ConsentBannerCopy }) {
         {reopened ? (
           <button
             type="button"
-            aria-label="Close"
+            aria-label={copy.closeLabel}
             onClick={() => {
               done()
               close()

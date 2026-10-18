@@ -206,6 +206,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       customiseLabel: "Customise",
       saveLabel: "Save choices",
       manageLabel: "Cookie settings",
+      closeLabel: "Close",
       policyLink: { label: "Privacy Policy", href: "/privacy" },
       categories: {
         necessary: {
