@@ -1,5 +1,301 @@
 # Runbook
 
+Security Partners site + admin on one Next.js app (standalone Docker image
+`ghcr.io/mdnhs/security-partners`), Postgres 17 as a Dokploy database
+service, Traefik in front (Dokploy). The container reads exactly three
+variables: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (plus the
+platform's `NODE_ENV`, `PORT`, `HOSTNAME`, set by the image). Everything else
+(SMTP, R2, Turnstile, AI, tracking) is set in the admin and stored in the
+database, secrets encrypted with keys derived from `BETTER_AUTH_SECRET`.
+
+Some operator scripts accept a secret through an input-only variable so it
+stays out of shell history: `DEMO_PASSWORD` (`demo:seed`),
+`OLD_BETTER_AUTH_SECRET` (`secrets:rotate`), `SOURCE_DATABASE_URL` and
+`SOURCE_BETTER_AUTH_SECRET` (`db:sync`). Only that script reads them; the app
+never does. Never set them in the Dokploy environment.
+
+Owner decisions and the go-live checklist are in `docs/launch.md`.
+
+## Deploy
+
+- Push to `main` → GitHub Actions `Build & Deploy to Dokploy`
+  (`.github/workflows/deploy.yml`): builds the image, pushes it to GHCR
+  (`:latest` and `:<commit sha>`), then calls the Dokploy API to redeploy the
+  compose app. Manual run: Actions → Build & Deploy → Run workflow.
+- The workflow does **not** run tests before it deploys (see "Known
+  limitations"). Before merging to `main`, run locally:
+  `pnpm lint && pnpm typecheck && pnpm test && env -u DATABASE_URL -u BETTER_AUTH_SECRET -u BETTER_AUTH_URL pnpm build`,
+  plus `pnpm test:e2e` and (macOS) `pnpm test:visual`.
+- On start the container applies pending migrations
+  (`docker-entrypoint.sh` → `node scripts/dist/migrate.mjs`), then starts
+  `node server.js`. A failed migration makes the container exit; the compose
+  restart policy (`unless-stopped`) restarts it, so it crash-loops until the
+  cause is fixed. Read `docker logs <container>` right after a deploy; the
+  cause is printed as `[migrate] …`.
+- Before a deploy that adds a migration, take a backup
+  (`node scripts/dist/backup.mjs`, see "Running scripts in the container"):
+  migrations only go forward.
+- Health: `GET /api/v1/health/live` (no DB; the Docker `HEALTHCHECK`) and
+  `GET /api/v1/health` (readiness; 503 when the DB is unreachable).
+- Port 3000 is only `expose`d to the Dokploy network, never published on the
+  host. Keep it that way: requests must arrive through Traefik ("Client IPs
+  and Traefik").
+
+## First production deploy
+
+1. Dokploy: create a Postgres 17 database service. Put the app's compose
+   project on the same `dokploy-network` so the database host name resolves
+   from the app container.
+2. Environment (Dokploy → the app → Environment): `DATABASE_URL`,
+   `BETTER_AUTH_SECRET` (`openssl rand -base64 48`; keep it in the password
+   manager — it also derives the encryption keys; the `.env.example` value is
+   refused in production), `BETTER_AUTH_URL` (`https://security.raynx.ie`;
+   https is required in production, http is accepted only for localhost).
+3. Deploy (push to `main` or run the workflow). Check `/api/v1/health`.
+4. Seed the site content once:
+   `node scripts/dist/seed.mjs --allow-production`. Never run it again on
+   production: it is insert-only and re-creates rows an editor deleted.
+   Restart the app afterwards (cached empty reads are dropped).
+5. First owner:
+   `node scripts/dist/admin-create.mjs --email <owner email> --name "<name>"`
+   prints a set-password link (single use, valid 7 days; also emailed once
+   SMTP works). Sign in at `/admin` and turn on 2FA. `admin-create` does not
+   check whether an owner already exists: every run creates another owner.
+   Use it once; invite everyone else from Users.
+6. Settings ▸ Integrations: SMTP, R2 (then "Move uploads to R2"),
+   Turnstile; Settings ▸ Leads: recipients. Then work through
+   `docs/launch.md`.
+7. Demo accounts never go on production. If `demo:seed` ever ran there:
+   `node scripts/dist/demo-remove.mjs` (refuses while no real active owner
+   would remain).
+
+## Rollback
+
+- Dokploy → the app → redeploy the previous image tag
+  (`ghcr.io/mdnhs/security-partners:<previous sha>`), or revert the commit on
+  `main` and push.
+- Migrations only go forward and an old image runs against the newer schema.
+  Additive migrations (new tables/columns) are usually fine. If the old code
+  needs the old schema, restore the backup taken before the deploy
+  ("Restore a backup"). The daily backup job runs 24 hours after its last
+  success, not at every start, so take one by hand before a deploy that
+  migrates.
+
+## Running scripts in the container
+
+`docker exec -it <app container> node scripts/dist/<name>.mjs [flags]`
+(Dokploy: the app → Terminal). Scripts: `migrate`, `seed`
+(`--allow-production`), `admin-create`, `owner-recover`, `demo-seed`,
+`demo-remove`, `backup`, `restore-drill` (`--keep`), `secrets-rotate`,
+`db-sync`. Locally: `pnpm <name>` with `.env.development` (`db:migrate`,
+`db:seed`, `admin:create`, `owner:recover`, `demo:seed`, `demo:remove`,
+`backup`, `restore-drill`, `secrets:rotate`, `db:sync`). Every script prints
+its usage when a required flag is missing.
+
+The scripts use the app's own database code, so they run with the
+container's three variables. Scripts that write content (seed, db-sync,
+restore) bypass the app's cache: restart the app afterwards.
+
+## Backups and the restore drill
+
+- Daily (scheduler job `backup`, 24 hours after the last success) and on
+  demand (`backup`): `pg_dump` custom format in one consistent snapshot plus
+  a `.json` manifest (row count per table, taken in the same snapshot, and
+  the dump's SHA-256). Named `sp-<db>-<UTC stamp>.dump`. The newest 14 are
+  kept. The data of `rate_limits` and `public_rate_limits` is not dumped
+  (short-lived counters).
+- Where: the R2 bucket, prefix `backups/`, once Settings ▸ Integrations ▸ R2
+  is saved; until then `/data/backups` on the app volume (lost with the
+  server — set up R2). Local files are readable by the app user only.
+- Backups go to the **same bucket with the same API token** as media. They
+  are not encrypted by the app; at rest they rely on R2's server-side
+  encryption. Anyone holding that token can read every backup (all leads,
+  password hashes, encrypted integration secrets). A separate bucket/token
+  or client-side encryption (age/GPG) is an owner decision (`docs/launch.md`).
+- A whole dump is held in memory while it is uploaded to or downloaded from
+  R2. Fine for this site's size (a few MB); revisit if the database grows to
+  hundreds of MB.
+- A failing backup shows on the dashboard ("Background jobs need
+  attention", for users with integration read access) and retries every
+  60 s until it succeeds. A backup still running after 10 minutes is treated
+  as crashed and may be started again by the next tick (duplicate dump; the
+  extra file is pruned with the rest).
+- Postgres tools: the image ships `postgresql17-client`, matching the
+  Postgres 17 server. Locally, `pg_dump`/`pg_restore` 18 (e.g. Homebrew
+  libpq 18.6) also work against Postgres 17. A dump written by `pg_dump` 18
+  cannot be read by `pg_restore` 17: restore with the same or a newer
+  version.
+- SSL to the database: `sslmode`, `sslrootcert`, `sslcert`, `sslkey` and
+  `options` in the `DATABASE_URL` query string are passed to
+  `pg_dump`/`pg_restore`. `ssl=true` and `sslpassword` are **not** passed
+  (use `sslmode=require` or stricter). Inherited `PG*` variables (including
+  `PGSSLMODE` and `PGPASSWORD`) are dropped; only the URL counts.
+- Restore drill (monthly, and after any Postgres upgrade): `restore-drill`
+  restores the newest backup into `<db>_restore_drill` on the same server,
+  compares every table's row count with the manifest and drops the scratch
+  database (`--keep` leaves it for inspection). The app's database role needs
+  `CREATEDB` (the Dokploy database user has it). Exit code 1 = counts differ:
+  investigate before you need the backup.
+
+## Restore a backup
+
+1. Stop the app (Dokploy → Stop) so nothing writes.
+2. Get the dump: from R2 (`backups/<name>.dump`) or `/data/backups/`. Check
+   its SHA-256 against the `.json` manifest next to it.
+3. `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error -d "$DATABASE_URL" <name>.dump`
+   (from the app container: `PGPASSWORD=… pg_restore … -h <db host> -U <user> -d <db>`).
+   The role must own the objects it drops (the app's own user does).
+4. Start the app; check `/api/v1/health` and sign in.
+
+Sessions in the dump stay valid (same secret). Rate-limit tables come back
+empty. If the dump came from another environment, use `db:sync` instead: it
+re-encrypts the integration secrets for this environment's key.
+
+## Rotate BETTER_AUTH_SECRET
+
+1. Generate the new secret; keep the old one at hand.
+2. Dokploy: set the new `BETTER_AUTH_SECRET`, redeploy. Until step 3,
+   SMTP/R2/Turnstile/AI cannot decrypt their credentials (email and media in
+   R2 fail for those minutes).
+3. `OLD_BETTER_AUTH_SECRET='<old>' node scripts/dist/secrets-rotate.mjs`
+   (or `--from-secret '<old>'`, which lands in shell history) re-encrypts
+   every integration secret, turns 2FA off for everyone and ends all
+   sessions (audit: `secrets.rotated`). Safe to re-run: secrets already on
+   the new key are reported, not changed.
+4. Tell staff to sign in again and re-enrol 2FA. Preview links and lead-IP
+   rate-limit counters reset (their keys are derived from the secret).
+
+## Copy a database between environments (db:sync)
+
+For refreshing staging from production. It runs with the **target's** three
+variables (it uses the app's database and crypto code for the target), with
+the **target app stopped**, from a one-off container on the Dokploy network:
+
+`docker run --rm --network dokploy-network -e DATABASE_URL=<staging url> -e BETTER_AUTH_SECRET=<staging secret> -e BETTER_AUTH_URL=<staging url> -e SOURCE_DATABASE_URL=<production db url> -e SOURCE_BETTER_AUTH_SECRET=<production secret> ghcr.io/mdnhs/security-partners:latest node scripts/dist/db-sync.mjs --confirm <staging db name> [--demo-password <pw>] [--verify-url <staging url>]`
+
+- `--from <url>` / `--from-secret <secret>` may replace the two `SOURCE_*`
+  variables (flags win); the variables keep the production credentials out of
+  shell history and are removed from the environment before `pg_dump` runs.
+  `--to` / `--to-secret` override the target's `DATABASE_URL` /
+  `BETTER_AUTH_SECRET`. `--confirm` must equal the target database name.
+- Order: refuses when source and target are the same database; checks that
+  the source secret decrypts the source's integration secrets (prints a
+  notice when there are none to check); backs up the target first
+  (`/data/backups` of that one-off container — mount a volume to keep it);
+  restores the source dump in one transaction
+  (`--clean --no-owner --single-transaction`); re-encrypts secrets for the target key; clears
+  2FA; optionally resets demo passwords; checks the result (DB, every
+  integration decrypts, AI test-connection when enabled, `--verify-url`
+  health). Any `FAIL` line → exit code 1.
+- Sessions, verifications and rate-limit counters are never copied.
+- The target role must own every object the restore drops (use the target
+  database's own user, as Dokploy creates it).
+- Start the target app afterwards; it applies newer migrations itself.
+- Lead data is personal data: only sync into an environment with the same
+  access controls. Staging is not hidden from search engines by the app
+  (`docs/launch.md`).
+
+## Owner locked out
+
+`node scripts/dist/owner-recover.mjs --email <owner email>`: turns 2FA off,
+ends all their sessions, voids older links and prints a password link
+(single use, 24 hours; also emailed when SMTP works). Audited as
+`user.owner_recover`. After promoting someone to owner, they set a new
+password and turn on 2FA (promotion ends their sessions).
+
+## Client IPs and Traefik
+
+The app takes the client IP from `X-Forwarded-For` (first value), else
+`X-Real-Ip`. Sign-in, two-factor, password-reset and enquiry rate limits,
+the IP hash stored with a lead and the IP sent to Turnstile depend on it.
+
+- Keep Traefik's entrypoint `forwardedHeaders` **untrusted** (the default;
+  never `insecure: true`, no `trustedIPs` on the public entrypoint). Traefik
+  then overwrites client-sent `X-Forwarded-For` with the real peer address,
+  so rate limits cannot be dodged by sending a fake header.
+- Never publish port 3000 on the host: a request that bypasses Traefik can
+  set any `X-Forwarded-For` it likes.
+- If a CDN/proxy (e.g. Cloudflare) is put in front, add only its IP ranges
+  to `forwardedHeaders.trustedIPs`, so the visitor's real IP reaches the app.
+- Better Auth trusts a single-value `X-Forwarded-For` only and otherwise
+  uses `X-Real-Ip`; in production, when neither resolves, all such requests
+  share one rate-limit bucket.
+
+## Rate limits at the proxy (Traefik)
+
+The app limits only sign-in, two-factor and password resets (Better Auth,
+production only), the public enquiry form (`public_rate_limits`) and AI chat
+(30 messages per user per 10 minutes). Add a Traefik `rateLimit` middleware in
+Dokploy for the paths that cost CPU or money per request and have no limit of
+their own:
+
+- `/og/*` — share-card images are rendered on demand (cached afterwards, but
+  every new URL variant renders once);
+- `/api/v1/admin/ai/*` — beyond the per-user chat limit, a burst limit per
+  client IP protects the provider bill if a session is stolen;
+- `/api/v1/admin/preview` — every call switches draft mode on and renders an
+  uncached page.
+
+A per-IP average of about 10 requests/second with a burst of 20 leaves normal
+use untouched. This only works if Traefik sets the client IP itself (no
+`forwardedHeaders.insecure` or trusted IPs on the public entrypoint).
+
+## Background jobs
+
+An in-process scheduler ticks every 60 s (first tick 5 s after start) in
+every app container; jobs are claimed with `FOR UPDATE SKIP LOCKED`, so
+replicas never run one twice:
+
+- `publish-scheduled` (every 30 s): publishes articles whose time has come;
+  a cache refresh that fails is retried on the next run;
+- revision pruning (daily, keeps the newest 50 per item);
+- lead retention purge (daily; `settings.leads.retentionMonths`, default 24)
+  and expired rate-limit rows;
+- DB backup (daily, "Backups and the restore drill");
+- media move to R2 (on request from Settings ▸ Integrations ▸ R2). Files
+  that fail are skipped; when a run makes no progress it stops ("stopped",
+  failures listed) and must be started again after fixing the files. One
+  tick may block for up to ~40 s; an object copied to R2 whose database
+  update then failed is logged by key and left in the bucket.
+
+Jobs expire caches through `http://127.0.0.1:$PORT` (signed request) — the
+image binds `HOSTNAME=0.0.0.0`, which includes loopback; do not override
+`HOSTNAME`. Failures are stored on the job row and listed on the dashboard
+("Background jobs need attention", users with integration read access; the
+message may be technical). A failed job retries after 60 s; a job locked for
+more than 10 minutes counts as crashed and is claimed again.
+
+The scheduler is not stopped on `SIGTERM` (known follow-up): a job running
+during a redeploy is cut off and picked up again by the next container once
+its lock is stale.
+
+## Sessions and sign-in
+
+Sessions last 7 days and are extended (at most once a day) while used, so
+in practice the limit is about 7 days of inactivity. Rate limits (production
+only, in Postgres): sign-in 5/min, 2FA 5/min, password reset 3 per 5 min,
+everything else under `/api/auth` 100/min per IP; public enquiries 5 per
+10 min per IP; AI chat 30 messages per user per 10 min. Revoking a session
+takes effect at once for every admin page and API call; a few cookie-cached
+reads may serve up to 5 minutes longer. "Sign out everywhere" also ends
+"View as" sessions the user started. Passwords: 12–128 characters. While
+"View as" (impersonation) is active, account settings and the AI assistant
+are read-only, but the impersonating admin can read the user's AI
+conversations.
+
+## Security headers
+
+Pages: `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+strict-origin-when-cross-origin`, `X-Frame-Options: SAMEORIGIN` (`DENY`
+under `/admin`), `Permissions-Policy: camera=(), microphone=(),
+geolocation=(), browsing-topics=()`, `Strict-Transport-Security:
+max-age=31536000`, and a non-blocking `Content-Security-Policy` (`base-uri
+'self'; object-src 'none'; frame-ancestors 'self'`, `'none'` under
+`/admin`; next.config.ts). API: Hono `secureHeaders()` plus `X-Robots-Tag:
+noindex` (also on `/admin`). Unsafe admin API calls must come from the
+site's own origin (CSRF check). Uploaded SVGs are sanitised and served with
+a sandboxing CSP. What a stricter CSP must allow is in the next section.
+
 ## Custom code and Content-Security-Policy
 
 Marketing › Custom code (owner only) adds the published `settings.customCode`
@@ -40,24 +336,21 @@ once per page load. Drafts never run on the site; publishing applies at once.
   To stop all tracking at once: switch "Load tracking" off under
   Marketing › Tracking and publish (the banner disappears too).
 
-## Rate limits at the proxy (Traefik)
+## Logs
 
-The app limits only sign-in, two-factor and password resets (Better Auth,
-production only), the public enquiry form (`public_rate_limits`) and AI chat
-(30 messages per user per 10 minutes). Add a Traefik `rateLimit` middleware in
-Dokploy for the paths that cost CPU or money per request and have no limit of
-their own:
+`docker logs <container>`. Lines are prefixed (`[api] <requestId>`,
+`[migrate]`, `[mailer]`, `[audit]`, `[db]`, scheduler job names). Never
+logged: passwords, secrets, tokens, links from emails, message bodies, lead
+IPs (stored only as a keyed hash); the mailer logs only the recipient's domain and a template name.
+Watch for `[audit]` errors: an audit write failure never blocks a sign-in,
+so the log is the only signal. API error responses carry `requestId`;
+search the log for it.
 
-- `/og/*` — share-card images are rendered on demand (cached afterwards, but
-  every new URL variant renders once);
-- `/api/v1/admin/ai/*` — beyond the per-user chat limit, a burst limit per
-  client IP protects the provider bill if a session is stolen;
-- `/api/v1/admin/preview` — every call switches draft mode on and renders an
-  uncached page.
-
-A per-IP average of about 10 requests/second with a burst of 20 leaves normal
-use untouched. This only works if Traefik sets the client IP itself (no
-`forwardedHeaders.insecure` or trusted IPs on the public entrypoint).
+Traefik's access log records full URLs. The lead export for a data-subject
+request is a `GET` with the person's email in the query string
+(`/api/v1/admin/leads/export.csv?email=…`), so that email appears in
+access logs and browser history. Keep access-log retention short or
+disabled.
 
 ## Dependency audit
 
@@ -67,3 +360,47 @@ Dev and build tools (drizzle-kit, eslint, shadcn, vitest, playwright) are not
 covered by the gate. Their advisories (e.g. the moderate `esbuild` advisory via
 drizzle-kit) only affect the developer machine and CI. Run a full
 `pnpm audit` before a release and review anything high or critical by hand.
+
+Fix a finding by updating within the range, or with a `pnpm.overrides` pin to
+a patched version published at least 2 weeks ago; a build-only package moves
+to `devDependencies` (as `shadcn` did). Record each override here with the
+advisory id. Current overrides: none.
+
+## Known limitations
+
+- No CI gate before deploy: `deploy.yml` builds and deploys on every push to
+  `main` without running tests (planned: reuse a CI workflow as a first job).
+  Run the checks under "Deploy" before merging.
+- Visual pixel tests run on macOS only (baselines are macOS renders).
+- Uploads and backups live on `/data` until R2 is configured.
+- Media files are read whole and sent without `Range`/`ETag` support (no
+  streaming or seeking in large videos/PDFs). Animated WebP/AVIF keep only
+  the first frame; photo metadata (EXIF/GPS) is stripped on upload; PDFs
+  open inline.
+- The scheduler is not stopped on `SIGTERM` ("Background jobs").
+- When the stored Turnstile settings cannot be decrypted (e.g. after a
+  secret change without `secrets:rotate`), the contact form keeps accepting
+  enquiries **without** the spam check and sends no acknowledgement emails;
+  only the log says so (`[leads] Turnstile settings could not be read`). The
+  admin shows no warning yet; after any secret change run the Turnstile
+  "Test".
+- Share cards (`/og/…`) are sent with
+  `Cache-Control: public, max-age=600, stale-while-revalidate=3600`: after a title or image change, browsers and
+  proxies may show the old card for up to about an hour.
+- SEO edits on a service/article/page record are last-write-wins (no
+  version check): two people editing the same record's SEO at once overwrite
+  each other.
+- `seo.defaults` revisions saved before migration
+  `0008_seo_defaults_organization` cannot be restored (the restore is
+  refused with a validation error); re-enter the values instead.
+- `admin-create` creates another owner on every run (no "owner exists"
+  check).
+- Staging is not blocked from search engines by the app (`robots.txt` is the
+  same everywhere); block it at the proxy or with HTTP auth if needed.
+- AI conversations are kept until a user deletes them (no automatic purge).
+- Safari < 16.4 cannot open admin draft previews (no `Sec-Fetch-Site`).
+- After seeding or restoring from outside the running app, restart it.
+- `{…}` in a content field is a placeholder (e.g. `{phone24h}`), not text.
+- Migrations are forward-only; roll back schema changes with a backup.
+- Playwright runs against `next start`, not the standalone `server.js` the
+  image runs.
