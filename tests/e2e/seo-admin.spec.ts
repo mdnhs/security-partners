@@ -53,9 +53,11 @@ test("owner adds a redirect in SEO › Redirects; the old address 301s", async (
     .getByRole("alertdialog")
     .getByRole("button", { name: "Delete" })
     .click()
+  // The seed has no other redirect, so the table gives way to the empty
+  // state: check the row's action is gone rather than the table's text.
   await expect(
-    page.getByRole("table", { name: "Redirects" })
-  ).not.toContainText("/e2e-old-contact")
+    page.getByRole("button", { name: "Delete redirect from /e2e-old-contact" })
+  ).toHaveCount(0)
 })
 
 test("SEO overview: the sheet saves a page's description", async ({ page }) => {

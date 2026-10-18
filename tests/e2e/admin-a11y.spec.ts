@@ -731,12 +731,18 @@ for (const colorScheme of ["light", "dark"] as const) {
       await audit("assistant panel (reply)")
       await panel.getByRole("button", { name: "Past conversations" }).click()
       await expect(
-        page.getByRole("button", { name: "Make the hero heading shorter" })
+        page.getByRole("button", {
+          name: "Make the hero heading shorter",
+          exact: true,
+        })
       ).toBeVisible()
       await audit("assistant past conversations")
       await panel.getByRole("button", { name: "Past conversations" }).click()
       await expect(
-        page.getByRole("button", { name: "Make the hero heading shorter" })
+        page.getByRole("button", {
+          name: "Make the hero heading shorter",
+          exact: true,
+        })
       ).toHaveCount(0)
       await panel.getByRole("button", { name: "Close" }).click()
       await expect(panel).toHaveCount(0)

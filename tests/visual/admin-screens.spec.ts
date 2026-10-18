@@ -869,7 +869,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto("/admin/seo/defaults")
       await editorReady(page, "SEO defaults")
       await expect(
-        page.getByText("Business details for search engines")
+        // The schema form shows its groups as tabs (General selected).
+        page.getByRole("tab", { name: "Business details for search engines" })
       ).toBeVisible()
       await expect(page).toHaveScreenshot(shot("seo-defaults"), {
         mask: await masks(page),
@@ -1395,7 +1396,10 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page).toHaveScreenshot(shot("ai-assistant-reply"), { mask })
       await panel.getByRole("button", { name: "Past conversations" }).click()
       await expect(
-        page.getByRole("button", { name: "Make the hero heading shorter" })
+        page.getByRole("button", {
+          name: "Make the hero heading shorter",
+          exact: true,
+        })
       ).toBeVisible()
       await expect(page).toHaveScreenshot(shot("ai-assistant-history"), {
         mask,
