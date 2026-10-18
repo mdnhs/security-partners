@@ -124,3 +124,67 @@ test.describe("sitemap and robots", () => {
     expect(text).toContain(`Sitemap: ${BASE_URL}/sitemap.xml`)
   })
 })
+
+// Phase 8: what search engines and social networks receive. Metadata is
+// blocking (htmlLimitedBots), so it is in <head> for every client.
+
+const headOf = (html: string) => html.slice(0, html.indexOf("</head>"))
+const meta = (head: string, key: string) =>
+  new RegExp(`<meta (?:name|property)="${key}" content="([^"]*)"`).exec(
+    head
+  )?.[1] ?? null
+const canonical = (head: string) =>
+  /<link rel="canonical" href="([^"]*)"/.exec(head)?.[1] ?? null
+
+test.describe("metadata in <head>", () => {
+  test("home: title, description, canonical, Open Graph, Twitter", async ({
+    request,
+  }) => {
+    const res = await request.get("/")
+    expect(res.status()).toBe(200)
+    const head = headOf(await res.text())
+    expect(head).toContain(
+      "<title>Security Partners Ltd. | Watching Over You</title>"
+    )
+    expect(meta(head, "description")).toMatch(/^Proactive, flexible/)
+    expect(canonical(head)).toBe(`${BASE_URL}/`)
+    expect(meta(head, "og:type")).toBe("website")
+    expect(meta(head, "og:image")).toBe(`${BASE_URL}/og/page/home`)
+    expect(meta(head, "twitter:card")).toBe("summary_large_image")
+  })
+
+  test("service and article pages", async ({ request }) => {
+    const service = headOf(
+      await (await request.get("/services/alarm-responses")).text()
+    )
+    expect(canonical(service)).toBe(`${BASE_URL}/services/alarm-responses`)
+    expect(meta(service, "og:image")).toBe(
+      `${BASE_URL}/og/service/alarm-responses`
+    )
+    const article = headOf(
+      await (await request.get("/blog/key-holding-explained")).text()
+    )
+    expect(meta(article, "og:type")).toBe("article")
+    expect(meta(article, "article:published_time")).toMatch(
+      /^\d{4}-\d{2}-\d{2}T/
+    )
+  })
+
+  test("the 404 page has the default description and noindex", async ({
+    request,
+  }) => {
+    const res = await request.get("/this-page-does-not-exist")
+    expect(res.status()).toBe(404)
+    const head = headOf(await res.text())
+    expect(meta(head, "description")).toMatch(/^Proactive, flexible/)
+    expect(head).toMatch(/<meta name="robots" content="noindex"/)
+  })
+
+  test("a browser also gets the description in document.head", async ({
+    page,
+  }) => {
+    await page.goto("/about")
+    await expect(page.locator('head meta[name="description"]')).toHaveCount(1)
+    await expect(page.locator('body meta[name="description"]')).toHaveCount(0)
+  })
+})

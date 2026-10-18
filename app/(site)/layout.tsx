@@ -1,4 +1,7 @@
+import type { Metadata } from "next"
 import { Geist_Mono, Lato } from "next/font/google"
+import { unstable_rethrow } from "next/navigation"
+import { connection } from "next/server"
 import { Suspense } from "react"
 
 import "../globals.css"
@@ -6,6 +9,9 @@ import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { PreviewBar } from "@/components/preview-bar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
+import { publicOrigin } from "@/server/lib/site-origin"
+import { loadSiteSources } from "@/server/modules/pages/sources"
+import { siteMetadata } from "@/templates/shared/page-meta"
 
 const lato = Lato({
   subsets: ["latin"],
@@ -17,6 +23,22 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+/**
+ * Site-wide metadata (metadataBase, default description for the 404 page).
+ * Never fails the page: with the database down the page's own boundary
+ * (error.tsx) reports it, so this returns nothing instead of throwing.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  try {
+    const s = await loadSiteSources()
+    return siteMetadata(s, publicOrigin(s.settings.site.productionUrl))
+  } catch (error) {
+    unstable_rethrow(error)
+    return {}
+  }
+}
 
 export default function RootLayout({
   children,

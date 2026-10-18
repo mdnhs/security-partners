@@ -2,35 +2,21 @@ import "server-only"
 
 import { cacheLife, cacheTag } from "next/cache"
 
+import { filled } from "@/lib/seo/effective"
 import type { SitemapSource } from "@/lib/seo/sitemap"
 import { getDb } from "@/server/db/client"
-import { getEnv } from "@/server/env"
 import { tag } from "@/server/lib/cache-tags"
+import { publicOrigin } from "@/server/lib/site-origin"
 import { getPublishedSettings } from "@/server/modules/settings/service"
 import { isPageKey, PAGE_KEYS, PAGE_PATHS } from "@/templates/registry"
 
 import { listSitemapRows, type SitemapRow } from "./repo"
 
 // Public, published-only readers for /sitemap.xml and /robots.txt (never
-// draft mode). Phase 8 Tasks 1/3 add `filled`, `publicOrigin` and a cached
-// `getPublishedSettings`; they were not on this base, so the equivalents
-// live here — swap at merge if their behaviour matches.
+// draft mode).
 
 const latest = (a: Date | null, b: Date | null) =>
   a && b ? (a > b ? a : b) : (a ?? b)
-
-/** A non-blank string, else null. */
-const filled = (value: string | undefined | null) =>
-  value && value.trim() !== "" ? value : null
-
-const originOf = (value: string | null | undefined) => {
-  if (!value) return null
-  try {
-    return new URL(value).origin
-  } catch {
-    return null
-  }
-}
 
 /**
  * Origin for absolute public URLs: the published settings.site.productionUrl,
@@ -41,9 +27,7 @@ export async function getSiteOrigin(): Promise<string> {
   cacheLife("max")
   cacheTag(tag.settings("site"))
   const site = await getPublishedSettings("site")
-  return (
-    originOf(site?.productionUrl) ?? new URL(getEnv().BETTER_AUTH_URL).origin
-  )
+  return publicOrigin(site?.productionUrl ?? null)
 }
 
 /**

@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   // 'use cache' (server/modules/*/queries.ts). Public pages read the DB
   // inside <Suspense> after connection(), so `next build` needs no DB.
   cacheComponents: true,
+  // Blocking metadata for every client: title, description, canonical and
+  // Open Graph tags are in <head>, never streamed into <body>. Lighthouse 13
+  // no longer identifies itself as a bot, and the SEO gate (Lighthouse SEO
+  // 100) needs the description in <head> (phase-08 correction).
+  htmlLimitedBots: /.*/,
   experimental: {
     // forbidden() from requirePermission() renders app/(admin)/admin/forbidden.tsx
     authInterrupts: true,

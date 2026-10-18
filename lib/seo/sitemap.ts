@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next"
 
+import { absoluteUrl } from "./urls"
+
 export type SitemapSource = {
   path: string
   lastModified: Date | null
@@ -7,13 +9,6 @@ export type SitemapSource = {
   /** The record's canonical override; listed only when it is this URL. */
   canonical: string | null
 }
-
-/**
- * `path` on the site origin. Phase 8 Task 1's `absoluteUrl` (lib/seo/urls)
- * was not on this base; swap to it at merge if its behaviour matches.
- */
-const absoluteUrl = (origin: string, path: string) =>
-  new URL(path, new URL(origin).origin).href
 
 /** Indexable canonical URLs, each once, in source order (spec §10). */
 export function buildSitemap(

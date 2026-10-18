@@ -57,6 +57,13 @@
       "when": 1792346529616,
       "tag": "0007_contact_form_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792347197991,
+      "tag": "0008_seo_defaults_organization",
+      "breakpoints": true
     }
   ]
 }

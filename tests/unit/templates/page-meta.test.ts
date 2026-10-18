@@ -1,0 +1,118 @@
+import { describe, expect, it } from "vitest"
+
+import { interpolate } from "@/lib/interpolate"
+import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
+import {
+  articleMetadata,
+  pageMetadata,
+  serviceMetadata,
+  siteMetadata,
+} from "@/templates/shared/page-meta"
+
+const s = fixtureSiteSources()
+const defaults = s.settings["seo.defaults"]
+
+describe("public page metadata (spec §10)", () => {
+  it("home: site title, canonical /, generated share card, large Twitter card", () => {
+    const meta = pageMetadata(s, "home")
+    expect(meta.title).toBe("Security Partners Ltd. | Watching Over You")
+    expect(meta.alternates).toEqual({ canonical: "/" })
+    expect(meta.robots).toBeUndefined()
+    expect(meta.openGraph).toMatchObject({
+      type: "website",
+      url: "/",
+      siteName: s.settings.site.name,
+      title: "Security Partners Ltd. | Watching Over You",
+      images: [{ url: "/og/page/home", width: 1200, height: 630 }],
+    })
+    expect(meta.twitter).toMatchObject({
+      card: "summary_large_image",
+      images: ["/og/page/home"],
+    })
+  })
+
+  it("a record's own SEO wins; blank fields fall back", () => {
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      title: "",
+      description: "Custom about",
+      canonical: "https://example.ie/about-us",
+      noindex: true,
+      ogImage: {
+        id: "m1",
+        url: "/images/about.png",
+        alt: "Our team",
+        width: 800,
+        height: 600,
+        blurDataUrl: null,
+      },
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.title).toBe(
+      interpolate(defaults.titleTemplate, {
+        title: custom.pages.about.data.hero.title,
+      })
+    )
+    expect(meta.description).toBe("Custom about")
+    expect(meta.alternates).toEqual({
+      canonical: "https://example.ie/about-us",
+    })
+    expect(meta.robots).toEqual({ index: false, follow: true })
+    expect(meta.openGraph).toMatchObject({
+      images: [
+        { url: "/images/about.png", width: 800, height: 600, alt: "Our team" },
+      ],
+    })
+  })
+
+  it("the site default share image applies when a record has none", () => {
+    const custom = structuredClone(s)
+    custom.settings["seo.defaults"].ogImage = {
+      id: "m2",
+      url: "/images/banner.png",
+      alt: "",
+      width: null,
+      height: null,
+      blurDataUrl: null,
+    }
+    expect(serviceMetadata(custom, "alarm-responses").openGraph).toMatchObject({
+      images: [{ url: "/images/banner.png" }],
+    })
+  })
+
+  it("services: canonical /services/<slug>, intro as description", () => {
+    const service = s.services.find((x) => x.slug === "alarm-responses")!
+    const meta = serviceMetadata(s, "alarm-responses")
+    expect(meta.alternates).toEqual({ canonical: "/services/alarm-responses" })
+    expect(meta.description).toBe(service.content.detail.intro)
+    expect(meta.openGraph).toMatchObject({
+      type: "website",
+      images: [{ url: "/og/service/alarm-responses" }],
+    })
+    expect(serviceMetadata(s, "nope")).toEqual({})
+  })
+
+  it("articles: Open Graph article with published time, section and tags", () => {
+    const article = s.articles.find((a) => a.slug === "key-holding-explained")!
+    const meta = articleMetadata(s, "key-holding-explained")
+    expect(meta.alternates).toEqual({
+      canonical: "/blog/key-holding-explained",
+    })
+    expect(meta.openGraph).toMatchObject({
+      type: "article",
+      url: "/blog/key-holding-explained",
+      section: article.category.name,
+      publishedTime: article.publishedAt!.toISOString(),
+      images: [{ url: "/og/article/key-holding-explained" }],
+    })
+    expect(articleMetadata(s, "nope")).toEqual({})
+  })
+
+  it("siteMetadata: metadataBase is the origin, default description for pages without one", () => {
+    const meta = siteMetadata(s, "https://www.securitypartnersltd.com")
+    expect(meta.metadataBase?.toString()).toBe(
+      "https://www.securitypartnersltd.com/"
+    )
+    expect(meta.description).toBe(defaults.description)
+  })
+})

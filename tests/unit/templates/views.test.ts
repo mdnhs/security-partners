@@ -197,7 +197,7 @@ describe("view builders reproduce the static site's data (fixture sources)", () 
   })
 
   it("metadata matches the static site's titles and descriptions", () => {
-    expect(pageMetadata(s, "home")).toEqual({
+    expect(pageMetadata(s, "home")).toMatchObject({
       title: "Security Partners Ltd. | Watching Over You",
       description:
         "Proactive, flexible and customer-focused security services across Ireland, backed by a dedicated 24/7 operations team. Based in Mountmellick, Co. Laois since 2008.",
@@ -208,12 +208,12 @@ describe("view builders reproduce the static site's data (fixture sources)", () 
     expect(pageMetadata(s, "contact").description).toBe(
       "Get in touch with our team. For urgent matters, our 24 Hour Number is (085) 8018746."
     )
-    expect(serviceMetadata(s, "alarm-responses")).toEqual({
+    expect(serviceMetadata(s, "alarm-responses")).toMatchObject({
       title: "Alarm Responses | Security Partners Ltd.",
       description:
         "Our highly trained security team will be dispatched to your premises and deal with the situation, day or night.",
     })
-    expect(articleMetadata(s, "key-holding-explained")).toEqual({
+    expect(articleMetadata(s, "key-holding-explained")).toMatchObject({
       title:
         "Key Holding Explained: Who Responds When Your Alarm Goes Off | Security Partners Ltd.",
       description:

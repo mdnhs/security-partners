@@ -187,6 +187,16 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       description:
         "Proactive, flexible and customer-focused security services across Ireland, backed by a dedicated 24/7 operations team. Based in Mountmellick, Co. Laois since 2008.",
       ogImage: null,
+      organization: {
+        type: "LocalBusiness",
+        streetAddress: "Derryguile",
+        addressLocality: "Mountmellick",
+        addressRegion: "Co. Laois",
+        postalCode: "R32 YX49",
+        addressCountry: "IE",
+        areaServed: "Ireland",
+        sameAs: [],
+      },
     },
     consent: {
       title: "We use cookies",
