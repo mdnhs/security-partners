@@ -54,6 +54,15 @@ function memoryR2(
     async read(key) {
       return objects.get(key) ?? null
     },
+    async stream(key) {
+      const bytes = objects.get(key)
+      return bytes
+        ? {
+            body: new Response(new Uint8Array(bytes)).body!,
+            size: bytes.length,
+          }
+        : null
+    },
     async delete(key) {
       objects.delete(key)
     },

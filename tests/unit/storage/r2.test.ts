@@ -86,6 +86,62 @@ describe("r2Storage", () => {
     expect(await r2.read("2026/10/missing.png")).toBeNull()
   })
 
+  it("streams with GetObject, passing a byte range through as Range", async () => {
+    const web = () =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([3, 4]))
+          controller.close()
+        },
+      })
+    const { client, send } = fakeClient((command) => {
+      if (command.input.Key !== KEY)
+        throw new NoSuchKey({
+          message: "missing",
+          $metadata: { httpStatusCode: 404 },
+        })
+      return command.input.Range
+        ? {
+            ContentLength: 2,
+            ContentRange: "bytes 3-4/10",
+            Body: { transformToWebStream: web },
+          }
+        : { ContentLength: 10, Body: { transformToWebStream: web } }
+    })
+    const r2 = r2Storage(config, client)
+
+    const part = await r2.stream(KEY, { start: 3, end: 4 })
+    expect(send.mock.calls[0][0].constructor.name).toBe("GetObjectCommand")
+    expect(send.mock.calls[0][0].input).toEqual({
+      Bucket: "sp-media",
+      Key: KEY,
+      Range: "bytes=3-4",
+    })
+    expect(part?.size).toBe(10) // total, from Content-Range
+    expect([
+      ...new Uint8Array(await new Response(part!.body).arrayBuffer()),
+    ]).toEqual([3, 4])
+
+    const whole = await r2.stream(KEY)
+    expect(send.mock.calls[1][0].input).toEqual({
+      Bucket: "sp-media",
+      Key: KEY,
+    })
+    expect(whole?.size).toBe(10)
+
+    expect(await r2.stream("2026/10/missing.png")).toBeNull()
+    await expect(r2.stream("../x")).rejects.toThrow()
+  })
+
+  it("maps stream failures to fixed messages", async () => {
+    const { client } = fakeClient(() => {
+      throw new Error("getaddrinfo ENOTFOUND SECRET")
+    })
+    await expect(r2Storage(config, client).stream(KEY)).rejects.toThrow(
+      /^Could not reach R2\.$/
+    )
+  })
+
   it("deletes, tests with HeadBucket and validates keys", async () => {
     const { client, send } = fakeClient(() => ({}))
     const r2 = r2Storage(config, client)

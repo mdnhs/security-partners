@@ -15,6 +15,12 @@ import { r2Failure, sharedR2Client } from "@/server/lib/r2-client"
 import { IMMUTABLE_CACHE, keySegments, mediaFileUrl } from "./paths"
 import type { StorageDriver } from "./types"
 
+/** Total size from a `Content-Range: bytes 0-9/1234` answer. */
+function totalOf(contentRange: string | undefined): number | null {
+  const total = contentRange?.match(/\/(\d+)$/)?.[1]
+  return total === undefined ? null : Number(total)
+}
+
 /** GetObject on a missing key. A missing bucket (NoSuchBucket) is a failure. */
 const isMissing = (err: unknown) =>
   err instanceof S3ServiceException && err.name === "NoSuchKey"
@@ -56,6 +62,29 @@ export function r2Storage(
           new GetObjectCommand({ Bucket, Key: key })
         )
         return out.Body ? await out.Body.transformToByteArray() : null
+      } catch (err) {
+        if (isMissing(err)) return null
+        throw r2Failure(err)
+      }
+    },
+    async stream(key, range) {
+      keySegments(key)
+      try {
+        const out = await client.send(
+          new GetObjectCommand({
+            Bucket,
+            Key: key,
+            ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+          })
+        )
+        if (!out.Body) return null
+        const body = out.Body.transformToWebStream()
+        const size = range ? totalOf(out.ContentRange) : out.ContentLength
+        if (size === null || size === undefined) {
+          await body.cancel()
+          throw new Error("R2 sent no object size")
+        }
+        return { body, size }
       } catch (err) {
         if (isMissing(err)) return null
         throw r2Failure(err)

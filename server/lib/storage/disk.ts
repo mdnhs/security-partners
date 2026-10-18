@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
 import {
   mkdir,
+  open,
   readFile,
   realpath,
   rename,
@@ -11,9 +12,10 @@ import {
   writeFile,
 } from "node:fs/promises"
 import { dirname, resolve, sep } from "node:path"
+import { Readable } from "node:stream"
 
 import { mediaFileUrl, resolveInside } from "./paths"
-import type { StorageDriver } from "./types"
+import type { ByteRange, StorageDriver, StoredStream } from "./types"
 
 /** The Docker volume (Dockerfile creates /data, docker-compose mounts it). */
 export const DATA_DIR = "/data"
@@ -97,6 +99,41 @@ export function diskStorage(
     }
   }
 
+  async function stream(
+    key: string,
+    range?: ByteRange
+  ): Promise<StoredStream | null> {
+    const path = resolveInside(base, key)
+    try {
+      // Same symlink rule as read(); the open handle then pins the file.
+      if (!(await realInside(await realpath(base), path))) return null
+      const handle = await open(path, "r")
+      try {
+        const stats = await handle.stat()
+        if (!stats.isFile()) {
+          await handle.close()
+          return null
+        }
+        // The stream owns the handle from here (autoClose).
+        const nodeStream = handle.createReadStream(
+          range ? { start: range.start, end: range.end } : {}
+        )
+        return {
+          body: Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>,
+          size: stats.size,
+        }
+      } catch (err) {
+        await handle.close().catch(() => {})
+        throw err
+      }
+    } catch (err) {
+      const code = errno(err)
+      if (code === "ENOENT" || code === "EISDIR" || code === "ENOTDIR")
+        return null
+      throw err
+    }
+  }
+
   async function remove(key: string): Promise<void> {
     const path = resolveInside(base, key)
     try {
@@ -115,6 +152,7 @@ export function diskStorage(
     name: "disk",
     put,
     read,
+    stream,
     delete: remove,
     url: mediaFileUrl,
     async test() {
