@@ -2,10 +2,12 @@ import "server-only"
 
 import { existsSync } from "node:fs"
 import {
+  chmod,
   copyFile,
   mkdir,
   readdir,
   readFile,
+  rename,
   rm,
   stat,
   writeFile,
@@ -65,8 +67,20 @@ export function diskBackupStore(dir = defaultBackupsDir()): BackupStore {
     kind: "disk",
     location: dir,
     async put(name, file) {
-      await mkdir(dir, { recursive: true })
-      await copyFile(file, join(dir, checkName(name)))
+      // Owner-only: dumps hold every row, including password hashes.
+      await mkdir(dir, { recursive: true, mode: 0o700 })
+      const final = join(dir, checkName(name))
+      // A hidden temp name (never listed) + rename: a crash mid-copy never
+      // leaves a truncated file under the real name.
+      const temp = join(dir, `.${name}.tmp`)
+      try {
+        await copyFile(file, temp)
+        await chmod(temp, 0o600)
+        await rename(temp, final)
+      } catch (err) {
+        await rm(temp, { force: true })
+        throw err
+      }
     },
     async list() {
       if (!existsSync(dir)) return []
@@ -153,16 +167,44 @@ export async function getBackupStore(): Promise<BackupStore> {
   return r2 ? r2BackupStore(r2) : diskBackupStore()
 }
 
-/** Deletes every .dump beyond the newest `keep` (and its .json manifest). */
+const manifestName = (dump: string) => dump.replace(/\.dump$/, ".json")
+
+/**
+ * Complete backups, newest first: .dump files whose .json manifest exists.
+ * The manifest is stored after the dump, so a dump without one is an
+ * interrupted backup and is never restored or counted as kept.
+ */
+export function completeDumps(objects: BackupObject[]): BackupObject[] {
+  const names = new Set(objects.map((o) => o.name))
+  return objects.filter(
+    (o) => o.name.endsWith(".dump") && names.has(manifestName(o.name))
+  )
+}
+
+/**
+ * Keeps the newest `keep` complete backups. Deletes older complete ones
+ * (dump + manifest) and interrupted dumps older than the oldest kept backup;
+ * returns the deleted .dump names.
+ */
 export async function pruneBackups(
   store: BackupStore,
   keep = BACKUPS_KEPT
 ): Promise<string[]> {
-  const dumps = (await store.list()).filter((o) => o.name.endsWith(".dump"))
-  const old = dumps.slice(keep)
+  const all = await store.list()
+  const complete = completeDumps(all)
+  const kept = complete.slice(0, keep)
+  const oldestKept = kept.at(-1)?.name
+  const keptNames = new Set(kept.map((o) => o.name))
+  const old = all.filter(
+    (o) =>
+      o.name.endsWith(".dump") &&
+      !keptNames.has(o.name) &&
+      (complete.includes(o) ||
+        (oldestKept !== undefined && o.name < oldestKept))
+  )
   for (const dump of old) {
     await store.delete(dump.name)
-    await store.delete(dump.name.replace(/\.dump$/, ".json"))
+    await store.delete(manifestName(dump.name))
   }
   return old.map((dump) => dump.name)
 }

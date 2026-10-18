@@ -14,7 +14,11 @@ import {
   deleteAllSessions,
 } from "@/server/modules/users/repo"
 
-import { listIntegrationRows, replaceIntegrationDraft } from "./repo"
+import {
+  listIntegrationRows,
+  lockIntegrationRow,
+  replaceIntegrationDraft,
+} from "./repo"
 import { secretAad } from "./service"
 
 export type ReencryptResult = {
@@ -82,6 +86,10 @@ export async function rotateSecrets(opts: {
   return db.transaction(async (tx) => {
     const reencrypted: string[] = []
     const alreadyCurrent: string[] = []
+    // FOR UPDATE until commit: a concurrent Settings save either finishes
+    // first (and is re-encrypted here) or waits and then fails its version
+    // check (409), so no write is lost and no stale ciphertext is stored.
+    for (const key of INTEGRATION_KEYS) await lockIntegrationRow(tx, key)
     for (const row of await listIntegrationRows(tx, INTEGRATION_KEYS)) {
       if (!row.draft || typeof row.draft !== "object") continue
       const key = row.key as IntegrationKey

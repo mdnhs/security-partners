@@ -23,6 +23,21 @@ describe("pgEnv", () => {
     })
   })
 
+  it("hands SSL certificate and options parameters to libpq verbatim", () => {
+    const env = pgEnv(
+      "postgres://sp@db.internal/sp_prod?sslmode=verify-full&sslrootcert=/certs/ca.pem&sslcert=/certs/c.pem&sslkey=/certs/c.key&options=-c%20statement_timeout%3D0",
+      { PGOPTIONS: "stale" }
+    )
+    expect(env).toMatchObject({
+      PGSSLMODE: "verify-full",
+      PGSSLROOTCERT: "/certs/ca.pem",
+      PGSSLCERT: "/certs/c.pem",
+      PGSSLKEY: "/certs/c.key",
+      PGOPTIONS: "-c statement_timeout=0",
+      PGDATABASE: "sp_prod",
+    })
+  })
+
   it("drops inherited libpq variables the URL does not set", () => {
     const env = pgEnv("postgres://sp@127.0.0.1/sp_dev", {
       PGPASSWORD: "leaked",

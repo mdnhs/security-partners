@@ -2,6 +2,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { symmetricEncrypt } from "better-auth/crypto"
 import { count, eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/node-postgres"
 import { Client, Pool } from "pg"
@@ -57,6 +58,14 @@ beforeAll(async () => {
     token: "source-session-token",
     expiresAt: new Date(Date.now() + 86_400_000),
   })
+  await source.insert(schema.twoFactors).values({
+    userId: user.id,
+    secret: await symmetricEncrypt({
+      key: SOURCE_SECRET,
+      data: "JBSWY3DPEHPK3PXP",
+    }),
+    backupCodes: "enc",
+  })
   await source.insert(schema.settings).values({
     key: "integrations.smtp",
     draft: {
@@ -110,6 +119,26 @@ describe("dbSync (spec §14 db:sync)", () => {
         backupStore: diskBackupStore(dir),
       })
     ).rejects.toThrow("Source and target are the same database")
+  })
+
+  it("refuses a --from-secret that does not decrypt the source, before touching the target", async () => {
+    const before = await createUser({ roles: ["editor"] })
+    await expect(
+      dbSync({
+        from: SOURCE_URL,
+        fromSecret: "wrong-secret-0123456789abcdef0123456789abcd",
+        confirm: "sp_test",
+        backupStore: diskBackupStore(dir),
+      })
+    ).rejects.toThrow(
+      "--from-secret does not decrypt integrations.smtp.password in the source database"
+    )
+    const [row] = await getDb()
+      .select({ n: count() })
+      .from(schema.users)
+      .where(eq(schema.users.id, before.id))
+    expect(row.n).toBe(1)
+    expect(await readdir(dir)).toEqual([])
   })
 
   it("backs up the target, copies the source, re-keys secrets, skips sessions", async () => {

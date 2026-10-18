@@ -73,6 +73,18 @@ describe("restoreDrill (spec §14)", () => {
     ).rejects.toThrow("checksum does not match its manifest")
   })
 
+  it("skips a newer dump that has no manifest (interrupted backup)", async () => {
+    const store = diskBackupStore(dir)
+    const { name } = await runBackup({
+      url: TEST_DATABASE_URL,
+      store,
+      now: new Date("2026-10-16T12:00:00Z"),
+    })
+    await writeFile(join(dir, "sp-sp_test-20261017T120000Z.dump"), "PGDMP-cut")
+    const result = await restoreDrill({ url: TEST_DATABASE_URL, store })
+    expect(result).toMatchObject({ backup: name, ok: true })
+  })
+
   it("explains an empty store", async () => {
     await expect(
       restoreDrill({ url: TEST_DATABASE_URL, store: diskBackupStore(dir) })

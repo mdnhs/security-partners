@@ -1,4 +1,7 @@
+import { setTimeout as delay } from "node:timers/promises"
+
 import { eq } from "drizzle-orm"
+import { Client } from "pg"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import { getDb } from "@/server/db/client"
@@ -13,7 +16,7 @@ import { encryptSecret } from "@/server/lib/crypto"
 import { rotateSecrets } from "@/server/modules/integrations/rotate"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 
-import { resetDb } from "../db"
+import { resetDb, TEST_DATABASE_URL } from "../db"
 import { createUser, signIn } from "../helpers/auth"
 
 const OLD = "previous-secret-0123456789abcdef0123456789"
@@ -85,5 +88,47 @@ describe("rotateSecrets (pnpm secrets:rotate)", () => {
       reencrypted: [],
       alreadyCurrent: ["integrations.smtp.password"],
     })
+  })
+
+  it("waits for a concurrent settings save instead of overwriting it", async () => {
+    const aad = "integrations.smtp.password"
+    await getDb()
+      .insert(settings)
+      .values({
+        key: "integrations.smtp",
+        draft: {
+          host: "smtp.example.test",
+          port: 587,
+          secure: false,
+          user: "mailer",
+          password: encryptSecret("before-save", aad, OLD),
+          fromName: "Security Partners",
+          fromAddress: "no-reply@example.test",
+        },
+        version: 1,
+      })
+    const admin = new Client({ connectionString: TEST_DATABASE_URL })
+    await admin.connect()
+    try {
+      await admin.query("begin")
+      await admin.query(
+        "update settings set draft = jsonb_set(draft, '{password}', to_jsonb($1::text)), version = version + 1 where key = 'integrations.smtp'",
+        [encryptSecret("saved-meanwhile", aad, OLD)]
+      )
+      const rotation = rotateSecrets({ fromSecret: OLD })
+      await delay(300)
+      await admin.query("commit")
+      expect((await rotation).reencrypted).toEqual([aad])
+    } finally {
+      await admin.end()
+    }
+    expect((await readIntegrationConfig("integrations.smtp"))?.password).toBe(
+      "saved-meanwhile"
+    )
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "integrations.smtp"))
+    expect(row.version).toBe(3)
   })
 })

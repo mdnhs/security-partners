@@ -5,6 +5,9 @@
 //     [--to <target url>] [--to-secret <target secret>]
 //     [--demo-password <12+ chars>] [--verify-url https://staging.example.ie]
 // The target is backed up first (/data/backups or .data/backups).
+// To keep the source URL/secret out of shell history, they may instead come
+// from the input-only variables SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET
+// (read by this script only, never by the app; flags win when both are set).
 import { parseArgs } from "node:util"
 
 import { dbSync } from "@/server/lib/db-sync"
@@ -12,7 +15,7 @@ import { dbSync } from "@/server/lib/db-sync"
 import { runScript } from "./lib/run-script"
 
 const USAGE =
-  "Usage: db:sync --from <url> --from-secret <secret> --confirm <target database name> [--to <url>] [--to-secret <secret>] [--demo-password <pw>] [--verify-url <origin>]"
+  "Usage: db:sync --from <url> --from-secret <secret> --confirm <target database name> [--to <url>] [--to-secret <secret>] [--demo-password <pw>] [--verify-url <origin>] (--from / --from-secret may come from SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET)"
 
 let values: Record<string, string | undefined>
 try {
@@ -38,8 +41,9 @@ if (values.to) process.env.DATABASE_URL = values.to
 if (values["to-secret"]) process.env.BETTER_AUTH_SECRET = values["to-secret"]
 
 await runScript("db:sync", async () => {
-  const from = values.from
-  const fromSecret = values["from-secret"]
+  const from = values.from || process.env.SOURCE_DATABASE_URL
+  const fromSecret =
+    values["from-secret"] || process.env.SOURCE_BETTER_AUTH_SECRET
   const confirm = values.confirm
   if (!from || !fromSecret || !confirm) throw new Error(USAGE)
   const report = await dbSync({

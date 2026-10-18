@@ -6,25 +6,44 @@ import { parse } from "pg-connection-string"
 
 export type PgTool = "pg_dump" | "pg_restore"
 
+/** URL query parameters handed to libpq verbatim (never read by node-pg here). */
+const LIBPQ_PARAMS = {
+  sslmode: "PGSSLMODE",
+  sslrootcert: "PGSSLROOTCERT",
+  sslcert: "PGSSLCERT",
+  sslkey: "PGSSLKEY",
+  options: "PGOPTIONS",
+} as const
+
 const LIBPQ_VARS = [
   "PGHOST",
   "PGPORT",
   "PGUSER",
   "PGPASSWORD",
   "PGDATABASE",
-  "PGSSLMODE",
+  ...Object.values(LIBPQ_PARAMS),
 ] as const
 
+type LibpqVar = (typeof LIBPQ_VARS)[number]
+
 /**
- * Connection parts as libpq sees them. `sslmode` is read from the URL
- * verbatim and kept away from pg-connection-string, whose node-pg SSL mapping
- * (and its deprecation warning) does not apply to the libpq client tools.
+ * Connection parts as libpq sees them. The SSL/options parameters are read
+ * from the URL verbatim and kept away from pg-connection-string, whose node-pg
+ * mapping (it reads certificate files, warns about sslmode) does not apply to
+ * the libpq client tools.
  */
-function libpqParts(url: string): Record<string, unknown> {
+function libpqParts(url: string): {
+  parts: Record<string, unknown>
+  params: Partial<Record<LibpqVar, string>>
+} {
   const target = new URL(url)
-  const sslmode = target.searchParams.get("sslmode")
-  target.searchParams.delete("sslmode")
-  return { ...parse(target.toString()), sslmode }
+  const params: Partial<Record<LibpqVar, string>> = {}
+  for (const [name, envVar] of Object.entries(LIBPQ_PARAMS)) {
+    const value = target.searchParams.get(name)
+    if (value) params[envVar] = value
+    target.searchParams.delete(name)
+  }
+  return { parts: parse(target.toString()), params }
 }
 
 /**
@@ -37,22 +56,22 @@ export function pgEnv(
   url: string,
   base: Partial<NodeJS.ProcessEnv> = process.env
 ): NodeJS.ProcessEnv {
-  const config = libpqParts(url)
+  const { parts, params } = libpqParts(url)
   const env = {
     ...base,
     PGCONNECT_TIMEOUT: "10",
     PGAPPNAME: "sp-ops",
   } as NodeJS.ProcessEnv
   for (const key of LIBPQ_VARS) delete env[key]
-  const set = (key: (typeof LIBPQ_VARS)[number], value: unknown) => {
+  const set = (key: LibpqVar, value: unknown) => {
     if (typeof value === "string" && value !== "") env[key] = value
   }
-  set("PGHOST", config.host)
-  set("PGPORT", config.port)
-  set("PGUSER", config.user)
-  set("PGPASSWORD", config.password)
-  set("PGDATABASE", config.database)
-  set("PGSSLMODE", config.sslmode)
+  set("PGHOST", parts.host)
+  set("PGPORT", parts.port)
+  set("PGUSER", parts.user)
+  set("PGPASSWORD", parts.password)
+  set("PGDATABASE", parts.database)
+  for (const [key, value] of Object.entries(params)) set(key as LibpqVar, value)
   return env
 }
 
@@ -73,7 +92,7 @@ export function runPgTool(
   args: readonly string[],
   url: string
 ): Promise<void> {
-  const password = libpqParts(url).password as string | undefined
+  const password = libpqParts(url).parts.password as string | undefined
   return new Promise((resolvePromise, reject) => {
     const child = spawn(tool, args, {
       env: pgEnv(url),

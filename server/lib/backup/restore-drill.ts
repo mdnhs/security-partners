@@ -12,7 +12,7 @@ import { getEnv } from "@/server/env"
 
 import { type BackupManifest, countRows, quoteIdent } from "./dump"
 import { runPgTool, withDatabase } from "./pg-tools"
-import { type BackupStore, getBackupStore } from "./store"
+import { type BackupStore, completeDumps, getBackupStore } from "./store"
 
 export const DRILL_SUFFIX = "_restore_drill"
 
@@ -57,7 +57,7 @@ export async function restoreDrill(
 ): Promise<DrillResult> {
   const url = opts.url ?? getEnv().DATABASE_URL
   const store = opts.store ?? (await getBackupStore())
-  const latest = (await store.list()).find((o) => o.name.endsWith(".dump"))
+  const [latest] = completeDumps(await store.list())
   if (!latest) throw new Error(`No backup found in ${store.location}`)
   const scratch = `${parse(url).database ?? ""}${DRILL_SUFFIX}`
   if (!/^[a-z0-9_]{1,63}$/.test(scratch))
@@ -114,8 +114,13 @@ export async function restoreDrill(
       }
     } finally {
       if (!opts.keepScratch)
+        // Logged, not thrown: a failed clean-up must not hide the drill's own error.
         await withClient(url, (c) =>
           c.query(`drop database if exists ${quoteIdent(scratch)} with (force)`)
+        ).catch((err: unknown) =>
+          console.error(
+            `[restore-drill] could not drop ${scratch}: ${err instanceof Error ? err.message : String(err)}`
+          )
         )
     }
   } finally {

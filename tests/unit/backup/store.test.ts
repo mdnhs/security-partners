@@ -1,4 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -8,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { R2Config } from "@/lib/schemas/integrations"
 import {
   BACKUP_PREFIX,
+  completeDumps,
   diskBackupStore,
   pruneBackups,
   r2BackupStore,
@@ -39,6 +47,42 @@ describe("disk backup store", () => {
     expect(await readFile(out, "utf8")).toBe("PGDMP-fake")
     await store.delete(`${stamp(1)}.dump`)
     expect((await store.list()).map((o) => o.name)).toEqual([
+      `${stamp(2)}.dump`,
+    ])
+  })
+
+  it("writes owner-only files and leaves no temp file behind", async () => {
+    const store = diskBackupStore(join(dir, "backups"))
+    await store.put(`${stamp(1)}.dump`, src)
+    expect((await stat(join(dir, "backups"))).mode & 0o777).toBe(0o700)
+    expect(
+      (await stat(join(dir, "backups", `${stamp(1)}.dump`))).mode & 0o777
+    ).toBe(0o600)
+    expect(await readdir(join(dir, "backups"))).toEqual([`${stamp(1)}.dump`])
+  })
+
+  it("ignores interrupted backups (a dump without its manifest)", async () => {
+    const store = diskBackupStore(join(dir, "backups"))
+    for (let day = 1; day <= 3; day++) {
+      await store.put(`${stamp(day)}.dump`, src)
+      await store.put(`${stamp(day)}.json`, src)
+    }
+    await store.put(`${stamp(0)}.dump`, src) // old orphan
+    await store.put(`${stamp(4)}.dump`, src) // newest, no manifest
+    expect(completeDumps(await store.list()).map((o) => o.name)).toEqual([
+      `${stamp(3)}.dump`,
+      `${stamp(2)}.dump`,
+      `${stamp(1)}.dump`,
+    ])
+    expect(await pruneBackups(store, 2)).toEqual([
+      `${stamp(1)}.dump`,
+      `${stamp(0)}.dump`,
+    ])
+    expect((await store.list()).map((o) => o.name)).toEqual([
+      `${stamp(4)}.dump`,
+      `${stamp(3)}.json`,
+      `${stamp(3)}.dump`,
+      `${stamp(2)}.json`,
       `${stamp(2)}.dump`,
     ])
   })
