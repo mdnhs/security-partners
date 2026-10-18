@@ -42,8 +42,9 @@ function GroupErrors({ id, messages }: { id: string; messages: string[] }) {
   if (!messages.length) return null
   return (
     <div id={id} className="flex flex-col gap-1">
-      {messages.map((message) => (
-        <ErrorText key={message} id={`${id}-${message}`}>
+      {messages.map((message, index) => (
+        // The same message can come twice (client + server): key by position.
+        <ErrorText key={index} id={`${id}-${index}`}>
           {message}
         </ErrorText>
       ))}
@@ -281,7 +282,11 @@ export function GroupWidget({ field, path }: WidgetProps) {
   // A list item's object: the item card already titles it.
   if (/\.\d+$/.test(path))
     return (
-      <div className="flex flex-col gap-4">
+      <div
+        role="group"
+        aria-describedby={errorRef}
+        className="flex flex-col gap-4"
+      >
         {errors}
         <FieldGrid shape={shape} path={path} keys={Object.keys(shape)} />
       </div>

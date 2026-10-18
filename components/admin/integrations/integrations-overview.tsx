@@ -37,7 +37,7 @@ export function IntegrationsOverview() {
   })
   if (list.isPending)
     return (
-      <div className="grid gap-4 md:grid-cols-2" aria-busy="true">
+      <div role="status" className="grid gap-4 md:grid-cols-2" aria-busy="true">
         <p className="sr-only">Loading integrations…</p>
         {Array.from({ length: 4 }, (_, i) => (
           <CardSkeleton key={i} className="h-40" />

@@ -241,12 +241,15 @@ export function MediaLibrary() {
       ) : (
         <NowProvider now={list.dataUpdatedAt}>
           <div
-            aria-busy={list.isPlaceholderData || undefined}
             className={cn(
               "transition-opacity",
               list.isPlaceholderData && "opacity-60"
             )}
           >
+            {/* The next page is loading: announced, not aria-busy (DataTable). */}
+            <p role="status" className="sr-only">
+              {list.isPlaceholderData ? "Loading media…" : null}
+            </p>
             {view === "grid" ? (
               <ul
                 aria-label="Files"

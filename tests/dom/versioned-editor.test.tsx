@@ -59,10 +59,10 @@ beforeEach(() => {
   }
 })
 
-function renderEditor() {
+function renderEditor(client = makeQueryClient()) {
   return render(
     <AdminShell
-      queryClient={makeQueryClient()}
+      queryClient={client}
       session={{
         user: {
           id: "u1",
@@ -449,6 +449,86 @@ describe("page editor (master 4.4)", () => {
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(writeText.mock.calls[0][0]).toContain(`${home.hero.heading} mine`)
     expect(saveStatus()).toHaveTextContent("Saved")
+  })
+
+  it("a 409 on restore opens the conflict dialog (ledger P04-7)", async () => {
+    const user = userEvent.setup()
+    routes["GET /api/v1/admin/revisions/page/home"] = () =>
+      json(200, {
+        items: [
+          {
+            id: "0190a6e0-0000-7000-8000-0000000000aa",
+            version: 1,
+            createdAt: "2026-10-16T08:00:00.000Z",
+            actor: null,
+          },
+        ],
+      })
+    routes["POST /api/v1/admin/pages/home/restore"] = () =>
+      json(409, conflictBody("Their heading"))
+    renderEditor()
+    await headingInput()
+    await user.click(screen.getByRole("button", { name: "History" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Restore version 1" })
+    )
+    await user.click(
+      await screen.findByRole("button", { name: "Restore into draft" })
+    )
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Reload their version" })
+    )
+    await waitFor(async () =>
+      expect(await headingInput()).toHaveValue("Their heading")
+    )
+  })
+
+  it("overwrite without their version keeps the dialog open and sends nothing", async () => {
+    const user = userEvent.setup()
+    const bodies: PutBody[] = []
+    routes["PUT /api/v1/admin/pages/home/draft"] = (init) => {
+      bodies.push(bodyOf(init))
+      return json(409, {
+        error: { code: "CONFLICT", message: "Changed", requestId: "r" },
+      })
+    }
+    renderEditor()
+    const heading = await headingInput()
+    await user.type(heading, " mine")
+    await user.keyboard("{Control>}s{/Control}")
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Overwrite with mine" })
+    )
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(bodies).toHaveLength(1)
+    expect(
+      screen.getByRole("alertdialog", { name: "Someone else changed this" })
+    ).toBeInTheDocument()
+  })
+
+  it("a save marks every list of the resource stale, including paged lists", async () => {
+    const user = userEvent.setup()
+    routes["PUT /api/v1/admin/pages/home/draft"] = (init) =>
+      json(200, { ...dto(2, "New heading"), draft: bodyOf(init).draft })
+    const client = makeQueryClient()
+    client.setQueryData(["pages"], { items: [] })
+    client.setQueryData(["pages", { page: 2 }], { items: [] })
+    renderEditor(client)
+    const heading = await headingInput()
+    await user.type(heading, "!")
+    await user.keyboard("{Control>}s{/Control}")
+    await waitFor(() => expect(saveStatus()).toHaveTextContent("Saved"))
+    expect(client.getQueryState(["pages"])?.isInvalidated).toBe(true)
+    expect(client.getQueryState(["pages", { page: 2 }])?.isInvalidated).toBe(
+      true
+    )
+    expect(client.getQueryState(["pages", "home"])?.isInvalidated).toBe(false)
   })
 })
 

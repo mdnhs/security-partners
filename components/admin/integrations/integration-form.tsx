@@ -282,10 +282,13 @@ export function IntegrationForm({
 
   if (query.isPending)
     return (
-      <div aria-busy="true">
+      <div>
         {header}
-        <p className="sr-only">Loading settings…</p>
-        <CardSkeleton className="h-96" />
+        {/* The header stays outside the live region (it is not news). */}
+        <div role="status" aria-busy="true">
+          <p className="sr-only">Loading settings…</p>
+          <CardSkeleton className="h-96" />
+        </div>
       </div>
     )
   if (query.isError || !dto)

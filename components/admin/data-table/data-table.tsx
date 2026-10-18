@@ -279,12 +279,21 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
         // Relative dates count from the last fetch (moves on with refetches).
         <NowProvider now={query.dataUpdatedAt}>
           <div
-            aria-busy={query.isPlaceholderData || undefined}
             className={cn(
               "flex flex-col gap-3 transition-opacity",
               query.isPlaceholderData && "opacity-60"
             )}
           >
+            {/*
+             * The next page is loading (the old rows stay, dimmed). Announced
+             * by a live region, not aria-busy on the table: a live region
+             * around the whole table would read every row out.
+             */}
+            <p role="status" className="sr-only">
+              {query.isPlaceholderData
+                ? `Loading ${label.toLowerCase()}…`
+                : null}
+            </p>
             <div
               data-slot="table-card"
               className={cn(

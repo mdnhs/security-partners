@@ -253,3 +253,33 @@ describe("SchemaForm error display", () => {
     )
   })
 })
+
+describe("SchemaForm list-item errors (ledger P04-5)", () => {
+  it("describes the item group by its own errors, without duplicate keys", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    // SchemaForm applies the first message per path: the same text twice
+    // comes from the item itself and from a key no field renders.
+    renderHome({
+      "hero.stats.1": ["Count must match the value"],
+      "hero.stats.1.total": ["Count must match the value"],
+    })
+    // If list items render collapsed (04b Task 13), open Stat 2 first.
+    const toggle = within(stat(2)).queryByRole("button", { expanded: false })
+    if (toggle) fireEvent.click(toggle)
+    const messages = await within(stat(2)).findAllByText(
+      "Count must match the value"
+    )
+    expect(messages).toHaveLength(2)
+    // ErrorText puts the text in a span inside its FieldError: the group's
+    // error list is the FieldError's parent.
+    const container = messages[0].parentElement!.parentElement!
+    expect(container.id).not.toBe("")
+    const described = document.querySelector(
+      `[aria-describedby~="${container.id}"]`
+    )
+    expect(described).not.toBeNull()
+    expect(described).toHaveAttribute("role", "group")
+    expect(error.mock.calls.flat().join(" ")).not.toContain("same key")
+    error.mockRestore()
+  })
+})

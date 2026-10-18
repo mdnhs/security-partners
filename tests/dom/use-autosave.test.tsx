@@ -72,4 +72,41 @@ describe("useAutosave (spec §8.2)", () => {
     act(() => result.current.resolveConflict())
     await waitFor(() => expect(result.current.state).toBe("error"))
   })
+
+  it("a flush queued behind a save that hits 409 sends nothing (ledger P04-7)", async () => {
+    let reject: (err: unknown) => void = () => undefined
+    const save = vi.fn(
+      () =>
+        new Promise<void>((_, fail) => {
+          reject = fail
+        })
+    )
+    const { result, rerender } = setup(save, {
+      value: { t: "a" },
+      savedValue: { t: "a" },
+    })
+    rerender({ value: { t: "b" }, savedValue: { t: "a" } })
+    let first: Promise<boolean> = Promise.resolve(true)
+    let second: Promise<boolean> = Promise.resolve(true)
+    act(() => {
+      first = result.current.flush()
+      second = result.current.flush()
+    })
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      reject(
+        new ApiError(409, {
+          error: {
+            code: "CONFLICT",
+            message: "Changed",
+            current: { version: 4 },
+          },
+        })
+      )
+      expect(await first).toBe(false)
+      expect(await second).toBe(false)
+    })
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(result.current.state).toBe("conflict")
+  })
 })

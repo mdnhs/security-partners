@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAutosave } from "@/hooks/use-autosave"
 import { ApiError, errorMessage } from "@/lib/api-client"
+import { isDeepEqual } from "@/lib/json"
 import type { RevisionEntity, VersionedDto } from "@/lib/schemas/api/content"
 
 import { useAdminSession } from "@/components/admin/session-provider"
@@ -132,6 +133,7 @@ export function VersionedEditor<Dto extends VersionedDto<unknown>>(
   if (query.isPending)
     return (
       <div
+        role="status"
         className="flex flex-col gap-4"
         aria-busy="true"
         aria-label="Loading editor"
@@ -192,10 +194,14 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     setBase(next)
     setRecord(dto)
     queryClient.setQueryData(props.queryKey, dto)
-    // The list screen (e.g. ["pages"]) shows status badges: refetch it next time.
+    // Lists of this resource (["services"], ["services", { page: 2 }], …)
+    // show status badges: refetch them when next shown. Not this editor's own
+    // query, which now holds `dto`.
     void queryClient.invalidateQueries({
-      queryKey: props.queryKey.slice(0, 1),
-      exact: true,
+      predicate: (query) =>
+        query.queryKey[0] === props.queryKey[0] &&
+        !isDeepEqual(query.queryKey, props.queryKey),
+      refetchType: "none",
     })
   }
   // Until the user interacts with the form, whatever it emits is its own
@@ -244,8 +250,8 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   // The 409 of the latest draft save (if any): a publish whose pre-save hit
   // it is already handled by the autosave conflict dialog.
   const saveConflict = useRef<ApiError | null>(null)
-  // A 409 from the publish call itself (someone saved after our last save).
-  const [publishConflict, setPublishConflict] = useState<ApiError | null>(null)
+  // A 409 from a publish or restore call (someone saved after our last save).
+  const [requestConflict, setRequestConflict] = useState<ApiError | null>(null)
   // "Overwrite with mine" saves once the new base has rendered (the
   // autosave hook compares against it).
   const [flushRequest, setFlushRequest] = useState(0)
@@ -287,7 +293,17 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   })
   const { flush } = autosave
   useEffect(() => {
-    if (flushRequest > 0) void flush()
+    if (flushRequest === 0) return
+    void flush().then((saved) => {
+      if (!saved) return
+      toast.success("Your version replaced theirs", {
+        description: record.published
+          ? "Publish to put it on the site."
+          : undefined,
+      })
+    })
+    // Runs once per overwrite request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flushRequest, flush])
 
   const showAllErrors = () => {
@@ -345,14 +361,14 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
       if (error instanceof ApiError && error.isConflict) {
         // Resolve the conflict first; the conflict dialog takes over.
         setPublishOpen(false)
-        if (error !== saveConflict.current) setPublishConflict(error)
+        if (error !== saveConflict.current) setRequestConflict(error)
         return
       }
       toast.error("Not published", { description: errorMessage(error) })
     },
   })
 
-  const conflict = autosave.conflict ?? publishConflict
+  const conflict = autosave.conflict ?? requestConflict
   const current = (conflict?.current ?? null) as Dto | null
   const actionContext: EditorActionContext<Dto> = {
     record,
@@ -378,7 +394,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   const dirty = autosave.dirty || record.dirty
   const resolveConflict = () => {
     autosave.resolveConflict()
-    setPublishConflict(null)
+    setRequestConflict(null)
   }
 
   return (
@@ -503,6 +519,12 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             replaceDraft(dto)
             toast.success(`Version ${revision.version} restored into the draft`)
           } catch (error) {
+            if (error instanceof ApiError && error.isConflict) {
+              // Someone saved meanwhile: resolve it like a save conflict.
+              setHistoryOpen(false)
+              setRequestConflict(error)
+              return
+            }
             toast.error("Not restored", { description: errorMessage(error) })
             throw error
           }
@@ -517,12 +539,17 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
           resolveConflict()
         }}
         onOverwrite={() => {
+          if (!current) {
+            // Without their version we cannot know which version to send.
+            toast.error("Their version could not be loaded", {
+              description: "Copy yours, then reload the page.",
+            })
+            return
+          }
           // Their record becomes the base; saving mine over it sends their
           // version, so the server accepts it.
-          if (current) {
-            baseRef.current = { version: current.version, saved: current.draft }
-            setBase(baseRef.current)
-          }
+          baseRef.current = { version: current.version, saved: current.draft }
+          setBase(baseRef.current)
           resolveConflict()
           setFlushRequest((n) => n + 1)
         }}
