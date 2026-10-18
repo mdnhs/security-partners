@@ -13,6 +13,7 @@ export const SCRIPT_ENTRIES = [
   "owner-recover",
   "demo-seed",
   "seed",
+  "backup",
 ] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */

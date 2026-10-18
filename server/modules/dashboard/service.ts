@@ -57,6 +57,7 @@ export async function getDashboard(
     unassigned,
     configured,
     twoFactor,
+    jobProblems,
   ] = await Promise.all([
     canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
     canLeads ? repo.countOpenLeads(db) : null,
@@ -68,6 +69,7 @@ export async function getDashboard(
       ? repo.existingSettingsKeys(db, ["integrations.smtp", "integrations.r2"])
       : null,
     isOwnerOrAdmin ? repo.twoFactorEnabled(db, actor.userId) : null,
+    can({ integration: ["read"] }) ? repo.listJobProblems(db) : null,
   ])
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
@@ -119,6 +121,16 @@ export async function getDashboard(
       description: "New enquiries nobody has picked up yet.",
       href: "/admin/leads?status=new&assignee=none",
       done: unassigned === 0,
+    })
+  if (jobProblems && jobProblems.length > 0)
+    nextUp.push({
+      id: "failed-jobs",
+      title: "Background jobs need attention",
+      description: jobProblems
+        .map((job) => `${job.name}: ${job.lastError.slice(0, 160)}`)
+        .join(" · "),
+      href: "/admin/settings/integrations",
+      done: false,
     })
 
   return {
