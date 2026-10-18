@@ -12,7 +12,8 @@ export type DashboardDto = {
 }
 
 export type NextUpItem = {
-  id: "smtp" | "r2" | "two-factor" | "review" | "unassigned-leads"
+  id:
+    "smtp" | "r2" | "two-factor" | "review" | "unassigned-leads" | "failed-jobs"
   title: string
   description: string
   href: string

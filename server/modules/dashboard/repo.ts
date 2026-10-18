@@ -2,6 +2,7 @@ import "server-only"
 
 import {
   and,
+  asc,
   count,
   eq,
   gte,
@@ -15,6 +16,7 @@ import {
 import type { DbOrTx } from "@/server/db/client"
 import {
   articles,
+  jobs,
   leads,
   pages,
   services,
@@ -107,4 +109,16 @@ export async function twoFactorEnabled(
     .from(users)
     .where(eq(users.id, userId))
   return !!row?.on
+}
+
+/** Jobs whose last run failed or warned (spec §12: surfaced on the dashboard). */
+export async function listJobProblems(
+  db: DbOrTx
+): Promise<{ name: string; lastError: string }[]> {
+  const rows = await db
+    .select({ name: jobs.name, lastError: jobs.lastError })
+    .from(jobs)
+    .where(isNotNull(jobs.lastError))
+    .orderBy(asc(jobs.name))
+  return rows.map((row) => ({ name: row.name, lastError: row.lastError ?? "" }))
 }

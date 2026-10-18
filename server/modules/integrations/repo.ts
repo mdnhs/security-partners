@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { settings, users } from "@/server/db/schema"
@@ -100,4 +100,16 @@ export async function deleteIntegrationIfVersion(
     .where(and(eq(settings.key, key), eq(settings.version, version)))
     .returning({ key: settings.key })
   return deleted.length > 0
+}
+
+/** Replaces the stored object (secrets:rotate). Bumps `version` so an open form reloads. */
+export async function replaceIntegrationDraft(
+  db: DbOrTx,
+  key: string,
+  draft: unknown
+): Promise<void> {
+  await db
+    .update(settings)
+    .set({ draft, version: sql`${settings.version} + 1` })
+    .where(eq(settings.key, key))
 }

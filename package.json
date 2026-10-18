@@ -26,7 +26,11 @@
     "admin:create": "pnpm tsx:server scripts/admin-create.ts",
     "owner:recover": "pnpm tsx:server scripts/owner-recover.ts",
     "demo:seed": "pnpm tsx:server scripts/demo-seed.ts",
-    "db:seed": "pnpm tsx:server scripts/seed.ts"
+    "db:seed": "pnpm tsx:server scripts/seed.ts",
+    "backup": "pnpm tsx:server scripts/backup.ts",
+    "restore-drill": "pnpm tsx:server scripts/restore-drill.ts",
+    "secrets:rotate": "pnpm tsx:server scripts/secrets-rotate.ts",
+    "db:sync": "pnpm tsx:server scripts/db-sync.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.71",
