@@ -8,6 +8,7 @@ import {
   Megaphone,
   Newspaper,
   ScrollText,
+  SearchCheck,
   Settings,
   ShieldCheck,
   Tags,
@@ -157,6 +158,30 @@ export const NAV_SECTIONS: NavSection[] = [
     // section whose sub-pages are route tabs.
     label: "Growth",
     items: [
+      {
+        label: "SEO",
+        href: "/admin/seo",
+        icon: SearchCheck,
+        permission: { seo: ["read"] },
+        match: "prefix",
+        children: [
+          {
+            label: "Overview",
+            href: "/admin/seo",
+            permission: { seo: ["read"] },
+          },
+          {
+            label: "Defaults",
+            href: "/admin/seo/defaults",
+            permission: { seo: ["read"] },
+          },
+          {
+            label: "Redirects",
+            href: "/admin/seo/redirects",
+            permission: { redirect: ["read"] },
+          },
+        ],
+      },
       {
         label: "Marketing",
         href: "/admin/marketing/tracking",

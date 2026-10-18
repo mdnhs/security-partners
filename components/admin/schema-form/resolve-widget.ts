@@ -12,13 +12,19 @@ import {
 type Def = {
   type: string
   innerType?: z.ZodType
+  /** pipe: the schema the form's value is checked against first. */
+  in?: z.ZodType
   checks?: {
     _zod: { def: { check: string; minimum?: number; maximum?: number } }
   }[]
 }
 const defOf = (schema: z.ZodType) => (schema as unknown as { def: Def }).def
 
-/** Strips optional / nullable / default wrappers and remembers them. */
+/**
+ * Strips optional / nullable / default wrappers and remembers them. A pipe
+ * (`a.pipe(b)`, `.transform()`) is edited as its input schema `a`: that is
+ * the value the form holds (e.g. seo.canonical's raw text before httpUrl).
+ */
 export function unwrapSchema(schema: z.ZodType): {
   inner: z.ZodType
   optional: boolean
@@ -29,6 +35,10 @@ export function unwrapSchema(schema: z.ZodType): {
   let nullable = false
   for (;;) {
     const def = defOf(inner)
+    if (def.type === "pipe") {
+      inner = def.in!
+      continue
+    }
     if (def.type === "optional" || def.type === "default") optional = true
     else if (def.type === "nullable") nullable = true
     else break

@@ -125,6 +125,117 @@ const REVIEW_QUEUE = {
   total: 2,
 }
 
+/**
+ * SEO › Overview, pinned (Phase 8): three published records, one with an
+ * issue (4 checks each: 11 of 12 pass), and a draft article. Also feeds
+ * the dashboard's Content health gauge.
+ */
+const SEO_ENTRY = {
+  seo: {},
+  image: "generated",
+  issues: [] as { check: string; message: string }[],
+}
+const SEO_OVERVIEW = {
+  entries: [
+    {
+      ...SEO_ENTRY,
+      kind: "page",
+      id: "home",
+      name: "Home",
+      path: "/",
+      published: true,
+      title: "Security Partners Ltd. | Watching Over You",
+      description: "Security services across Ireland.",
+      fallback: {
+        title: "Security Partners Ltd. | Watching Over You",
+        description: "Security services across Ireland.",
+      },
+      issues: [
+        {
+          check: "own-description",
+          message: "Uses the site-wide default description.",
+        },
+      ],
+    },
+    {
+      ...SEO_ENTRY,
+      kind: "page",
+      id: "about",
+      name: "About",
+      path: "/about",
+      published: true,
+      title: "About | Security Partners Ltd.",
+      description:
+        "Eighteen years of watching over Irish homes and businesses, day and night.",
+      fallback: {
+        title: "About | Security Partners Ltd.",
+        description:
+          "Eighteen years of watching over Irish homes and businesses, day and night.",
+      },
+    },
+    {
+      ...SEO_ENTRY,
+      kind: "service",
+      id: "0190f0e0-0000-7000-8000-0000000000b1",
+      name: "Alarm Responses",
+      path: "/services/alarm-responses",
+      published: true,
+      title: "Alarm Responses | Security Partners Ltd.",
+      description:
+        "Keyholders on call around the clock: we attend every alarm activation.",
+      fallback: {
+        title: "Alarm Responses | Security Partners Ltd.",
+        description:
+          "Keyholders on call around the clock: we attend every alarm activation.",
+      },
+    },
+    {
+      ...SEO_ENTRY,
+      kind: "article",
+      id: "0190f0e0-0000-7000-8000-0000000000b2",
+      name: "Night Patrols Explained",
+      path: "/blog/night-patrols-explained",
+      published: false,
+      title: "Night Patrols Explained | Security Partners Ltd.",
+      description: "Security services across Ireland.",
+      fallback: {
+        title: "Night Patrols Explained | Security Partners Ltd.",
+        description: "Security services across Ireland.",
+      },
+    },
+  ],
+  checks: { passed: 11, total: 12 },
+}
+
+/** SEO › Redirects, pinned (Phase 8 Task 9): hits change with every run. */
+const REDIRECT_TIMES = {
+  createdAt: "2026-10-01T09:00:00.000Z",
+  updatedAt: "2026-10-16T09:00:00.000Z",
+}
+const REDIRECTS = {
+  items: [
+    {
+      id: "0190f0e0-0000-7000-8000-0000000000c1",
+      fromPath: "/old-alarms",
+      toPath: "/services/alarm-responses",
+      code: 301,
+      hits: 1234,
+      ...REDIRECT_TIMES,
+    },
+    {
+      id: "0190f0e0-0000-7000-8000-0000000000c2",
+      fromPath: "/winter-offer",
+      toPath: "/contact",
+      code: 302,
+      hits: 18,
+      ...REDIRECT_TIMES,
+    },
+  ],
+  page: 1,
+  pageSize: 20,
+  total: 2,
+}
+
 /** The dashboard's numbers and the audit log, pinned. */
 async function pinData(page: Page) {
   await page.route("**/api/v1/admin/dashboard", (route) =>
@@ -132,6 +243,9 @@ async function pinData(page: Page) {
   )
   await page.route("**/api/v1/admin/audit*", (route) =>
     route.fulfill({ json: AUDIT })
+  )
+  await page.route("**/api/v1/admin/seo/overview", (route) =>
+    route.fulfill({ json: SEO_OVERVIEW })
   )
 }
 
@@ -618,6 +732,70 @@ for (const colorScheme of ["light", "dark"] as const) {
         "Michael McDonald"
       )
       await expect(page).toHaveScreenshot(shot("team-record-sheet"), {
+        mask: await overlayOnly(page),
+      })
+    })
+
+    test(`admin SEO overview ${colorScheme}`, async ({ page }) => {
+      await pinData(page)
+      await signIn(page)
+      await page.goto("/admin/seo")
+      await expect(page.getByRole("navigation", { name: "SEO" })).toBeVisible()
+      await expect(page.getByText("91%")).toBeVisible()
+      await expect(
+        page.getByText("1 of 3 published pages need attention.")
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("seo-overview"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin SEO sheet ${colorScheme}`, async ({ page }) => {
+      await pinData(page)
+      await signIn(page)
+      await page.goto("/admin/seo")
+      await page.getByRole("button", { name: "Edit SEO for Home" }).click()
+      const sheet = page.getByRole("dialog", { name: "SEO: Home" })
+      await expect(sheet.getByText("Search result preview")).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("seo-sheet"), {
+        mask: await overlayOnly(page),
+      })
+    })
+
+    test(`admin SEO defaults ${colorScheme}`, async ({ page }) => {
+      await signIn(page)
+      await page.goto("/admin/seo/defaults")
+      await editorReady(page, "SEO defaults")
+      await expect(
+        page.getByText("Business details for search engines")
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("seo-defaults"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin redirects ${colorScheme}`, async ({ page }) => {
+      await page.route("**/api/v1/admin/redirects?*", (route) =>
+        route.fulfill({ json: REDIRECTS })
+      )
+      await signIn(page)
+      await page.goto("/admin/seo/redirects")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Redirects" })
+      ).toBeVisible()
+      // Two pinned rows, as table rows or as cards.
+      await expect(
+        page.getByRole("button", { name: /^Edit redirect from/ })
+      ).toHaveCount(2)
+      await expect(page).toHaveScreenshot(shot("seo-redirects"), {
+        mask: await masks(page),
+      })
+      // The add dialog.
+      await page.getByRole("button", { name: "Add redirect" }).first().click()
+      await expect(
+        page.getByRole("dialog", { name: "Add redirect" })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("redirect-dialog"), {
         mask: await overlayOnly(page),
       })
     })

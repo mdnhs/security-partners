@@ -17,27 +17,17 @@ const dock = (roles: Role[]) => dockItems(roles).map((i) => i.label)
 const destinations = (roles: Role[]) =>
   navDestinations(roles).map((d) => d.label)
 
+const CONTENT_MENU = ["Dashboard", "Pages", "Articles", "Services"]
 const MENU_ALL = [
-  "Dashboard",
-  "Pages",
-  "Articles",
-  "Services",
+  ...CONTENT_MENU,
   "Collections",
   "Media",
-  "Settings",
-]
-// Phase 8: Growth › Marketing for roles holding marketing:read (not editors).
-const MENU_MARKETING = [
-  "Dashboard",
-  "Pages",
-  "Articles",
-  "Services",
-  "Collections",
-  "Media",
+  "SEO",
   "Marketing",
   "Settings",
 ]
-const DEST_ALL = [
+const MENU_EDITOR = [...CONTENT_MENU, "Collections", "Media", "SEO", "Settings"]
+const CONTENT_DEST = [
   "Dashboard",
   "Pages",
   "Articles",
@@ -47,21 +37,33 @@ const DEST_ALL = [
   "Group companies",
   "Categories",
   "Media",
+]
+const GROWTH_DEST = [
+  "Overview",
+  "Defaults",
+  "Redirects",
+  "Tracking",
+  "Consent banner",
+]
+const DEST_EDITOR = [
+  ...CONTENT_DEST,
+  "Overview",
+  "Defaults",
   "Settings",
   "Account",
 ]
 const DEST_ADMIN = [
-  "Dashboard",
-  "Pages",
-  "Articles",
-  "Services",
-  "Team",
-  "Clients",
-  "Group companies",
-  "Categories",
-  "Media",
-  "Tracking",
-  "Consent banner",
+  ...CONTENT_DEST,
+  ...GROWTH_DEST,
+  "Settings",
+  "Users",
+  "Audit log",
+  "Account",
+]
+const DEST_OWNER = [
+  ...CONTENT_DEST,
+  ...GROWTH_DEST,
+  "Custom code",
   "Settings",
   "Users",
   "Audit log",
@@ -70,14 +72,11 @@ const DEST_ADMIN = [
 
 describe("navigation registry (JW structure)", () => {
   it.each<[Role, string[]]>([
-    ["owner", MENU_MARKETING],
-    ["admin", MENU_MARKETING],
-    ["editor", MENU_ALL],
-    ["viewer", MENU_MARKETING],
-    [
-      "marketer",
-      ["Dashboard", "Pages", "Articles", "Services", "Media", "Marketing"],
-    ],
+    ["owner", MENU_ALL],
+    ["admin", MENU_ALL],
+    ["editor", MENU_EDITOR],
+    ["viewer", MENU_ALL],
+    ["marketer", [...CONTENT_MENU, "Media", "SEO", "Marketing"]],
     ["author", ["Dashboard", "Articles", "Media"]],
     ["intake", ["Dashboard"]],
   ])("%s sees menu %j", (role, expected) => {
@@ -106,7 +105,7 @@ describe("navigation registry (JW structure)", () => {
   it("Users and Audit log are dock items for owners and admins only (spec §8.1, ruling D3)", () => {
     for (const role of ["owner", "admin"] as const) {
       expect(dock([role])).toEqual(["Users", "Audit log", "Account"])
-      expect(menu([role])).toEqual(MENU_MARKETING)
+      expect(menu([role])).toEqual(MENU_ALL)
     }
     for (const role of ["editor", "viewer", "marketer", "author"] as const)
       expect(dock([role])).toEqual(["Account"])
@@ -121,16 +120,16 @@ describe("navigation registry (JW structure)", () => {
   })
 
   it("flattens children for ⌘K, permission-filtered", () => {
-    expect(destinations(["editor"])).toEqual(DEST_ALL)
+    expect(destinations(["editor"])).toEqual(DEST_EDITOR)
     expect(destinations(["admin"])).toEqual(DEST_ADMIN)
+    expect(destinations(["owner"])).toEqual(DEST_OWNER)
     expect(destinations(["marketer"])).toEqual([
       "Dashboard",
       "Pages",
       "Articles",
       "Services",
       "Media",
-      "Tracking",
-      "Consent banner",
+      ...GROWTH_DEST,
       "Account",
     ])
     const team = navDestinations(["editor"]).find((d) => d.label === "Team")!
@@ -210,49 +209,55 @@ describe("navigation registry (JW structure)", () => {
   })
 })
 
-describe("Growth › Marketing (phase 8)", () => {
-  const marketing = (roles: Role[]) =>
+describe("Growth section (phase 8)", () => {
+  const growth = (roles: Role[]) =>
     menuSections(roles)
       .find((s) => s.label === "Growth")
-      ?.items.filter((i) => i.label === "Marketing")
-      .map((i) => [i.label, i.children?.map((c) => c.label)]) ?? null
-  const MARKETING = [["Marketing", ["Tracking", "Consent banner"]]]
+      ?.items.map((i) => [i.label, i.children?.map((c) => c.label)]) ?? null
+  const FULL_SEO = ["SEO", ["Overview", "Defaults", "Redirects"]]
+  const MARKETING = ["Marketing", ["Tracking", "Consent banner"]]
 
   it.each<[Role, unknown]>([
-    ["owner", [["Marketing", ["Tracking", "Consent banner", "Custom code"]]]],
-    ["admin", MARKETING],
-    ["marketer", MARKETING],
-    ["viewer", MARKETING],
-    ["editor", null],
+    [
+      "owner",
+      [FULL_SEO, ["Marketing", ["Tracking", "Consent banner", "Custom code"]]],
+    ],
+    ["admin", [FULL_SEO, MARKETING]],
+    ["marketer", [FULL_SEO, MARKETING]],
+    ["viewer", [FULL_SEO, MARKETING]],
+    ["editor", [["SEO", ["Overview", "Defaults"]]]],
     ["author", null],
     ["intake", null],
   ])("%s sees %j", (role, expected) => {
-    expect(marketing([role])).toEqual(expected)
+    expect(growth([role])).toEqual(expected)
   })
 
-  it("Growth sits between Content and Configuration", () => {
+  it("sits between Content and Configuration", () => {
     const labels = menuSections(["owner"]).map((s) => s.label)
     expect(labels.indexOf("Growth")).toBe(labels.indexOf("Content") + 1)
     expect(labels.indexOf("Configuration")).toBe(labels.indexOf("Growth") + 1)
   })
 
   it("Marketing opens its first tab; ⌘K lists sub-pages with their parent", () => {
-    const item = navItems(["marketer"])
+    const marketing = navItems(["marketer"])
       .flatMap((s) => s.items)
       .find((i) => i.label === "Marketing")!
-    expect(item.href).toBe("/admin/marketing/tracking")
+    expect(marketing.href).toBe("/admin/marketing/tracking")
     expect(
       navDestinations(["owner"])
-        .filter((d) => d.parent === "Marketing")
+        .filter((d) => d.parent === "SEO" || d.parent === "Marketing")
         .map((d) => `${d.parent} › ${d.label}`)
     ).toEqual([
+      "SEO › Overview",
+      "SEO › Defaults",
+      "SEO › Redirects",
       "Marketing › Tracking",
       "Marketing › Consent banner",
       "Marketing › Custom code",
     ])
-    const raw = NAV_SECTIONS.flatMap((s) => s.items).find(
-      (i) => i.label === "Marketing"
+    const seo = NAV_SECTIONS.flatMap((s) => s.items).find(
+      (i) => i.label === "SEO"
     )!
-    expect(isActiveItem(raw, "/admin/marketing/custom-code")).toBe(true)
+    expect(isActiveItem(seo, "/admin/seo/redirects")).toBe(true)
   })
 })

@@ -4,5 +4,5 @@ import { NavChildTabs } from "@/components/admin/shell/nav-child-tabs"
 export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <NavChildTabs section="Marketing">{children}</NavChildTabs>
+  return <NavChildTabs basePath="/admin/marketing">{children}</NavChildTabs>
 }

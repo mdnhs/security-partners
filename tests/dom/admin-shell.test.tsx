@@ -347,6 +347,7 @@ describe("AdminShell (master 4.1)", () => {
       "Services",
       "Collections",
       "Media",
+      "SEO",
       "Settings",
     ])
     const collections = within(nav).getByRole("link", { name: "Collections" })
@@ -639,7 +640,7 @@ describe("AdminShell (master 4.1)", () => {
         .getAllByRole("list")
         .map((list) => list.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id!)?.textContent)
-    ).toEqual(["Overview", "Content", "Configuration"])
+    ).toEqual(["Overview", "Content", "Growth", "Configuration"])
   })
 
   it("website card: environment, host and Open site", () => {

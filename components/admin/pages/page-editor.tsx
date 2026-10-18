@@ -1,6 +1,7 @@
 "use client"
 
 import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
+import { SeoLink } from "@/components/admin/seo/seo-link"
 import { usePermission } from "@/hooks/use-permission"
 import { PAGE_LABELS } from "@/lib/admin/page-labels"
 import { api, unwrap } from "@/lib/api-client"
@@ -50,6 +51,7 @@ export function PageEditor({ pageKey }: { pageKey: PageKey }) {
       publicHref={PAGE_PATHS[pageKey]}
       canEdit={canEdit}
       canPublish={canPublish}
+      actions={<SeoLink kind="page" id={pageKey} />}
     />
   )
 }

@@ -25,8 +25,9 @@ export function GrowthSettingsEditor({
   aside,
 }: {
   settingsKey: GrowthSettingsKey
-  backHref: string
-  backLabel: string
+  /** Omit inside the section's route tabs (they already lead back). */
+  backHref?: string
+  backLabel?: string
   aside?: ReactNode
 }) {
   const entry = GROWTH_SETTINGS[settingsKey]
