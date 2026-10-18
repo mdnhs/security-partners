@@ -205,6 +205,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       rejectLabel: "Reject non-essential",
       customiseLabel: "Customise",
       saveLabel: "Save choices",
+      manageLabel: "Cookie settings",
       policyLink: { label: "Privacy Policy", href: "/privacy" },
       categories: {
         necessary: {

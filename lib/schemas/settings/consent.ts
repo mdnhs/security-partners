@@ -12,6 +12,8 @@ export const consentSettings = z.object({
   rejectLabel: text,
   customiseLabel: text,
   saveLabel: text,
+  /** The small button that reopens the banner after a choice (withdrawal). */
+  manageLabel: text,
   policyLink: link,
   categories: z.object({
     necessary: category,
