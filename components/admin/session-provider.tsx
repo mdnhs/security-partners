@@ -40,3 +40,8 @@ export function useAdminSession(): AdminSession {
     throw new Error("useAdminSession must be used inside <AdminShell>")
   return session
 }
+
+/** The session when rendered inside the admin shell, otherwise null (shared widgets in tests). */
+export function useOptionalAdminSession(): AdminSession | null {
+  return useContext(AdminSessionContext)
+}

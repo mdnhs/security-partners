@@ -848,6 +848,40 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
+    test(`admin media picker upload ${colorScheme}`, async ({ page }) => {
+      await freezeUploads(page)
+      await pinMedia(page)
+      await signIn(page)
+      await page.goto("/admin/pages/home")
+      await editorReady(page, "Home")
+      await page
+        .getByRole("region", { name: "Hero" })
+        .getByRole("button", { name: "Change image: Background image" })
+        .click()
+      const picker = page.getByRole("dialog", {
+        name: "Choose: Background image",
+      })
+      await expect(
+        picker.getByRole("list", { name: "Images" }).getByRole("listitem")
+      ).toHaveCount(
+        MEDIA_ITEMS.filter((m) => m.mime !== "application/pdf").length
+      )
+      await picker.locator("[data-upload-input]").setInputFiles({
+        name: "night-shift-rota.png",
+        mimeType: "image/png",
+        buffer: PNG_1PX,
+      })
+      await expect(
+        picker.getByRole("progressbar", {
+          name: "Uploading night-shift-rota.png",
+        })
+      ).toHaveAttribute("aria-valuenow", "40")
+      await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
+      await expect(page).toHaveScreenshot(shot("media-picker-upload"), {
+        mask: await overlayOnly(page),
+      })
+    })
+
     test(`admin users list ${colorScheme}`, async ({ page }) => {
       await signIn(page)
       await page.goto("/admin/users")

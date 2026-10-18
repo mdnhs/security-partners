@@ -354,6 +354,46 @@ for (const colorScheme of ["light", "dark"] as const) {
       expect(failures).toEqual([])
     })
 
+    test(`media picker upload in ${colorScheme}`, async ({ page }) => {
+      const failures: string[] = []
+      const audit = async (label: string) => {
+        for (const violation of await blocking(page))
+          failures.push(`${label} → ${violation}`)
+      }
+      await freezeUploads(page)
+      await pinMedia(page)
+      await signIn(page, readFixtures().editor)
+      await page.goto("/admin/pages/home")
+      await page
+        .getByRole("region", { name: "Hero" })
+        .getByRole("button", { name: "Change image: Background image" })
+        .click()
+      const picker = page.getByRole("dialog", {
+        name: "Choose: Background image",
+      })
+      await expect(
+        picker.getByRole("button", { name: "Upload new image" })
+      ).toBeVisible()
+      await audit("media picker")
+      // A refused file, then one in progress.
+      const input = picker.locator("[data-upload-input]")
+      await input.setInputFiles({
+        name: "fail-scan.tiff",
+        mimeType: "image/tiff",
+        buffer: PNG_1PX,
+      })
+      await expect(picker.getByRole("alert")).toBeVisible()
+      await audit("media picker (upload refused)")
+      await input.setInputFiles({
+        name: "night-shift-rota.png",
+        mimeType: "image/png",
+        buffer: PNG_1PX,
+      })
+      await expect(picker.getByRole("progressbar")).toBeVisible()
+      await audit("media picker (uploading)")
+      expect(failures).toEqual([])
+    })
+
     test(`overlays open in ${colorScheme}`, async ({ page }) => {
       await signIn(page, readFixtures().editor)
       const failures: string[] = []
