@@ -29,6 +29,9 @@ async function signIn(page: Page) {
   // visual seed has no enquiries, so it stays hidden. A lead left by another
   // spec (e.g. the public contact form e2e) would show it — fail loudly.
   await expect(page.getByLabel(/ new leads$/)).toHaveCount(0)
+  // Same for the bell's red dot (unassigned leads, failed jobs, unreadable
+  // Turnstile): the visual seed has none of them, so no shot shows it.
+  await expect(page.locator('[data-slot="notification-dot"]')).toHaveCount(0)
   await page.evaluate(() => document.fonts.ready)
 }
 

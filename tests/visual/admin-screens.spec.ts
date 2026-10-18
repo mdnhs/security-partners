@@ -271,6 +271,9 @@ async function signIn(
   // hidden. A lead left by another spec (the public contact form e2e posts
   // a real one) would show it in every shot — fail loudly instead.
   await expect(page.getByLabel(/ new leads$/)).toHaveCount(0)
+  // Same for the bell's red dot (unassigned leads, failed jobs, unreadable
+  // Turnstile): the visual seed has none of them, so no shot shows it.
+  await expect(page.locator('[data-slot="notification-dot"]')).toHaveCount(0)
   await page.evaluate(() => document.fonts.ready)
 }
 
@@ -1233,7 +1236,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toHaveAttribute("aria-valuenow", "40")
       await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
       // The scroll offset the baselines were captured at (desktop/mobile).
-      const baselineScrollTop = page.viewportSize()!.width >= 1024 ? 558 : 845
+      // Mobile: 853 since the 44 px coarse SectionTabs (final review I4,
+      // +8 px above the Hero card; was 845).
+      const baselineScrollTop = page.viewportSize()!.width >= 1024 ? 558 : 853
       await expect
         .poll(() => settledMainScrollTop(page))
         .toBe(baselineScrollTop)
