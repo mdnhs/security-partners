@@ -146,27 +146,30 @@ function reveals() {
     })
   }
 
-  gsap.set("[data-reveal]", { autoAlpha: 0, y: 48 })
-  ScrollTrigger.batch("[data-reveal]", {
-    start: "top 85%",
-    onEnter: (batch) =>
-      gsap.to(batch, {
-        autoAlpha: 1,
-        y: 0,
-        duration: 1,
-        ease: "power3.out",
-        stagger: 0.15,
-        overwrite: true,
-      }),
-    onLeaveBack: (batch) =>
-      gsap.to(batch, {
-        autoAlpha: 0,
-        y: 48,
-        duration: 0.6,
-        ease: "power2.in",
-        overwrite: true,
-      }),
-  })
+  // Not every page has reveal targets; GSAP warns on an empty selector.
+  if (q("[data-reveal]").length > 0) {
+    gsap.set("[data-reveal]", { autoAlpha: 0, y: 48 })
+    ScrollTrigger.batch("[data-reveal]", {
+      start: "top 85%",
+      onEnter: (batch) =>
+        gsap.to(batch, {
+          autoAlpha: 1,
+          y: 0,
+          duration: 1,
+          ease: "power3.out",
+          stagger: 0.15,
+          overwrite: true,
+        }),
+      onLeaveBack: (batch) =>
+        gsap.to(batch, {
+          autoAlpha: 0,
+          y: 48,
+          duration: 0.6,
+          ease: "power2.in",
+          overwrite: true,
+        }),
+    })
+  }
 
   for (const icon of q("[data-service-icon]")) {
     gsap.from(icon, {
