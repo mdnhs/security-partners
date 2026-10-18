@@ -84,6 +84,20 @@ describe("sitemap entries (published only)", () => {
     expect(entries.find((e) => e.path === "/about")?.canonical).toBeNull()
   })
 
+  it("a published page row the registry does not know is left out", async () => {
+    await getDb().insert(pages).values({
+      key: "legacy-landing",
+      template: "legal",
+      draft: {},
+      published: {},
+      status: "published",
+      publishedAt: new Date(),
+    })
+    const entries = await listSitemapEntries()
+    expect(entries).toHaveLength(8 + fx.services.length + fx.articles.length)
+    for (const entry of entries) expect(entry.path, entry.path).toMatch(/^\//)
+  })
+
   it("lastmod is the newest of the publish date and the last revision", async () => {
     const [service] = await getDb()
       .select({ id: services.id, publishedAt: services.publishedAt })

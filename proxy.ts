@@ -90,7 +90,9 @@ export const config = {
     "/admin/:path*",
     // Public pages only. Never /api: the proxy buffers request bodies and
     // truncates them over 10 MB (uploads). Static files, share cards,
-    // sitemap and robots need no lookup.
-    "/((?!api|admin|_next|og/|images/|favicon.ico|sitemap.xml|robots.txt).*)",
+    // sitemap and robots need no lookup. Each exclusion is anchored to a
+    // whole segment/file so look-alikes (/apiary, /admin-old) still match
+    // and can carry redirects (lib/seo/redirects fromPathProblem allows them).
+    "/((?!api(?:/|$)|admin(?:/|$)|_next/|og/|images/|favicon\\.ico$|sitemap\\.xml$|robots\\.txt$).*)",
   ],
 }

@@ -7,9 +7,9 @@ import { getDb } from "@/server/db/client"
 import { getEnv } from "@/server/env"
 import { tag } from "@/server/lib/cache-tags"
 import { getPublishedSettings } from "@/server/modules/settings/service"
-import { PAGE_KEYS, PAGE_PATHS, type PageKey } from "@/templates/registry"
+import { isPageKey, PAGE_KEYS, PAGE_PATHS } from "@/templates/registry"
 
-import { listSitemapRows } from "./repo"
+import { listSitemapRows, type SitemapRow } from "./repo"
 
 // Public, published-only readers for /sitemap.xml and /robots.txt (never
 // draft mode). Phase 8 Tasks 1/3 add `filled`, `publicOrigin` and a cached
@@ -56,15 +56,23 @@ export async function listSitemapEntries(): Promise<SitemapSource[]> {
   cacheLife("max")
   cacheTag(tag.services, tag.articles, ...PAGE_KEYS.map((key) => tag.page(key)))
   const rows = await listSitemapRows(getDb())
-  return rows.map((row) => ({
-    path:
-      row.kind === "page"
-        ? PAGE_PATHS[row.key as PageKey]
-        : row.kind === "service"
-          ? `/services/${row.key}`
-          : `/blog/${row.key}`,
-    lastModified: latest(row.publishedAt, row.lastPublish),
-    noindex: row.seo.noindex === true,
-    canonical: filled(row.seo.canonical),
-  }))
+  const out: SitemapSource[] = []
+  for (const row of rows) {
+    const path = pathOf(row)
+    if (path === null) continue
+    out.push({
+      path,
+      lastModified: latest(row.publishedAt, row.lastPublish),
+      noindex: row.seo.noindex === true,
+      canonical: filled(row.seo.canonical),
+    })
+  }
+  return out
+}
+
+/** Public path of a row; null for a page row the registry does not know. */
+function pathOf(row: SitemapRow): string | null {
+  if (row.kind === "service") return `/services/${row.key}`
+  if (row.kind === "article") return `/blog/${row.key}`
+  return isPageKey(row.key) ? PAGE_PATHS[row.key] : null
 }

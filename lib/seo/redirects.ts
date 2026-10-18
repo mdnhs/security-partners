@@ -7,7 +7,8 @@ export const MAX_REDIRECT_HOPS = 5
 
 const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
-const FILE_EXTENSION = /\.[A-Za-z0-9]+$/
+/** A path ending in a file extension (static files; never a page or redirect source). */
+export const FILE_EXTENSION = /\.[A-Za-z0-9]+$/
 /**
  * Percent-escapes a source may not use: / \ and control characters (they
  * change the path's shape once decoded) and every unreserved character

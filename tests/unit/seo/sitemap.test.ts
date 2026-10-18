@@ -60,6 +60,24 @@ describe("sitemap and robots", () => {
         "https://example.ie/"
       )
     ).toEqual([{ url: "https://example.ie/about" }])
+    // An origin given with a path (e.g. a productionUrl of ".../home") keeps
+    // only its origin.
+    expect(
+      buildSitemap(
+        [
+          {
+            path: "/about",
+            lastModified: null,
+            noindex: false,
+            canonical: null,
+          },
+        ],
+        "https://example.ie/home/"
+      )
+    ).toEqual([{ url: "https://example.ie/about" }])
+    expect(buildRobots("https://example.ie/sub/path").sitemap).toBe(
+      "https://example.ie/sitemap.xml"
+    )
   })
 
   it("robots: everything but /admin and /api (media files stay crawlable), plus the sitemap", () => {

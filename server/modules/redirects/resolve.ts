@@ -1,6 +1,7 @@
 import "server-only"
 
 import { SLUG_PATTERN } from "@/lib/schemas/common"
+import { FILE_EXTENSION } from "@/lib/seo/redirects"
 import { getDb } from "@/server/db/client"
 import { pgErrorCode } from "@/server/lib/pg-errors"
 import { PAGE_PATHS } from "@/templates/registry"
@@ -32,7 +33,6 @@ const PASS = { kind: "pass" } as const
 const MISSING = { kind: "missing" } as const
 const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
-const FILE_EXTENSION = /\.[A-Za-z0-9]+$/
 
 /**
  * Only the SQLSTATE (or the error's class) is logged: a driver message can
@@ -51,11 +51,14 @@ const queued = new Map<string, Queued>()
 
 function writeHits(id: string, count: number): Promise<void> {
   queued.delete(id)
-  const write = (
-    count === 1
-      ? incrementRedirectHits(getDb(), id)
-      : incrementRedirectHits(getDb(), id, count)
-  )
+  // Started inside a promise chain: a synchronous throw (e.g. getDb()
+  // without DATABASE_URL) becomes a logged rejection, never an escape.
+  const write = Promise.resolve()
+    .then(() =>
+      count === 1
+        ? incrementRedirectHits(getDb(), id)
+        : incrementRedirectHits(getDb(), id, count)
+    )
     .catch((error: unknown) => {
       console.error(`[proxy] redirect hits not counted (${errorCode(error)})`)
     })

@@ -1,3 +1,4 @@
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server"
 import { type NextFetchEvent, NextRequest } from "next/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -36,8 +37,51 @@ describe("proxy.ts matcher", () => {
   it("admin plus public pages; never /api, static files, OG cards, sitemap or robots", () => {
     expect(config.matcher).toEqual([
       "/admin/:path*",
-      "/((?!api|admin|_next|og/|images/|favicon.ico|sitemap.xml|robots.txt).*)",
+      "/((?!api(?:/|$)|admin(?:/|$)|_next/|og/|images/|favicon\\.ico$|sitemap\\.xml$|robots\\.txt$).*)",
     ])
+  })
+
+  const matches = (matcher: string | string[], path: string) =>
+    unstable_doesMiddlewareMatch({
+      config: { matcher },
+      url: `http://127.0.0.1:3100${path}`,
+    })
+
+  it("the public matcher skips only whole reserved segments and exact files", () => {
+    const publicMatcher = config.matcher[1]
+    for (const path of [
+      "/",
+      "/about",
+      "/services/alarm-responses",
+      "/apiary",
+      "/api-docs",
+      "/admin-old",
+      "/administration",
+      "/images-old",
+      "/sitemap.xml.bak",
+      "/old/robots.txt",
+    ])
+      expect(matches(publicMatcher, path), path).toBe(true)
+    for (const path of [
+      "/api",
+      "/api/v1/x",
+      "/admin",
+      "/admin/x",
+      "/_next/static/x",
+      "/og/service/x",
+      "/images/logo.svg",
+      "/sitemap.xml",
+      "/robots.txt",
+      "/favicon.ico",
+    ])
+      expect(matches(publicMatcher, path), path).toBe(false)
+  })
+
+  it("the whole config still runs the admin gate and never sees /api", () => {
+    for (const path of ["/admin", "/admin/x", "/admin-old", "/apiary"])
+      expect(matches(config.matcher, path), path).toBe(true)
+    for (const path of ["/api/v1/x", "/_next/static/x", "/robots.txt"])
+      expect(matches(config.matcher, path), path).toBe(false)
   })
 })
 

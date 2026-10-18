@@ -6,7 +6,8 @@ const repo = vi.hoisted(() => ({
   isPublishedSlug: vi.fn(),
 }))
 vi.mock("@/server/modules/redirects/repo", () => repo)
-vi.mock("@/server/db/client", () => ({ getDb: () => ({}) }))
+const db = vi.hoisted(() => ({ getDb: vi.fn(() => ({})) }))
+vi.mock("@/server/db/client", () => db)
 
 import { resolvePublicPath } from "@/server/modules/redirects/resolve"
 
@@ -128,7 +129,9 @@ describe("resolvePublicPath (proxy.ts)", () => {
     if (outcome.kind !== "redirect") throw new Error("expected a redirect")
     const first = outcome.recordHit()
     const rest = Array.from({ length: 50 }, () => outcome.recordHit())
-    expect(repo.incrementRedirectHits).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() =>
+      expect(repo.incrementRedirectHits).toHaveBeenCalledTimes(1)
+    )
     release()
     await Promise.all([first, ...rest])
     expect(repo.incrementRedirectHits).toHaveBeenCalledTimes(2)
@@ -152,6 +155,30 @@ describe("resolvePublicPath (proxy.ts)", () => {
     expect(log.mock.calls.flat().join(" ")).toContain("57P01")
     await outcome.recordHit()
     expect(repo.incrementRedirectHits).toHaveBeenCalledTimes(2)
+    log.mockRestore()
+  })
+
+  it("recordHit never throws, even when getDb() throws synchronously", async () => {
+    repo.findRedirectByFrom.mockResolvedValue({
+      id: "r5",
+      toPath: "/services/new",
+      code: 301,
+    })
+    const outcome = await resolvePublicPath("/hot3", live)
+    if (outcome.kind !== "redirect") throw new Error("expected a redirect")
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    db.getDb.mockImplementationOnce(() => {
+      throw new Error("DATABASE_URL is not set")
+    })
+    let hit: Promise<void> | undefined
+    expect(() => {
+      hit = outcome.recordHit()
+    }).not.toThrow()
+    await expect(hit).resolves.toBeUndefined()
+    const logged = log.mock.calls.flat().join(" ")
+    expect(logged).toContain("[proxy] redirect hits not counted")
+    expect(logged).not.toContain("DATABASE_URL")
+    expect(repo.incrementRedirectHits).not.toHaveBeenCalled()
     log.mockRestore()
   })
 })
