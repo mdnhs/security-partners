@@ -138,6 +138,27 @@ describe("SchemaForm layout (JW field groups)", () => {
     )
   })
 
+  it("hides fields marked hidden (site logoOnDark: no dark logo slot on the site)", () => {
+    renderSchema(settingsSchemas.site, settingsEditorMeta.site, settings.site)
+    expect(screen.getAllByText("Browser tab icon").length).toBeGreaterThan(0)
+    expect(screen.queryByText("Logo on dark backgrounds")).toBeNull()
+    expect(screen.queryByText("Logo on dark")).toBeNull()
+  })
+
+  it("never renders an empty card for a run of hidden fields", () => {
+    const { container } = renderSchema(
+      z.object({ shown: z.string(), secret: z.string() }),
+      {
+        fields: { secret: { hidden: true } },
+        groups: { "": [{ title: "Visible", fields: ["shown"] }] },
+      },
+      { shown: "a", secret: "b" }
+    )
+    expect(screen.getByRole("textbox", { name: "Shown" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Secret" })).toBeNull()
+    expect(container.querySelectorAll("[data-width]")).toHaveLength(1)
+  })
+
   it("leaves the note out when nothing is required", () => {
     renderSchema(
       z.object({ note: z.string().optional(), on: z.boolean() }),

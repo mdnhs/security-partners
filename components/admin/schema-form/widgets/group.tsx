@@ -54,6 +54,11 @@ function GroupErrors({ id, messages }: { id: string; messages: string[] }) {
 
 const childPath = (path: string, key: string) => (path ? `${path}.${key}` : key)
 
+/** `keys` without the ones meta marks hidden (their stored values are kept). */
+function visibleKeys(meta: EditorMeta, path: string, keys: string[]) {
+  return keys.filter((key) => !metaFor(meta, childPath(path, key)).hidden)
+}
+
 /**
  * Final spans for a run of fields: half-width fields pair up in order; one
  * left without a partner (next to a full-width field, or last) takes the
@@ -80,6 +85,7 @@ function FieldGrid({
   keys: string[]
 }) {
   const { meta } = useSchemaForm()
+  keys = visibleKeys(meta, path, keys)
   const widths = pairHalves(
     keys.map(
       (key) =>
@@ -161,6 +167,7 @@ export function rootCardPlan(
   shape: Record<string, z.ZodType>,
   keys: string[]
 ): { split: Split | null; blocks: Block[] } {
+  keys = visibleKeys(meta, "", keys)
   const split = splitGroups(meta, "", keys)
   return { split, blocks: blocksOf(shape, keys, split, meta) }
 }
@@ -248,7 +255,7 @@ function SectionFields({
   id: string
 }) {
   const { meta } = useSchemaForm()
-  const keys = Object.keys(shape)
+  const keys = visibleKeys(meta, path, Object.keys(shape))
   const split = splitGroups(meta, path, keys)
   if (!split) return <FieldGrid shape={shape} path={path} keys={keys} />
   return (

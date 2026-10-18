@@ -18,6 +18,11 @@ export type WidgetKind = (typeof WIDGET_KINDS)[number]
 
 /** Editor hints for one field; everything is optional (defaults come from the schema). */
 export type FieldMeta = {
+  /**
+   * Not shown in the form: the value is kept as stored (schema-compatible)
+   * but the field has no editor, e.g. a setting the site does not use.
+   */
+  hidden?: boolean
   label?: string
   help?: string
   placeholder?: string

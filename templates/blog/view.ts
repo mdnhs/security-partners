@@ -36,9 +36,9 @@ export function blogView(s: SiteSources): BlogView {
     chrome: chromeView(s),
     hero: pageHeroView(s, page.hero),
     posts: {
-      posts: listedArticles(s).map(blogCard),
+      posts: listedArticles(s).map((a) => blogCard(s, a)),
       featured: featured
-        ? { ...blogCard(featured), author: authorOf(featured) }
+        ? { ...blogCard(s, featured), author: authorOf(featured) }
         : null,
       filters: s.categories.filter((c) => c.showInFilter).map((c) => c.name),
       pageSize: page.pageSize,
@@ -91,7 +91,7 @@ export function articleView(s: SiteSources, slug: string): ArticleView | null {
         title: content.title,
         lead: content.lead ?? content.excerpt,
         category,
-        ...articleDates(article),
+        ...articleDates(s, article),
         readTime:
           article.readTimeMinutes === null
             ? null
@@ -122,7 +122,7 @@ export function articleView(s: SiteSources, slug: string): ArticleView | null {
         slug: a.slug,
         title: a.content.title,
         cover: a.content.cover.url,
-        ...articleDates(a),
+        ...articleDates(s, a),
       })),
       categories: s.categories
         .filter((c) => c.showInFilter)
@@ -149,7 +149,7 @@ export function articleView(s: SiteSources, slug: string): ArticleView | null {
     related: {
       eyebrow: microcopy.article.relatedEyebrow,
       heading: microcopy.article.relatedHeading,
-      posts: related.map(blogCard),
+      posts: related.map((a) => blogCard(s, a)),
       readArticle: microcopy.blog.readArticle,
     },
   }

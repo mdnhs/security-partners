@@ -76,7 +76,9 @@ export function homeView(s: SiteSources): HomeView {
       heading: page.blog.heading,
       intro: page.blog.intro,
       cta: linkView(s, page.blog.cta),
-      posts: listedArticles(s).slice(0, page.blog.count).map(blogCard),
+      posts: listedArticles(s)
+        .slice(0, page.blog.count)
+        .map((a) => blogCard(s, a)),
       readArticle: s.settings.microcopy.blog.readArticle,
     },
     contact: contactSectionView(s),

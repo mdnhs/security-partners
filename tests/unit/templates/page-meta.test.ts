@@ -118,4 +118,20 @@ describe("public page metadata (spec §10)", () => {
     )
     expect(meta.description).toBe(defaults.description)
   })
+
+  it("siteMetadata: favicon falls back to /favicon.ico when unset", () => {
+    expect(s.settings.site.favicon).toBeNull()
+    const meta = siteMetadata(s, "https://www.securitypartnersltd.com")
+    expect(meta.icons).toEqual({ icon: "/favicon.ico" })
+  })
+
+  it("siteMetadata: settings.site.favicon becomes the browser tab icon", () => {
+    const custom = structuredClone(s)
+    custom.settings.site.favicon = {
+      ...custom.settings.site.logo,
+      url: "/api/v1/media/file/uploads/icon.png",
+    }
+    const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
+    expect(meta.icons).toEqual({ icon: "/api/v1/media/file/uploads/icon.png" })
+  })
 })

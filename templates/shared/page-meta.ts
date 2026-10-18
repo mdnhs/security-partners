@@ -145,10 +145,14 @@ export function articleMetadata(s: SiteSources, slug: string): Metadata {
   })
 }
 
+/** Bundled icon (public/favicon.ico): used until settings.site.favicon is set. */
+export const DEFAULT_FAVICON = "/favicon.ico"
+
 /**
  * Root-layout metadata: metadataBase (canonical, og:url and share images
  * become absolute on the production origin) and the default description,
- * which the 404 page (no metadata of its own) inherits.
+ * which the 404 page (no metadata of its own) inherits. The browser tab
+ * icon is settings.site.favicon, else the bundled public/favicon.ico.
  */
 export function siteMetadata(s: SiteSources, origin: string): Metadata {
   return {
@@ -157,5 +161,6 @@ export function siteMetadata(s: SiteSources, origin: string): Metadata {
       s.settings["seo.defaults"].description,
       placeholders(s)
     ),
+    icons: { icon: s.settings.site.favicon?.url ?? DEFAULT_FAVICON },
   }
 }

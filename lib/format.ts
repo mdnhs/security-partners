@@ -59,24 +59,50 @@ const MONTHS = [
   "Dec",
 ]
 
-const calendarDate = new Intl.DateTimeFormat("en-GB", {
-  timeZone: SITE_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-})
+const calendarDates = new Map<string, Intl.DateTimeFormat>()
 
-/** Calendar date in Irish time as "2026-09-20" (for <time dateTime>). */
-export function isoDate(value: Date): string {
+/** "YYYY-MM-DD" parts formatter for an IANA zone; null when the zone is unknown. */
+function calendarDateIn(timeZone: string): Intl.DateTimeFormat | null {
+  const cached = calendarDates.get(timeZone)
+  if (cached) return cached
+  try {
+    const format = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    calendarDates.set(timeZone, format)
+    return format
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The public site's time zone: settings.site.timezone when it is a valid
+ * IANA name, else Europe/Dublin (a blank or mistyped value never breaks a page).
+ */
+export function siteTimeZone(value: string | null | undefined): string {
+  const zone = value?.trim()
+  return zone && calendarDateIn(zone) ? zone : SITE_TIME_ZONE
+}
+
+/** Calendar date as "2026-09-20" (for <time dateTime>) in `timeZone` (default Irish time). */
+export function isoDate(value: Date, timeZone: string = SITE_TIME_ZONE): string {
+  const format = calendarDateIn(siteTimeZone(timeZone))!
   const parts = Object.fromEntries(
-    calendarDate.formatToParts(value).map((p) => [p.type, p.value])
+    format.formatToParts(value).map((p) => [p.type, p.value])
   )
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
-/** "20 Sep 2026" in Irish time (article cards and headers). */
-export function formatPostDate(value: Date): string {
-  const [year, month, day] = isoDate(value).split("-")
+/** "20 Sep 2026" in `timeZone`, default Irish time (article cards and headers). */
+export function formatPostDate(
+  value: Date,
+  timeZone: string = SITE_TIME_ZONE
+): string {
+  const [year, month, day] = isoDate(value, timeZone).split("-")
   return `${day} ${MONTHS[Number(month) - 1]} ${year}`
 }
 
