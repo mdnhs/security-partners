@@ -10,6 +10,7 @@ import {
   ilike,
   inArray,
   isNull,
+  lt,
   lte,
   ne,
   or,
@@ -275,4 +276,16 @@ export async function countUnassignedNewLeads(db: DbOrTx): Promise<number> {
     .from(leads)
     .where(and(eq(leads.status, "new"), isNull(leads.assigneeId)))
   return total
+}
+
+/** Retention purge: leads created before `cutoff` (their events cascade). */
+export async function deleteLeadsCreatedBefore(
+  db: DbOrTx,
+  cutoff: Date
+): Promise<number> {
+  const rows = await db
+    .delete(leads)
+    .where(lt(leads.createdAt, cutoff))
+    .returning({ id: leads.id })
+  return rows.length
 }

@@ -39,6 +39,7 @@ import { hashIp } from "@/server/lib/ip"
 import { mailer } from "@/server/lib/mailer"
 import { verifyTurnstileToken } from "@/server/lib/turnstile"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
+import { deleteExpiredRateLimits } from "@/server/modules/rate-limit/repo"
 import { getPublishedSettings } from "@/server/modules/settings/service"
 
 import * as repo from "./repo"
@@ -511,4 +512,47 @@ export async function listAssignees(
 export async function leadBadge(actor: Actor): Promise<LeadBadge> {
   assertCan(actor, { lead: ["read"] })
   return { newLeads: await repo.countUnassignedNewLeads(getDb()) }
+}
+
+/** `months` calendar months before `now` (UTC), day clamped to the month's end. */
+export function retentionCutoff(now: Date, months: number): Date {
+  const day = now.getUTCDate()
+  const target = new Date(now.getTime())
+  target.setUTCDate(1)
+  target.setUTCMonth(target.getUTCMonth() - months)
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)
+  ).getUTCDate()
+  target.setUTCDate(Math.min(day, lastDay))
+  return target
+}
+
+/**
+ * Daily retention purge (spec §9): leads older than
+ * settings.leads.retentionMonths, plus expired public rate-limit windows.
+ * Audits counts only (no lead data); nothing is cached, so no tags.
+ */
+export async function purgeExpiredLeads(
+  now: Date = new Date()
+): Promise<{
+  deleted: number
+  cutoff: Date | null
+  rateLimitsCleared: number
+}> {
+  const db = getDb()
+  const rateLimitsCleared = await deleteExpiredRateLimits(db, now)
+  const config = await getPublishedSettings("leads", db)
+  if (!config) return { deleted: 0, cutoff: null, rateLimitsCleared }
+  const cutoff = retentionCutoff(now, config.retentionMonths)
+  const deleted = await db.transaction(async (tx) => {
+    const count = await repo.deleteLeadsCreatedBefore(tx, cutoff)
+    if (count > 0)
+      await writeAudit(tx, null, {
+        action: "lead.purged",
+        entityType: "lead",
+        diff: { count, cutoff: cutoff.toISOString() },
+      })
+    return count
+  })
+  return { deleted, cutoff, rateLimitsCleared }
 }
