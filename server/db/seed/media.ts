@@ -5,6 +5,8 @@ import { resolve } from "node:path"
 
 import sharp from "sharp"
 
+import { staticFilePath } from "@/server/lib/storage/static"
+
 import { MEDIA, type MediaKey } from "./fixtures/media"
 
 export type StaticMediaRow = {
@@ -20,7 +22,7 @@ export type StaticMediaRow = {
 
 /**
  * Reads every library image from public/ (key "/images/x.png" →
- * public/images/x.png) and measures it with sharp. Raster images get a
+ * public/images/x.png, contained in public/) and measures it with sharp. Raster images get a
  * 16px WebP blur placeholder; SVGs do not.
  */
 export async function readStaticMedia(
@@ -28,7 +30,7 @@ export async function readStaticMedia(
 ): Promise<StaticMediaRow[]> {
   return Promise.all(
     MEDIA.map(async ({ key, alt }) => {
-      const file = await readFile(resolve(publicDir, `.${key}`))
+      const file = await readFile(staticFilePath(key, publicDir))
       const meta = await sharp(file).metadata()
       const raster = meta.format !== "svg"
       const blur = raster

@@ -11,23 +11,11 @@ import {
 import { getDb } from "@/server/db/client"
 import { tag } from "@/server/lib/cache-tags"
 import { AppError } from "@/server/lib/errors"
+import { mediaUrl } from "@/server/lib/storage/paths"
 
 import { findMediaById } from "./repo"
 
-type MediaRow = NonNullable<Awaited<ReturnType<typeof findMediaById>>>
-
-/**
- * Public URL of a media row. "static" files ship in public/ (key is the
- * path), so seeded content renders the same src as the static site. The
- * disk and R2 drivers are wired by the storage layer in Phase 6.
- */
-export function mediaUrl(row: Pick<MediaRow, "driver" | "key">): string {
-  if (row.driver === "static") return row.key
-  if (row.driver === "disk")
-    return `/api/v1/media/file/${encodeURIComponent(row.key)}`
-  throw new AppError("INTERNAL", "R2 media URLs need the storage driver")
-}
-
+/** Static rows render their public/ path (unchanged markup). Disk and R2 rows are served same-origin by /api/v1/media/file/<key>. */
 export async function getMedia(id: string): Promise<MediaView | null> {
   "use cache"
   cacheLife("max")

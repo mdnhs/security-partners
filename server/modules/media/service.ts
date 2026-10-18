@@ -6,8 +6,8 @@ import type { MediaItem, MediaListQuery } from "@/lib/schemas/api/media"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { forbidden, notFound } from "@/server/lib/errors"
+import { mediaUrl } from "@/server/lib/storage/paths"
 
-import { mediaUrl } from "./queries"
 import { findMediaById, listMediaRows } from "./repo"
 
 type MediaRow = NonNullable<Awaited<ReturnType<typeof findMediaById>>>

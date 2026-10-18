@@ -1,7 +1,10 @@
+import { resolve } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { MEDIA } from "@/server/db/seed/fixtures/media"
 import { readStaticMedia } from "@/server/db/seed/media"
+import { staticFilePath } from "@/server/lib/storage/static"
 
 describe("readStaticMedia (sharp)", () => {
   it("measures every library image", { timeout: 30_000 }, async () => {
@@ -34,5 +37,30 @@ describe("readStaticMedia (sharp)", () => {
       height: 24,
       blurDataUrl: null,
     })
+  })
+})
+
+describe("staticFilePath (ledger: containment before keys come from the DB)", () => {
+  const publicDir = resolve("public")
+
+  it("maps /images/<file> into public/", () => {
+    expect(staticFilePath("/images/hero.jpg", publicDir)).toBe(
+      resolve(publicDir, "images/hero.jpg")
+    )
+  })
+
+  it("rejects keys outside /images/ or escaping public/", () => {
+    for (const key of [
+      "/images/../../etc/passwd",
+      "/images/../.env.development",
+      "images/hero.jpg",
+      "/api/x.png",
+      "/images/",
+      "/images/%2e%2e/x.png",
+      "/images/a\\b.png",
+      "/images/a\0.png",
+      "/images//etc/passwd",
+    ])
+      expect(() => staticFilePath(key, publicDir), key).toThrow()
   })
 })
