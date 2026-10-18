@@ -2,6 +2,7 @@ import {
   Building2,
   FileText,
   Images,
+  Inbox,
   LayoutDashboard,
   Layers,
   type LucideIcon,
@@ -18,7 +19,7 @@ import {
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 
-/** Live counts shown beside nav items (Leads arrives in Phase 7). */
+/** Live counts shown beside nav items. */
 export type NavBadgeKey = "new-leads"
 export type NavBadges = Partial<Record<NavBadgeKey, number>>
 
@@ -68,8 +69,7 @@ const COLLECTION = { collection: ["read"] } satisfies PermissionRequest
  * Admin IA (spec §8.1) in the James Whitfield structure: the sidebar lists
  * sections; a section's sub-pages are tabs in the content panel; account
  * and administration links (Users, Audit log — ruling D3) sit in the footer
- * dock. Later phases add their items here (Leads, SEO,
- * Marketing).
+ * dock. Later phases add their items here (SEO, Marketing).
  */
 export const NAV_SECTIONS: NavSection[] = [
   {
@@ -81,6 +81,14 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: LayoutDashboard,
         permission: null,
         match: "exact",
+      },
+      {
+        label: "Leads",
+        href: "/admin/leads",
+        icon: Inbox,
+        permission: { lead: ["read"] },
+        match: "prefix",
+        badge: "new-leads",
       },
     ],
   },

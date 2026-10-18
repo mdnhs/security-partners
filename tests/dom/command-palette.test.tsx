@@ -210,7 +210,12 @@ describe("⌘K command palette (master 4.1)", () => {
     const options = within(dialog)
       .getAllByRole("option")
       .map((o) => o.textContent)
-    expect(options).toEqual(["Dashboard", "Account", "Open the public site"])
+    expect(options).toEqual([
+      "Dashboard",
+      "Leads",
+      "Account",
+      "Open the public site",
+    ])
     await user.type(within(dialog).getByRole("combobox"), "acc")
     expect(
       within(dialog)

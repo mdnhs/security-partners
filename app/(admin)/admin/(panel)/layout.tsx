@@ -3,9 +3,12 @@ import { Suspense } from "react"
 
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import { SIDEBAR_COOKIE } from "@/components/admin/shell/constants"
+import type { NavBadges } from "@/components/admin/shell/nav"
+import { hasPermission } from "@/lib/auth/permissions"
 import { requireSession } from "@/server/auth/session"
 import { getEnv } from "@/server/env"
 import { getSiteEnv } from "@/server/lib/site-env"
+import { leadBadge } from "@/server/modules/leads/service"
 import { getSettings } from "@/server/modules/settings/queries"
 
 /**
@@ -31,10 +34,16 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
     getSettings("site"),
   ])
   const productionUrl = site?.productionUrl ?? undefined
+  // Sidebar counts: unassigned new leads for those who handle them. Fresh
+  // on every navigation and on router.refresh() after a lead changes.
+  const badges: NavBadges = hasPermission(actor.roles, { lead: ["read"] })
+    ? { "new-leads": (await leadBadge(actor)).newLeads }
+    : {}
   return (
     <AdminShell
       // Set by the sidebar toggle (components/ui/sidebar.tsx).
       defaultSidebarOpen={cookieStore.get(SIDEBAR_COOKIE)?.value !== "false"}
+      badges={badges}
       site={{
         // The configured public origin; this deployment's own until set.
         url: productionUrl ?? new URL(getEnv().BETTER_AUTH_URL).origin,

@@ -26,6 +26,17 @@ const MENU_ALL = [
   "Media",
   "Settings",
 ]
+/** Owners and admins also handle enquiries (Leads, after Dashboard). */
+const MENU_LEADS = [
+  "Dashboard",
+  "Leads",
+  "Pages",
+  "Articles",
+  "Services",
+  "Collections",
+  "Media",
+  "Settings",
+]
 const DEST_ALL = [
   "Dashboard",
   "Pages",
@@ -41,6 +52,7 @@ const DEST_ALL = [
 ]
 const DEST_ADMIN = [
   "Dashboard",
+  "Leads",
   "Pages",
   "Articles",
   "Services",
@@ -57,13 +69,13 @@ const DEST_ADMIN = [
 
 describe("navigation registry (JW structure)", () => {
   it.each<[Role, string[]]>([
-    ["owner", MENU_ALL],
-    ["admin", MENU_ALL],
+    ["owner", MENU_LEADS],
+    ["admin", MENU_LEADS],
     ["editor", MENU_ALL],
     ["viewer", MENU_ALL],
     ["marketer", ["Dashboard", "Pages", "Articles", "Services", "Media"]],
     ["author", ["Dashboard", "Articles", "Media"]],
-    ["intake", ["Dashboard"]],
+    ["intake", ["Dashboard", "Leads"]],
   ])("%s sees menu %j", (role, expected) => {
     expect(menu([role])).toEqual(expected)
   })
@@ -90,7 +102,7 @@ describe("navigation registry (JW structure)", () => {
   it("Users and Audit log are dock items for owners and admins only (spec §8.1, ruling D3)", () => {
     for (const role of ["owner", "admin"] as const) {
       expect(dock([role])).toEqual(["Users", "Audit log", "Account"])
-      expect(menu([role])).toEqual(MENU_ALL)
+      expect(menu([role])).toEqual(MENU_LEADS)
     }
     for (const role of ["editor", "viewer", "marketer", "author"] as const)
       expect(dock([role])).toEqual(["Account"])
@@ -180,6 +192,23 @@ describe("navigation registry (JW structure)", () => {
     })
     expect(menu(["intake"])).not.toContain("Media")
     expect(destinations(["intake"])).not.toContain("Media")
+  })
+
+  it("Leads carries the new-leads badge and needs lead:read", () => {
+    const leads = NAV_SECTIONS.flatMap((s) => s.items).find(
+      (i) => i.label === "Leads"
+    )
+    expect(leads).toMatchObject({
+      href: "/admin/leads",
+      permission: { lead: ["read"] },
+      match: "prefix",
+      badge: "new-leads",
+    })
+    const overview = NAV_SECTIONS.find((s) => s.label === "Overview")!
+    expect(overview.items.map((i) => i.label)).toEqual(["Dashboard", "Leads"])
+    expect(destinations(["intake"])).toEqual(["Dashboard", "Leads", "Account"])
+    for (const role of ["editor", "viewer", "marketer", "author"] as const)
+      expect(menu([role])).not.toContain("Leads")
   })
 
   it("every link stays inside /admin", () => {

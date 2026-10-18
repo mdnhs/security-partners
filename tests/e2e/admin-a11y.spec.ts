@@ -150,6 +150,71 @@ const SAVED_SMTP = {
   updatedBy: { id: "u1", name: "Ada Admin" },
 }
 
+/** One lead with notes and history (pinned: the seed has no enquiries). */
+const LEAD_ID = "0190f0e0-0000-7000-8000-0000000000d1"
+const LEAD_ROW = {
+  id: LEAD_ID,
+  name: "Siobhán Byrne",
+  email: "siobhan@harbourlogistics.ie",
+  phone: "087 123 4567",
+  company: "Harbour Logistics",
+  status: "new",
+  assignee: null,
+  sourcePage: "/contact",
+  createdAt: "2026-10-16T09:00:00.000Z",
+}
+const LEAD_DETAIL = {
+  ...LEAD_ROW,
+  service: "Mobile patrols",
+  message: "We need night patrols for our depot.\nCould someone call me?",
+  consent: true,
+  updatedAt: "2026-10-16T10:00:00.000Z",
+  events: [
+    {
+      id: "e1",
+      type: "created",
+      body: "Sent from /contact",
+      actor: null,
+      createdAt: "2026-10-16T09:00:00.000Z",
+    },
+    {
+      id: "e2",
+      type: "note",
+      body: "Left a voicemail.",
+      actor: { id: "u1", name: "Ada Admin" },
+      createdAt: "2026-10-16T10:00:00.000Z",
+    },
+  ],
+}
+
+async function pinLeads(page: Page) {
+  await page.route("**/api/v1/admin/leads?*", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          LEAD_ROW,
+          {
+            ...LEAD_ROW,
+            id: "0190f0e0-0000-7000-8000-0000000000d2",
+            name: "Declan Murphy",
+            status: "spam",
+            assignee: { id: "u1", name: "Ada Admin" },
+            sourcePage: null,
+          },
+        ],
+        page: 1,
+        pageSize: 20,
+        total: 2,
+      },
+    })
+  )
+  await page.route(`**/api/v1/admin/leads/${LEAD_ID}`, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: LEAD_DETAIL })
+      : route.abort()
+  )
+}
+
 const PATROLS = "mobile-patrols-protect-your-business-after-hours"
 const UNPUBLISHED = {
   live: false,
@@ -253,6 +318,28 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`/admin/audit + detail sheet → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`leads in ${colorScheme}`, async ({ page }) => {
+      // Inbox and one lead's tabs (Phase 7), pinned; the assignee list is real.
+      await pinLeads(page)
+      await signIn(page, E2E_ADMIN)
+      const failures = await auditEach(page, [
+        "/admin/leads",
+        "/admin/leads?status=all&assignee=none",
+        `/admin/leads/${LEAD_ID}`,
+        `/admin/leads/${LEAD_ID}?tab=notes`,
+        `/admin/leads/${LEAD_ID}?tab=activity`,
+        "/admin/leads/not-a-lead", // not found (404)
+      ])
+      await page.goto(`/admin/leads/${LEAD_ID}`)
+      await page.getByRole("button", { name: "Delete", exact: true }).click()
+      await expect(
+        page.getByRole("alertdialog", { name: "Delete this lead?" })
+      ).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`lead delete dialog → ${violation}`)
       expect(failures).toEqual([])
     })
 
