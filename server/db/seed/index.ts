@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, inArray } from "drizzle-orm"
+import { and, count, eq, inArray } from "drizzle-orm"
 
 import { seo } from "@/lib/schemas/common"
 import { articleContent } from "@/lib/schemas/content/article"
@@ -43,6 +43,26 @@ export const SEED_TABLES = [
   "groupCompanies",
 ] as const
 export type SeedReport = Record<(typeof SEED_TABLES)[number], number>
+
+export type SeedIfEmptyResult =
+  | { seeded: true; report: SeedReport }
+  | { seeded: false; pages: number }
+
+/**
+ * Container auto-seed (docker-entrypoint.sh, spec §1.2 #6): seeds only a
+ * database whose `pages` table has no rows at all, i.e. a fresh deploy.
+ * Any page row (published, draft or scheduled) means the site has content:
+ * nothing is written, so deleted services or articles are never re-created
+ * and unpublishing every page does not trigger a re-seed.
+ */
+export async function seedIfEmpty(
+  db: Db,
+  options: { publicDir?: string } = {}
+): Promise<SeedIfEmptyResult> {
+  const [{ n }] = await db.select({ n: count() }).from(pages)
+  if (n > 0) return { seeded: false, pages: n }
+  return { seeded: true, report: await seedContent(db, options) }
+}
 
 /**
  * Idempotent content seed (spec §14 db:seed): inserts every fixture row
