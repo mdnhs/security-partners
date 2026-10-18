@@ -21,13 +21,11 @@ import { getEnv } from "@/server/env"
 import { resetDb } from "../integration/db"
 
 import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
+import { assertE2eDatabase } from "./env"
 import { E2E_PASSWORD, type E2EFixtures, FIXTURES_FILE } from "./fixtures"
 
 const { DATABASE_URL } = getEnv()
-if (new URL(DATABASE_URL).pathname !== "/sp_e2e")
-  throw new Error(
-    `Refusing to reset a non-E2E database (${new URL(DATABASE_URL).pathname})`
-  )
+assertE2eDatabase(DATABASE_URL)
 
 await runMigrations(DATABASE_URL)
 await resetDb()

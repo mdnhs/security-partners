@@ -40,11 +40,12 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-# pg_dump/pg_restore 17 for the backup job and restore drill (Phase 10).
-RUN apk add --no-cache postgresql17-client
+# pg_dump/pg_restore 17 for the backup job and the restore drill; tini as
+# PID 1 forwards SIGTERM to the migration and to server.js (ledger P01-6).
+RUN apk add --no-cache postgresql17-client tini
 
 RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nextjs \
-    && mkdir -p /data && chown nextjs:nodejs /data
+    && mkdir -p /data/uploads /data/backups && chown -R nextjs:nodejs /data
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -56,12 +57,13 @@ COPY --chown=nextjs:nodejs --chmod=755 docker-entrypoint.sh ./docker-entrypoint.
 USER nextjs
 EXPOSE 3000
 
-# Uploads (/data/uploads) and local backups (/data/backups) until R2 is configured.
-VOLUME ["/data"]
+# /data (uploads and local backups until R2 is configured) is the named
+# volume docker-compose.yml mounts. No VOLUME line: it would create an
+# anonymous volume on every plain `docker run`.
 
 # Liveness only: never touches the database.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/v1/health/live >/dev/null || exit 1
 
-ENTRYPOINT ["./docker-entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "./docker-entrypoint.sh"]
 CMD ["node", "server.js"]

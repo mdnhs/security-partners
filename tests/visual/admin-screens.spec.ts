@@ -16,6 +16,9 @@ import {
 
 import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
 
+// Baselines are macOS renders (ledger ruling): CI runs E2E only.
+test.skip(process.platform !== "darwin", "visual baselines are macOS-only")
+
 // JW parity baselines (phase-04b Task 12): every Phase 4 admin screen in
 // light and dark, desktop and phone. Relative times and the time-of-day
 // greeting are masked; the dashboard's numbers and the audit log are pinned

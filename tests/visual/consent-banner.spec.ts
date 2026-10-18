@@ -11,6 +11,9 @@ import { clientIpFor } from "../e2e/fixtures"
 import { VISUAL_ADMIN } from "./admin-user"
 import { freezeMotion } from "./freeze-motion"
 
+// Baselines are macOS renders (ledger ruling): CI runs E2E only.
+test.skip(process.platform !== "darwin", "visual baselines are macOS-only")
+
 // Phase 8 Task 10: the consent banner's own baselines (new, separate from
 // the 40 frozen public baselines). The public baselines never show it:
 // tracking is seeded off (tests/visual/seed.ts → seedContent), and the

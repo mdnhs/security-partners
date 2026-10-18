@@ -8,7 +8,7 @@ import { deleteLeadsFrom } from "./lead-cleanup"
 // the inbox, with the staff-notification outcome on its activity; honeypot →
 // no lead; the 6th post from one IP in 10 minutes → 429.
 //
-// Email delivery itself is not asserted here: the E2E server is `next start`
+// Email delivery itself is not asserted here: the E2E server is the standalone server.js
 // (production), whose SMTP guard (Phase 6) refuses loopback and requires
 // STARTTLS off loopback, which the dev Mailpit does not offer. Delivery of
 // the staff email to Mailpit is covered on loopback by

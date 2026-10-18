@@ -22,7 +22,7 @@ export type E2EFixtures = {
 }
 
 /**
- * `next start` runs with production rate limits (sign-in 5/min per IP, keyed
+ * server.js runs with production rate limits (sign-in 5/min per IP, keyed
  * on X-Forwarded-For). Each test signs in from its own documentation-range
  * address so the suite never trips a limit meant for one client.
  */

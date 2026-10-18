@@ -4,6 +4,9 @@ import { clientIpFor } from "../e2e/fixtures"
 
 import { VISUAL_ADMIN } from "./admin-user"
 
+// Baselines are macOS renders (ledger ruling): CI runs E2E only.
+test.skip(process.platform !== "darwin", "visual baselines are macOS-only")
+
 // Admin shell baselines (spec §15: "Admin shell baselines added in Phase 4").
 // The page content (<main>) is masked: only the frame is pinned here, so
 // later dashboard/data changes do not move these screenshots.
