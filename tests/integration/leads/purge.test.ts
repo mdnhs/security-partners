@@ -87,7 +87,11 @@ describe("purge-leads job (spec §9 retention, §12)", () => {
         .values({
           userId: user.id,
           title: "Summary",
-          context: { screen: "Lead details", entityType: "lead", entityId: leadId },
+          context: {
+            screen: "Lead details",
+            entityType: "lead",
+            entityId: leadId,
+          },
         })
         .returning()
       await getDb()

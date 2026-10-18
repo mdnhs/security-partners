@@ -39,9 +39,7 @@ export function leadsFromDayQuery(db: DbOrTx, day: string) {
   return db
     .select({ n: count() })
     .from(leads)
-    .where(
-      and(gte(leads.createdAt, dublinMidnight), ne(leads.status, "spam"))
-    )
+    .where(and(gte(leads.createdAt, dublinMidnight), ne(leads.status, "spam")))
 }
 
 /** Non-spam leads created on or after the Irish calendar day `day` ("2026-09-20"). */

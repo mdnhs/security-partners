@@ -354,15 +354,17 @@ describe("DELETE /leads/:id (GDPR erasure)", () => {
     const erased = await conversation(lead.id)
     const kept = await conversation(other.id)
     const unrelated = await conversation(null)
-    await getDb().insert(aiMessages).values([
-      { conversationId: erased.id, role: "user", content: "Summarise" },
-      {
-        conversationId: erased.id,
-        role: "assistant",
-        content: "Erase Me wants guarding",
-      },
-      { conversationId: kept.id, role: "user", content: "Summarise" },
-    ])
+    await getDb()
+      .insert(aiMessages)
+      .values([
+        { conversationId: erased.id, role: "user", content: "Summarise" },
+        {
+          conversationId: erased.id,
+          role: "assistant",
+          content: "Erase Me wants guarding",
+        },
+        { conversationId: kept.id, role: "user", content: "Summarise" },
+      ])
     expect(
       (
         await adminRequest(`/leads/${lead.id}`, {

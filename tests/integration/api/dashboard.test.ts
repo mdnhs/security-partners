@@ -1,4 +1,5 @@
 import { eq, isNotNull } from "drizzle-orm"
+import { Client } from "pg"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
@@ -11,7 +12,7 @@ import {
 } from "@/server/modules/dashboard/repo"
 import { getDashboard, trendDays } from "@/server/modules/dashboard/service"
 
-import { resetDb } from "../db"
+import { resetDb, TEST_DATABASE_URL } from "../db"
 import { adminRequest, signedInUser } from "../helpers/auth"
 
 const DAY = 86_400_000
@@ -154,20 +155,23 @@ describe("dashboard (master 4.7)", () => {
     expect(await countLeadsFromDay(getDb(), "2026-12-15")).toBe(1)
 
     const query = leadsFromDayQuery(getDb(), "2026-07-15").toSQL()
-    const client = await getDb().$client.connect()
+    const client = new Client({ connectionString: TEST_DATABASE_URL })
+    await client.connect()
     try {
-      await client.query("begin")
-      await client.query("set local enable_seqscan = off")
+      await client.query("set enable_seqscan = off")
       const plan = await client.query<{ "QUERY PLAN": string }>(
         `explain ${query.sql}`,
         query.params
       )
-      expect(plan.rows.map((r) => r["QUERY PLAN"]).join("\n")).toContain(
-        "leads_created_at_idx"
+      expect(
+        plan.rows.map((row: { "QUERY PLAN": string }) => row["QUERY PLAN"])
+      ).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("leads_created_at_idx"),
+        ])
       )
     } finally {
-      await client.query("rollback")
-      client.release()
+      await client.end()
     }
   })
 

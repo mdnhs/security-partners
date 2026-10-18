@@ -86,7 +86,12 @@ beforeAll(async () => {
   // Dumped mid-tick: the backup job holds its claim (final review minor 9).
   await source
     .insert(schema.jobs)
-    .values({ name: "backup", key: "backup", runAt: new Date(), lockedAt: new Date() })
+    .values({
+      name: "backup",
+      key: "backup",
+      runAt: new Date(),
+      lockedAt: new Date(),
+    })
   await pool.end()
 })
 afterAll(() => admin(`drop database if exists ${SOURCE_DB} with (force)`))

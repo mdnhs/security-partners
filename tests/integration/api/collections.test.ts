@@ -348,8 +348,8 @@ describe("concurrent saves of one record (final review minor 2)", () => {
       })
     )
     const statuses = await Promise.all(
-      Array.from({ length: 8 }, (_, i) =>
-        adminRequest(`/clients/${client.id}`, {
+      Array.from({ length: 8 }, async (_, i) => {
+        const res = await adminRequest(`/clients/${client.id}`, {
           cookie: editor,
           method: "PUT",
           json: {
@@ -357,8 +357,9 @@ describe("concurrent saves of one record (final review minor 2)", () => {
             logo: { mediaId: logoId },
             url: `https://race.example/${i}`,
           },
-        }).then(async (res) => [res.status, await res.text()] as const)
-      )
+        })
+        return [res.status, await res.text()] as const
+      })
     )
     expect(statuses.filter(([status]) => status !== 200)).toEqual([])
     const revs = await getDb()
@@ -404,12 +405,14 @@ describe("PUT /reorder/:collection (master 4.6)", () => {
     const ids = (await getDb().select({ id: clients.id }).from(clients)).map(
       (c) => c.id
     )
-    const save = (order: string[]) =>
-      adminRequest("/reorder/clients", {
-        cookie: editor,
-        method: "PUT",
-        json: { ids: order },
-      }).then((res) => res.status)
+    const save = async (order: string[]) =>
+      (
+        await adminRequest("/reorder/clients", {
+          cookie: editor,
+          method: "PUT",
+          json: { ids: order },
+        })
+      ).status
     for (let round = 0; round < 3; round++) {
       const statuses = await Promise.all([
         save(ids),
