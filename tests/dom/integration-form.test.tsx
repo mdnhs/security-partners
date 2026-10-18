@@ -539,3 +539,37 @@ const smtpCleared = {
   },
   secrets: { password: { set: false, hint: null } },
 }
+
+describe("IntegrationForm refreshes the AI assistant status (Phase 9)", () => {
+  it("invalidates ['ai', 'status'] after a save", async () => {
+    const client = makeQueryClient()
+    const invalidate = vi.spyOn(client, "invalidateQueries")
+    respond = (call) =>
+      call.method === "PUT" ? json({ ...saved, version: 4 }) : json(saved)
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider client={client}>
+        <AdminSessionProvider
+          value={{
+            user: {
+              id: "u1",
+              name: "Olive Owner",
+              email: "o@example.test",
+              title: null,
+              twoFactorEnabled: true,
+            },
+            roles: ["owner"],
+            impersonatedBy: null,
+          }}
+        >
+          <IntegrationForm integrationKey="integrations.smtp" />
+        </AdminSessionProvider>
+      </QueryClientProvider>
+    )
+    await user.type(await screen.findByLabelText("SMTP server"), "x")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["ai", "status"] })
+    )
+  })
+})

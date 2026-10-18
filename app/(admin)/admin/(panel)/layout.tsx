@@ -6,6 +6,7 @@ import { SIDEBAR_COOKIE } from "@/components/admin/shell/constants"
 import { requireSession } from "@/server/auth/session"
 import { getEnv } from "@/server/env"
 import { getSiteEnv } from "@/server/lib/site-env"
+import { getAiStatus } from "@/server/modules/ai/service"
 import { getSettings } from "@/server/modules/settings/queries"
 
 /**
@@ -26,9 +27,10 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
   // Session first: it reads the request, so nothing below (the settings
   // query needs the database) runs while the route is being prerendered.
   const { user, actor, session } = await requireSession()
-  const [cookieStore, site] = await Promise.all([
+  const [cookieStore, site, assistant] = await Promise.all([
     cookies(),
     getSettings("site"),
+    getAiStatus(actor),
   ])
   const productionUrl = site?.productionUrl ?? undefined
   return (
@@ -45,6 +47,7 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
         roles: actor.roles,
         impersonatedBy: session.impersonatedBy,
       }}
+      assistant={assistant}
     >
       {children}
     </AdminShell>

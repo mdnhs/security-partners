@@ -1,16 +1,19 @@
 "use client"
 
+import { AssistantButton } from "@/components/admin/ai/assistant-button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import type { AiStatusDto } from "@/lib/schemas/api/ai"
 
 import { NotificationsButton } from "./notifications-button"
 import { SearchPill } from "./search-pill"
 import { UserMenu } from "./user-menu"
 
 /**
- * The 72 px topbar panel (JW): sidebar toggle, search pill, bell, avatar.
- * Phase 7 adds the Leads mail link before the bell; Phase 9 the AI button.
+ * The 72 px topbar panel (JW): sidebar toggle, search pill, AI assistant
+ * (when on), bell, avatar. Phase 7 adds the Leads mail link after the AI
+ * button, before the bell.
  */
-export function Topbar() {
+export function Topbar({ assistant }: { assistant?: AiStatusDto }) {
   return (
     <header
       data-slot="topbar"
@@ -20,6 +23,7 @@ export function Topbar() {
       <div className="flex min-w-0 flex-1">
         <SearchPill />
       </div>
+      <AssistantButton initialStatus={assistant} />
       <NotificationsButton />
       <UserMenu />
     </header>
