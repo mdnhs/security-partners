@@ -36,7 +36,8 @@ password (`DEMO_PASSWORD` may replace `--password`). Remove them with
   port 3100 must be free), `pnpm test:visual` (macOS only, 0 px vs
   baselines), `pnpm audit:deps` (production dependencies only).
 - CI (`.github/workflows/ci.yml`) runs everything except the visual tests on
-  pull requests and branches; on `main` it gates the deploy.
+  pull requests, and `deploy.yml` calls it on every push to `main` before it
+  deploys (no separate run for other branch pushes).
 
 ## Operator scripts
 

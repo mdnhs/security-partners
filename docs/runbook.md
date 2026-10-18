@@ -26,13 +26,17 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   the Docker image, then migrate → `seed.mjs` → server → readiness →
   `backup.mjs` → `restore-drill.mjs` inside it). Only when CI passes is the
   image pushed to GHCR (`:latest` and `:<commit sha>`) and Dokploy asked to
-  redeploy the compose app. Pull requests and other branches run `ci.yml`
-  on their own. Visual pixel tests are not in CI (macOS only): run
+  redeploy the compose app. Every job in `deploy.yml` runs only on
+  `refs/heads/main`; the Dokploy step uses the GitHub environment
+  `production` (add required reviewers there to make deploys wait for an
+  approval). `ci.yml` also runs on pull requests; a push to a branch other
+  than `main` starts no workflow of its own. Visual pixel tests are not in CI (macOS only): run
   `pnpm test:visual` locally before merging a change that can touch the
   public pages.
-- Manual run: Actions → Build & Deploy → Run workflow. `skip_ci` deploys
+- Manual run: Actions → Build & Deploy → Run workflow, on `main` (a
+  dispatch on another branch deploys nothing). `skip_ci` deploys `main`
   without waiting for CI — emergency only (a hotfix while CI itself is
-  broken).
+  broken); it exists only for `workflow_dispatch`, never for a push.
 - The container's PID 1 is `tini`, which forwards `SIGTERM`. On start the
   container applies pending migrations (`docker-entrypoint.sh` →
   `node scripts/dist/migrate.mjs`), then starts `node server.js`. A failed
@@ -40,6 +44,8 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   (`unless-stopped`) restarts it, so it crash-loops until the cause is fixed
   (the previous container is already gone). Read `docker logs <container>`
   right after a deploy; the cause is printed as `[migrate] …`.
+- `docker stop` (and a redeploy) ends the container with exit code 143
+  (128 + `SIGTERM`). That is expected, not a crash.
 - The image runs as a non-root user and has no `VOLUME` line: `/data`
   (uploads, local backups) is the named volume `docker-compose.yml` mounts.
   A plain `docker run` without `-v <volume>:/data` keeps uploads only until
@@ -52,6 +58,16 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
 - Port 3000 is only `expose`d to the Dokploy network, never published on the
   host. Keep it that way: requests must arrive through Traefik ("Client IPs
   and Traefik").
+
+### Keeping the pipeline current
+
+- GitHub Actions are pinned by commit SHA (with a `# vX.Y.Z` comment).
+  Dependabot (`.github/dependabot.yml`) opens one grouped pull request a
+  week for `github-actions` updates; merge it once CI is green.
+- The Dockerfile's Node image (`ARG NODE_IMAGE=node:<version>-alpine@sha256:…`)
+  is pinned by digest and Dependabot does **not** watch it. Bump it by hand
+  (new version and digest from Docker Hub) for Node security releases, and
+  keep the `node-version` in `ci.yml` the same.
 
 ## First production deploy
 

@@ -34,6 +34,10 @@ jobs on shutdown is best effort.
 
 ## Owner must do
 
+- [ ] GitHub: repository secrets `DOKPLOY_URL` and `DOKPLOY_API_KEY`. If
+      deploys should wait for an approval, add required reviewers under
+      Settings → Environments → `production` (the deploy job uses that
+      environment).
 - [ ] DNS: `security.raynx.ie` → the Dokploy server (Traefik gets the
       certificate).
 - [ ] Dokploy: Postgres 17 database service; app on `dokploy-network` so it
