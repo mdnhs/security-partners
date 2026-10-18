@@ -8,11 +8,13 @@
 # The image builds without any env vars or database; migrations run when the
 # container starts (docker-entrypoint.sh).
 
-ARG NODE_VERSION=22-alpine
+# node:22.23.3-alpine, pinned by digest (multi-arch index) so rebuilds are
+# reproducible; Dependabot (docker) or a manual bump updates both together.
+ARG NODE_IMAGE=node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 
 # 1. Install dependencies from the lockfile only, so this layer is cached
 #    until package.json / pnpm-lock.yaml change.
-FROM node:${NODE_VERSION} AS deps
+FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -23,7 +25,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 #    needs network access. Then bundle the operational scripts (migrate, …)
 #    into self-contained files, because the runtime image has no tsx and only
 #    the node_modules that Next traced for server.js.
-FROM node:${NODE_VERSION} AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -33,7 +35,7 @@ RUN pnpm build && pnpm scripts:build
 
 # 3. Minimal runtime: the standalone server, static assets, public/, the
 #    bundled scripts and the SQL migrations they apply.
-FROM node:${NODE_VERSION} AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
