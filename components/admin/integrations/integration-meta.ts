@@ -1,6 +1,10 @@
 import { ROLE_INFO } from "@/lib/admin/user-roles"
 import type { Role } from "@/lib/auth/roles"
-import { AI_ROLES, type IntegrationKey } from "@/lib/schemas/integrations"
+import {
+  AI_DEFAULT_MODEL,
+  AI_ROLES,
+  type IntegrationKey,
+} from "@/lib/schemas/integrations"
 
 export type FieldMeta =
   | {
@@ -172,8 +176,9 @@ export const INTEGRATION_FORMS: Record<IntegrationKey, IntegrationFormMeta> = {
         name: "model",
         kind: "text",
         label: "Model ID",
-        placeholder: "claude-sonnet-4-5",
+        placeholder: AI_DEFAULT_MODEL,
         autoComplete: "off",
+        help: "Claude: claude-sonnet-5-5 (balanced, the default), claude-opus-5-5 (most capable) or claude-haiku-5-5 (fastest). OpenAI: the model ID from your OpenAI account.",
       },
       { name: "apiKey", kind: "secret", label: "API key" },
       {

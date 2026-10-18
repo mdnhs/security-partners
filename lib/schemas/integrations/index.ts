@@ -29,7 +29,13 @@ import {
   turnstileConfig,
 } from "./turnstile"
 
-export { AI_PROVIDERS, AI_ROLES, type AiProvider } from "./ai"
+export {
+  AI_CLAUDE_MODELS,
+  AI_DEFAULT_MODEL,
+  AI_PROVIDERS,
+  AI_ROLES,
+  type AiProvider,
+} from "./ai"
 export { R2_JURISDICTIONS } from "./r2"
 export type { AiConfig, R2Config, SmtpConfig, TurnstileConfig }
 

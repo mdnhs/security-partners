@@ -13,6 +13,13 @@ export const AI_FIELDS = [
 export const AI_SECRETS = ["apiKey"] as const
 export const AI_PROVIDERS = ["anthropic", "openai"] as const
 export type AiProvider = (typeof AI_PROVIDERS)[number]
+/** Current Claude models; the first is the default (latest Claude, user instruction). */
+export const AI_CLAUDE_MODELS = [
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "claude-haiku-5-5",
+] as const
+export const AI_DEFAULT_MODEL = AI_CLAUDE_MODELS[0]
 
 /** Roles that may be allowed the assistant: those holding ai:use (spec §6.1). */
 export const AI_ROLES: readonly Role[] = ROLES.filter((role) =>
@@ -65,6 +72,6 @@ export type AiConfig = z.output<typeof aiConfig>
 export const AI_DEFAULTS = {
   enabled: false,
   provider: "anthropic",
-  model: "",
+  model: AI_DEFAULT_MODEL,
   allowedRoles: [...AI_ROLES],
 } as const
