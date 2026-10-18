@@ -1,14 +1,16 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
+import type { JSONContent } from "@tiptap/react"
 import { ImageIcon, Link2, ListTree } from "lucide-react"
+import dynamic from "next/dynamic"
 import { useState } from "react"
 import { get, useController, useFormState } from "react-hook-form"
 
 import { MediaPickerDialog } from "@/components/admin/media/picker-dialog"
 import { useMediaItem } from "@/components/admin/media/use-media-item"
 import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
-import { RichTextEditor } from "@/components/admin/rich-text/editor"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -420,6 +422,22 @@ export function fileName(url: string | undefined): string {
   }
 }
 
+/**
+ * TipTap/ProseMirror (~460 KB) loads only where a form has a rich-text
+ * field, not with every SchemaForm screen (final review M2). The editor
+ * renders nothing on the server anyway (immediatelyRender: false).
+ */
+const RichTextEditor = dynamic(
+  () =>
+    import("@/components/admin/rich-text/editor").then((m) => m.RichTextEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <Skeleton aria-hidden className="h-[11.5rem] w-full rounded-xl" />
+    ),
+  }
+)
+
 export function RichTextWidget({ field, path }: WidgetProps) {
   const { idPrefix, disabled } = useSchemaForm()
   const { field: f, fieldState } = useController({ name: path })
@@ -440,9 +458,7 @@ export function RichTextWidget({ field, path }: WidgetProps) {
         id={id}
         label={field.label}
         mode={field.richTextMode}
-        value={
-          (f.value as Parameters<typeof RichTextEditor>[0]["value"]) ?? null
-        }
+        value={(f.value as JSONContent | null | undefined) ?? null}
         onChange={(doc) => f.onChange(doc)}
         describedBy={describedBy(id, { help, error })}
         invalid={!!error}

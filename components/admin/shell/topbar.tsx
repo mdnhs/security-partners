@@ -3,6 +3,7 @@
 import { AssistantButton } from "@/components/admin/ai/assistant-button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { AiStatusDto } from "@/lib/schemas/api/ai"
+import type { ShellNotification } from "@/lib/schemas/api/dashboard"
 
 import { NotificationsButton } from "./notifications-button"
 import { SearchPill } from "./search-pill"
@@ -10,10 +11,15 @@ import { UserMenu } from "./user-menu"
 
 /**
  * The 72 px topbar panel (JW): sidebar toggle, search pill, AI assistant
- * (when on), bell, avatar. Phase 7 adds the Leads mail link after the AI
- * button, before the bell.
+ * (when on), the notifications bell, avatar.
  */
-export function Topbar({ assistant }: { assistant?: AiStatusDto }) {
+export function Topbar({
+  assistant,
+  notifications,
+}: {
+  assistant?: AiStatusDto
+  notifications?: readonly ShellNotification[]
+}) {
   return (
     <header
       data-slot="topbar"
@@ -24,7 +30,7 @@ export function Topbar({ assistant }: { assistant?: AiStatusDto }) {
         <SearchPill />
       </div>
       <AssistantButton initialStatus={assistant} />
-      <NotificationsButton />
+      <NotificationsButton items={notifications} />
       <UserMenu />
     </header>
   )

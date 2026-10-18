@@ -12,7 +12,8 @@ import {
   useTable,
 } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, Search } from "lucide-react"
-import { type ReactNode, useId, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 
 import { DataTablePagination } from "@/components/admin/data-table/data-table-pagination"
 import { EmptyState } from "@/components/admin/kit/empty-state"
@@ -26,6 +27,14 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { errorMessage } from "@/lib/api-client"
 import type { Paginated } from "@/lib/schemas/api/list"
 import { cn } from "@/lib/utils"
+
+import {
+  LIST_PAGE,
+  LIST_QUERY,
+  LIST_SORT,
+  rememberListSearch,
+  replaceListSearch,
+} from "./list-url"
 
 /**
  * Server-side pagination + sorting (TanStack Table v9, notes §4.1): no
@@ -58,25 +67,7 @@ export type DataTableParams = {
 
 const PAGE_SIZE = 20
 
-/**
- * Admin list: search, sortable headers, pagination; a table from 640 px
- * and cards below it (spec §8.2 "tables → cards on phones").
- */
-export function DataTable<T extends Record<string, unknown> & { id: string }>({
-  label,
-  queryKey,
-  fetchPage,
-  columns,
-  renderCard,
-  initialSort,
-  searchPlaceholder = "Search",
-  empty,
-  emptyDescription,
-  emptyAction,
-  toolbar,
-  filterKey = "",
-  filteredEmpty = "Nothing matches these filters",
-}: {
+type DataTableProps<T extends Record<string, unknown> & { id: string }> = {
   /** Accessible name (table caption, list label). */
   label: string
   queryKey: readonly unknown[]
@@ -101,13 +92,112 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
   filterKey?: string
   /** Empty-list title while extra filters are active. */
   filteredEmpty?: string
+  /**
+   * Keep page, sort and search in the URL (?page=&sort=&q=, replaced, not
+   * pushed) and remember it for "back to the list" links (useListHref).
+   * One synced table per page.
+   */
+  syncUrl?: boolean
+}
+
+type ListState = { page: number; sorting: SortingState; q: string }
+
+/**
+ * Admin list: search, sortable headers, pagination; a table from 640 px
+ * and cards below it (spec §8.2 "tables → cards on phones").
+ */
+export function DataTable<T extends Record<string, unknown> & { id: string }>(
+  props: DataTableProps<T>
+) {
+  return props.syncUrl ? (
+    <UrlSyncedDataTable<T> {...props} />
+  ) : (
+    <DataTableView<T> {...props} />
+  )
+}
+
+const sortParam = (sorting: SortingState) =>
+  sorting[0] ? `${sorting[0].id}:${sorting[0].desc ? "desc" : "asc"}` : ""
+
+function parseListState(
+  params: URLSearchParams,
+  initialSort: SortingState
+): ListState {
+  const page = Number(params.get(LIST_PAGE))
+  const [id, dir] = (params.get(LIST_SORT) ?? "").split(":")
+  return {
+    page: Number.isInteger(page) && page > 1 ? page : 1,
+    sorting:
+      id && (dir === "asc" || dir === "desc")
+        ? [{ id, desc: dir === "desc" }]
+        : initialSort,
+    q: params.get(LIST_QUERY) ?? "",
+  }
+}
+
+/** DataTable whose page/sort/search live in the URL (final review I8). */
+function UrlSyncedDataTable<T extends Record<string, unknown> & { id: string }>(
+  props: DataTableProps<T>
+) {
+  const searchParams = useSearchParams()
+  const search = searchParams?.toString() ?? ""
+  const [initialState] = useState(() =>
+    parseListState(new URLSearchParams(search), props.initialSort ?? [])
+  )
+  // The whole list URL (the screen's own filters included), for back links.
+  useEffect(() => {
+    rememberListSearch(window.location.pathname, search)
+  }, [search])
+  const defaultSort = sortParam(props.initialSort ?? [])
+  return (
+    <DataTableView<T>
+      {...props}
+      initialState={initialState}
+      onStateChange={(state) => {
+        const params = new URLSearchParams(window.location.search)
+        const sort = sortParam(state.sorting)
+        const entries: [string, string][] = [
+          [LIST_PAGE, state.page > 1 ? String(state.page) : ""],
+          [LIST_SORT, sort !== defaultSort ? sort : ""],
+          [LIST_QUERY, state.q],
+        ]
+        for (const [key, value] of entries)
+          if (value) params.set(key, value)
+          else params.delete(key)
+        replaceListSearch(params.toString())
+      }}
+    />
+  )
+}
+
+function DataTableView<T extends Record<string, unknown> & { id: string }>({
+  label,
+  queryKey,
+  fetchPage,
+  columns,
+  renderCard,
+  initialSort,
+  searchPlaceholder = "Search",
+  empty,
+  emptyDescription,
+  emptyAction,
+  toolbar,
+  filterKey = "",
+  filteredEmpty = "Nothing matches these filters",
+  initialState,
+  onStateChange,
+}: DataTableProps<T> & {
+  initialState?: ListState
+  onStateChange?: (state: ListState) => void
 }) {
-  const [sorting, setSorting] = useState<SortingState>(initialSort ?? [])
+  const [sorting, setSorting] = useState<SortingState>(
+    initialState?.sorting ?? initialSort ?? []
+  )
   const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
+    pageIndex: (initialState?.page ?? 1) - 1,
     pageSize: PAGE_SIZE,
   })
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState(initialState?.q ?? "")
   const q = useDebouncedValue(search.trim(), 250)
   // Back to page 1 when the debounced query changes (adjusted during render,
   // so no request goes out for the new page with the old query or vice versa).
@@ -133,6 +223,14 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
     sort,
     q: q || undefined,
   }
+  // Report the list state (URL sync) whenever it settles on new values.
+  const stateKey = `${params.page}|${sort ?? ""}|${q}`
+  const reportedKey = useRef(stateKey)
+  useEffect(() => {
+    if (reportedKey.current === stateKey) return
+    reportedKey.current = stateKey
+    onStateChange?.({ page: pagination.pageIndex + 1, sorting, q })
+  })
 
   const query = useQuery({
     queryKey: [...queryKey, "list", params],
@@ -328,7 +426,7 @@ export function DataTable<T extends Record<string, unknown> & { id: string }>({
                               <button
                                 type="button"
                                 onClick={header.column.getToggleSortingHandler()}
-                                className="inline-flex items-center gap-1 rounded-md outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                                className="inline-flex items-center gap-1 rounded-md outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:min-h-11"
                               >
                                 <table.FlexRender header={header} />
                                 {dir === "asc" ? (

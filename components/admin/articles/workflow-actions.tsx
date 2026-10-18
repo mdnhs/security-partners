@@ -9,6 +9,7 @@ import { EDITOR_ACTION } from "@/components/admin/editor/editor-layout"
 import type { EditorActionContext } from "@/components/admin/editor/versioned-editor"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -231,14 +232,14 @@ export function WorkflowActions({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it live</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={run.isPending}
               onClick={() => run.mutate({ kind: "unpublish" })}
             >
               Unpublish
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

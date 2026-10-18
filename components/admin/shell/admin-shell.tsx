@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react"
 
 import { AssistantProvider } from "@/components/admin/ai/assistant-context"
+import { UnsavedChangesProvider } from "@/components/admin/editor/unsaved-guard"
 import { AdminProviders } from "@/components/admin/providers"
 import {
   type AdminSession,
@@ -12,6 +13,7 @@ import {
 } from "@/components/admin/session-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import type { AiStatusDto } from "@/lib/schemas/api/ai"
+import type { ShellNotification } from "@/lib/schemas/api/dashboard"
 
 import { AppSidebar } from "./app-sidebar"
 import { CommandPalette } from "./command-palette"
@@ -43,6 +45,7 @@ export function AdminShell({
   site = DEFAULT_SITE,
   badges,
   assistant,
+  notifications,
 }: {
   session: AdminSession
   children: ReactNode
@@ -51,10 +54,12 @@ export function AdminShell({
   defaultSidebarOpen?: boolean
   /** The public site (website card). */
   site?: SiteInfo
-  /** Counts beside nav items (e.g. new leads, from Phase 7). */
+  /** Counts beside nav items (new unassigned leads). */
   badges?: NavBadges
   /** AI assistant availability for this user (panel layout, server). */
   assistant?: AiStatusDto
+  /** The bell's items (panel layout, server). */
+  notifications?: readonly ShellNotification[]
 }) {
   const mainRef = useMainPanel()
   return (
@@ -63,47 +68,55 @@ export function AdminShell({
         cacheKey={`${session.user.id}:${session.impersonatedBy ?? ""}`}
         client={queryClient}
       >
-        <ShellSignOutProvider>
-          <CommandPaletteProvider>
-            <AssistantProvider>
-              <a
-                href="#main"
-                className="sr-only z-50 rounded-xl bg-card px-4 py-2 text-sm font-semibold shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:ring-3 focus:ring-ring/50"
-              >
-                Skip to content
-              </a>
-              <SidebarProvider
-                defaultOpen={defaultSidebarOpen}
-                style={{ "--sidebar-width": "20rem" } as CSSProperties}
-              >
-                <AppSidebar site={site} badges={badges} />
-                <div className="flex h-svh min-w-0 flex-1 flex-col gap-4 p-3 [--content-h:calc(100svh-112px)] sm:p-4 sm:[--content-h:calc(100svh-120px)] lg:pl-0">
-                  {/* One header wrapper: the impersonation banner stacks above
+        {/* One unsaved-changes registry for links, ⌘K, sign-out and Back. */}
+        <UnsavedChangesProvider>
+          <ShellSignOutProvider>
+            <CommandPaletteProvider>
+              <AssistantProvider>
+                <a
+                  href="#main"
+                  className="sr-only z-50 rounded-xl bg-card px-4 py-2 text-sm font-semibold shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:ring-3 focus:ring-ring/50"
+                >
+                  Skip to content
+                </a>
+                <SidebarProvider
+                  defaultOpen={defaultSidebarOpen}
+                  style={{ "--sidebar-width": "20rem" } as CSSProperties}
+                >
+                  <AppSidebar site={site} badges={badges} />
+                  <div className="flex h-svh min-w-0 flex-1 flex-col gap-4 p-3 [--content-h:calc(100svh-112px)] sm:p-4 sm:[--content-h:calc(100svh-120px)] lg:pl-0">
+                    {/* One header wrapper: the impersonation banner stacks above
                   the topbar instead of covering it; the sidebar sits beside
                   the column, never underneath (WCAG 2.2 SC 2.4.11). */}
-                  <div
-                    data-slot="admin-header"
-                    className="flex shrink-0 flex-col gap-3"
-                  >
-                    {session.impersonatedBy ? (
-                      <ImpersonationBanner name={session.user.name} />
-                    ) : null}
-                    <Topbar assistant={assistant} />
+                    <div
+                      data-slot="admin-header"
+                      className="flex shrink-0 flex-col gap-3"
+                    >
+                      {session.impersonatedBy ? (
+                        <ImpersonationBanner name={session.user.name} />
+                      ) : null}
+                      <Topbar
+                        assistant={assistant}
+                        notifications={notifications}
+                      />
+                    </div>
+                    <main
+                      ref={mainRef}
+                      id="main"
+                      tabIndex={-1}
+                      className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-(--main-pad) outline-none [--main-pad:1rem] sm:[--main-pad:1.5rem] lg:[--main-pad:2rem]"
+                    >
+                      <SiteInfoProvider value={site}>
+                        {children}
+                      </SiteInfoProvider>
+                    </main>
                   </div>
-                  <main
-                    ref={mainRef}
-                    id="main"
-                    tabIndex={-1}
-                    className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-(--main-pad) outline-none [--main-pad:1rem] sm:[--main-pad:1.5rem] lg:[--main-pad:2rem]"
-                  >
-                    <SiteInfoProvider value={site}>{children}</SiteInfoProvider>
-                  </main>
-                </div>
-              </SidebarProvider>
-              <CommandPalette />
-            </AssistantProvider>
-          </CommandPaletteProvider>
-        </ShellSignOutProvider>
+                </SidebarProvider>
+                <CommandPalette />
+              </AssistantProvider>
+            </CommandPaletteProvider>
+          </ShellSignOutProvider>
+        </UnsavedChangesProvider>
       </AdminProviders>
     </AdminSessionProvider>
   )

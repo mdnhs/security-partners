@@ -77,7 +77,8 @@ html[data-admin] {
   /* Status pills: soft fill, strong text. */
   --success: #15803d;
   --success-soft: #dcfce7;
-  --warning: #b45309;
+  /* 6.0:1 on --muted (the save pill), 7.1:1 on white (WCAG 1.4.3). */
+  --warning: #92400e;
   --warning-soft: #fef3c7;
   --danger: #b91c1c;
   --danger-soft: #fee2e2;

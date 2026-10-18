@@ -27,3 +27,14 @@ export type NextUpItem = {
 }
 
 export const TREND_DAYS = 90
+
+/**
+ * The topbar bell (final review I6): the open "Next up" items that need
+ * someone now, each only for those allowed to act on it.
+ */
+export type ShellNotification = {
+  id: "new-leads" | "failed-jobs" | "turnstile-unreadable"
+  title: string
+  description: string
+  href: string
+}

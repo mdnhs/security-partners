@@ -559,4 +559,29 @@ describe("user detail", () => {
       within(alert).getByRole("link", { name: "All users" })
     ).toHaveAttribute("href", "/admin/users")
   })
+
+  it("keeps role and status filters in the URL (final review I8)", async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, "", "/admin/users")
+    renderAs(["owner"], <UsersScreen />)
+    await user.selectOptions(await screen.findByLabelText("Role"), "editor")
+    await user.selectOptions(screen.getByLabelText("Status"), "invited")
+    expect(window.location.search).toBe("?role=editor&status=invited")
+  })
+
+  it("a half-filled invitation is not dropped by Esc (final review I2)", async () => {
+    const user = userEvent.setup()
+    renderAs(["owner"], <UsersScreen />)
+    await user.click(await screen.findByRole("button", { name: "Invite user" }))
+    const dialog = await screen.findByRole("dialog", { name: "Invite user" })
+    await user.type(within(dialog).getByLabelText("Email"), "new@x.test")
+    await user.keyboard("{Escape}")
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Discard this invitation?",
+    })
+    await user.click(
+      within(confirm).getByRole("button", { name: "Keep editing" })
+    )
+    expect(within(dialog).getByLabelText("Email")).toHaveValue("new@x.test")
+  })
 })

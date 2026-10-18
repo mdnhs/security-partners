@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react"
 import { useId, useRef } from "react"
 
+import { COARSE_ICON } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 
 export type SortableItem = { id: string; label: string; description?: string }
@@ -156,7 +157,7 @@ function Row({
         {...attributes}
         {...listeners}
         aria-label={`Drag to reorder ${item.label}`}
-        className="flex size-8 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="flex size-8 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:size-11"
       >
         <GripVertical aria-hidden className="size-4" />
       </button>
@@ -175,6 +176,7 @@ function Row({
         type="button"
         variant="ghost"
         size="icon-sm"
+        className={COARSE_ICON}
         aria-label={`Move ${item.label} up`}
         data-focus-key={`${item.id}:up`}
         disabled={disabled || index === 0}
@@ -186,6 +188,7 @@ function Row({
         type="button"
         variant="ghost"
         size="icon-sm"
+        className={COARSE_ICON}
         aria-label={`Move ${item.label} down`}
         data-focus-key={`${item.id}:down`}
         disabled={disabled || index === count - 1}

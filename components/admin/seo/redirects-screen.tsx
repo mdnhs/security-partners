@@ -20,6 +20,7 @@ import {
 } from "@/components/admin/page-header"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -181,6 +182,7 @@ export function RedirectsScreen() {
           actions={addButton(PRIMARY_ACTION)}
         />
         <DataTable<Row>
+          syncUrl
           label="Redirects"
           queryKey={QUERY_KEY}
           fetchPage={async (params) =>
@@ -247,13 +249,13 @@ export function RedirectsScreen() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => deleting && remove.mutate(deleting)}
             >
               Delete
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

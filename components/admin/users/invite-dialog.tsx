@@ -3,11 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { UserPlus } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 import type { z } from "zod"
 
+import { useGuardedClose } from "@/components/admin/editor/discard-changes"
 import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
 import { FORM_ACTION, PRIMARY_ACTION } from "@/components/admin/page-header"
 import {
@@ -42,6 +43,18 @@ const BLANK: InviteFields = { email: "", name: "", title: "", roles: [] }
 export function InviteUserDialog() {
   const [open, setOpen] = useState(false)
   const [result, setResult] = useState<InviteResult | null>(null)
+  // A half-filled invitation is not dropped by Esc or a click outside.
+  const [dirty, setDirty] = useState(false)
+  const close = useGuardedClose({
+    dirty: open && !result && dirty,
+    onClose: () => {
+      setOpen(false)
+      setResult(null)
+      setDirty(false)
+    },
+    title: "Discard this invitation?",
+    description: "The details you entered are not sent yet.",
+  })
   return (
     <>
       <Button
@@ -55,11 +68,13 @@ export function InviteUserDialog() {
       <Dialog
         open={open}
         onOpenChange={(next) => {
-          setOpen(next)
-          if (!next) setResult(null)
+          if (next) setOpen(true)
+          else close.requestClose()
         }}
       >
         <DialogContent className="sm:max-w-lg">
+          {/* Inside the popup: Esc closes only the confirm. */}
+          {close.guard}
           {result ? (
             <>
               <DialogHeader>
@@ -93,7 +108,11 @@ export function InviteUserDialog() {
               </DialogFooter>
             </>
           ) : (
-            <InviteForm onCancel={() => setOpen(false)} onInvited={setResult} />
+            <InviteForm
+              onCancel={close.requestClose}
+              onInvited={setResult}
+              onDirtyChange={setDirty}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -104,9 +123,11 @@ export function InviteUserDialog() {
 function InviteForm({
   onCancel,
   onInvited,
+  onDirtyChange,
 }: {
   onCancel: () => void
   onInvited: (result: InviteResult) => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const { roles: actorRoles } = useAdminSession()
   const queryClient = useQueryClient()
@@ -115,7 +136,8 @@ function InviteForm({
     defaultValues: BLANK,
     mode: "onTouched",
   })
-  const { errors } = form.formState
+  const { errors, isDirty } = form.formState
+  useEffect(() => onDirtyChange(isDirty), [isDirty, onDirtyChange])
   const invite = useMutation({
     mutationFn: (values: InviteValues) =>
       unwrap(

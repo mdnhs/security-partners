@@ -7,6 +7,7 @@ import {
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
+import { useUrlFilters } from "@/components/admin/data-table/list-url"
 import { FilterInput } from "@/components/admin/filter-field"
 import { FORM_ACTION, PageHeader } from "@/components/admin/page-header"
 import { UserPicker } from "@/components/admin/users/user-picker"
@@ -33,12 +34,18 @@ import type { AuditItem } from "./types"
 type Row = AuditItem & Record<string, unknown>
 
 /** Row click target: the details button (44 px on touch screens). */
+const AUDIT_FILTER_KEYS = Object.keys(
+  EMPTY_AUDIT_FILTERS
+) as (keyof AuditFilters)[]
+
 const DETAILS_BUTTON = "pointer-coarse:h-11 pointer-coarse:px-4"
 
 /** Audit log (spec §8.1): filter by actor, action, record type and Irish dates. */
 export function AuditScreen() {
   const canListUsers = usePermission({ user: ["read"] })
-  const [filters, setFilters] = useState<AuditFilters>(EMPTY_AUDIT_FILTERS)
+  // Kept in the URL (?actor=&action=&entityType=&from=&to=), like the
+  // table's page, sort and search.
+  const [filters, setFilters] = useUrlFilters(AUDIT_FILTER_KEYS)
   const [open, setOpen] = useState<AuditItem | null>(null)
   // Typed filters wait for a pause; the picker and dates apply at once anyway.
   const applied = useDebouncedValue(filters, 250)
@@ -46,7 +53,7 @@ export function AuditScreen() {
   const filterKey = hasAuditFilters(applied) ? JSON.stringify(query) : ""
 
   const set = (key: keyof AuditFilters) => (value: string) =>
-    setFilters((f) => ({ ...f, [key]: value }))
+    setFilters({ [key]: value })
 
   // Columns close over setOpen (stable), so one definition per screen mount.
   const [columns] = useState(() => {
@@ -130,6 +137,7 @@ export function AuditScreen() {
         description="Sign-ins, user changes and content changes, newest first. Times are Irish time."
       />
       <DataTable<Row>
+        syncUrl
         label="Audit log"
         queryKey={["audit", query]}
         filterKey={filterKey}

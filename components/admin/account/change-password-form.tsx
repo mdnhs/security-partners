@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { FormError, FormNotice } from "@/components/admin/auth/form-messages"
+import {
+  formChanged,
+  UnsavedGuard,
+} from "@/components/admin/editor/unsaved-guard"
 import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
@@ -19,6 +23,7 @@ export function ChangePasswordForm() {
     null
   )
   const [pending, setPending] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -49,6 +54,7 @@ export function ChangePasswordForm() {
       return
     }
     formElement.reset()
+    setDirty(false)
     setStatus({
       ok: true,
       message: "Password changed. Your other devices are signed out.",
@@ -58,7 +64,13 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4">
+    <form
+      onSubmit={onSubmit}
+      onInput={(event) => setDirty(formChanged(event.currentTarget))}
+      onChange={(event) => setDirty(formChanged(event.currentTarget))}
+      className="flex max-w-md flex-col gap-4"
+    >
+      <UnsavedGuard when={dirty} />
       {status ? (
         status.ok ? (
           <FormNotice>{status.message}</FormNotice>

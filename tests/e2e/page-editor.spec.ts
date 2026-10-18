@@ -148,16 +148,21 @@ test("⌘S saves immediately; leaving with unsaved changes asks first", async ({
 
   await hero.getByRole("textbox", { name: "Heading" }).fill("")
   await expect(saveStatus(page)).toHaveText("Fix errors to save")
-  let asked = ""
-  page.once("dialog", async (dialog) => {
-    asked = dialog.message()
-    await dialog.dismiss()
-  })
+  // The shell's styled "Leave without saving?" dialog (final review I3),
+  // for an invalid draft too; the browser Back button asks the same.
   await page
     .getByRole("navigation", { name: "Admin" })
     .getByRole("link", { name: "Services" })
     .click()
-  expect(asked).toContain("not saved")
+  const leave = page.getByRole("alertdialog", {
+    name: "Leave without saving?",
+  })
+  await expect(leave).toBeVisible()
+  await leave.getByRole("button", { name: "Keep editing" }).click()
+  await expect(page).toHaveURL(/\/admin\/pages\/home$/)
+  await page.goBack()
+  await expect(leave).toBeVisible()
+  await leave.getByRole("button", { name: "Keep editing" }).click()
   await expect(page).toHaveURL(/\/admin\/pages\/home$/)
 })
 

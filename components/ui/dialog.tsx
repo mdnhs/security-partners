@@ -101,7 +101,8 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        // Buttons are 44 px on touch screens (WCAG 2.5.8), like AlertDialog.
+        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end pointer-coarse:**:data-[slot=button]:h-11",
         className
       )}
       {...props}

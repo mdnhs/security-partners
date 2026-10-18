@@ -20,6 +20,8 @@ import {
   ADMIN_TEXTAREA,
   FormCard,
 } from "@/components/admin/form/form-ui"
+import { useListHref } from "@/components/admin/data-table/list-url"
+import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
@@ -91,6 +93,8 @@ export function UserDetail({ id }: { id: string }) {
   const session = useAdminSession()
   const canUpdate = usePermission({ user: ["update"] })
   const canBan = usePermission({ user: ["ban"] })
+  // "All users" returns to the list as it was left (filters, page, search).
+  const listHref = useListHref("/admin/users")
   const query = useQuery({
     queryKey: userKey(id),
     queryFn: () => fetchUser(id),
@@ -119,7 +123,7 @@ export function UserDetail({ id }: { id: string }) {
             : errorMessage(query.error)
         }
         action={
-          <Link href="/admin/users" className={LINK_FORM}>
+          <Link href={listHref} className={LINK_FORM}>
             All users
           </Link>
         }
@@ -141,7 +145,7 @@ export function UserDetail({ id }: { id: string }) {
       <PageHeader
         breadcrumbs={
           <Link
-            href="/admin/users"
+            href={listHref}
             className="inline-flex w-fit items-center gap-1 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <ArrowLeft aria-hidden className="size-4" />
@@ -258,6 +262,7 @@ function ProfileSection({
       title="Profile"
       description="Name and job title as shown on articles."
     >
+      <UnsavedGuard when={form.formState.isDirty} />
       <form
         noValidate
         className="flex max-w-md flex-col gap-5"
@@ -359,6 +364,7 @@ function RolesSection({
       title="Roles"
       description="What this user may see and change. They get everything any chosen role allows."
     >
+      <UnsavedGuard when={canUpdate && changed} />
       <RolesField
         id="user-roles"
         options={assignableRoles(actorRoles)}
@@ -465,6 +471,13 @@ function AccessSection({ user, isSelf }: { user: UserItem; isSelf: boolean }) {
       title="Access"
       description="A banned user is signed out everywhere and cannot sign in."
     >
+      <UnsavedGuard
+        when={
+          user.status !== "banned" &&
+          !isSelf &&
+          (reason.trim() !== "" || days !== "")
+        }
+      />
       {user.status === "banned" ? (
         <div className="flex flex-col items-start gap-4">
           <p className="flex flex-wrap items-center gap-2 text-sm">
@@ -703,14 +716,14 @@ function SessionsSection({ user }: { user: UserItem }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={revoke.isPending}
               onClick={() => revoke.mutate()}
             >
               Sign out everywhere
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -764,13 +777,13 @@ function ViewAsButton({ user }: { user: UserItem }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               disabled={start.isPending}
               onClick={() => start.mutate()}
             >
               Start viewing
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

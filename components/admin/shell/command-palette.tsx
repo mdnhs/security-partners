@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
+import { useUnsavedRegistry } from "@/components/admin/editor/unsaved-guard"
 import { useAdminSession } from "@/components/admin/session-provider"
 import {
   Command,
@@ -74,6 +75,12 @@ export function isPaletteShortcut(event: KeyboardEvent): boolean {
  */
 export function CommandPalette() {
   const router = useRouter()
+  // Unsaved edits on the current page ask first (final review I3).
+  const unsaved = useUnsavedRegistry()
+  const navigate = (href: string) => {
+    if (unsaved) void unsaved.navigate(href)
+    else router.push(href)
+  }
   const { roles } = useAdminSession()
   const canCreateService = usePermission({ service: ["create"] })
   const canCreateArticle = usePermission({ article: ["create"] })
@@ -141,19 +148,19 @@ export function CommandPalette() {
       id: "edit-home",
       label: "Edit the home page",
       icon: FileText,
-      run: () => router.push("/admin/pages/home"),
+      run: () => navigate("/admin/pages/home"),
     },
     canCreateService && {
       id: "new-service",
       label: "New service",
       icon: Plus,
-      run: () => router.push("/admin/services/new"),
+      run: () => navigate("/admin/services/new"),
     },
     canCreateArticle && {
       id: "new-article",
       label: "New article",
       icon: Plus,
-      run: () => router.push("/admin/articles/new"),
+      run: () => navigate("/admin/articles/new"),
     },
     {
       id: "open-site",
@@ -223,7 +230,7 @@ export function CommandPalette() {
                     <CommandItem
                       key={`${record.type}:${record.id}`}
                       value={`${record.type}:${record.id}`}
-                      onSelect={() => go(() => router.push(record.href))}
+                      onSelect={() => go(() => navigate(record.href))}
                     >
                       <Icon aria-hidden />
                       <span className="truncate">{record.title}</span>
@@ -243,7 +250,7 @@ export function CommandPalette() {
                     key={`user:${person.id}`}
                     value={`user:${person.id}`}
                     onSelect={() =>
-                      go(() => router.push(`/admin/users/${person.id}`))
+                      go(() => navigate(`/admin/users/${person.id}`))
                     }
                   >
                     <UserCog aria-hidden />
@@ -263,7 +270,7 @@ export function CommandPalette() {
                     <CommandItem
                       key={item.href}
                       value={`nav:${item.href}`}
-                      onSelect={() => go(() => router.push(item.href))}
+                      onSelect={() => go(() => navigate(item.href))}
                     >
                       <Icon aria-hidden />
                       {item.label}

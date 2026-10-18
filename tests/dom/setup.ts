@@ -6,6 +6,10 @@ import { afterEach, vi } from "vitest"
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  // Lists keep their state in the URL and remember it per tab (I8): no
+  // test inherits the previous one's ?page=/?q= or its stored list URLs.
+  window.history.replaceState(null, "", "/")
+  window.sessionStorage.clear()
 })
 
 // jsdom lacks a few browser APIs that base-ui, cmdk and ProseMirror call.

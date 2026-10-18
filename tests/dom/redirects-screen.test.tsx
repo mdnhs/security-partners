@@ -207,4 +207,39 @@ describe("Redirects screen (master 8.2)", () => {
       )
     )
   })
+
+  it("a typed redirect is not dropped by Esc (final review I2)", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(
+      await screen.findByRole("button", { name: "Add redirect" })
+    )
+    const dialog = screen.getByRole("dialog", { name: "Add redirect" })
+    await user.type(within(dialog).getByLabelText("Old address"), "/promo")
+    await user.keyboard("{Escape}")
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Discard this redirect?",
+    })
+    // 44 px on touch screens, like Cancel beside it (I4).
+    expect(
+      within(confirm).getByRole("button", { name: "Discard changes" })
+    ).toHaveClass("pointer-coarse:h-11")
+    await user.click(
+      within(confirm).getByRole("button", { name: "Keep editing" })
+    )
+    expect(within(dialog).getByLabelText("Old address")).toHaveValue("/promo")
+  })
+
+  it("an untouched redirect dialog closes without asking", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(
+      await screen.findByRole("button", { name: "Add redirect" })
+    )
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Add redirect" })).toBeNull()
+    )
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
 })

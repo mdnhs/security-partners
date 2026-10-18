@@ -10,6 +10,7 @@ import {
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
+import { mergeListSearch } from "@/components/admin/data-table/list-url"
 import { FilterSelect } from "@/components/admin/filter-field"
 import { PageHeader } from "@/components/admin/page-header"
 import { usePermission } from "@/hooks/use-permission"
@@ -103,15 +104,33 @@ const columns = ch.columns([
 export function LeadsScreen() {
   const router = useRouter()
   const params = useSearchParams()
+  const paramString = params.toString()
   const [filters, setFilters] = useState<LeadInboxFilters>(() =>
-    parseLeadFilters(new URLSearchParams(params.toString()))
+    parseLeadFilters(new URLSearchParams(paramString))
   )
+  // Back/Forward (or a link) changed the URL: follow it (adjusted during
+  // render, final review M9). Our own replace lands here too, unchanged.
+  const [seenParams, setSeenParams] = useState(paramString)
+  if (seenParams !== paramString) {
+    setSeenParams(paramString)
+    const fromUrl = parseLeadFilters(new URLSearchParams(paramString))
+    if (
+      fromUrl.status !== filters.status ||
+      fromUrl.assignee !== filters.assignee
+    )
+      setFilters(fromUrl)
+  }
   // The table's debounced search, as last sent to the API (for the export).
   const [search, setSearch] = useState("")
   const changeFilters = (patch: Partial<LeadInboxFilters>) => {
     const next = { ...filters, ...patch }
     setFilters(next)
-    const query = new URLSearchParams(leadFilterQuery(next)).toString()
+    // The table's search and sort stay in the URL; the page resets.
+    const own = leadFilterQuery(next)
+    const query = mergeListSearch(window.location.search, {
+      status: own.status,
+      assignee: own.assignee,
+    })
     router.replace(`/admin/leads${query ? `?${query}` : ""}`, {
       scroll: false,
     })
@@ -141,6 +160,7 @@ export function LeadsScreen() {
         }
       />
       <DataTable<Row>
+        syncUrl
         label="Leads"
         queryKey={["leads", query]}
         filterKey={filterKey}

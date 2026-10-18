@@ -10,6 +10,12 @@ export const SECONDARY_ACTION =
   "h-12 gap-2 rounded-xl border-primary bg-card px-5 text-[15px] font-semibold text-primary hover:bg-accent hover:text-accent-foreground"
 /** A form's own submit button, and anything beside one. */
 export const FORM_ACTION = "h-11 rounded-xl px-5 font-semibold"
+/**
+ * Compact controls on touch screens (WCAG 2.5.8, project rule: 44 px on a
+ * coarse pointer): icon buttons grow to 44 × 44, text controls to 44 px tall.
+ */
+export const COARSE_ICON = "pointer-coarse:size-11"
+export const COARSE_HEIGHT = "pointer-coarse:h-11"
 
 // Navigation styled as a button stays a real link (role "link").
 export const LINK_PRIMARY = cn(buttonVariants(), PRIMARY_ACTION)

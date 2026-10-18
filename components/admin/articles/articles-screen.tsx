@@ -4,13 +4,16 @@ import { useQuery } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState } from "react"
 
 import {
   columnsFor,
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
+import {
+  mergeListSearch,
+  useUrlFilters,
+} from "@/components/admin/data-table/list-url"
 import { FilterSelect } from "@/components/admin/filter-field"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { StatusPill, toneForStatus } from "@/components/admin/kit/status-pill"
@@ -19,7 +22,6 @@ import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import {
   ARTICLE_STATUS_FILTERS,
-  articleListHref,
   articleStatusLabel,
   parseStatusParam,
 } from "@/lib/admin/article-status"
@@ -123,8 +125,9 @@ export function ArticlesScreen() {
   const status = parseStatusParam(searchParams.get("status"))
   const canCreate = usePermission({ article: ["create"] })
   const canReview = usePermission({ article: ["publish"] })
-  const [category, setCategory] = useState("")
-  const [author, setAuthor] = useState("")
+  // Category and byline live in the URL too (?category=&author=).
+  const [params, setParams] = useUrlFilters(["category", "author"] as const)
+  const { category, author } = params
   const options = useQuery({
     queryKey: ["articles", "options"],
     queryFn: () => unwrap(api.articles.options.$get()),
@@ -136,8 +139,15 @@ export function ArticlesScreen() {
   }
   const filterKey =
     status || category || author ? `${status ?? ""}|${category}|${author}` : ""
-  const setStatus = (next: ContentStatus | null) =>
-    router.replace(articleListHref(next), { scroll: false })
+  const setStatus = (next: ContentStatus | null) => {
+    // The other filters, the search and the sort stay; the page resets.
+    const search = mergeListSearch(window.location.search, {
+      status: next ?? undefined,
+    })
+    router.replace(`/admin/articles${search ? `?${search}` : ""}`, {
+      scroll: false,
+    })
+  }
   const newArticle = canCreate ? (
     <Link href="/admin/articles/new" className={LINK_PRIMARY}>
       <Plus aria-hidden />
@@ -176,6 +186,7 @@ export function ArticlesScreen() {
         })}
       </div>
       <DataTable<Row>
+        syncUrl
         label="Articles"
         queryKey={["articles", filters]}
         filterKey={filterKey}
@@ -192,7 +203,7 @@ export function ArticlesScreen() {
               id="articles-category"
               label="Category"
               value={category}
-              onChange={setCategory}
+              onChange={(value) => setParams({ category: value })}
             >
               <option value="">All categories</option>
               {(options.data?.categories ?? []).map((c) => (
@@ -205,7 +216,7 @@ export function ArticlesScreen() {
               id="articles-author"
               label="Byline"
               value={author}
-              onChange={setAuthor}
+              onChange={(value) => setParams({ author: value })}
             >
               <option value="">Anyone</option>
               <option value="me">Me</option>

@@ -161,7 +161,7 @@ const LAYOUT = {
 } as const
 
 const TAB =
-  "relative flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-left text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+  "relative flex h-9 shrink-0 items-center gap-2 rounded-md px-3 pointer-coarse:h-11 text-left text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
 const TAB_ACTIVE = "bg-sidebar-accent font-semibold text-foreground"
 
 /**

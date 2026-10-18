@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Eye, History, Send } from "lucide-react"
-import { type ReactNode, useEffect, useRef, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { z } from "zod"
 
@@ -283,13 +283,18 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     },
   })
 
+  const { schema } = props
+  const isValid = useCallback(
+    (value: unknown) => schema.safeParse(value).success,
+    [schema]
+  )
   const autosave = useAutosave({
     value: draft,
     savedValue: base.saved,
     save: async (value) => {
       await save.mutateAsync(value)
     },
-    isValid: (value) => props.schema.safeParse(value).success,
+    isValid,
     enabled: props.canEdit,
   })
   const { flush } = autosave
@@ -322,6 +327,10 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     return true
   }
 
+  // ⌘S asked for a save: "Saved" is announced when it lands, until the next
+  // edit (autosaves stay silent, final review M4).
+  const [savedOnRequest, setSavedOnRequest] = useState(false)
+  if (savedOnRequest && autosave.state === "unsaved") setSavedOnRequest(false)
   // ⌘S / Ctrl+S saves now.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -329,6 +338,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         return
       event.preventDefault()
       if (!props.canEdit || showAllErrors()) return
+      setSavedOnRequest(true)
       void autosave.flush()
     }
     window.addEventListener("keydown", onKeyDown)
@@ -424,6 +434,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             <SaveStateIndicator
               state={autosave.state}
               onRetry={() => void autosave.flush()}
+              savedOnRequest={savedOnRequest}
             />
           ) : null
         }

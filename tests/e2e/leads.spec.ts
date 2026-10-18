@@ -87,7 +87,8 @@ test("public enquiry → lead in the intake inbox, worked by the intake user", a
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible()
 
   await page.getByLabel("Lead status").selectOption("contacted")
-  await expect(page.getByText("Lead updated")).toBeVisible()
+  // No success toast (final review M8): the select and badge show it.
+  await expect(page.getByLabel("Lead status")).toHaveValue("contacted")
   await page.getByRole("tab", { name: /Notes/ }).click()
   await page.getByLabel("Add a note").fill("Called, sending a quote")
   await page.getByRole("button", { name: "Add note" }).click()

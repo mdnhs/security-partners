@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { createContext, type ReactNode, useContext, useState } from "react"
 
 import { useSignOut } from "@/components/admin/auth/sign-out-button"
+import { useConfirmLeave } from "@/components/admin/editor/unsaved-guard"
 
 /** Which control started the sign-out: its failure shows beside it. */
 export type SignOutSource = "menu" | "dock"
@@ -29,10 +30,15 @@ export function ShellSignOutProvider({ children }: { children: ReactNode }) {
     queryClient.clear()
   )
   const [source, setSource] = useState<SignOutSource>("menu")
+  // Unsaved edits on the page ask first (final review I3).
+  const confirmLeave = useConfirmLeave()
   const value: ShellSignOut = {
     signOut(from) {
-      setSource(from)
-      void signOut()
+      void confirmLeave().then((leave) => {
+        if (!leave) return
+        setSource(from)
+        void signOut()
+      })
     },
     pending,
     error: error ? { message: error, source } : null,

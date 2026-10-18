@@ -3,13 +3,11 @@ import { Suspense } from "react"
 
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import { SIDEBAR_COOKIE } from "@/components/admin/shell/constants"
-import type { NavBadges } from "@/components/admin/shell/nav"
-import { hasPermission } from "@/lib/auth/permissions"
+import { AdminShellSkeleton } from "@/components/admin/shell/shell-skeleton"
 import { requireSession } from "@/server/auth/session"
 import { getEnv } from "@/server/env"
+import { loadShellExtras } from "@/server/lib/admin-shell-extras"
 import { getSiteEnv } from "@/server/lib/site-env"
-import { getAiStatus } from "@/server/modules/ai/service"
-import { leadBadge } from "@/server/modules/leads/service"
 import { getSettings } from "@/server/modules/settings/queries"
 
 /**
@@ -20,7 +18,7 @@ export default function PanelLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<AdminShellSkeleton />}>
       <PanelFrame>{children}</PanelFrame>
     </Suspense>
   )
@@ -30,24 +28,20 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
   // Session first: it reads the request, so nothing below (the settings
   // query needs the database) runs while the route is being prerendered.
   const { user, actor, session } = await requireSession()
-  // Sidebar counts: unassigned new leads for those who handle them. Fresh
-  // on every navigation and on router.refresh() after a lead changes.
-  const [cookieStore, site, badges, assistant] = await Promise.all([
+  // Badge, AI status and bell degrade on their own (loadShellExtras); a
+  // settings failure fails the frame, into app/(admin)/admin/error.tsx.
+  // Fresh on every navigation and on router.refresh() after a lead changes.
+  const [cookieStore, site, extras] = await Promise.all([
     cookies(),
     getSettings("site"),
-    hasPermission(actor.roles, { lead: ["read"] })
-      ? leadBadge(actor).then((badge): NavBadges => ({
-          "new-leads": badge.newLeads,
-        }))
-      : ({} satisfies NavBadges),
-    getAiStatus(actor),
+    loadShellExtras(actor),
   ])
   const productionUrl = site?.productionUrl ?? undefined
   return (
     <AdminShell
       // Set by the sidebar toggle (components/ui/sidebar.tsx).
       defaultSidebarOpen={cookieStore.get(SIDEBAR_COOKIE)?.value !== "false"}
-      badges={badges}
+      badges={extras.badges}
       site={{
         // The configured public origin; this deployment's own until set.
         url: productionUrl ?? new URL(getEnv().BETTER_AUTH_URL).origin,
@@ -58,7 +52,8 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
         roles: actor.roles,
         impersonatedBy: session.impersonatedBy,
       }}
-      assistant={assistant}
+      assistant={extras.assistant}
+      notifications={extras.notifications}
     >
       {children}
     </AdminShell>

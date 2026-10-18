@@ -17,6 +17,7 @@ import {
 import { type KeyboardEvent, useState } from "react"
 
 import { MediaPickerDialog } from "@/components/admin/media/picker-dialog"
+import { COARSE_ICON } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -60,7 +61,7 @@ function ToolButton({
       aria-pressed={pressed}
       disabled={disabled}
       onClick={onClick}
-      className="aria-pressed:bg-muted aria-pressed:text-foreground"
+      className={`${COARSE_ICON} aria-pressed:bg-muted aria-pressed:text-foreground`}
       {...roving}
     >
       {children}
@@ -133,7 +134,7 @@ function LinkButton({
             aria-keyshortcuts="Control+K Meta+K"
             title={`${label} (Ctrl/⌘ K)`}
             data-active={active || undefined}
-            className="data-active:bg-muted data-active:text-foreground"
+            className={`${COARSE_ICON} data-active:bg-muted data-active:text-foreground`}
             {...roving}
           />
         }

@@ -185,6 +185,34 @@ describe.each([
     )
   })
 
+  // The editor's "Unsaved changes" pill is text-warning on bg-muted (final
+  // review I5: the old #b45309 was 4.27:1 there).
+  it.each(["muted", "card", "warning-soft"])(
+    "--warning text on --%s meets 4.5:1",
+    (surface) => {
+      expect(contrast(tokens.warning, tokens[surface])).toBeGreaterThanOrEqual(
+        4.5
+      )
+    }
+  )
+
+  // Focus ring of destructive buttons (final review M1): ring-destructive/60
+  // over the card stays ≥ 3:1 (WCAG 1.4.11).
+  it("the destructive focus ring at 60 % meets 3:1 on the card", () => {
+    const mixed =
+      "#" +
+      [1, 3, 5]
+        .map((i) => {
+          const top = parseInt(tokens.destructive.slice(i, i + 2), 16)
+          const under = parseInt(tokens.card.slice(i, i + 2), 16)
+          return Math.round(top * 0.6 + under * 0.4)
+            .toString(16)
+            .padStart(2, "0")
+        })
+        .join("")
+    expect(contrast(mixed, tokens.card)).toBeGreaterThanOrEqual(3)
+  })
+
   // Floating panels stand off the canvas; cards stand off the panels.
   it.each([
     ["sidebar", "background"],

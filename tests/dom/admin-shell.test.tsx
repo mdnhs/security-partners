@@ -403,7 +403,43 @@ describe("AdminShell (master 4.1)", () => {
         name: "Notifications",
       })
     )
-    expect(await screen.findByText("No notifications yet")).toBeInTheDocument()
+    expect(await screen.findByText("You're all caught up")).toBeInTheDocument()
+  })
+
+  it("the bell lists what needs attention, each linking to its fix (I6)", async () => {
+    const user = userEvent.setup()
+    render(
+      <AdminShell
+        session={session(["editor"])}
+        notifications={[
+          {
+            id: "new-leads",
+            title: "2 new enquiries",
+            description: "Nobody has picked them up yet.",
+            href: "/admin/leads?status=new&assignee=none",
+          },
+          {
+            id: "turnstile-unreadable",
+            title: "Spam protection is off",
+            description: "Re-enter the keys.",
+            href: "/admin/settings/integrations/turnstile",
+          },
+        ]}
+      >
+        <p>Body</p>
+      </AdminShell>
+    )
+    await user.click(
+      within(screen.getByRole("banner")).getByRole("button", {
+        name: "Notifications, 2 need attention",
+      })
+    )
+    expect(
+      await screen.findByRole("link", { name: /2 new enquiries/ })
+    ).toHaveAttribute("href", "/admin/leads?status=new&assignee=none")
+    expect(
+      screen.getByRole("link", { name: /Spam protection is off/ })
+    ).toHaveAttribute("href", "/admin/settings/integrations/turnstile")
   })
 
   it("user menu in the topbar: identity, roles, Account, Security, theme, sign out", async () => {

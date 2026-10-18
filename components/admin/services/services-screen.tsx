@@ -133,6 +133,7 @@ export function ServicesScreen() {
         />
       ) : (
         <DataTable<Row>
+          syncUrl
           label="Services"
           queryKey={queryKey}
           fetchPage={async (params) =>

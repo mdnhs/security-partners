@@ -35,23 +35,44 @@ const TEXT: Record<SaveState, string> = {
   error: "text-danger",
 }
 
+/** States a screen reader hears about: something needs doing. */
+const ANNOUNCED: ReadonlySet<SaveState> = new Set([
+  "invalid",
+  "conflict",
+  "error",
+])
+
 /**
- * Live save status in the editor header (announced politely): a pill on
- * the bar's white card with a coloured dot, JW style. The label stays
- * exactly "Saved" (the e2e page-editor spec asserts it).
+ * Save status in the editor header: a pill on the bar's white card with a
+ * coloured dot, JW style. The label stays exactly "Saved" (the e2e
+ * page-editor spec asserts it). The pill itself is not a live region
+ * (final review M4: "Unsaved changes → Saving… → Saved" on every autosave
+ * cycle was read out each time); a separate polite region announces only
+ * failures and conflicts, and "Saved" after an explicit save (⌘S).
  */
 export function SaveStateIndicator({
   state,
   onRetry,
+  savedOnRequest = false,
 }: {
   state: SaveState
   onRetry?: () => void
+  /** The person asked to save (⌘S): announce "Saved" when it lands. */
+  savedOnRequest?: boolean
 }) {
+  const announcement = ANNOUNCED.has(state)
+    ? LABELS[state]
+    : state === "saved" && savedOnRequest
+      ? LABELS.saved
+      : ""
   return (
     <div className="flex items-center gap-2">
+      <span aria-live="polite" className="sr-only">
+        {announcement}
+      </span>
       <p
         role="status"
-        aria-live="polite"
+        aria-live="off"
         aria-label={`Save status: ${LABELS[state]}`}
         data-save-state={state}
         className={cn(
