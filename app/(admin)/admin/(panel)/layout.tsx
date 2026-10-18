@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/auth/permissions"
 import { requireSession } from "@/server/auth/session"
 import { getEnv } from "@/server/env"
 import { getSiteEnv } from "@/server/lib/site-env"
+import { getAiStatus } from "@/server/modules/ai/service"
 import { leadBadge } from "@/server/modules/leads/service"
 import { getSettings } from "@/server/modules/settings/queries"
 
@@ -31,7 +32,7 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
   const { user, actor, session } = await requireSession()
   // Sidebar counts: unassigned new leads for those who handle them. Fresh
   // on every navigation and on router.refresh() after a lead changes.
-  const [cookieStore, site, badges] = await Promise.all([
+  const [cookieStore, site, badges, assistant] = await Promise.all([
     cookies(),
     getSettings("site"),
     hasPermission(actor.roles, { lead: ["read"] })
@@ -39,6 +40,7 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
           "new-leads": badge.newLeads,
         }))
       : ({} satisfies NavBadges),
+    getAiStatus(actor),
   ])
   const productionUrl = site?.productionUrl ?? undefined
   return (
@@ -56,6 +58,7 @@ async function PanelFrame({ children }: { children: React.ReactNode }) {
         roles: actor.roles,
         impersonatedBy: session.impersonatedBy,
       }}
+      assistant={assistant}
     >
       {children}
     </AdminShell>

@@ -1,5 +1,10 @@
 import { expect, type Page, test } from "@playwright/test"
 
+import {
+  askAssistant,
+  assistantOnHomeEditor,
+  openAssistant,
+} from "../e2e/ai-pins"
 import { clientIpFor } from "../e2e/fixtures"
 import {
   freezeUploads,
@@ -1364,6 +1369,36 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(dialog.getByRole("option").first()).toBeVisible()
       await expect(page).toHaveScreenshot(shot("command-palette"), {
         mask: await overlayOnly(page),
+      })
+    })
+
+    // Phase 9: the AI assistant panel on the home page editor, empty (the
+    // "Using" chip and starter prompts), after a reply (Copy / Insert) and
+    // its past conversations. Status, chat stream and history are pinned
+    // (tests/e2e/ai-pins.ts): no request reaches an AI provider, and the
+    // reply is not inserted (that would autosave the seeded page).
+    test(`admin AI assistant ${colorScheme}`, async ({ page }) => {
+      await signIn(page)
+      await assistantOnHomeEditor(page, SMTP_SAVED)
+      const panel = await openAssistant(page)
+      await expect(panel.getByText(/Using:/)).toBeVisible()
+      await expect(
+        panel.getByRole("list", { name: "Suggested questions" })
+      ).toBeVisible()
+      const mask = await overlayOnly(page)
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(shot("ai-assistant"), { mask })
+      await askAssistant(page, panel)
+      await expect(
+        panel.getByRole("button", { name: /^Insert into / })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("ai-assistant-reply"), { mask })
+      await panel.getByRole("button", { name: "Past conversations" }).click()
+      await expect(
+        page.getByRole("button", { name: "Make the hero heading shorter" })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("ai-assistant-history"), {
+        mask,
       })
     })
 

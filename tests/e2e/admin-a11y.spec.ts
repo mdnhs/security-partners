@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, type Page, test } from "@playwright/test"
 
 import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
+import { askAssistant, assistantOnHomeEditor, openAssistant } from "./ai-pins"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 import { freezeUploads, pinMedia, PNG_1PX } from "./media-pins"
 
@@ -665,6 +666,41 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`navigation sheet → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    // Phase 9: the AI assistant panel (status, chat stream and history
+    // pinned — never a real provider): empty, after a streamed reply, the
+    // past conversations popover, and focus back on the button on close.
+    test(`AI assistant in ${colorScheme}`, async ({ page }) => {
+      const failures: string[] = []
+      const audit = async (label: string) => {
+        for (const violation of await blocking(page))
+          failures.push(`${label} → ${violation}`)
+      }
+      await signIn(page, E2E_ADMIN)
+      const { button } = await assistantOnHomeEditor(page, SAVED_SMTP)
+      await audit("home editor with the AI button")
+      const panel = await openAssistant(page)
+      await expect(panel.getByText(/Using:/)).toBeVisible()
+      await audit("assistant panel (empty)")
+      await askAssistant(page, panel)
+      await expect(
+        panel.getByRole("button", { name: /^Insert into / })
+      ).toBeVisible()
+      await audit("assistant panel (reply)")
+      await panel.getByRole("button", { name: "Past conversations" }).click()
+      await expect(
+        page.getByRole("button", { name: "Make the hero heading shorter" })
+      ).toBeVisible()
+      await audit("assistant past conversations")
+      await panel.getByRole("button", { name: "Past conversations" }).click()
+      await expect(
+        page.getByRole("button", { name: "Make the hero heading shorter" })
+      ).toHaveCount(0)
+      await panel.getByRole("button", { name: "Close" }).click()
+      await expect(panel).toHaveCount(0)
+      await expect(button).toBeFocused()
       expect(failures).toEqual([])
     })
 

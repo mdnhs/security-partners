@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CircleAlert } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { type FocusEvent, useEffect, useMemo, useRef, useState } from "react"
 import {
   type DefaultValues,
   FormProvider,
@@ -17,10 +17,29 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { SchemaFormContext } from "./context"
 import type { EditorMeta } from "./editor-meta"
+import { insertableTextField, stringMaxLength } from "./field-at-path"
 import { FormTabs, formTabs } from "./form-tabs"
 import { fromFormValues, toFormValues } from "./optional-values"
 import { hasRequiredField, resolveWidget } from "./resolve-widget"
 import { GroupWidget } from "./widgets/group"
+
+/** The text field the user focused (AI assistant "Insert", spec §8.3). */
+export type FocusedTextField = {
+  /** react-hook-form path, e.g. "hero.heading". */
+  path: string
+  label: string
+  maxLength: number | null
+  /** A textarea widget (line breaks allowed). */
+  multiline: boolean
+  /** DOM id of the input. */
+  elementId: string
+  read: () => string
+  /**
+   * Sets the value as if typed: dirty, touched, validated, emitted through
+   * onChange. False (nothing set) when the path no longer holds a value.
+   */
+  setValue: (text: string) => boolean
+}
 
 export type SchemaFormProps<S extends z.ZodObject> = {
   schema: S
@@ -38,6 +57,8 @@ export type SchemaFormProps<S extends z.ZodObject> = {
    * there are at least two; fields of hidden tabs stay mounted.
    */
   sectionTabs?: string
+  /** Called when a plain text field (text or textarea widget) gains focus. */
+  onFieldFocus?: (field: FocusedTextField) => void
 }
 
 /**
@@ -88,6 +109,7 @@ export function SchemaForm<S extends z.ZodObject>({
   resetKey,
   idPrefix = "sf",
   sectionTabs,
+  onFieldFocus,
 }: SchemaFormProps<S>) {
   const [defaults] = useState(() => toFormValues(schema, value))
   const resolver = useMemo(() => emittedValuesResolver(schema), [schema])
@@ -160,10 +182,51 @@ export function SchemaForm<S extends z.ZodObject>({
     () => <GroupWidget field={resolveWidget(schema, {}, "", "")} path="" />,
     [schema]
   )
+  // Ids are fieldId(idPrefix, path): "sf-hero-heading" ← "hero.heading".
+  const handleFocus = (event: FocusEvent<HTMLFormElement>) => {
+    if (!onFieldFocus) return
+    const target = event.target
+    if (
+      !(target instanceof HTMLInputElement) &&
+      !(target instanceof HTMLTextAreaElement)
+    )
+      return
+    const prefix = `${idPrefix}-`
+    if (!target.id.startsWith(prefix)) return
+    const path = target.id.slice(prefix.length).replaceAll("-", ".")
+    const field = insertableTextField(schema, meta, path)
+    if (!field) return
+    const name = path as Path<z.input<S>>
+    onFieldFocus({
+      path,
+      label: field.label,
+      maxLength: field.meta.maxLength ?? stringMaxLength(field.schema),
+      multiline: field.kind === "textarea",
+      elementId: target.id,
+      read: () => {
+        const current: unknown = form.getValues(name)
+        return typeof current === "string" ? current : ""
+      },
+      setValue: (text) => {
+        // The field may be gone since it was focused (list item removed).
+        if (form.getValues(name) === undefined) return false
+        form.setValue(name, text as never, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        })
+        return true
+      },
+    })
+  }
   return (
     <FormProvider {...form}>
       <SchemaFormContext.Provider value={context}>
-        <form noValidate onSubmit={(event) => event.preventDefault()}>
+        <form
+          noValidate
+          onSubmit={(event) => event.preventDefault()}
+          onFocusCapture={handleFocus}
+        >
           {/* WCAG 3.3.2: required is the default, said once (JW). */}
           {requiredNote ? (
             <p className="mb-4 text-xs text-muted-foreground">
