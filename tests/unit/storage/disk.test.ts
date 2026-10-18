@@ -49,6 +49,7 @@ describe("diskStorage", () => {
     ]).toEqual([0, 1, 2, 3, 4, 5])
     const part = await disk.stream(key, { start: 2, end: 4 })
     expect(part?.size).toBe(6)
+    expect(part?.partial).toBe(true)
     expect([
       ...new Uint8Array(await new Response(part!.body).arrayBuffer()),
     ]).toEqual([2, 3, 4])

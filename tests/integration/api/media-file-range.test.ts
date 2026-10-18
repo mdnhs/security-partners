@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
@@ -156,6 +156,35 @@ describe("media file route: streaming, Range and ETag", () => {
     })
     expect(part.status).toBe(206)
     expect(part.headers.get("content-range")).toBe("bytes 0-9/1000")
+  })
+
+  it("a row whose size is wrong gets the whole object as it really is (200, true length, no ETag)", async () => {
+    const key = "2026/10/0190a6e0-0000-7000-8000-00000000f120.pdf"
+    await diskStorage().put(key, BYTES, "application/pdf")
+    await insertMediaRow(getDb(), {
+      key,
+      driver: "disk",
+      mime: "application/pdf",
+      size: 2000, // wrong: the file has 1000 bytes
+      originalName: "wrong.pdf",
+    })
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      for (const range of ["bytes=1500-1999", ""]) {
+        const res = await get(
+          range ? { range } : {},
+          `/api/v1/media/file/${key}`
+        )
+        expect(res.status, range).toBe(200)
+        expect(res.headers.get("content-length")).toBe("1000")
+        expect(res.headers.get("etag")).toBeNull()
+        expect(await bytesOf(res)).toEqual(BYTES)
+      }
+      expect(String(error.mock.calls[0]?.[0])).toContain("size mismatch")
+    } finally {
+      error.mockRestore()
+      await diskStorage().delete(key)
+    }
   })
 
   it("still 404s keys without a servable row, Range or not", async () => {

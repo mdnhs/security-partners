@@ -10,6 +10,12 @@ export type StoredStream = {
   body: ReadableStream<Uint8Array>
   /** The whole object's size in bytes, whatever range was asked for. */
   size: number
+  /**
+   * False when a range was asked for but the whole object came back (R2
+   * refused the range: the row's size is wrong). The caller then serves it
+   * as a full 200 instead of a 206.
+   */
+  partial: boolean
 }
 
 /** Where uploaded files live (spec §11). Keys are validated by every call. */

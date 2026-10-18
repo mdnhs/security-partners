@@ -13,7 +13,7 @@ import type { R2Config } from "@/lib/schemas/integrations"
 import { r2Failure, sharedR2Client } from "@/server/lib/r2-client"
 
 import { IMMUTABLE_CACHE, keySegments, mediaFileUrl } from "./paths"
-import type { StorageDriver } from "./types"
+import type { ByteRange, StorageDriver } from "./types"
 
 /** Total size from a `Content-Range: bytes 0-9/1234` answer. */
 function totalOf(contentRange: string | undefined): number | null {
@@ -24,6 +24,11 @@ function totalOf(contentRange: string | undefined): number | null {
 /** GetObject on a missing key. A missing bucket (NoSuchBucket) is a failure. */
 const isMissing = (err: unknown) =>
   err instanceof S3ServiceException && err.name === "NoSuchKey"
+
+/** GetObject with a Range past the object's end (HTTP 416). */
+const isInvalidRange = (err: unknown) =>
+  err instanceof S3ServiceException &&
+  (err.name === "InvalidRange" || err.$metadata.httpStatusCode === 416)
 
 /** Cloudflare R2 through the S3 API (libraries notes §5.5). Private bucket; files are served by our origin. */
 export function r2Storage(
@@ -69,22 +74,32 @@ export function r2Storage(
     },
     async stream(key, range) {
       keySegments(key)
-      try {
+      const get = async (asked: ByteRange | undefined) => {
         const out = await client.send(
           new GetObjectCommand({
             Bucket,
             Key: key,
-            ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+            ...(asked ? { Range: `bytes=${asked.start}-${asked.end}` } : {}),
           })
         )
         if (!out.Body) return null
         const body = out.Body.transformToWebStream()
-        const size = range ? totalOf(out.ContentRange) : out.ContentLength
+        const size = asked ? totalOf(out.ContentRange) : out.ContentLength
         if (size === null || size === undefined) {
           await body.cancel()
           throw new Error("R2 sent no object size")
         }
-        return { body, size }
+        return { body, size, partial: asked !== undefined }
+      }
+      try {
+        try {
+          return await get(range)
+        } catch (err) {
+          // The range was checked against the row's size, so R2 refusing it
+          // means the row is wrong: fall back to the whole object.
+          if (range && isInvalidRange(err)) return await get(undefined)
+          throw err
+        }
       } catch (err) {
         if (isMissing(err)) return null
         throw r2Failure(err)

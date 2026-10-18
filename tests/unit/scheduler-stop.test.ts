@@ -48,6 +48,8 @@ describe("stopScheduler (graceful shutdown)", () => {
     expect(vi.getTimerCount()).toBe(0) // no further ticks
     await vi.advanceTimersByTimeAsync(0)
     expect(stopped).toBe(false)
+    // While the old tick still runs, no second scheduler can start beside it.
+    expect(startScheduler()).toBe(false)
 
     claim([
       { id: "j1", name: "publish-scheduled", key: "a", payload: null },
@@ -58,5 +60,7 @@ describe("stopScheduler (graceful shutdown)", () => {
     // Stopped before the first job started: both claims are handed back.
     expect(repo.releaseClaimedJob).toHaveBeenCalledTimes(2)
     expect(repo.finishJob).not.toHaveBeenCalled()
+    // Once drained, the scheduler can start again.
+    expect(startScheduler()).toBe(true)
   })
 })

@@ -121,6 +121,7 @@ export function diskStorage(
         return {
           body: Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>,
           size: stats.size,
+          partial: range !== undefined,
         }
       } catch (err) {
         await handle.close().catch(() => {})

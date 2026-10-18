@@ -267,7 +267,11 @@ export function startScheduler(): boolean {
 /**
  * Stops the tick (tests, graceful shutdown). Resolves once the tick in
  * progress, if any, has finished its running job and released the claims
- * it had not started; it never keeps the process alive by itself.
+ * it had not started; it never keeps the process alive by itself. The
+ * store keeps the stopping state until then, so startScheduler cannot start
+ * a second scheduler beside a tick that is still running. On shutdown this
+ * is best effort when Next's own handler is present: Next may exit first,
+ * and an unfinished claim then falls back to LOCK_TIMEOUT_MS.
  */
 export async function stopScheduler(): Promise<void> {
   const state = store.__spScheduler
@@ -275,6 +279,9 @@ export async function stopScheduler(): Promise<void> {
   clearTimeout(state.first)
   clearInterval(state.interval)
   state.stopped = true
-  store.__spScheduler = undefined
-  await state.current
+  try {
+    await state.current
+  } finally {
+    if (store.__spScheduler === state) store.__spScheduler = undefined
+  }
 }

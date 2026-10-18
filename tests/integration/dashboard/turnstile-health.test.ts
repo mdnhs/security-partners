@@ -53,6 +53,21 @@ describe("integrationReadState", () => {
     await unreadable()
     expect(await integrationReadState(KEY)).toBe("unreadable")
   })
+
+  it("a transient database error is rethrown, never read as 'unreadable' (no false 'Spam protection is off')", async () => {
+    await readable()
+    const dbDown = Object.assign(new Error("Connection terminated"), {
+      code: "57P01",
+    })
+    const db = {
+      select: () => {
+        throw dbDown
+      },
+    } as unknown as Parameters<typeof integrationReadState>[1]
+    await expect(integrationReadState(KEY, db)).rejects.toBe(dbDown)
+    // The real database still reads the settings fine.
+    expect(await integrationReadState(KEY)).toBe("ok")
+  })
 })
 
 describe("dashboard Next up: Turnstile settings unreadable (fail-open made visible)", () => {

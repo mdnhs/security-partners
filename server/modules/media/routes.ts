@@ -157,6 +157,9 @@ export const mediaFileRoutes = new Hono<AppEnv>().get("/*", async (c) => {
         "Content-Range": `bytes */${file.size}`,
         "X-Content-Type-Options": "nosniff",
       })
+    // HEAD answers from the row alone and never opens storage: cheap, and it
+    // cannot leak a file handle. A row whose object has gone still gets 200
+    // here; the following GET is the one that 404s (or retries a migration).
     if (head)
       return c.body(
         null,
@@ -165,12 +168,16 @@ export const mediaFileRoutes = new Hono<AppEnv>().get("/*", async (c) => {
       )
     const stored = await service.openMediaFile(file, range ?? undefined)
     if (!stored) continue
-    if (stored.size !== file.size) {
+    if (stored.size !== file.size || (range && !stored.partial)) {
       // The row's size is wrong (never expected): the ETag and any range
       // were computed from it, so send the whole object as it really is.
+      // R2 may already have answered with the whole object (InvalidRange).
       console.error(`[media] size mismatch for ${file.key}`)
-      await stored.body.cancel()
-      const whole = await service.openMediaFile(file)
+      let whole: typeof stored | null = stored
+      if (stored.partial) {
+        await stored.body.cancel()
+        whole = await service.openMediaFile(file)
+      }
       if (!whole) continue
       return c.body(whole.body, 200, {
         ...fileHeaders({ ...file, size: whole.size }),

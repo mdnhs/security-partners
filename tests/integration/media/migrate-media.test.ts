@@ -60,6 +60,7 @@ function memoryR2(
         ? {
             body: new Response(new Uint8Array(bytes)).body!,
             size: bytes.length,
+            partial: false,
           }
         : null
     },

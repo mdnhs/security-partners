@@ -32,7 +32,8 @@ describe("installShutdownHandlers (SIGTERM/SIGINT → stopScheduler)", () => {
     expect(proc.listenerCount("SIGINT")).toBe(1)
   })
 
-  it("with Next's own handler present: stops the scheduler and leaves the exit to Next", async () => {
+  it("with Next's own handler present at install: stops the scheduler and leaves the exit to Next", async () => {
+    vi.useFakeTimers()
     const proc = fakeProcess()
     const next = vi.fn()
     proc.on("SIGTERM", next)
@@ -41,13 +42,32 @@ describe("installShutdownHandlers (SIGTERM/SIGINT → stopScheduler)", () => {
     installShutdownHandlers({ proc, stop })
     proc.emit("SIGTERM", "SIGTERM")
     proc.emit("SIGINT", "SIGINT") // a second signal: still only one stop
-    await flush()
+    await vi.advanceTimersByTimeAsync(29_999)
     expect(stop).toHaveBeenCalledTimes(1)
     expect(next).toHaveBeenCalledTimes(2)
-    expect(proc.exit).not.toHaveBeenCalled()
+    expect(proc.exit).not.toHaveBeenCalled() // Next's drain window
     // Our handlers are gone: nothing of ours keeps catching signals.
     expect(proc.listenerCount("SIGTERM")).toBe(1)
     expect(proc.listenerCount("SIGINT")).toBe(1)
+  })
+
+  it("a handler present at install that never exits cannot hang the process (backstop exit)", async () => {
+    vi.useFakeTimers()
+    const proc = fakeProcess()
+    proc.on("SIGTERM", () => {}) // third-party listener, never exits
+    installShutdownHandlers({ proc, stop: async () => {} })
+    proc.emit("SIGTERM", "SIGTERM")
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(proc.exit).toHaveBeenCalledExactlyOnceWith(143)
+  })
+
+  it("a listener added after install does not stop us from exiting", async () => {
+    const proc = fakeProcess()
+    installShutdownHandlers({ proc, stop: async () => {} })
+    proc.on("SIGTERM", () => {}) // third-party, registered later
+    proc.emit("SIGTERM", "SIGTERM")
+    await flush()
+    expect(proc.exit).toHaveBeenCalledExactlyOnceWith(143)
   })
 
   it("without another handler (NEXT_MANUAL_SIG_HANDLE): drains the running tick, then exits with the signal's code", async () => {
