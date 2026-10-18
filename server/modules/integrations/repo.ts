@@ -102,6 +102,18 @@ export async function deleteIntegrationIfVersion(
   return deleted.length > 0
 }
 
+/** Deletes these integrations' rows (db:sync); returns the keys that existed, sorted. */
+export async function deleteIntegrationRows(
+  db: DbOrTx,
+  keys: readonly string[]
+): Promise<string[]> {
+  const deleted = await db
+    .delete(settings)
+    .where(inArray(settings.key, [...keys]))
+    .returning({ key: settings.key })
+  return deleted.map((row) => row.key).sort()
+}
+
 /** Replaces the stored object (secrets:rotate). Bumps `version` so an open form reloads. */
 export async function replaceIntegrationDraft(
   db: DbOrTx,

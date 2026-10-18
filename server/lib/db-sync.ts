@@ -5,7 +5,6 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { symmetricDecrypt } from "better-auth/crypto"
-import { inArray } from "drizzle-orm"
 import { Client } from "pg"
 import { parse } from "pg-connection-string"
 
@@ -15,7 +14,6 @@ import {
   type IntegrationKey,
 } from "@/lib/schemas/integrations"
 import { closeDb, getDb, pingDb } from "@/server/db/client"
-import { settings } from "@/server/db/schema"
 import { describeDatabase } from "@/server/db/seed/guard"
 import { getEnv } from "@/server/env"
 import { writeAudit } from "@/server/lib/audit"
@@ -24,6 +22,7 @@ import { dumpDatabase } from "@/server/lib/backup/dump"
 import { runPgTool } from "@/server/lib/backup/pg-tools"
 import { type BackupStore, diskBackupStore } from "@/server/lib/backup/store"
 import { decryptSecret } from "@/server/lib/crypto"
+import { deleteIntegrationRows } from "@/server/modules/integrations/repo"
 import {
   type RotateReport,
   rotateSecrets,
@@ -259,11 +258,7 @@ async function verifyTarget(opts: SyncOptions): Promise<SyncCheck[]> {
 /** Deletes SYNC_REMOVED_INTEGRATIONS rows (draft and published) in the target; audited per key. */
 async function removeSharedIntegrations(): Promise<string[]> {
   return getDb().transaction(async (tx) => {
-    const removed = await tx
-      .delete(settings)
-      .where(inArray(settings.key, [...SYNC_REMOVED_INTEGRATIONS]))
-      .returning({ key: settings.key })
-    const keys = removed.map((row) => row.key).sort()
+    const keys = await deleteIntegrationRows(tx, SYNC_REMOVED_INTEGRATIONS)
     for (const key of keys)
       await writeAudit(tx, null, {
         action: "integration.deleted",
