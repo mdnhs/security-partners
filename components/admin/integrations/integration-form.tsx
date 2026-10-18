@@ -1,32 +1,24 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import {
-  ArrowLeft,
-  CheckCircle2,
-  CircleAlert,
-  KeyRound,
-  LoaderCircle,
-} from "lucide-react"
+import { ArrowLeft, CircleAlert } from "lucide-react"
 import Link from "next/link"
-import { type FormEvent, type ReactNode, useEffect, useState } from "react"
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import { toast } from "sonner"
 
 import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
-import { ADMIN_CONTROL, FormCard } from "@/components/admin/form/form-ui"
+import { FormCard } from "@/components/admin/form/form-ui"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import { FORM_ACTION, PageHeader } from "@/components/admin/page-header"
-import { NativeSelect } from "@/components/admin/schema-form/widgets/basic"
-import {
-  describedBy,
-  ErrorText,
-  FieldShell,
-  HelpText,
-  LABEL_CLASS,
-} from "@/components/admin/schema-form/widgets/field-shell"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,41 +30,35 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { usePermission } from "@/hooks/use-permission"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
-import type { Role } from "@/lib/auth/roles"
 import type {
   IntegrationDto,
   IntegrationTestResult,
-  SecretState,
 } from "@/lib/schemas/api/integrations"
 import { INTEGRATIONS, type IntegrationKey } from "@/lib/schemas/integrations"
 import { cn } from "@/lib/utils"
 
-import {
-  type FieldMeta,
-  INTEGRATION_FORMS,
-  ROLE_NAMES,
-} from "./integration-meta"
+import { IntegrationField, TestResult } from "./integration-fields"
+import { type FieldMeta, INTEGRATION_FORMS } from "./integration-meta"
 
 type Values = Record<string, unknown>
 type Errors = Record<string, string>
 
 /** Toast after a 409 with the current record: the form now shows it. */
 export const CONFLICT_MESSAGE =
-  "Someone else changed these settings — the form now shows their version."
+  "Someone else changed these settings — the form now shows their version. Enter any new secret again."
+
+/**
+ * Buttons that keep focus while unavailable (WCAG 2.4.3): aria-disabled
+ * instead of disabled, so a click on Save or Test never drops focus to
+ * the page; the handlers check the same condition.
+ */
+const SOFT_DISABLED =
+  "aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:active:translate-y-0"
 
 const fieldId = (key: IntegrationKey, name: string) =>
   `${key.replace(".", "-")}-${name}`
-
-/** The secret's saved state as text; the secret itself never reaches the page. */
-export function secretStateText(state: SecretState | undefined): string {
-  if (!state?.set) return "Not saved yet"
-  const last4 = state.hint?.replace(/^•+/, "")
-  return last4 ? `Saved · ends in ${last4}` : "Saved"
-}
 
 /**
  * Field errors of a 422 by form field ("allowedRoles.1" → allowedRoles);
@@ -123,6 +109,9 @@ export function IntegrationForm({
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
   const [focusField, setFocusField] = useState<{ name: string } | null>(null)
+  // After a disconnect the button that had focus is gone: focus the status.
+  const statusRef = useRef<HTMLDivElement>(null)
+  const disconnected = useRef(false)
   // The last test's outcome: the server's fixed message only.
   const [outcome, setOutcome] = useState<{
     ok: boolean
@@ -139,6 +128,9 @@ export function IntegrationForm({
     setFormError(null)
     setOutcome(null)
   }
+
+  // Typed secrets never outlive the screen (hidden or unmounted routes).
+  useEffect(() => () => setSecrets({}), [])
 
   useEffect(() => {
     if (!focusField) return
@@ -229,8 +221,11 @@ export function IntegrationForm({
         })
       ),
     onSuccess: async () => {
-      setConfirmDisconnect(false)
+      // The dialog closes once the form shows "Not set up", then hands
+      // focus to the status (finalFocus), as Disconnect itself is gone.
       await queryClient.invalidateQueries({ queryKey: ["integrations"] })
+      disconnected.current = true
+      setConfirmDisconnect(false)
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       toast.success("Disconnected")
     },
@@ -257,7 +252,12 @@ export function IntegrationForm({
       description={meta.intro}
       actions={
         dto ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+          <div
+            ref={statusRef}
+            tabIndex={-1}
+            data-slot="integration-status"
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
             <StatusPill tone={dto.configured ? "success" : "neutral"}>
               {dto.configured ? "Connected" : "Not set up"}
             </StatusPill>
@@ -305,8 +305,12 @@ export function IntegrationForm({
       </>
     )
 
+  const busy = save.isPending || disconnect.isPending
+  const canSave = dirty && !busy
+  const canRunTest = !dirty && !busy && !test.isPending
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
+    if (!canEdit || !canSave) return
     setErrors({})
     setFormError(null)
     save.mutate()
@@ -314,7 +318,6 @@ export function IntegrationForm({
   const set = (name: string, value: unknown) =>
     setValues((prev) => ({ ...prev, [name]: value }))
   const slug = dto.slug
-  const busy = save.isPending || disconnect.isPending
 
   return (
     <div className="flex flex-col gap-6">
@@ -331,9 +334,14 @@ export function IntegrationForm({
         }
         className="max-w-3xl"
       >
-        <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
+        <form
+          onSubmit={onSubmit}
+          noValidate
+          autoComplete="off"
+          className="flex flex-col gap-6"
+        >
           {meta.fields.map((field) => (
-            <Field
+            <IntegrationField
               key={field.name}
               id={fieldId(key, field.name)}
               field={field}
@@ -341,7 +349,7 @@ export function IntegrationForm({
               secret={secrets[field.name] ?? ""}
               secretState={dto.secrets[field.name]}
               error={errors[field.name]}
-              disabled={!canEdit || busy}
+              disabled={!canEdit}
               onChange={(value) => set(field.name, value)}
               onSecretChange={(value) =>
                 setSecrets((prev) => ({ ...prev, [field.name]: value }))
@@ -365,8 +373,8 @@ export function IntegrationForm({
                 {canEdit ? (
                   <Button
                     type="submit"
-                    className={FORM_ACTION}
-                    disabled={!dirty || busy}
+                    className={cn(FORM_ACTION, SOFT_DISABLED)}
+                    aria-disabled={!canSave || undefined}
                   >
                     {save.isPending ? "Saving…" : "Save"}
                   </Button>
@@ -375,12 +383,13 @@ export function IntegrationForm({
                   <Button
                     type="button"
                     variant="outline"
-                    className={cn(FORM_ACTION, "bg-card")}
-                    disabled={dirty || busy || test.isPending}
+                    className={cn(FORM_ACTION, "bg-card", SOFT_DISABLED)}
+                    aria-disabled={!canRunTest || undefined}
                     aria-describedby={
                       dirty ? `integration-${slug}-test-note` : undefined
                     }
                     onClick={() => {
+                      if (!canRunTest) return
                       setErrors({})
                       test.mutate()
                     }}
@@ -392,9 +401,13 @@ export function IntegrationForm({
                   <Button
                     type="button"
                     variant="destructive"
-                    className={cn(FORM_ACTION, "sm:ml-auto")}
-                    disabled={busy}
-                    onClick={() => setConfirmDisconnect(true)}
+                    className={cn(FORM_ACTION, "sm:ml-auto", SOFT_DISABLED)}
+                    aria-disabled={busy || undefined}
+                    onClick={() => {
+                      if (busy) return
+                      disconnected.current = false
+                      setConfirmDisconnect(true)
+                    }}
                   >
                     Disconnect
                   </Button>
@@ -419,7 +432,11 @@ export function IntegrationForm({
       {children}
 
       <AlertDialog open={confirmDisconnect} onOpenChange={setConfirmDisconnect}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          finalFocus={() =>
+            disconnected.current ? (statusRef.current ?? true) : true
+          }
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect {dto.label}?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -432,8 +449,11 @@ export function IntegrationForm({
             <AlertDialogAction
               type="button"
               variant="destructive"
-              disabled={disconnect.isPending}
-              onClick={() => disconnect.mutate()}
+              className={SOFT_DISABLED}
+              aria-disabled={disconnect.isPending || undefined}
+              onClick={() => {
+                if (!disconnect.isPending) disconnect.mutate()
+              }}
             >
               Disconnect
             </AlertDialogAction>
@@ -449,243 +469,4 @@ function firstErrored(
   errors: Errors
 ): string | undefined {
   return fields.find((field) => errors[field.name])?.name
-}
-
-/**
- * The result of "Test connection": a polite live region that exists before
- * any result, so screen readers announce what lands in it. Only the
- * server's fixed `message` is shown.
- */
-function TestResult({
-  pending,
-  outcome,
-}: {
-  pending: boolean
-  outcome: { ok: boolean; message: string } | null
-}) {
-  const failed = outcome ? !outcome.ok : false
-  return (
-    <div role="status" aria-live="polite" aria-label="Connection test">
-      {pending ? (
-        <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircle
-            aria-hidden
-            className="size-4 animate-spin motion-reduce:animate-none"
-          />
-          Testing the connection…
-        </p>
-      ) : outcome ? (
-        <p
-          className={cn(
-            "mt-3 flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm",
-            failed
-              ? "bg-danger-soft text-danger"
-              : "bg-success-soft text-success"
-          )}
-        >
-          {failed ? (
-            <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-          ) : (
-            <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0" />
-          )}
-          <span>
-            <span className="font-semibold">
-              {failed ? "Test failed" : "Test passed"}
-            </span>
-            {" — "}
-            {outcome.message}
-          </span>
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-function Field({
-  id,
-  field,
-  value,
-  secret,
-  secretState,
-  error,
-  disabled,
-  onChange,
-  onSecretChange,
-}: {
-  id: string
-  field: FieldMeta
-  value: unknown
-  secret: string
-  secretState: SecretState | undefined
-  error: string | undefined
-  disabled: boolean
-  onChange: (value: unknown) => void
-  onSecretChange: (value: string) => void
-}) {
-  const help = field.help
-  const invalid = error ? true : undefined
-
-  if (field.kind === "toggle")
-    return (
-      <div
-        data-invalid={invalid}
-        className="flex min-h-16 items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3 shadow-xs"
-      >
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <label htmlFor={id} className={LABEL_CLASS}>
-            {field.label}
-          </label>
-          {help ? <HelpText id={`${id}-help`}>{help}</HelpText> : null}
-          {error ? <ErrorText id={`${id}-error`}>{error}</ErrorText> : null}
-        </div>
-        <Switch
-          id={id}
-          checked={value === true}
-          disabled={disabled}
-          aria-invalid={invalid}
-          aria-describedby={describedBy(id, { help, error })}
-          onCheckedChange={(checked) => onChange(checked)}
-        />
-      </div>
-    )
-
-  if (field.kind === "roles") {
-    const selected = Array.isArray(value) ? (value as Role[]) : []
-    return (
-      <fieldset
-        className="flex flex-col gap-1"
-        aria-describedby={describedBy(id, { help, error })}
-        aria-invalid={invalid}
-        disabled={disabled}
-      >
-        <legend className={cn(LABEL_CLASS, "mb-0.5")}>{field.label}</legend>
-        {help ? <HelpText id={`${id}-help`}>{help}</HelpText> : null}
-        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
-          {field.roles.map((role) => (
-            <label
-              key={role}
-              htmlFor={`${id}-${role}`}
-              className={cn(
-                "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-muted/60 has-checked:bg-primary/5 has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
-                disabled && "cursor-default opacity-70 hover:bg-transparent"
-              )}
-            >
-              <input
-                id={`${id}-${role}`}
-                type="checkbox"
-                className="size-4 shrink-0 accent-primary outline-none"
-                checked={selected.includes(role)}
-                onChange={(e) =>
-                  onChange(
-                    e.target.checked
-                      ? field.roles.filter(
-                          (r) => r === role || selected.includes(r)
-                        )
-                      : selected.filter((r) => r !== role)
-                  )
-                }
-              />
-              {ROLE_NAMES[role]}
-            </label>
-          ))}
-        </div>
-        {error ? <ErrorText id={`${id}-error`}>{error}</ErrorText> : null}
-      </fieldset>
-    )
-  }
-
-  let control: ReactNode
-  let extra: ReactNode = null
-  let extraId: string | undefined
-  if (field.kind === "select") {
-    control = (
-      <NativeSelect
-        id={id}
-        value={String(value ?? "")}
-        disabled={disabled}
-        invalid={!!error}
-        describedBy={describedBy(id, { help, error })}
-        onChange={onChange}
-      >
-        {field.options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </NativeSelect>
-    )
-  } else if (field.kind === "secret") {
-    extraId = `${id}-saved`
-    extra = (
-      <p
-        id={extraId}
-        className="flex items-center gap-1.5 text-xs text-muted-foreground"
-      >
-        <KeyRound aria-hidden className="size-3.5 shrink-0" />
-        <span>{secretStateText(secretState)}</span>
-      </p>
-    )
-    control = (
-      <Input
-        id={id}
-        type="password"
-        autoComplete="new-password"
-        spellCheck={false}
-        className={ADMIN_CONTROL}
-        value={secret}
-        disabled={disabled}
-        aria-invalid={invalid}
-        aria-describedby={describedBy(id, { help, error, extraId })}
-        onChange={(e) => onSecretChange(e.target.value)}
-      />
-    )
-  } else if (field.kind === "number") {
-    control = (
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        step={1}
-        min={field.min}
-        max={field.max}
-        className={cn(ADMIN_CONTROL, "w-36")}
-        value={typeof value === "number" && Number.isFinite(value) ? value : ""}
-        disabled={disabled}
-        aria-invalid={invalid}
-        aria-describedby={describedBy(id, { help, error })}
-        onChange={(e) =>
-          onChange(e.target.value === "" ? null : Number(e.target.value))
-        }
-      />
-    )
-  } else {
-    control = (
-      <Input
-        id={id}
-        type={field.type ?? "text"}
-        autoComplete={field.autoComplete}
-        spellCheck={false}
-        placeholder={field.placeholder}
-        className={ADMIN_CONTROL}
-        value={typeof value === "string" ? value : ""}
-        disabled={disabled}
-        aria-invalid={invalid}
-        aria-describedby={describedBy(id, { help, error })}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    )
-  }
-
-  return (
-    <FieldShell
-      id={id}
-      label={field.label}
-      help={help}
-      error={error}
-      optional={field.kind === "text" && field.optional}
-      extra={extra}
-    >
-      {control}
-    </FieldShell>
-  )
 }

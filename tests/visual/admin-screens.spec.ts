@@ -626,7 +626,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
-    test(`admin SMTP integration tested ${colorScheme}`, async ({ page }) => {
+    test(`admin SMTP integration saved ${colorScheme}`, async ({ page }) => {
       await pinIntegrations(page)
       await signIn(page)
       await page.goto("/admin/settings/integrations/smtp")
@@ -635,7 +635,44 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("status", { name: "Connection test" })
       ).toContainText("Test passed")
+      // The click scrolled the panel to the buttons: back to the top, so the
+      // shot pins the header, the status and the password's saved line.
+      await page.locator("main#main").evaluate((main) => main.scrollTo(0, 0))
+      await page.evaluate(() => window.scrollTo(0, 0))
       await expect(page).toHaveScreenshot(shot("integration-smtp"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin SMTP integration test failed ${colorScheme}`, async ({
+      page,
+    }, testInfo) => {
+      test.skip(
+        testInfo.project.name !== "desktop",
+        "one failed-result baseline (desktop) is enough"
+      )
+      await pinIntegrations(page)
+      // Added last, so it answers before the passing pin.
+      await page.route(
+        "**/api/v1/admin/integrations/integrations.smtp/test",
+        (route) =>
+          route.fulfill({
+            json: {
+              ok: false,
+              message:
+                "The server did not respond in time (smtp.example.ie:587).",
+              testedAt: "2026-10-16T09:00:00.000Z",
+            },
+          })
+      )
+      await signIn(page)
+      await page.goto("/admin/settings/integrations/smtp")
+      await expect(page.getByText("Saved · ends in 1234")).toBeVisible()
+      await page.getByRole("button", { name: "Test connection" }).click()
+      const result = page.getByRole("status", { name: "Connection test" })
+      await expect(result).toContainText("Test failed")
+      await result.scrollIntoViewIfNeeded()
+      await expect(page).toHaveScreenshot(shot("integration-smtp-failed"), {
         mask: await masks(page),
       })
     })

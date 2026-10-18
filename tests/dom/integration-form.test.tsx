@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ComponentProps } from "react"
+import { Activity, type ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/link", () => ({
@@ -95,10 +95,26 @@ beforeEach(() => {
   )
 })
 
-function renderForm(
-  roles: Role[] = ["owner"],
-  integrationKey: IntegrationKey = "integrations.smtp"
-) {
+const aiSaved: IntegrationDto = {
+  key: "integrations.ai",
+  slug: "ai",
+  label: "AI assistant",
+  description: "Writing help.",
+  configured: true,
+  version: 1,
+  values: {
+    enabled: false,
+    provider: "anthropic",
+    model: "claude-sonnet-4-5",
+    allowedRoles: ["owner"],
+  },
+  secrets: { apiKey: { set: true, hint: "••••abcd" } },
+  updatedAt: "2026-10-16T10:00:00.000Z",
+  updatedBy: null,
+}
+
+let currentRoles: Role[] = ["owner"]
+function wrap(ui: React.ReactNode) {
   const session: AdminSession = {
     user: {
       id: "u1",
@@ -107,15 +123,30 @@ function renderForm(
       title: null,
       twoFactorEnabled: true,
     },
-    roles,
+    roles: currentRoles,
     impersonatedBy: null,
   }
-  return render(
-    <QueryClientProvider client={makeQueryClient()}>
-      <AdminSessionProvider value={session}>
-        <IntegrationForm integrationKey={integrationKey} />
-      </AdminSessionProvider>
+  return (
+    <QueryClientProvider client={client}>
+      <AdminSessionProvider value={session}>{ui}</AdminSessionProvider>
     </QueryClientProvider>
+  )
+}
+let client = makeQueryClient()
+
+function renderForm(
+  roles: Role[] = ["owner"],
+  integrationKey: IntegrationKey = "integrations.smtp"
+) {
+  currentRoles = roles
+  client = makeQueryClient()
+  // Inside <Activity> (as Next keeps routes), so a test can hide it.
+  return render(
+    wrap(
+      <Activity mode="visible">
+        <IntegrationForm integrationKey={integrationKey} />
+      </Activity>
+    )
   )
 }
 
@@ -138,11 +169,53 @@ describe("IntegrationForm (master 7.1)", () => {
     expect(screen.getByText("Saved · ends in 1234")).toBeVisible()
     expect(screen.getByLabelText(/User name/)).toHaveValue("mailer@example.ie")
     expect(screen.getByText("(optional)")).toBeVisible()
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled()
+    // Unavailable buttons stay focusable (aria-disabled, WCAG 2.4.3).
+    expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    )
     expect(
       screen.getByRole("button", { name: "Test connection" })
-    ).toBeEnabled()
+    ).not.toHaveAttribute("aria-disabled")
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeEnabled()
+  })
+
+  it("keeps password managers out of the secrets and the user name", async () => {
+    renderForm()
+    const password = await screen.findByLabelText("Password")
+    for (const input of [password, screen.getByLabelText(/User name/)]) {
+      expect(input).toHaveAttribute("data-1p-ignore")
+      expect(input).toHaveAttribute("data-lpignore", "true")
+      expect(input).toHaveAttribute("data-bwignore")
+      expect(input).toHaveAttribute("data-form-type", "other")
+    }
+    expect(screen.getByLabelText("SMTP server")).not.toHaveAttribute(
+      "data-1p-ignore"
+    )
+    expect(password.closest("form")).toHaveAttribute("autocomplete", "off")
+  })
+
+  it("a typed secret does not survive the screen being hidden", async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderForm()
+    await user.type(await screen.findByLabelText("Password"), "half-typed")
+    rerender(
+      wrap(
+        <Activity mode="hidden">
+          <IntegrationForm integrationKey="integrations.smtp" />
+        </Activity>
+      )
+    )
+    rerender(
+      wrap(
+        <Activity mode="visible">
+          <IntegrationForm integrationKey="integrations.smtp" />
+        </Activity>
+      )
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText("Password")).toHaveValue("")
+    )
   })
 
   it("says only “Saved” when the secret has no hint", async () => {
@@ -166,16 +239,35 @@ describe("IntegrationForm (master 7.1)", () => {
 
   it("an empty secret is not sent; a typed one is", async () => {
     const user = userEvent.setup()
+    let version = 3
+    respond = (call) =>
+      call.method === "PUT"
+        ? json({
+            ...saved,
+            version: ++version,
+            values: {
+              ...saved.values,
+              ...(call.body as { values: object }).values,
+            },
+          })
+        : json(saved)
     renderForm()
     const name = await screen.findByLabelText("Sender name")
     await user.clear(name)
     await user.type(name, "SP Alerts")
-    expect(
-      screen.getByRole("button", { name: "Test connection" })
-    ).toBeDisabled()
+    const testButton = screen.getByRole("button", { name: "Test connection" })
+    expect(testButton).toHaveAttribute("aria-disabled", "true")
+    await user.click(testButton)
+    expect(calls.some((c) => c.url.endsWith("/test"))).toBe(false)
     expect(screen.getByText("Save your changes to test them.")).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "Save" }))
+    const save = screen.getByRole("button", { name: "Save" })
+    await user.click(save)
     await waitFor(() => expect(puts()).toHaveLength(1))
+    // Saved: Save is unavailable again but keeps focus.
+    await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "true"))
+    expect(document.activeElement).toBe(save)
+    await user.click(save)
+    expect(puts()).toHaveLength(1)
     const put = puts()[0]!
     expect(put.url).toContain("/integrations/integrations.smtp")
     expect(put.body).toEqual({
@@ -253,12 +345,15 @@ describe("IntegrationForm (master 7.1)", () => {
     })
     expect(region).toHaveAttribute("aria-live", "polite")
     expect(region).toBeEmptyDOMElement()
-    await user.click(screen.getByRole("button", { name: "Test connection" }))
+    const testButton = screen.getByRole("button", { name: "Test connection" })
+    await user.click(testButton)
     await waitFor(() =>
       expect(region).toHaveTextContent(
         "Could not connect to the server (smtp.example.ie:587)."
       )
     )
+    // Focus stays on the button through pending and result.
+    expect(document.activeElement).toBe(testButton)
     expect(region).toHaveTextContent(/^Test failed/)
     expect(screen.queryByText(/raw provider text/)).toBeNull()
 
@@ -299,6 +394,14 @@ describe("IntegrationForm (master 7.1)", () => {
     )
     expect(await screen.findByText("Not set up")).toBeVisible()
     expect(toast.success).toHaveBeenCalledWith("Disconnected")
+    // Disconnect is gone: focus lands on the status, not the page.
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        "data-slot",
+        "integration-status"
+      )
+    )
+    expect(document.activeElement).toHaveTextContent("Not set up")
   })
 
   it("Disconnect on a stale version takes their version, with a toast", async () => {
@@ -330,7 +433,7 @@ describe("IntegrationForm (master 7.1)", () => {
       "Not disconnected",
       expect.objectContaining({
         description:
-          "Someone else changed these settings — the form now shows their version.",
+          "Someone else changed these settings — the form now shows their version. Enter any new secret again.",
       })
     )
     expect(screen.queryByRole("alertdialog")).toBeNull()
@@ -387,9 +490,30 @@ describe("IntegrationForm (master 7.1)", () => {
       "Not saved",
       expect.objectContaining({
         description:
-          "Someone else changed these settings — the form now shows their version.",
+          "Someone else changed these settings — the form now shows their version. Enter any new secret again.",
       })
     )
+  })
+
+  it("a roles error marks the checkboxes, not the fieldset", async () => {
+    const user = userEvent.setup()
+    respond = (call) =>
+      call.method === "PUT"
+        ? problem(422, "VALIDATION_FAILED", "Check the highlighted fields", {
+            fieldErrors: { "allowedRoles.0": ["Not allowed"] },
+          })
+        : json(aiSaved)
+    renderForm(["owner"], "integrations.ai")
+    await user.click(
+      await screen.findByRole("switch", { name: "Turn on the assistant" })
+    )
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await screen.findByText("Not allowed")).toBeVisible()
+    const group = screen.getByRole("group", { name: "Who can use it" })
+    expect(group).not.toHaveAttribute("aria-invalid")
+    const boxes = within(group).getAllByRole("checkbox")
+    for (const box of boxes) expect(box).toHaveAttribute("aria-invalid", "true")
+    expect(boxes[0]).toHaveFocus()
   })
 
   it("read-only without integration:update", async () => {

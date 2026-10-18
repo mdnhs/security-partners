@@ -13,6 +13,8 @@ export type FieldMeta =
       autoComplete?: string
       /** Marked "(optional)" (required is the default, as in every admin form). */
       optional?: boolean
+      /** A sign-in name next to a secret: password managers must not fill it. */
+      ignorePasswordManagers?: boolean
     }
   | {
       name: string
@@ -83,6 +85,7 @@ export const INTEGRATION_FORMS: Record<IntegrationKey, IntegrationFormMeta> = {
         help: "Leave empty if the server needs no sign-in.",
         autoComplete: "off",
         optional: true,
+        ignorePasswordManagers: true,
       },
       { name: "password", kind: "secret", label: "Password" },
       {
