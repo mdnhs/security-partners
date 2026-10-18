@@ -129,6 +129,9 @@ const INTEGRATIONS = [
   "/admin/settings/integrations/ai",
 ]
 
+/** Growth ▸ SEO (Phase 8), audited signed in as the admin. */
+const GROWTH = ["/admin/seo", "/admin/seo/defaults"]
+
 /** A saved SMTP integration (pinned: the seed sets none up). */
 const SAVED_SMTP = {
   key: "integrations.smtp",
@@ -253,6 +256,21 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`/admin/audit + detail sheet → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`growth screens in ${colorScheme}`, async ({ page }) => {
+      // SEO (Phase 8): overview with the health gauge, defaults, the
+      // record SEO sheet.
+      await signIn(page, E2E_ADMIN)
+      const failures = await auditEach(page, GROWTH)
+      await page.goto("/admin/seo")
+      await page.getByRole("button", { name: "Edit SEO for Home" }).click()
+      await expect(
+        page.getByRole("dialog", { name: "SEO: Home" })
+      ).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`/admin/seo + SEO sheet → ${violation}`)
       expect(failures).toEqual([])
     })
 

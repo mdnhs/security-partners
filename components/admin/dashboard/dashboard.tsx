@@ -26,6 +26,7 @@ import { api, errorMessage, unwrap } from "@/lib/api-client"
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import { cn } from "@/lib/utils"
 
+import { ContentHealthCard } from "./content-health"
 import { DashboardSkeleton } from "./dashboard-skeleton"
 import { NextUp } from "./next-up"
 import { greetingFor, weeklyBuckets } from "./present"
@@ -226,6 +227,8 @@ function Body({
   /** The Team activity card's body; null when the role may not read the audit log. */
   activity: ReactNode
 }) {
+  // The Content health gauge (hidden without seo:read) sits beside the feed.
+  const canReadSeo = usePermission({ seo: ["read"] })
   const weeks = dto.leadsTrend ? weeklyBuckets(dto.leadsTrend) : null
   const quiet = weeks?.every((week) => week.current === 0) ?? false
   return (
@@ -282,9 +285,17 @@ function Body({
         ) : null}
         <NextUp items={dto.nextUp} />
       </div>
-      {activity ? (
-        <DashboardCard title="Team activity">{activity}</DashboardCard>
-      ) : null}
+      <div
+        className={cn(
+          "grid gap-4",
+          activity && canReadSeo && "xl:grid-cols-[minmax(0,1fr)_340px]"
+        )}
+      >
+        {activity ? (
+          <DashboardCard title="Team activity">{activity}</DashboardCard>
+        ) : null}
+        <ContentHealthCard />
+      </div>
     </>
   )
 }
