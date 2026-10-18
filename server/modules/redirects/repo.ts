@@ -15,12 +15,11 @@ import {
 
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import { articles, redirects, services } from "@/server/db/schema"
 
 export type RedirectRow = typeof redirects.$inferSelect
 type RedirectValues = { fromPath: string; toPath: string; code: number }
-
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
 
 export async function listRedirectRows(
   db: DbOrTx,
@@ -31,7 +30,7 @@ export async function listRedirectRows(
     pageSize: number
   }
 ) {
-  const pattern = opts.q ? `%${escapeLike(opts.q)}%` : null
+  const pattern = opts.q ? containsPattern(opts.q) : null
   const where = pattern
     ? or(ilike(redirects.fromPath, pattern), ilike(redirects.toPath, pattern))
     : undefined

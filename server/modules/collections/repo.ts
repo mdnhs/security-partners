@@ -4,6 +4,7 @@ import { asc, count, desc, eq, ilike, max, or, type SQL } from "drizzle-orm"
 
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import {
   articleCategories,
   articles,
@@ -55,11 +56,9 @@ export type CollectionRow<N extends Name> =
 export type CollectionInsert<N extends Name> =
   (typeof COLLECTION_TABLES)[N]["$inferInsert"]
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-
 function searchWhere(name: Name, q: string | undefined): SQL | undefined {
   if (!q) return undefined
-  const p = `%${escapeLike(q)}%`
+  const p = containsPattern(q)
   switch (name) {
     case "team":
       return or(

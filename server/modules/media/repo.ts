@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import {
   articles,
   clients,
@@ -112,8 +113,6 @@ export function listMediaUsagesFor(
     .orderBy(mediaUsages.field)
 }
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-
 /** Paginated library rows (picker + library). `q` matches alt text, key or file name. */
 export async function listMediaRows(
   db: DbOrTx,
@@ -125,7 +124,7 @@ export async function listMediaRows(
     pageSize: number
   }
 ) {
-  const pattern = opts.q ? `%${escapeLike(opts.q)}%` : null
+  const pattern = opts.q ? containsPattern(opts.q) : null
   const where = and(
     opts.kind === "image"
       ? like(media.mime, "image/%")

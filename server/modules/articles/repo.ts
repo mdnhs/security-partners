@@ -20,6 +20,7 @@ import type { ContentStatus } from "@/lib/schemas/api/content"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { ArticleContent } from "@/lib/schemas/content/article"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import { articleCategories, articles, users } from "@/server/db/schema"
 import type { VersionedPatch } from "@/server/lib/versioning"
 
@@ -104,7 +105,6 @@ export type ArticleEditRow = NonNullable<
 >
 
 const title = sql<string>`${articles.draft}->>'title'`
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
 
 export type ArticleSortField =
   "updatedAt" | "publishedAt" | "title" | "scheduledAt"
@@ -124,7 +124,7 @@ export async function listArticlesForAdmin(
 ) {
   const conditions: SQL[] = []
   if (opts.q) {
-    const pattern = `%${escapeLike(opts.q)}%`
+    const pattern = containsPattern(opts.q)
     conditions.push(or(ilike(title, pattern), ilike(articles.slug, pattern))!)
   }
   if (opts.status) conditions.push(eq(articles.status, opts.status))

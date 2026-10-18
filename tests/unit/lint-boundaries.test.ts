@@ -127,3 +127,95 @@ describe(
     })
   }
 )
+
+async function syntaxErrors(code: string, filePath: string) {
+  const [result] = await eslint.lintText(code, { filePath })
+  return result.messages.filter((m) => m.ruleId === "no-restricted-syntax")
+}
+
+describe(
+  "lint boundaries: Phase 10 gaps (ledger P01-1, P03-3, P03-6)",
+  { timeout: 30_000 },
+  () => {
+    it("flags dynamic import() of server/ from lib/", async () => {
+      const errors = await syntaxErrors(
+        'export const load = () => import("@/server/env")\n',
+        "lib/fixture.ts"
+      )
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("never import server/ code")
+    })
+
+    it("flags require() of server/ from lib/", async () => {
+      expect(
+        await syntaxErrors(
+          'export const env = require("../server/env")\n',
+          "lib/fixture.ts"
+        )
+      ).toHaveLength(1)
+    })
+
+    it("does not flag dynamic imports of look-alike or lib paths", async () => {
+      expect(
+        await syntaxErrors(
+          'export const a = () => import("@/server-utils")\nexport const b = () => import("@/lib/utils")\n',
+          "lib/fixture.ts"
+        )
+      ).toEqual([])
+    })
+
+    it("covers .mjs files under lib/", async () => {
+      expect(
+        await boundaryErrors(
+          'import { getEnv } from "../server/env.js"\n\nexport const x = getEnv\n',
+          "lib/fixture.mjs"
+        )
+      ).toHaveLength(1)
+    })
+
+    it("covers templates/registry.ts", async () => {
+      expect(
+        await boundaryErrors(
+          'import { getEnv } from "@/server/env"\n\nexport const x = getEnv\n',
+          "templates/registry.ts"
+        )
+      ).toHaveLength(1)
+    })
+
+    it("flags a route importing another module's repo by relative path", async () => {
+      expect(
+        await boundaryErrors(
+          'import { findUserById } from "../users/repo"\n\nexport const x = findUserById\n',
+          "server/modules/pages/routes.ts"
+        )
+      ).toHaveLength(1)
+    })
+
+    it("flags drizzle-orm in a .mjs file outside repos", async () => {
+      expect(
+        await boundaryErrors(
+          'import { eq } from "drizzle-orm"\n\nexport const x = eq\n',
+          "scripts/fixture.mjs"
+        )
+      ).toHaveLength(1)
+    })
+
+    it("covers template editor metadata (shipped to the admin client)", async () => {
+      expect(
+        await boundaryErrors(aliasImport, "templates/home/editor-meta.ts")
+      ).toHaveLength(1)
+      expect(
+        await boundaryErrors(aliasImport, "templates/editor-meta.ts")
+      ).toHaveLength(1)
+    })
+
+    it("still allows a route to import its own service", async () => {
+      expect(
+        await boundaryErrors(
+          'import { listUsers } from "./service"\n\nexport const x = listUsers\n',
+          "server/modules/users/routes.ts"
+        )
+      ).toEqual([])
+    })
+  }
+)

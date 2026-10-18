@@ -16,6 +16,7 @@ import {
 import type { Sort } from "@/lib/schemas/api/list"
 import type { ServiceContent } from "@/lib/schemas/content/service"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern } from "@/server/db/like"
 import { services, users } from "@/server/db/schema"
 import type { VersionedPatch } from "@/server/lib/versioning"
 
@@ -38,7 +39,6 @@ export async function findServiceById(db: DbOrTx, id: string) {
 
 const withEditor = { ...getTableColumns(services), updatedByName: users.name }
 const title = sql<string>`${services.draft}->>'title'`
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
 
 export async function findServiceForEdit(db: DbOrTx, id: string) {
   const [row] = await db
@@ -62,7 +62,7 @@ export async function listServicesForAdmin(
     pageSize: number
   }
 ) {
-  const pattern = opts.q ? `%${escapeLike(opts.q)}%` : null
+  const pattern = opts.q ? containsPattern(opts.q) : null
   const where = pattern
     ? or(ilike(title, pattern), ilike(services.slug, pattern))
     : undefined

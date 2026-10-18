@@ -23,6 +23,7 @@ import {
 import type { Role } from "@/lib/auth/roles"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
+import { containsPattern, escapeLike } from "@/server/db/like"
 import {
   accounts,
   sessions,
@@ -100,8 +101,6 @@ export type UserFilters = {
   q?: string
 }
 
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (m) => `\\${m}`)
-
 function whereFor(filters: UserFilters): SQL | undefined {
   const conditions: (SQL | undefined)[] = []
   if (filters.role) conditions.push(hasRole(filters.role))
@@ -111,7 +110,7 @@ function whereFor(filters: UserFilters): SQL | undefined {
   if (filters.status === "invited")
     conditions.push(and(not(bannedNow), not(hasPassword)))
   if (filters.q) {
-    const pattern = `%${escapeLike(filters.q)}%`
+    const pattern = containsPattern(filters.q)
     conditions.push(
       or(
         ilike(users.name, pattern),
