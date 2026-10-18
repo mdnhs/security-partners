@@ -1,23 +1,15 @@
 import "server-only"
 
-import type { z } from "zod"
-
 import { hasPermission, parseRoles } from "@/lib/auth/permissions"
-import { isEmptyDoc, readTimeMinutes } from "@/lib/rich-text/read-time"
 import type {
   ArticleDto,
   ArticleListItem,
   ArticleListQuery,
   ArticleOptions,
-  ArticlePermissions,
 } from "@/lib/schemas/api/articles"
-import type { ContentStatus } from "@/lib/schemas/api/content"
 import type { Paginated } from "@/lib/schemas/api/list"
-import {
-  type ArticleContent,
-  articleContent,
-} from "@/lib/schemas/content/article"
-import { type DbOrTx, getDb } from "@/server/db/client"
+import type { ArticleContent } from "@/lib/schemas/content/article"
+import { type Db, type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
 import { invalidate, tag } from "@/server/lib/cache-tags"
@@ -31,78 +23,28 @@ import {
   type VersionedStore,
   versionedDto,
 } from "@/server/lib/versioning"
-import { findPageByKey } from "@/server/modules/pages/repo"
 import { insertRevision } from "@/server/modules/revisions/repo"
 
+import {
+  articlePermissions,
+  assertNotFeatured,
+  featuredSlugs,
+  need,
+  roleCan,
+  storedContent,
+} from "./policy"
 import * as repo from "./repo"
+import {
+  applyTransition,
+  PUBLISH,
+  scheduleFor,
+  SUBMIT,
+  type Transition,
+  UNPUBLISH,
+  UNSCHEDULE,
+} from "./transitions"
 
-type ArticleAction =
-  | "read"
-  | "create"
-  | "update"
-  | "delete"
-  | "submit"
-  | "publish"
-  | "updateAny"
-  | "deleteAny"
-
-const roleCan = (actor: Actor, action: ArticleAction) =>
-  hasPermission(actor.roles, { article: [action] })
-
-function need(actor: Actor, action: ArticleAction) {
-  if (!roleCan(actor, action)) throw forbidden()
-}
-
-/**
- * What an article draft must satisfy to be saved, published or restored. An
- * editor body without words or images is stored as "no body" (the site then
- * shows the excerpt, like the seeded articles without designed copy).
- */
-const storedContent: z.ZodType<ArticleContent> = articleContent.transform(
-  (content) => ({
-    ...content,
-    body: isEmptyDoc(content.body) ? null : content.body,
-  })
-)
-
-type PermissionRow = {
-  authorId: string | null
-  published: unknown
-  status: ContentStatus
-}
-
-const isOwn = (actor: Actor, row: PermissionRow) =>
-  row.authorId !== null && row.authorId === actor.userId
-
-/**
- * Spec §6.1: editors and up change any article. Authors change, delete and
- * submit only their own, and only while it is not on the site and not yet
- * scheduled (scheduled = approved by an editor). Publishing, scheduling and
- * unpublishing are never author rights (Review Focus 5).
- */
-export function articlePermissions(
-  actor: Actor,
-  row: PermissionRow
-): ArticlePermissions {
-  const authorMayEdit =
-    isOwn(actor, row) &&
-    row.published === null &&
-    (row.status === "draft" || row.status === "in_review")
-  return {
-    update:
-      roleCan(actor, "updateAny") ||
-      (roleCan(actor, "update") && authorMayEdit),
-    delete:
-      roleCan(actor, "deleteAny") ||
-      (roleCan(actor, "delete") && authorMayEdit),
-    submit:
-      row.status === "draft" &&
-      (roleCan(actor, "updateAny") ||
-        (roleCan(actor, "submit") && authorMayEdit)),
-    publish: roleCan(actor, "publish"),
-    changeAuthor: roleCan(actor, "updateAny"),
-  }
-}
+export { articlePermissions } from "./policy"
 
 function toDto(row: repo.ArticleEditRow, actor: Actor): ArticleDto {
   return {
@@ -175,35 +117,23 @@ async function assertCategory(db: DbOrTx, id: string) {
     })
 }
 
+/**
+ * A byline is someone who writes articles (article:create) or already signs
+ * one (e.g. the seeded no-login bylines) — the people getArticleOptions offers.
+ */
 async function assertAuthor(db: DbOrTx, id: string) {
-  if (!(await repo.userExists(db, id)))
+  const candidate = await repo.findBylineCandidate(db, id)
+  if (!candidate)
     throw new AppError("VALIDATION_FAILED", "Choose a byline", {
       fieldErrors: { authorId: ["This user no longer exists"] },
     })
-}
-
-/**
- * The blog page features one article by slug (pages.blog featuredArticle):
- * hiding it or changing its address would empty the featured block.
- */
-async function featuredSlugs(db: DbOrTx): Promise<string[]> {
-  const blog = await findPageByKey(db, "blog")
-  const slugs = [blog?.draft, blog?.published].map(
-    (data) =>
-      (data as { featuredArticle?: string | null } | null)?.featuredArticle
+  if (
+    !candidate.signsArticle &&
+    !hasPermission(parseRoles(candidate.role), { article: ["create"] })
   )
-  return [...new Set(slugs.filter((s): s is string => !!s))]
-}
-
-async function assertNotFeatured(db: DbOrTx, slug: string, field?: string) {
-  if (!(await featuredSlugs(db)).includes(slug)) return
-  const message =
-    "The blog page features this article. Choose another featured article on the Blog page first."
-  throw new AppError(
-    "CONFLICT",
-    message,
-    field ? { fieldErrors: { [field]: [message] } } : undefined
-  )
+    throw new AppError("VALIDATION_FAILED", "Choose a byline", {
+      fieldErrors: { authorId: ["Choose someone who writes articles"] },
+    })
 }
 
 // ---------------------------------------------------------------- reads
@@ -451,138 +381,6 @@ export async function deleteArticle(
 
 // ---------------------------------------------------------------- workflow
 
-/** One status change of the review/publish workflow (spec §5.1, §6.1). */
-type Transition = {
-  action:
-    "submitted" | "published" | "scheduled" | "unscheduled" | "unpublished"
-  /** 403 unless the actor may do this to this article. */
-  authorize(actor: Actor, row: repo.ArticleEditRow): void
-  /** Why the article's state does not allow it (→ 409), or null. */
-  blockedBy(row: repo.ArticleEditRow): string | null
-  /** Extra checks that need the database (→ 409/422). */
-  guard?(db: DbOrTx, row: repo.ArticleEditRow): Promise<void>
-  /** Column changes (may throw 422 for an invalid draft). */
-  patch(row: repo.ArticleEditRow, now: Date): repo.ArticlePatch
-  /** The public site changes (expire the article tags). */
-  changesSite: boolean
-}
-
-const publisherOnly = (actor: Actor) => need(actor, "publish")
-
-const SUBMIT: Transition = {
-  action: "submitted",
-  authorize: (actor, row) => {
-    if (
-      !roleCan(actor, "updateAny") &&
-      !(roleCan(actor, "submit") && isOwn(actor, row) && row.published === null)
-    )
-      throw forbidden()
-  },
-  blockedBy: (row) =>
-    row.status === "draft" ? null : "Only drafts can be submitted for review",
-  patch: () => ({ status: "in_review" }),
-  changesSite: false,
-}
-
-const PUBLISH: Transition = {
-  action: "published",
-  authorize: publisherOnly,
-  blockedBy: () => null,
-  patch: (row, now) => {
-    const data = validateContent(storedContent, row.draft)
-    return {
-      draft: data,
-      published: data,
-      status: "published",
-      // The post date is the first publication; edits do not redate it.
-      publishedAt: row.publishedAt ?? now,
-      scheduledAt: null,
-      readTimeMinutes: readTimeMinutes(data.body),
-    }
-  },
-  changesSite: true,
-}
-
-const scheduleFor = (at: Date): Transition => ({
-  action: "scheduled",
-  authorize: publisherOnly,
-  blockedBy: () => null,
-  // Runs after the version check (ledger: 409 before 422).
-  patch: (row, now) => {
-    if (at.getTime() <= now.getTime())
-      throw new AppError("VALIDATION_FAILED", "Choose a time in the future", {
-        fieldErrors: { scheduledAt: ["Choose a time in the future"] },
-      })
-    // It will be published unattended: it must be publishable now.
-    validateContent(storedContent, row.draft)
-    return { status: "scheduled", scheduledAt: at }
-  },
-  changesSite: false,
-})
-
-const UNSCHEDULE: Transition = {
-  action: "unscheduled",
-  authorize: publisherOnly,
-  blockedBy: (row) =>
-    row.status === "scheduled" ? null : "This article is not scheduled",
-  patch: (row) => ({
-    status: row.published === null ? "draft" : "published",
-    scheduledAt: null,
-  }),
-  changesSite: false,
-}
-
-const UNPUBLISH: Transition = {
-  action: "unpublished",
-  authorize: publisherOnly,
-  blockedBy: (row) =>
-    row.published === null ? "This article is not on the site" : null,
-  guard: (db, row) => assertNotFeatured(db, row.slug),
-  patch: () => ({
-    published: null,
-    status: "draft",
-    publishedAt: null,
-    scheduledAt: null,
-  }),
-  changesSite: true,
-}
-
-/**
- * Applies a transition inside the caller's transaction: optimistic update,
- * revision (data = the draft at the new version), media usages, audit.
- * `actor` is null for the scheduler. Returns null when the version is stale.
- */
-async function applyTransition(
-  tx: DbOrTx,
-  actor: Actor | null,
-  row: repo.ArticleEditRow,
-  version: number,
-  transition: Transition,
-  now: Date,
-  extra: Record<string, unknown> = {}
-): Promise<repo.ArticleEditRow | null> {
-  const updated = await repo.updateArticleIfVersion(tx, row.id, version, {
-    ...transition.patch(row, now),
-    updatedBy: actor ? actor.userId : row.updatedBy,
-  })
-  if (!updated) return null
-  await insertRevision(tx, {
-    entityType: "article",
-    entityId: row.id,
-    version: updated.version,
-    data: updated.draft,
-    actorId: actor?.userId ?? null,
-  })
-  await syncMediaUsages(tx, "article", row.id, updated.draft, updated.published)
-  await writeAudit(tx, actor, {
-    action: `article.${transition.action}`,
-    entityType: "article",
-    entityId: row.id,
-    diff: { version: updated.version, status: updated.status, ...extra },
-  })
-  return updated
-}
-
 async function runTransition(
   actor: Actor,
   id: string,
@@ -590,7 +388,38 @@ async function runTransition(
   transition: Transition,
   extra?: Record<string, unknown>
 ): Promise<ArticleDto> {
-  const after = await getDb().transaction(async (tx) => {
+  const db = getDb()
+  let after: repo.ArticleEditRow
+  try {
+    after = await transitionInTx(db, actor, id, version, transition, extra)
+  } catch (err) {
+    if (pgErrorCode(err) === UNIQUE_VIOLATION) {
+      // Like Phase 4 publish(): the versioned UPDATE serialises transitions
+      // of one article (row lock), so a revision clash after the article
+      // moved on is a lost race → 409 with the current state. Otherwise a
+      // leftover revision row holds this version — a data fault the editor
+      // cannot resolve: log it and answer a plain 500.
+      const current = await loadRow(db, id)
+      if (current.version !== version) throw conflict(toDto(current, actor))
+      console.error(
+        `[articles] article/${id}: revision ${version + 1} already exists; ${transition.action} rolled back`
+      )
+    }
+    throw err
+  }
+  if (transition.changesSite) invalidate(tag.articles, tag.article(after.slug))
+  return toDto(after, actor)
+}
+
+function transitionInTx(
+  db: Db,
+  actor: Actor,
+  id: string,
+  version: number,
+  transition: Transition,
+  extra?: Record<string, unknown>
+): Promise<repo.ArticleEditRow> {
+  return db.transaction(async (tx) => {
     const row = await loadRow(tx, id)
     transition.authorize(actor, row)
     if (row.version !== version) throw conflict(toDto(row, actor))
@@ -610,8 +439,6 @@ async function runTransition(
     if (!updated) return staleOrMissing(tx, id, actor)
     return updated
   })
-  if (transition.changesSite) invalidate(tag.articles, tag.article(after.slug))
-  return toDto(after, actor)
 }
 
 export const submitArticle = (
@@ -660,4 +487,55 @@ export async function unpublishArticle(
 ) {
   need(actor, "publish")
   return runTransition(actor, id, input.version, UNPUBLISH)
+}
+
+// ---------------------------------------------------------------- scheduler
+
+/**
+ * Scheduler job (spec §12): publishes every scheduled article whose time
+ * has come. Due rows are locked FOR UPDATE SKIP LOCKED, so concurrent ticks
+ * (several replicas) publish each article exactly once; each article runs
+ * in its own savepoint, so one that no longer validates stays scheduled
+ * without holding back the others. Audit and revision rows have no actor.
+ * Returns the cache tags to expire — the caller has no request context
+ * (ledger ruling).
+ */
+export async function publishDueArticles(
+  now: Date = new Date()
+): Promise<{ published: string[]; failed: string[]; tags: string[] }> {
+  const published: string[] = []
+  const failed: string[] = []
+  await getDb().transaction(async (tx) => {
+    for (const { id } of await repo.lockDueScheduledArticles(tx, now)) {
+      let label = id
+      try {
+        await tx.transaction(async (savepoint) => {
+          const row = await loadRow(savepoint, id)
+          label = row.slug
+          const updated = await applyTransition(
+            savepoint,
+            null,
+            row,
+            row.version,
+            PUBLISH,
+            now,
+            { scheduled: true }
+          )
+          if (updated) published.push(updated.slug)
+        })
+      } catch (err) {
+        failed.push(
+          `${label}: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
+    }
+  })
+  return {
+    published,
+    failed,
+    tags:
+      published.length > 0
+        ? [tag.articles, ...published.map((slug) => tag.article(slug))]
+        : [],
+  }
 }

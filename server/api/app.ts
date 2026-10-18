@@ -24,6 +24,7 @@ import {
 import { dashboardRoutes } from "@/server/modules/dashboard/routes"
 import { healthRoutes } from "@/server/modules/health/routes"
 import { integrationsRoutes } from "@/server/modules/integrations/routes"
+import { internalRoutes } from "@/server/modules/internal/routes"
 import { mediaRoutes } from "@/server/modules/media/routes"
 import { pagesRoutes } from "@/server/modules/pages/routes"
 import {
@@ -96,6 +97,12 @@ export function createApp() {
 
   // Leaving draft-mode preview needs no session (cookies are cleared).
   api.route("/v1/preview", previewExitRoutes)
+
+  // Scheduler → cache expiry (HMAC, HKDF "cron"; ledger ruling). Not admin:
+  // no session; the signature is the authentication. No CORS: only the
+  // server itself calls it.
+  api.use("/v1/internal/*", limitBody("public"))
+  api.route("/v1/internal", internalRoutes)
 
   // 5. Health
   api.route("/v1/health", healthRoutes)

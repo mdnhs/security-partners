@@ -643,3 +643,83 @@ describe("articles API (master 5.1)", () => {
     })
   })
 })
+
+describe("articles API — Task 1 review follow-ups", () => {
+  it("an author submitting their own scheduled article gets 403, not 409", async () => {
+    const article = await create(author)
+    const at = new Date(Date.now() + 86_400_000).toISOString()
+    expect(
+      (
+        await call(editor, `/articles/${article.id}/schedule`, "POST", {
+          version: 1,
+          scheduledAt: at,
+        })
+      ).status
+    ).toBe(200)
+    const res = await step(author, article.id, "submit", 2)
+    expect(res.status).toBe(403)
+    expect((await json<ErrorBody>(res)).error.code).toBe("FORBIDDEN")
+  })
+
+  it("bylines: only article:create holders or people who already sign an article (422 otherwise)", async () => {
+    const seeded = await row("mobile-patrols-protect-your-business-after-hours")
+    expect(seeded.authorId).not.toBeNull()
+    for (const who of [viewer, intake]) {
+      const res = await call(editor, "/articles", "POST", {
+        slug: "no-byline-for-you",
+        categoryId,
+        authorId: who.user.id,
+        draft: draftOf("Night Patrols"),
+      })
+      expect(res.status).toBe(422)
+      expect((await json<ErrorBody>(res)).error.fieldErrors?.authorId).toEqual([
+        "Choose someone who writes articles",
+      ])
+    }
+    const article = await create(author)
+    const meta = (version: number, authorId: string) =>
+      call(editor, `/articles/${article.id}/meta`, "PATCH", {
+        version,
+        authorId,
+      })
+    expect((await meta(1, viewer.user.id)).status).toBe(422)
+    expect((await meta(1, seeded.authorId!)).status).toBe(200)
+    expect((await meta(2, otherAuthor.user.id)).status).toBe(200)
+  })
+
+  it("a leftover revision row fails a transition with a logged 500, no SQL in the response", async () => {
+    const article = await create(author)
+    await getDb().insert(revisions).values({
+      entityType: "article",
+      entityId: article.id,
+      version: 2,
+      data: {},
+    })
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const res = await step(editor, article.id, "publish", 1)
+      expect(res.status).toBe(500)
+      const body = await json<ErrorBody>(res)
+      expect(body.error).toMatchObject({
+        code: "INTERNAL",
+        message: "Internal server error",
+      })
+      expect(JSON.stringify(body)).not.toMatch(/duplicate|revisions|23505/)
+      expect(
+        error.mock.calls.some((args) =>
+          String(args[0]).includes(
+            `[articles] article/${article.id}: revision 2 already exists`
+          )
+        )
+      ).toBe(true)
+    } finally {
+      error.mockRestore()
+    }
+    expect(await row("night-patrols")).toMatchObject({
+      version: 1,
+      status: "draft",
+      published: null,
+    })
+    expect(revalidateTag).not.toHaveBeenCalled()
+  })
+})

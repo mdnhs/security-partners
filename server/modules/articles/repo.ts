@@ -9,6 +9,7 @@ import {
   getTableColumns,
   ilike,
   isNotNull,
+  lte,
   or,
   type SQL,
   sql,
@@ -217,12 +218,19 @@ export async function categoryExists(db: DbOrTx, id: string) {
   return Boolean(row)
 }
 
-export async function userExists(db: DbOrTx, id: string) {
+/** A user who might sign an article: their role and whether they already sign one. */
+export async function findBylineCandidate(
+  db: DbOrTx,
+  id: string
+): Promise<{ role: string | null; signsArticle: boolean } | null> {
   const [row] = await db
-    .select({ id: users.id })
+    .select({
+      role: users.role,
+      signsArticle: sql<boolean>`exists (select 1 from ${articles} where ${articles.authorId} = ${users.id})`,
+    })
     .from(users)
     .where(eq(users.id, id))
-  return Boolean(row)
+  return row ?? null
 }
 
 export function listCategoryOptions(db: DbOrTx) {
@@ -256,4 +264,17 @@ export async function bylineAuthorIds(db: DbOrTx): Promise<Set<string>> {
     .from(articles)
     .where(isNotNull(articles.authorId))
   return new Set(rows.flatMap((r) => (r.id ? [r.id] : [])))
+}
+
+/** Scheduled articles due at `now`, row-locked; rows another worker holds are skipped. */
+export function lockDueScheduledArticles(db: DbOrTx, now: Date, limit = 20) {
+  return db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(
+      and(eq(articles.status, "scheduled"), lte(articles.scheduledAt, now))
+    )
+    .orderBy(asc(articles.scheduledAt))
+    .limit(limit)
+    .for("update", { skipLocked: true })
 }

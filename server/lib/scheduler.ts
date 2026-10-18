@@ -1,0 +1,182 @@
+import "server-only"
+
+import { getDb } from "@/server/db/client"
+import { getEnv } from "@/server/env"
+import {
+  claimDueJobs,
+  finishJob,
+  upsertRecurringJob,
+} from "@/server/modules/jobs/repo"
+
+import {
+  SIGNATURE_HEADER,
+  signInternalRequest,
+  TIMESTAMP_HEADER,
+} from "./internal-signature"
+import { type JobDefinition, RECURRING_JOBS } from "./jobs"
+
+// In-process scheduler (spec §12): a 60 s tick in every server instance;
+// the jobs table (FOR UPDATE SKIP LOCKED) makes replicas safe.
+
+export const TICK_INTERVAL_MS = 60_000
+export const FIRST_TICK_DELAY_MS = 5_000
+/** A claim older than this belongs to a crashed worker and may be taken over. */
+export const LOCK_TIMEOUT_MS = 10 * 60_000
+export const RETRY_DELAY_MS = 60_000
+const CLAIM_LIMIT = 10
+const ERROR_MAX_LENGTH = 2_000
+const REVALIDATE_TIMEOUT_MS = 10_000
+
+export type TickResult = {
+  name: string
+  key: string | null
+  ok: boolean
+  error: string | null
+  tags: string[]
+}
+
+const message = (err: unknown) =>
+  err instanceof Error ? err.message : String(err)
+
+/** Inserts missing recurring job rows; existing rows keep their schedule. */
+export async function ensureRecurringJobs(
+  now = new Date(),
+  definitions: readonly JobDefinition[] = RECURRING_JOBS
+): Promise<void> {
+  const db = getDb()
+  for (const job of definitions)
+    await upsertRecurringJob(db, { name: job.name, key: job.key, runAt: now })
+}
+
+/** Our own origin for server-to-itself calls (PORT is set by next start / server.js). */
+export function internalOrigin(): string {
+  return `http://127.0.0.1:${process.env.PORT ?? "3000"}`
+}
+
+/**
+ * Expires cache tags through the signed internal route: revalidateTag
+ * throws outside a request (ledger ruling, notes §2).
+ */
+export async function revalidateViaApi(tags: string[]): Promise<void> {
+  const body = JSON.stringify({ tags })
+  const { timestamp, signature } = signInternalRequest(body)
+  const res = await fetch(`${internalOrigin()}/api/v1/internal/revalidate`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      [TIMESTAMP_HEADER]: timestamp,
+      [SIGNATURE_HEADER]: signature,
+    },
+    body,
+    // A hung request must not stall the tick (ticks never overlap).
+    signal: AbortSignal.timeout(REVALIDATE_TIMEOUT_MS),
+  })
+  if (!res.ok) throw new Error(`Cache refresh answered ${res.status}`)
+}
+
+/** Claims and runs the due jobs once. Options exist for tests (clock, jobs, cache). */
+export async function tick(
+  options: {
+    now?: Date
+    jobs?: readonly JobDefinition[]
+    revalidate?: (tags: string[]) => Promise<void>
+  } = {}
+): Promise<TickResult[]> {
+  const now = options.now ?? new Date()
+  const definitions = options.jobs ?? RECURRING_JOBS
+  const revalidate = options.revalidate ?? revalidateViaApi
+  const db = getDb()
+  const claimed = await claimDueJobs(db, {
+    now,
+    staleBefore: new Date(now.getTime() - LOCK_TIMEOUT_MS),
+    limit: CLAIM_LIMIT,
+  })
+  const results: TickResult[] = []
+  for (const job of claimed) {
+    const definition = definitions.find((d) => d.name === job.name)
+    let ok = true
+    let error: string | null = null
+    let tags: string[] = []
+    try {
+      if (!definition) throw new Error(`No handler for job "${job.name}"`)
+      const result = await definition.run({ now, payload: job.payload })
+      tags = result.tags ?? []
+      error = result.warning ?? null
+      if (tags.length > 0)
+        try {
+          await revalidate(tags)
+        } catch (err) {
+          error = [error, `Cache refresh failed: ${message(err)}`]
+            .filter(Boolean)
+            .join("; ")
+        }
+    } catch (err) {
+      ok = false
+      error = message(err)
+    }
+    await finishJob(db, job.id, now, {
+      runAt: new Date(
+        now.getTime() + (ok && definition ? definition.everyMs : RETRY_DELAY_MS)
+      ),
+      lastRunAt: now,
+      lastError: error?.slice(0, ERROR_MAX_LENGTH) ?? null,
+      succeeded: ok,
+    })
+    results.push({ name: job.name, key: job.key, ok, error, tags })
+  }
+  return results
+}
+
+type SchedulerState = {
+  first: NodeJS.Timeout
+  interval: NodeJS.Timeout
+  running: boolean
+}
+// On globalThis: one scheduler per process, even across dev HMR reloads.
+const store = globalThis as unknown as { __spScheduler?: SchedulerState }
+
+/**
+ * Starts the tick (spec §12). Never during `next build`, never twice per
+ * process, and not at all without the app env (logged). Returns whether it
+ * started.
+ */
+export function startScheduler(): boolean {
+  if (process.env.NEXT_PHASE === "phase-production-build") return false
+  if (store.__spScheduler) return false
+  try {
+    getEnv()
+  } catch (err) {
+    console.error("[scheduler] not started:", message(err))
+    return false
+  }
+  const run = async () => {
+    const state = store.__spScheduler
+    if (!state || state.running) return // a slow tick never overlaps the next
+    state.running = true
+    try {
+      await ensureRecurringJobs()
+      for (const result of await tick())
+        if (result.error)
+          console.error(`[scheduler] ${result.name}: ${result.error}`)
+    } catch (err) {
+      console.error("[scheduler] tick failed:", message(err))
+    } finally {
+      state.running = false
+    }
+  }
+  const first = setTimeout(() => void run(), FIRST_TICK_DELAY_MS)
+  const interval = setInterval(() => void run(), TICK_INTERVAL_MS)
+  first.unref?.()
+  interval.unref?.()
+  store.__spScheduler = { first, interval, running: false }
+  return true
+}
+
+/** Stops the tick (tests, graceful shutdown). */
+export function stopScheduler(): void {
+  const state = store.__spScheduler
+  if (!state) return
+  clearTimeout(state.first)
+  clearInterval(state.interval)
+  store.__spScheduler = undefined
+}

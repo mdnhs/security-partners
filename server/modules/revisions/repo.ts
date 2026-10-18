@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, desc, eq, max } from "drizzle-orm"
+import { and, desc, eq, max, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { revisions, users } from "@/server/db/schema"
@@ -79,4 +79,25 @@ export async function findRevision(db: DbOrTx, id: string) {
     .leftJoin(users, eq(users.id, revisions.actorId))
     .where(eq(revisions.id, id))
   return row ?? null
+}
+
+/** Keeps the newest `keep` revisions of every entity (spec §12); returns rows deleted. */
+export async function pruneRevisionRows(
+  db: DbOrTx,
+  keep: number
+): Promise<number> {
+  const result = await db.execute(sql`
+    delete from ${revisions}
+    where ${revisions.id} in (
+      select ranked.id from (
+        select ${revisions.id} as id,
+          row_number() over (
+            partition by ${revisions.entityType}, ${revisions.entityId}
+            order by ${revisions.version} desc
+          ) as position
+        from ${revisions}
+      ) ranked
+      where ranked.position > ${keep}
+    )`)
+  return result.rowCount ?? 0
 }
