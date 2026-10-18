@@ -18,15 +18,19 @@ Operations detail for every item is in `docs/runbook.md`.
   AI keys are configured in the admin and stored encrypted.
 - Daily backups with a restore drill, secret rotation, environment sync
   (`db:sync`), owner recovery, demo-account removal (`demo:remove`).
+- CI (lint, types, unit, integration, build without env, E2E on the
+  standalone server, Docker image smoke test incl. backup + restore drill)
+  gates every deploy from `main`.
+- Dashboard warnings for failing background jobs and for unreadable
+  Turnstile settings ("Spam protection is off").
 - Security headers, a non-blocking Content-Security-Policy, production
   guards on the three environment variables, a production-only dependency
   audit (`pnpm audit:deps`).
 - Runbook: `docs/runbook.md`.
 
-Not done yet (known follow-ups, runbook "Known limitations"): tests do not
-gate the deploy workflow; media files are not streamed (no `Range`); the
-scheduler does not stop on `SIGTERM`; the admin does not warn when the
-Turnstile settings cannot be read.
+Known limitations that remain are listed in the runbook ("Known
+limitations"), e.g. visual tests run on macOS only and stopping background
+jobs on shutdown is best effort.
 
 ## Owner must do
 
@@ -85,6 +89,8 @@ Turnstile settings cannot be read.
       monthly.
 - [ ] Keep Traefik access-log retention short: the lead export for a
       data-subject request puts the person's email in the URL.
+- [ ] SEO ▸ Defaults: shorten the seeded default description (163
+      characters; search engines show about 160).
 - [ ] Optional: move the 41 MB of visual-test PNGs to Git LFS.
 
 ## Owner must confirm
@@ -121,6 +127,9 @@ Turnstile settings cannot be read.
     "085 806 2369";
   - the Accounts line "Tel: (057) 8697670 Ext 3" formats the office number
     differently from "057 8697670" elsewhere.
+- **Cookie banner look:** the category pills in the consent banner are navy
+  text on green (changed from the design for WCAG AA contrast), and the
+  default button hover is the primary colour at 90 %. Confirm the look.
 - Decisions taken on your behalf (spec §1.3, D1–D10), e.g. Postgres as a
   Dokploy service, Turnstile invisible only, 24-month lead retention,
   Europe/Dublin time, shared sections edited once.

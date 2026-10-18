@@ -19,19 +19,31 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
 ## Deploy
 
 - Push to `main` → GitHub Actions `Build & Deploy to Dokploy`
-  (`.github/workflows/deploy.yml`): builds the image, pushes it to GHCR
-  (`:latest` and `:<commit sha>`), then calls the Dokploy API to redeploy the
-  compose app. Manual run: Actions → Build & Deploy → Run workflow.
-- The workflow does **not** run tests before it deploys (see "Known
-  limitations"). Before merging to `main`, run locally:
-  `pnpm lint && pnpm typecheck && pnpm test && env -u DATABASE_URL -u BETTER_AUTH_SECRET -u BETTER_AUTH_URL pnpm build`,
-  plus `pnpm test:e2e` and (macOS) `pnpm test:visual`.
-- On start the container applies pending migrations
-  (`docker-entrypoint.sh` → `node scripts/dist/migrate.mjs`), then starts
-  `node server.js`. A failed migration makes the container exit; the compose
-  restart policy (`unless-stopped`) restarts it, so it crash-loops until the
-  cause is fixed. Read `docker logs <container>` right after a deploy; the
-  cause is printed as `[migrate] …`.
+  (`.github/workflows/deploy.yml`). Its first job `ci` runs the reusable
+  `.github/workflows/ci.yml`: lint, `next typegen` + types, unit and DOM
+  tests, `pnpm audit:deps`; integration tests (Postgres + Mailpit); build
+  without env; E2E on the standalone server; and an image smoke test (builds
+  the Docker image, then migrate → `seed.mjs` → server → readiness →
+  `backup.mjs` → `restore-drill.mjs` inside it). Only when CI passes is the
+  image pushed to GHCR (`:latest` and `:<commit sha>`) and Dokploy asked to
+  redeploy the compose app. Pull requests and other branches run `ci.yml`
+  on their own. Visual pixel tests are not in CI (macOS only): run
+  `pnpm test:visual` locally before merging a change that can touch the
+  public pages.
+- Manual run: Actions → Build & Deploy → Run workflow. `skip_ci` deploys
+  without waiting for CI — emergency only (a hotfix while CI itself is
+  broken).
+- The container's PID 1 is `tini`, which forwards `SIGTERM`. On start the
+  container applies pending migrations (`docker-entrypoint.sh` →
+  `node scripts/dist/migrate.mjs`), then starts `node server.js`. A failed
+  migration makes the container exit; the compose restart policy
+  (`unless-stopped`) restarts it, so it crash-loops until the cause is fixed
+  (the previous container is already gone). Read `docker logs <container>`
+  right after a deploy; the cause is printed as `[migrate] …`.
+- The image runs as a non-root user and has no `VOLUME` line: `/data`
+  (uploads, local backups) is the named volume `docker-compose.yml` mounts.
+  A plain `docker run` without `-v <volume>:/data` keeps uploads only until
+  the container is removed.
 - Before a deploy that adds a migration, take a backup
   (`node scripts/dist/backup.mjs`, see "Running scripts in the container"):
   migrations only go forward.
@@ -265,9 +277,10 @@ image binds `HOSTNAME=0.0.0.0`, which includes loopback; do not override
 message may be technical). A failed job retries after 60 s; a job locked for
 more than 10 minutes counts as crashed and is claimed again.
 
-The scheduler is not stopped on `SIGTERM` (known follow-up): a job running
-during a redeploy is cut off and picked up again by the next container once
-its lock is stale.
+On `SIGTERM`/`SIGINT` the scheduler stops ticking and waits for the running
+tick. This is best effort: Next's own shutdown handler may exit the process
+first, and a job cut off that way is claimed again once its lock is older
+than 10 minutes.
 
 ## Sessions and sign-in
 
@@ -368,31 +381,38 @@ advisory id. Current overrides: none.
 
 ## Known limitations
 
-- No CI gate before deploy: `deploy.yml` builds and deploys on every push to
-  `main` without running tests (planned: reuse a CI workflow as a first job).
-  Run the checks under "Deploy" before merging.
-- Visual pixel tests run on macOS only (baselines are macOS renders).
+- Visual pixel tests run on macOS only (baselines are macOS renders); CI
+  runs E2E but not `tests/visual`.
+- E2E does not check email delivery for enquiries and password resets: in
+  production mode the SMTP guard refuses the loopback Mailpit, so those
+  tests check the app's outcome (notification recorded, response shown);
+  delivery to Mailpit is covered by the integration tests. The E2E job still
+  starts Mailpit for the SMTP "Test connection" spec.
 - Uploads and backups live on `/data` until R2 is configured.
-- Media files are read whole and sent without `Range`/`ETag` support (no
-  streaming or seeking in large videos/PDFs). Animated WebP/AVIF keep only
-  the first frame; photo metadata (EXIF/GPS) is stripped on upload; PDFs
-  open inline.
-- The scheduler is not stopped on `SIGTERM` ("Background jobs").
+- Media files are streamed with `Range` and `ETag` support. From R2, a
+  single request times out after 60 s, so a very slow download of a large
+  file can be cut off. Animated WebP/AVIF keep only the first frame; photo
+  metadata (EXIF/GPS) is stripped on upload; PDFs open inline.
+- Stopping the scheduler on `SIGTERM` is best effort ("Background jobs").
 - When the stored Turnstile settings cannot be decrypted (e.g. after a
   secret change without `secrets:rotate`), the contact form keeps accepting
-  enquiries **without** the spam check and sends no acknowledgement emails;
-  only the log says so (`[leads] Turnstile settings could not be read`). The
-  admin shows no warning yet; after any secret change run the Turnstile
-  "Test".
+  enquiries **without** the spam check and sends no acknowledgement emails
+  (so real enquiries are not lost). The dashboard then shows "Spam
+  protection is off" first in "Next up" and the log has
+  `[leads] Turnstile settings could not be read`; re-enter the keys under
+  Settings ▸ Integrations ▸ Turnstile.
 - Share cards (`/og/…`) are sent with
-  `Cache-Control: public, max-age=600, stale-while-revalidate=3600`: after a title or image change, browsers and
-  proxies may show the old card for up to about an hour.
+  `Cache-Control: public, max-age=600, stale-while-revalidate=3600`: after a
+  title or image change, browsers and proxies may show the old card for up
+  to about an hour.
 - SEO edits on a service/article/page record are last-write-wins (no
   version check): two people editing the same record's SEO at once overwrite
   each other.
 - `seo.defaults` revisions saved before migration
   `0008_seo_defaults_organization` cannot be restored (the restore is
   refused with a validation error); re-enter the values instead.
+- The seeded default SEO description is 163 characters, over the usual
+  160-character guideline; shorten it under SEO ▸ Defaults (`docs/launch.md`).
 - `admin-create` creates another owner on every run (no "owner exists"
   check).
 - Staging is not blocked from search engines by the app (`robots.txt` is the
@@ -402,5 +422,3 @@ advisory id. Current overrides: none.
 - After seeding or restoring from outside the running app, restart it.
 - `{…}` in a content field is a placeholder (e.g. `{phone24h}`), not text.
 - Migrations are forward-only; roll back schema changes with a backup.
-- Playwright runs against `next start`, not the standalone `server.js` the
-  image runs.
