@@ -188,3 +188,30 @@ test.describe("metadata in <head>", () => {
     await expect(page.locator('body meta[name="description"]')).toHaveCount(0)
   })
 })
+
+const jsonLd = async (page: Page) =>
+  (
+    await page.locator('script[type="application/ld+json"]').allTextContents()
+  ).flatMap((text) => {
+    const value = JSON.parse(text) as unknown
+    return Array.isArray(value) ? value : [value]
+  }) as { "@type": string; [key: string]: unknown }[]
+
+test.describe("structured data", () => {
+  test("every page carries the business; articles add Article + breadcrumbs", async ({
+    page,
+  }) => {
+    await page.goto("/")
+    expect((await jsonLd(page)).map((d) => d["@type"])).toEqual([
+      "LocalBusiness",
+    ])
+    await page.goto("/blog/key-holding-explained")
+    const types = (await jsonLd(page)).map((d) => d["@type"]).sort()
+    expect(types).toEqual(["Article", "BreadcrumbList", "LocalBusiness"])
+    await page.goto("/services/alarm-responses")
+    expect((await jsonLd(page)).map((d) => d["@type"]).sort()).toEqual([
+      "BreadcrumbList",
+      "LocalBusiness",
+    ])
+  })
+})

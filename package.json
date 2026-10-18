@@ -98,6 +98,7 @@
     "otpauth": "9.5.2",
     "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "schema-dts": "2.1.0",
     "tailwindcss": "^4",
     "tsx": "4.23.15",
     "typescript": "^5",

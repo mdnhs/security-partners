@@ -3,10 +3,13 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 import { Suspense } from "react"
 
+import { JsonLd } from "@/components/seo/json-ld"
+import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ServiceDetailTemplate } from "@/templates/services/render"
 import { serviceDetailView } from "@/templates/services/view"
 import { serviceMetadata } from "@/templates/shared/page-meta"
+import { serviceJsonLd } from "@/templates/shared/structured-data"
 
 export async function generateMetadata({
   params,
@@ -31,9 +34,21 @@ async function ServiceDetail({
 }: Pick<PageProps<"/services/[slug]">, "params">) {
   await connection()
   const { slug } = await params
-  const view = serviceDetailView(await loadSiteSources(), slug)
-  // Inside Suspense this is a soft 404 (200 + noindex): the shell has
-  // already streamed (Cache Components; Next docs "Status codes").
+  const s = await loadSiteSources()
+  const view = serviceDetailView(s, slug)
+  // Unknown slugs never get here as a 200: proxy.ts rewrites them to the
+  // 404; drafts in preview keep this soft 404 (200 + noindex, inside
+  // Suspense the shell has already streamed).
   if (!view) notFound()
-  return <ServiceDetailTemplate view={view} />
+  return (
+    <>
+      <ServiceDetailTemplate view={view} />
+      <JsonLd
+        data={
+          serviceJsonLd(s, slug, publicOrigin(s.settings.site.productionUrl)) ??
+          []
+        }
+      />
+    </>
+  )
 }

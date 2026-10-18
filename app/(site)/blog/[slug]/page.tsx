@@ -3,10 +3,13 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 import { Suspense } from "react"
 
+import { JsonLd } from "@/components/seo/json-ld"
+import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ArticleTemplate } from "@/templates/blog/render"
 import { articleView } from "@/templates/blog/view"
 import { articleMetadata } from "@/templates/shared/page-meta"
+import { articleJsonLdFor } from "@/templates/shared/structured-data"
 
 export async function generateMetadata({
   params,
@@ -27,8 +30,23 @@ export default function ArticlePage({ params }: PageProps<"/blog/[slug]">) {
 async function Article({ params }: Pick<PageProps<"/blog/[slug]">, "params">) {
   await connection()
   const { slug } = await params
-  const view = articleView(await loadSiteSources(), slug)
-  // Soft 404 inside Suspense (see services/[slug]/page.tsx).
+  const s = await loadSiteSources()
+  const view = articleView(s, slug)
+  // Unknown slugs are a real 404 in proxy.ts; previews keep the soft 404
+  // (see services/[slug]/page.tsx).
   if (!view) notFound()
-  return <ArticleTemplate view={view} />
+  return (
+    <>
+      <ArticleTemplate view={view} />
+      <JsonLd
+        data={
+          articleJsonLdFor(
+            s,
+            slug,
+            publicOrigin(s.settings.site.productionUrl)
+          ) ?? []
+        }
+      />
+    </>
+  )
 }
