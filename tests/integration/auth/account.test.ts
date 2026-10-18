@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { app } from "@/server/api/app"
 import { SELF_SERVICE_PATHS } from "@/server/auth/hooks"
 import { getDb } from "@/server/db/client"
-import { auditLog, twoFactors, users } from "@/server/db/schema"
+import { auditLog, sessions, twoFactors, users } from "@/server/db/schema"
 
 import { resetDb } from "../db"
 import {
@@ -243,7 +243,12 @@ describe("account security (Task 2.6)", () => {
       "/revoke-other-sessions": {},
       "/unlink-account": { providerId: "credential" },
       "/link-social": { provider: "google" },
+      // GET: would list the target's session tokens, IPs and accounts
+      // (final review M4).
+      "/list-sessions": null,
+      "/list-accounts": null,
     }
+    const GET_PATHS = new Set(["/list-sessions", "/list-accounts"])
 
     it("covers every guarded path, including the probing ones", () => {
       expect([...SELF_SERVICE_PATHS].sort()).toEqual(Object.keys(BODIES).sort())
@@ -252,6 +257,8 @@ describe("account security (Task 2.6)", () => {
         "/two-factor/get-totp-uri",
         "/unlink-account",
         "/link-social",
+        "/list-sessions",
+        "/list-accounts",
       ])
         expect(SELF_SERVICE_PATHS.has(path)).toBe(true)
     })
@@ -264,11 +271,10 @@ describe("account security (Task 2.6)", () => {
         method: "POST",
       })
       expect(start.status).toBe(200)
-      const res = await authPost(
-        path,
-        BODIES[path],
-        mergeCookies(admin.cookie, start)
-      )
+      const cookie = mergeCookies(admin.cookie, start)
+      const res = GET_PATHS.has(path)
+        ? await app.request(`/api/auth${path}`, { headers: { cookie } })
+        : await authPost(path, BODIES[path], cookie)
       expect(res.status).toBe(403)
       expect((await res.json()).message).toBe(
         "Account settings are disabled while impersonating"
@@ -284,5 +290,57 @@ describe("account security (Task 2.6)", () => {
       )
       expect(res.status).toBe(200)
     })
+  })
+})
+
+describe("final review M1/M3/M4", () => {
+  it("M1: /update-user applies the admin API's name/title rules", async () => {
+    const { user, cookie } = await signedInUser(["editor"])
+    for (const body of [
+      { name: "x".repeat(101) },
+      { name: "   " },
+      { title: "t".repeat(101) },
+      { name: 42 },
+    ]) {
+      const res = await authPost("/update-user", body, cookie)
+      expect(res.status, JSON.stringify(body)).toBe(400)
+    }
+    const ok = await authPost(
+      "/update-user",
+      { name: "  Jane Doe  ", title: "   " },
+      cookie
+    )
+    expect(ok.status).toBe(200)
+    const [row] = await getDb()
+      .select()
+      .from(users)
+      .where(eq(users.id, user.id))
+    expect(row).toMatchObject({ name: "Jane Doe", title: null })
+  })
+
+  it("M3: a revoked session is refused by /api/auth on the next request (no cookie cache)", async () => {
+    const user = await createUser({ roles: ["viewer"] })
+    const cookie = await signIn(user.email)
+    const read = async () =>
+      (
+        await app.request("/api/auth/get-session", { headers: { cookie } })
+      ).json()
+    expect((await read())?.user.id).toBe(user.id)
+    await getDb().delete(sessions).where(eq(sessions.userId, user.id))
+    expect(await read()).toBeNull()
+  })
+
+  it("M4: list-sessions is refused while impersonating", async () => {
+    const admin = await signedInUser(["admin"])
+    const target = await createUser({ roles: ["editor"] })
+    const start = await adminRequest(`/users/${target.id}/impersonate`, {
+      cookie: admin.cookie,
+      method: "POST",
+    })
+    expect(start.status).toBe(200)
+    const res = await app.request("/api/auth/list-sessions", {
+      headers: { cookie: mergeCookies(admin.cookie, start) },
+    })
+    expect(res.status).toBe(403)
   })
 })

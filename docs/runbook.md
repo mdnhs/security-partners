@@ -315,8 +315,8 @@ in practice the limit is about 7 days of inactivity. Rate limits (production
 only, in Postgres): sign-in 5/min, 2FA 5/min, password reset 3 per 5 min,
 everything else under `/api/auth` 100/min per IP; public enquiries 5 per
 10 min per IP; AI chat 30 messages per user per 10 min. Revoking a session
-takes effect at once for every admin page and API call; a few cookie-cached
-reads may serve up to 5 minutes longer. "Sign out everywhere" also ends
+takes effect at once for every admin page, API call and `/api/auth`
+request (Better Auth's session cookie cache is off). "Sign out everywhere" also ends
 "View as" sessions the user started. Passwords: 12–128 characters. While
 "View as" (impersonation) is active, account settings and the AI assistant
 are read-only, but the impersonating admin can read the user's AI

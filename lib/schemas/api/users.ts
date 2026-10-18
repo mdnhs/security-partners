@@ -36,6 +36,15 @@ export const updateUserInput = z
     message: "Nothing to update",
   })
 
+/**
+ * The same rules for a user's own profile via Better Auth's /update-user
+ * (final review M1; enforced by a before hook in server/auth/hooks.ts).
+ */
+export const selfProfileInput = z.object({
+  name: name.optional(),
+  title: title.nullable().optional(),
+})
+
 export const setRolesInput = z.object({ roles: rolesSchema })
 
 export const banUserInput = z.object({
