@@ -14,6 +14,7 @@ import {
   type IntegrationKey,
   isSecretField,
 } from "@/lib/schemas/integrations"
+import { smtpConfig } from "@/lib/schemas/integrations/smtp"
 import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
@@ -251,6 +252,9 @@ function retargetErrors(
   return errors
 }
 
+/** Host names compare case-insensitively, without surrounding space. */
+const normalHost = (host: string) => host.trim().toLowerCase()
+
 const BLOCKED_HOST_MESSAGE =
   "This address is not allowed for an email server (local or metadata address)"
 
@@ -285,14 +289,18 @@ export async function saveIntegration(
   assertCan(actor, { integration: ["update"] })
   // The SMTP host check may wait for DNS (up to its timeout): do it before
   // the transaction so no connection/transaction is held meanwhile.
-  const enteredHost =
-    key === "integrations.smtp" && typeof input.values.host === "string"
-      ? input.values.host
+  // Only a host that passes the schema's own checks (trimmed, server-name
+  // characters) is looked up: invalid input never reaches DNS.
+  const entered =
+    key === "integrations.smtp"
+      ? smtpConfig.shape.host.safeParse(input.values.host)
       : null
-  const preResolved =
-    enteredHost === null
-      ? null
-      : { host: enteredHost, target: await resolveSmtpTarget(enteredHost) }
+  const preResolved = entered?.success
+    ? {
+        host: normalHost(entered.data),
+        target: await resolveSmtpTarget(entered.data),
+      }
+    : null
   return getDb().transaction(async (tx) => {
     const row = await findIntegrationRow(tx, key)
     if ((row?.version ?? 0) !== input.version) throw conflict(toDto(key, row))
@@ -315,7 +323,7 @@ export async function saveIntegration(
     if (parsed.success && key === "integrations.smtp") {
       const host = String((parsed.data as Values).host)
       const target =
-        preResolved?.host === host
+        preResolved?.host === normalHost(host)
           ? preResolved.target
           : await resolveSmtpTarget(host)
       if (target.kind === "blocked") fieldErrors.host = [BLOCKED_HOST_MESSAGE]

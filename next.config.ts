@@ -1,5 +1,6 @@
 import type { NextConfig } from "next"
 
+import { HSTS } from "./lib/security-headers"
 import { HTML_LIMITED_BOTS } from "./lib/seo/blocking-metadata"
 
 /**
@@ -26,7 +27,7 @@ export const SECURITY_HEADERS = [
     value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   },
   // Ignored by browsers over http (local, E2E); Traefik serves https.
-  { key: "Strict-Transport-Security", value: "max-age=31536000" },
+  { key: "Strict-Transport-Security", value: HSTS },
   { key: "Content-Security-Policy", value: cspWith("'self'") },
 ]
 

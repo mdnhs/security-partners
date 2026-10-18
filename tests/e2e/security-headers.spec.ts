@@ -52,6 +52,7 @@ test.describe("security headers", () => {
     const headers = res.headers()
     expect(headers["x-content-type-options"]).toBe("nosniff")
     expect(headers["x-frame-options"]).toBe("SAMEORIGIN")
+    expect(headers["strict-transport-security"]).toBe("max-age=31536000")
     expect(headers["permissions-policy"]).toBeUndefined()
     expect(headers["content-security-policy"]).toBeUndefined()
   })

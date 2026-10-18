@@ -21,6 +21,39 @@ describe("check-log-secrets", () => {
     ).toEqual(["a ?token= value"])
   })
 
+  it("flags URL-encoded tokens (a ?next= or logged redirect)", () => {
+    expect(
+      findSecrets(
+        "redirect /admin/sign-in?next=%2Fadmin%2Fset-password%3Ftoken%3DAbCdEfGhIjKlMnOpQrStUv12",
+        []
+      )
+    ).toEqual(["a ?token= value"])
+  })
+
+  it("flags session cookies, JSON tokens and Bearer credentials", () => {
+    expect(
+      findSecrets(
+        "cookie: __Secure-sp.session_token=AbCdEfGhIjKlMnOpQrStUv12.sig",
+        []
+      )
+    ).toEqual(["a session cookie"])
+    expect(
+      findSecrets(
+        'body {"token":"AbCdEfGhIjKlMnOpQrStUv12","redirect":false}',
+        []
+      )
+    ).toEqual(["a JSON token"])
+    expect(
+      findSecrets("authorization: Bearer sk-ant-AbCdEfGhIjKlMnOpQr", [])
+    ).toEqual(["a Bearer token"])
+  })
+
+  it("ignores short or empty token-like values", () => {
+    expect(
+      findSecrets('{"token":null} ?token= session_token=; Bearer x', [])
+    ).toEqual([])
+  })
+
   it("passes clean output", () => {
     expect(findSecrets("[api] 0190… HTTP 502", ["secret-value-1"])).toEqual([])
   })

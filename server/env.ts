@@ -34,6 +34,11 @@ const isInsecureRemote = (value: string) => {
   }
 }
 
+/** The .env.example value (and any "change-me" variant) must never sign production cookies. */
+const EXAMPLE_SECRET = "dev-only-secret-change-me-0123456789abcdef"
+const isPlaceholderSecret = (value: string) =>
+  value === EXAMPLE_SECRET || /change-?me/i.test(value)
+
 const envSchema = z
   .object({
     DATABASE_URL: z
@@ -51,6 +56,16 @@ const envSchema = z
     NODE_ENV: z.enum(NODE_ENVS).default("development"),
   })
   .superRefine((env, ctx) => {
+    if (
+      env.NODE_ENV === "production" &&
+      isPlaceholderSecret(env.BETTER_AUTH_SECRET)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["BETTER_AUTH_SECRET"],
+        message:
+          "is the example placeholder: generate a real secret (openssl rand -base64 32)",
+      })
     if (env.NODE_ENV === "production" && isInsecureRemote(env.BETTER_AUTH_URL))
       ctx.addIssue({
         code: "custom",

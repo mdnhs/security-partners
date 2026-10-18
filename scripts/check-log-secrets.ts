@@ -5,12 +5,20 @@ import { readFileSync } from "node:fs"
 import { pathToFileURL } from "node:url"
 
 import { E2E_ENV } from "../tests/e2e/env"
-import { E2E_PASSWORD } from "../tests/e2e/fixtures"
+import { E2E_PASSWORD, E2E_SMTP_PASSWORD } from "../tests/e2e/fixtures"
 import { VISUAL_ADMIN } from "../tests/visual/admin-user"
 
-const TOKEN_IN_URL = /[?&]token=[A-Za-z0-9_-]{16,}/
+/** Credential shapes that must never reach a log, with their labels. */
+const PATTERNS: [RegExp, string][] = [
+  // Plain or URL-encoded (?next=…%3Ftoken%3D…) single-use links.
+  [/(?:[?&]|%3F|%26)token(?:=|%3D)[A-Za-z0-9_-]{16,}/i, "a ?token= value"],
+  // Better Auth session cookie (sp.session_token, __Secure-sp.session_token).
+  [/session_token=[A-Za-z0-9_.%+/=-]{16,}/, "a session cookie"],
+  [/"token"\s*:\s*"[A-Za-z0-9_.-]{16,}"/, "a JSON token"],
+  [/\bBearer\s+[A-Za-z0-9._~+/-]{16,}/i, "a Bearer token"],
+]
 
-/** Labels of what leaked ("known secret #n", "a ?token= value"). */
+/** Labels of what leaked ("known secret #n", "a ?token= value", …). */
 export function findSecrets(
   text: string,
   secrets: readonly string[]
@@ -18,7 +26,8 @@ export function findSecrets(
   const found = secrets.flatMap((secret, index) =>
     secret && text.includes(secret) ? [`known secret #${index + 1}`] : []
   )
-  if (TOKEN_IN_URL.test(text)) found.push("a ?token= value")
+  for (const [pattern, label] of PATTERNS)
+    if (pattern.test(text)) found.push(label)
   return found
 }
 
@@ -31,10 +40,12 @@ if (
     console.error("Usage: tsx scripts/check-log-secrets.ts <log file>…")
     process.exit(2)
   }
+  // Every secret the E2E/visual fixtures put into the server.
   const secrets = [
     E2E_ENV.BETTER_AUTH_SECRET,
     E2E_PASSWORD,
     VISUAL_ADMIN.password,
+    E2E_SMTP_PASSWORD,
   ]
   let failed = false
   for (const file of files) {

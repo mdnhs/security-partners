@@ -6,6 +6,7 @@ import {
   deleteMediaUsages,
   existingMediaIds,
   listMediaReferencingEntities,
+  listMediaUsagesFor,
   lockMediaReferencingEntity,
   nonImageMediaIds,
   replaceMediaUsages,
@@ -52,8 +53,9 @@ function mediaIdOfFkError(err: unknown): string | undefined {
  * restricts deleting media in use (ledger ruling), so every save keeps
  * these rows exact. A reference to a missing media row → 422 on its field,
  * also when the row is deleted between the check and the insert (FK 23503).
- * Every media field in the content schemas is an image field, so a reference
- * to a non-image (a PDF picked through the API) → 422 on its field too.
+ * Every media field in the content schemas is an image field, so a new
+ * reference to a non-image (a PDF picked through the API) → 422 on its field
+ * too; references the entity already had are left alone.
  */
 export async function syncMediaUsages(
   tx: DbOrTx,
@@ -82,8 +84,17 @@ async function syncUsages(
   const missing = usages.filter((u) => !found.has(u.mediaId))
   if (missing.length > 0) throw missingMedia(missing)
   if (requireImages) {
-    // The picker only offers images; the server must not trust that.
-    const notImages = await nonImageMediaIds(tx, [...found])
+    // The picker only offers images; the server must not trust that. Only
+    // references NEW to this entity are checked: values stored before this
+    // rule (e.g. a published PDF reference) must never block a save, an
+    // SEO edit or the publish that replaces them.
+    const known = new Set(
+      (await listMediaUsagesFor(tx, entityType, entityId)).map((u) => u.mediaId)
+    )
+    const notImages = await nonImageMediaIds(
+      tx,
+      [...found].filter((id) => !known.has(id))
+    )
     const wrongKind = usages.filter((u) => notImages.has(u.mediaId))
     if (wrongKind.length > 0) throw notAnImage(wrongKind)
   }

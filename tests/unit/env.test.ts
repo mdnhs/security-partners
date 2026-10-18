@@ -111,6 +111,32 @@ describe("parseEnv", () => {
     ).toBe("http://dev.example.ie")
   })
 
+  it("refuses the .env.example secret or any change-me placeholder in production", () => {
+    for (const secret of [
+      "dev-only-secret-change-me-0123456789abcdef",
+      "my-own-CHANGE-ME-secret-0123456789abcdef",
+    ]) {
+      let message = ""
+      try {
+        parseEnv({ ...VALID, BETTER_AUTH_SECRET: secret })
+      } catch (err) {
+        message = (err as Error).message
+      }
+      expect(message).toContain(
+        "  - BETTER_AUTH_SECRET: is the example placeholder: generate a real secret (openssl rand -base64 32)"
+      )
+      expect(message).not.toContain(secret)
+    }
+    // Development and tests may keep the example value.
+    expect(
+      parseEnv({
+        ...VALID,
+        NODE_ENV: "development",
+        BETTER_AUTH_SECRET: "dev-only-secret-change-me-0123456789abcdef",
+      }).BETTER_AUTH_SECRET
+    ).toBe("dev-only-secret-change-me-0123456789abcdef")
+  })
+
   it("names NODE_ENV when it is not development, production or test", () => {
     expect(() => parseEnv({ ...VALID, NODE_ENV: "staging" })).toThrow(
       "  - NODE_ENV:"

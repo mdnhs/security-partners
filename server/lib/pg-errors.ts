@@ -1,7 +1,9 @@
 import "server-only"
 
 const MAX_DEPTH = 5
-const SQLSTATE = /^[0-9A-Z]{5}$/
+// Five characters with at least one digit: every SQLSTATE class has one
+// ("23505", "XX000", "P0001"); Node codes such as "EPIPE" have none.
+const SQLSTATE = /^(?=[A-Z]*[0-9])[0-9A-Z]{5}$/
 
 /** Errors along `err.cause` (drizzle wraps the pg error), at most MAX_DEPTH deep, no cycles. */
 function chain(err: unknown): Record<string, unknown>[] {

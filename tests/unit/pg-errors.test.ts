@@ -17,6 +17,16 @@ describe("pg error helpers walk the cause chain (ledger P04-3)", () => {
     )
   })
 
+  it("never mistakes a five-letter Node error code for a SQLSTATE", () => {
+    for (const code of ["EPIPE", "EPERM", "EBUSY", "EIO"])
+      expect(pgErrorCode({ code })).toBeUndefined()
+    expect(pgErrorCode({ code: "EPIPE", cause: { code: "57P01" } })).toBe(
+      "57P01"
+    )
+    expect(pgErrorCode({ code: "XX000" })).toBe("XX000")
+    expect(pgErrorCode({ code: "P0001" })).toBe("P0001")
+  })
+
   it("stops on cycles and deep chains, and ignores non-objects", () => {
     const cyclic: { cause?: unknown } = {}
     cyclic.cause = cyclic

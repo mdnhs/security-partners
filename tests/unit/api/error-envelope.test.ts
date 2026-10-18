@@ -88,6 +88,13 @@ describe("API error envelope", () => {
     expect(res.headers.get("cache-control")).toBe("no-store")
   })
 
+  it("/api sends the same HSTS value as the pages (next.config.ts)", async () => {
+    const res = await app.request("/api/v1/health/live")
+    expect(res.headers.get("strict-transport-security")).toBe(
+      "max-age=31536000"
+    )
+  })
+
   it("unknown route → 404 envelope with requestId (uuid v7, echoed in X-Request-Id)", async () => {
     const res = await app.request("/api/v1/nope")
     expect(res.status).toBe(404)
