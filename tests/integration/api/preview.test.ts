@@ -152,4 +152,26 @@ describe("preview (master 4.4)", () => {
     })
     expect(foreign.headers.get("location")).toBe("/")
   })
+
+  it("exit returns to ?to (the page the guard left), checked like the Referer", async () => {
+    const back = async (to: string, referer?: string) => {
+      const res = await app.request(
+        `/api/v1/preview/exit?to=${encodeURIComponent(to)}`,
+        { headers: referer ? { referer } : {} }
+      )
+      return res.headers.get("location")
+    }
+    expect(await back("/terms")).toBe("/terms")
+    expect(await back("/blog/x?page=2", `${ORIGIN}/about`)).toBe(
+      "/blog/x?page=2"
+    )
+    for (const unsafe of [
+      "//evil.example/x",
+      "https://evil.example/x",
+      "/\\evil.example",
+      "/admin/users",
+      "/api/v1/x",
+    ])
+      expect(await back(unsafe), unsafe).toBe("/")
+  })
 })

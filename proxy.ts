@@ -6,6 +6,8 @@ import {
 } from "next/server"
 
 import { isAdminAuthPath } from "@/lib/auth/redirect"
+import { REQUEST_PATH_HEADER } from "@/lib/request-path"
+import { blockingMetadataHeaders } from "@/lib/seo/blocking-metadata"
 import { redirectLocation } from "@/lib/seo/redirects"
 import {
   MISSING_PATH,
@@ -57,12 +59,20 @@ export async function publicGate(
 ): Promise<NextResponse> {
   if (request.method !== "GET" && request.method !== "HEAD")
     return NextResponse.next()
+  // Documents render with blocking metadata (in <head>); RSC requests keep
+  // streaming metadata (lib/seo/blocking-metadata.ts). Every page learns its
+  // own path (lib/request-path.ts).
+  const headers =
+    blockingMetadataHeaders(request.headers) ?? new Headers(request.headers)
+  const { pathname, search } = request.nextUrl
+  headers.set(REQUEST_PATH_HEADER, `${pathname}${search}`)
+  const init = { request: { headers } }
   try {
     const outcome = await resolvePublicPath(request.nextUrl.pathname, {
       draft: request.cookies.has(DRAFT_COOKIE),
     })
     if (outcome.kind === "missing")
-      return NextResponse.rewrite(new URL(MISSING_PATH, request.url))
+      return NextResponse.rewrite(new URL(MISSING_PATH, request.url), init)
     if (outcome.kind === "redirect") {
       const location = redirectLocation(outcome.to, new URL(request.url))
       // The hit is written after the response (never delays it).
@@ -72,7 +82,7 @@ export async function publicGate(
   } catch {
     console.error("[proxy] public gate failed; serving the page")
   }
-  return NextResponse.next()
+  return NextResponse.next(init)
 }
 
 export async function proxy(

@@ -1,9 +1,10 @@
 import "server-only"
 
-import { cookies, draftMode } from "next/headers"
+import { cookies, draftMode, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { cache } from "react"
 
+import { REQUEST_PATH_HEADER } from "@/lib/request-path"
 import { getSessionContext } from "@/server/auth/session"
 
 import { canPreview } from "./service"
@@ -32,8 +33,16 @@ export const isPreviewing: () => Promise<boolean> = cache(async () => {
  * Public pages call this before reading data. Draft mode without a verified
  * previewer (isPreviewing) is switched off (exit route) before any draft
  * content renders. Outside draft mode it costs one cookie-free check.
+ * The exit route returns to `?to` (the page, from proxy.ts): a document
+ * request redirects over HTTP (blocking metadata), so no Referer names it.
  */
 export async function assertPreviewAccess(): Promise<void> {
   const { isEnabled } = await draftMode()
-  if (isEnabled && !(await isPreviewing())) redirect("/api/v1/preview/exit")
+  if (!isEnabled || (await isPreviewing())) return
+  const to = (await headers()).get(REQUEST_PATH_HEADER)
+  redirect(
+    to
+      ? `/api/v1/preview/exit?to=${encodeURIComponent(to)}`
+      : "/api/v1/preview/exit"
+  )
 }

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { draft, jar, session, redirect } = vi.hoisted(() => ({
+const { draft, jar, requestHeaders, session, redirect } = vi.hoisted(() => ({
   draft: { isEnabled: false },
   jar: new Map<string, string>(),
+  requestHeaders: new Map<string, string>(),
   session: {
     current: null as null | { actor: { userId: string; roles: string[] } },
   },
@@ -16,6 +17,7 @@ vi.mock("next/headers", () => ({
     get: (name: string) =>
       jar.has(name) ? { name, value: jar.get(name)! } : undefined,
   }),
+  headers: async () => new Headers([...requestHeaders]),
 }))
 vi.mock("next/navigation", () => ({ redirect }))
 vi.mock("@/server/auth/session", () => ({
@@ -26,6 +28,7 @@ import {
   assertPreviewAccess,
   isPreviewing,
 } from "@/server/modules/preview/guard"
+import { REQUEST_PATH_HEADER } from "@/lib/request-path"
 import { safeReturnPath } from "@/server/modules/preview/service"
 import {
   PREVIEW_COOKIE,
@@ -44,6 +47,7 @@ beforeEach(() => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000"
   draft.isEnabled = false
   jar.clear()
+  requestHeaders.clear()
   session.current = null
   redirect.mockClear()
 })
@@ -133,6 +137,25 @@ describe("assertPreviewAccess (draft content only for the signed-in previewer)",
     session.current = { actor: { userId: "user-1", roles: ["editor"] } }
     await expect(assertPreviewAccess()).rejects.toThrow(
       "NEXT_REDIRECT /api/v1/preview/exit"
+    )
+  })
+})
+
+describe("assertPreviewAccess (exit returns to the page)", () => {
+  it("passes the page proxy.ts saw to the exit route", async () => {
+    draft.isEnabled = true
+    requestHeaders.set(REQUEST_PATH_HEADER, "/terms?x=1")
+    // A document request redirects over HTTP (blocking metadata): no Referer
+    // names the page, so the exit route gets it as ?to.
+    await expect(assertPreviewAccess()).rejects.toThrow(
+      "NEXT_REDIRECT /api/v1/preview/exit?to=%2Fterms%3Fx%3D1"
+    )
+  })
+
+  it("without the header the exit route falls back to the Referer", async () => {
+    draft.isEnabled = true
+    await expect(assertPreviewAccess()).rejects.toThrow(
+      /^NEXT_REDIRECT \/api\/v1\/preview\/exit$/
     )
   })
 })

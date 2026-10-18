@@ -48,8 +48,9 @@ export const adminPreviewRoutes = new Hono<AppEnv>().get(
 )
 
 /**
- * GET /api/v1/preview/exit — leaves draft mode (no session needed) and
- * returns to the page the preview bar was on.
+ * GET /api/v1/preview/exit[?to=/path] — leaves draft mode (no session
+ * needed) and returns to the page: `to` when the preview guard sent it,
+ * else the Referer (the preview bar's form). Both are same-origin checked.
  */
 export const previewExitRoutes = new Hono<AppEnv>().get("/exit", async (c) => {
   ;(await draftMode()).disable()
@@ -60,5 +61,7 @@ export const previewExitRoutes = new Hono<AppEnv>().get("/exit", async (c) => {
     expires: new Date(0),
   })
   const origin = new URL(getEnv().BETTER_AUTH_URL).origin
-  return c.redirect(safeReturnPath(c.req.header("referer"), origin), 302)
+  const to = c.req.query("to")
+  const back = to ? new URL(to, origin).href : c.req.header("referer")
+  return c.redirect(safeReturnPath(back, origin), 302)
 })
