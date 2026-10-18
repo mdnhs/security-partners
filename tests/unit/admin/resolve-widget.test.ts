@@ -12,11 +12,13 @@ import {
   arrayBounds,
   resolveWidget,
 } from "@/components/admin/schema-form/resolve-widget"
+import { SEO_FIELDS_META } from "@/components/admin/seo/seo-meta"
 import {
   link,
   mediaRef,
   paragraphsText,
   richText,
+  seo,
   text,
 } from "@/lib/schemas/common"
 import { categorySchema } from "@/lib/schemas/content/category"
@@ -142,6 +144,37 @@ describe("resolveWidget covers every shipped schema (master 4.3)", () => {
     expect(() => resolveWidget(z.date(), {}, "when", "a.when")).toThrow(
       'No widget for field "a.when"'
     )
+  })
+
+  it("edits a pipe as its input schema (seo.canonical)", () => {
+    const piped = z.string().max(20).pipe(z.url()).optional()
+    expect(resolveWidget(piped, {}, "canonical", "canonical")).toMatchObject({
+      kind: "text",
+      optional: true,
+    })
+    expect(
+      resolveWidget(
+        z.string().transform((v) => v.trim()),
+        {},
+        "body",
+        "body"
+      ).kind
+    ).toBe("textarea")
+    expect(walk(seo, SEO_FIELDS_META)).toMatchObject({
+      title: "text",
+      description: "textarea",
+      canonical: "text",
+      ogImage: "media",
+      noindex: "toggle",
+    })
+    expect(
+      resolveWidget(
+        seo.shape.canonical,
+        SEO_FIELDS_META.fields.canonical!,
+        "canonical",
+        "canonical"
+      )
+    ).toMatchObject({ kind: "text", icon: "url", optional: true })
   })
 })
 

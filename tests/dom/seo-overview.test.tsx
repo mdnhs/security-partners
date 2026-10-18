@@ -187,6 +187,54 @@ describe("SEO overview (master 8.1)", () => {
     )
   })
 
+  it("closing with unsaved edits asks first; untouched closes at once", async () => {
+    nav.params = new URLSearchParams("edit=page:home")
+    const user = userEvent.setup()
+    renderAs(["editor"])
+    const sheet = await screen.findByRole("dialog", { name: "SEO: Home" })
+    // Untouched: Esc closes straight away.
+    await user.keyboard("{Escape}")
+    expect(nav.replace).toHaveBeenLastCalledWith("/admin/seo", {
+      scroll: false,
+    })
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    nav.replace.mockClear()
+
+    await user.type(
+      within(sheet).getByRole("textbox", { name: /^Description/ }),
+      "Draft words"
+    )
+    await user.keyboard("{Escape}")
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Discard your SEO changes?",
+    })
+    expect(nav.replace).not.toHaveBeenCalled()
+    await user.click(
+      within(confirm).getByRole("button", { name: "Keep editing" })
+    )
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(
+      within(sheet).getByRole("textbox", { name: /^Description/ })
+    ).toHaveValue("Draft words")
+    expect(nav.replace).not.toHaveBeenCalled()
+
+    await user.keyboard("{Escape}")
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "Discard your SEO changes?",
+        })
+      ).getByRole("button", { name: "Discard changes" })
+    )
+    expect(nav.replace).toHaveBeenLastCalledWith("/admin/seo", {
+      scroll: false,
+    })
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: "PUT" })
+    )
+  })
+
   it("viewers can look but not save", async () => {
     nav.params = new URLSearchParams("edit=page:home")
     renderAs(["viewer"])

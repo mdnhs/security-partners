@@ -17,8 +17,8 @@ export const SEO_FIELDS_META: EditorMeta = {
     canonical: {
       label: "Canonical address",
       help: "Only when the main copy of this content lives at another address. Normally empty.",
-      // A z.string().pipe(httpUrl) (raw text checked first): no automatic widget.
-      widget: "text",
+      // z.string().pipe(httpUrl): a text input (resolveWidget edits a pipe's
+      // input); the name alone would not give it the link icon.
       icon: "url",
       placeholder: "https://",
     },

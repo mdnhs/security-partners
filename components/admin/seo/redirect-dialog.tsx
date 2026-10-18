@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation } from "@tanstack/react-query"
-import { type FormEvent, useState } from "react"
+import { type FormEvent, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { FORM_ACTION } from "@/components/admin/page-header"
@@ -65,6 +65,8 @@ export function RedirectDialog({
   const [toPath, setToPath] = useState(redirect?.toPath ?? "")
   const [code, setCode] = useState<301 | 302>(redirect?.code ?? 301)
   const [errors, setErrors] = useState<Record<string, string[]>>({})
+  const fromRef = useRef<HTMLInputElement>(null)
+  const toRef = useRef<HTMLInputElement>(null)
   const title = redirect ? "Edit redirect" : "Add redirect"
   const save = useMutation({
     mutationFn: () =>
@@ -84,8 +86,14 @@ export function RedirectDialog({
     onError: (error) => {
       const fieldErrors = error instanceof ApiError ? error.fieldErrors : {}
       setErrors(fieldErrors)
-      if (Object.keys(fieldErrors).length === 0)
+      // Errors on other keys (code, a root refine) have no inline place.
+      if (!fieldErrors.fromPath?.length && !fieldErrors.toPath?.length) {
         toast.error("Not saved", { description: errorMessage(error) })
+        return
+      }
+      // Focus the first invalid field so screen readers announce its error.
+      const first = fieldErrors.fromPath?.length ? fromRef : toRef
+      first.current?.focus()
     },
   })
   const submit = (event: FormEvent) => {
@@ -119,6 +127,7 @@ export function RedirectDialog({
           >
             <Input
               id="redirect-from"
+              ref={fromRef}
               value={fromPath}
               onChange={(e) => setFromPath(e.target.value)}
               required
@@ -136,6 +145,7 @@ export function RedirectDialog({
           >
             <Input
               id="redirect-to"
+              ref={toRef}
               value={toPath}
               onChange={(e) => setToPath(e.target.value)}
               required

@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { toast } from "sonner"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/navigation", () => ({
@@ -47,6 +48,14 @@ const fetchMock = vi.fn(
             fieldErrors: { toPath: ["This would loop: /a → /old-alarms → /a"] },
           },
         })
+      if (body.toPath === "/code-error")
+        return json(422, {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Choose permanent or temporary",
+            fieldErrors: { code: ["Choose permanent or temporary"] },
+          },
+        })
       return json(201, { ...ROW, id: "new", ...body })
     }
     if (method === "DELETE") return json(200, { ok: true })
@@ -54,7 +63,10 @@ const fetchMock = vi.fn(
   }
 )
 
+const toastError = vi.spyOn(toast, "error")
+
 beforeEach(() => {
+  toastError.mockClear()
   fetchMock.mockClear()
   vi.stubGlobal("fetch", fetchMock)
 })
@@ -126,6 +138,29 @@ describe("Redirects screen (master 8.2)", () => {
       "aria-invalid",
       "true"
     )
+    // Focus moves to the invalid field, so its error is announced.
+    expect(within(dialog).getByLabelText("New address")).toHaveFocus()
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it("an error with no inline field (code) is a toast, not lost", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(
+      await screen.findByRole("button", { name: "Add redirect" })
+    )
+    const dialog = screen.getByRole("dialog", { name: "Add redirect" })
+    await user.type(within(dialog).getByLabelText("Old address"), "/b")
+    await user.type(within(dialog).getByLabelText("New address"), "/code-error")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Add redirect" })
+    )
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Not saved", {
+        description: "Choose permanent or temporary",
+      })
+    )
+    expect(screen.getByRole("dialog", { name: "Add redirect" })).toBeVisible()
   })
 
   it("adding a valid redirect posts it and closes the dialog", async () => {

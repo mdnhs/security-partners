@@ -65,17 +65,30 @@ test("SEO overview: the sheet saves a page's description", async ({ page }) => {
   const sheet = page.getByRole("dialog", { name: "SEO: Terms of use" })
   const description = sheet.getByRole("textbox", { name: /^Description/ })
   const before = await description.inputValue()
-  await description.fill(
-    "The terms that apply when you use the Security Partners website."
-  )
-  await sheet.getByRole("button", { name: "Save SEO" }).click()
-  await expect(sheet).toBeHidden()
   try {
+    await description.fill(
+      "The terms that apply when you use the Security Partners website."
+    )
+    await sheet.getByRole("button", { name: "Save SEO" }).click()
+    await expect(sheet).toBeHidden()
     const head = await (await page.request.get("/terms")).text()
     expect(head).toContain(
       'content="The terms that apply when you use the Security Partners website."'
     )
   } finally {
+    // A failed save leaves the sheet open with unsaved edits: close it
+    // (Esc, then confirm the discard) so the restore can reopen it.
+    if (await sheet.isVisible()) {
+      await page.keyboard.press("Escape")
+      const discard = page
+        .getByRole("alertdialog", { name: "Discard your SEO changes?" })
+        .getByRole("button", { name: "Discard changes" })
+      await discard
+        .waitFor({ timeout: 2_000 })
+        .then(() => discard.click())
+        .catch(() => {})
+      await expect(sheet).toBeHidden()
+    }
     // restore
     await page
       .getByRole("button", { name: "Edit SEO for Terms of use" })

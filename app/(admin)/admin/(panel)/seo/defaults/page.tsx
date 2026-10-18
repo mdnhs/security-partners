@@ -17,11 +17,6 @@ export default function SeoDefaultsPage() {
 
 async function Editor() {
   await requirePermission(GROWTH_SETTINGS["seo.defaults"].read)
-  return (
-    <GrowthSettingsEditor
-      settingsKey="seo.defaults"
-      backHref="/admin/seo"
-      backLabel="SEO overview"
-    />
-  )
+  // Inside the SEO route tabs: no back link (the Overview tab is beside it).
+  return <GrowthSettingsEditor settingsKey="seo.defaults" />
 }

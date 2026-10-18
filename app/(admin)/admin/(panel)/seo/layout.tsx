@@ -4,5 +4,5 @@ import { NavChildTabs } from "@/components/admin/shell/nav-child-tabs"
 export default function SeoLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <NavChildTabs section="SEO">{children}</NavChildTabs>
+  return <NavChildTabs basePath="/admin/seo">{children}</NavChildTabs>
 }

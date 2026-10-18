@@ -4,9 +4,19 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -24,6 +34,16 @@ import { filled } from "@/lib/seo/effective"
 import { SEO_OVERVIEW_KEY } from "./keys"
 import { SEO_FIELDS_META } from "./seo-meta"
 import { SerpPreview } from "./serp-preview"
+
+/** Same SEO fields? (key order and undefined keys do not count). */
+function sameSeo(a: Seo, b: Seo): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  return [...keys].every(
+    (key) =>
+      JSON.stringify(a[key as keyof Seo]) ===
+      JSON.stringify(b[key as keyof Seo])
+  )
+}
 
 /** One record's SEO fields in a right sheet (JW detail pattern); saves are live. */
 export function SeoSheet({
@@ -67,14 +87,45 @@ export function SeoSheet({
       toast.error("Not saved", { description: errorMessage(error) })
     },
   })
+  const dirty = canEdit && !sameSeo(value, entry.seo)
+  const [confirmClose, setConfirmClose] = useState(false)
   return (
     <Sheet
       open
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (open) return
+        // Esc, the close button or a click outside: never drop edits silently.
+        if (dirty) setConfirmClose(true)
+        else onClose()
       }}
     >
       <SheetContent className="w-full overflow-y-auto bg-card sm:max-w-xl">
+        <UnsavedGuard when={dirty} />
+        {/* Inside the sheet's popup: a nested dialog (Esc closes it only). */}
+        <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard your SEO changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The changes to {entry.name} are not saved. The live page keeps
+                its current settings.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  setConfirmClose(false)
+                  onClose()
+                }}
+              >
+                Discard changes
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <SheetHeader>
           <SheetTitle className="text-lg font-semibold">
             SEO: {entry.name}
