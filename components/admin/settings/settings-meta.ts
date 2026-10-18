@@ -217,7 +217,27 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         itemLabel: "text",
       },
       form: { label: "Contact form" },
-      "form.mailtoSubject": { label: "Email subject" },
+      "form.sendingLabel": { label: "Button text while sending" },
+      "form.successMessage": {
+        label: "Message after sending",
+        widget: "textarea",
+        rows: 2,
+      },
+      "form.errorMessage": {
+        label: "Message when sending fails",
+        widget: "textarea",
+        rows: 2,
+      },
+      "form.rateLimitedMessage": {
+        label: "Message after too many attempts",
+        help: "Shown when one visitor sends more than 5 messages in 10 minutes.",
+        widget: "textarea",
+        rows: 2,
+      },
+      "form.mailtoSubject": {
+        label: "Notification email subject",
+        help: "Subject of the email staff receive for each enquiry. {name} is the visitor's name.",
+      },
       map: { label: "Map" },
       "map.tiles": {
         label: "Map tile address",

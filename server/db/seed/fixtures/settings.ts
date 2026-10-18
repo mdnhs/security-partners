@@ -165,6 +165,13 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
         messageLabel: "Message",
         messagePlaceholder: "Tell us about your security requirements...",
         submitLabel: "Send Message",
+        sendingLabel: "Sending…",
+        successMessage:
+          "Thank you, your message has been sent. We will be in touch shortly.",
+        errorMessage:
+          "Sorry, your message could not be sent. Please try again or call us.",
+        rateLimitedMessage:
+          "You have sent several messages in a short time. Please wait a few minutes and try again.",
         mailtoSubject: "Website enquiry from {name}",
       },
       map: {

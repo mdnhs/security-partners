@@ -26,6 +26,13 @@ export const contactSectionSettings = z.object({
     messageLabel: text,
     messagePlaceholder: text,
     submitLabel: text,
+    /** Button text while the enquiry is being sent. */
+    sendingLabel: text,
+    successMessage: text,
+    errorMessage: text,
+    /** Shown on 429 (more than 5 enquiries in 10 minutes). */
+    rateLimitedMessage: text,
+    /** Subject of the staff notification email; {name} = the visitor. */
     mailtoSubject: text,
   }),
   map: z.object({

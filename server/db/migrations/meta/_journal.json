@@ -50,6 +50,13 @@
       "when": 1792337332334,
       "tag": "0006_public_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792346529616,
+      "tag": "0007_contact_form_feedback",
+      "breakpoints": true
     }
   ]
 }

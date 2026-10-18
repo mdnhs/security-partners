@@ -38,6 +38,39 @@ test.describe("public site from the database", () => {
     })
   }
 
+  test("the contact form posts to the leads API and shows the success copy", async ({
+    page,
+  }) => {
+    // No Turnstile site key in the e2e seed: no external script may load.
+    const external: string[] = []
+    await page.route("https://challenges.cloudflare.com/**", (route) => {
+      external.push(route.request().url())
+      return route.abort()
+    })
+    await page.goto("/contact")
+    const status = page.locator('form p[role="status"]')
+    await expect(status).toHaveClass("sr-only")
+    await expect(status).toHaveText("")
+
+    await page.getByLabel("Your Name").fill("E2E Visitor")
+    await page.getByLabel("Email").fill("visitor@example.ie")
+    await page.getByLabel("Message").fill("Need a quote for two sites")
+    const posted = page.waitForResponse(
+      (r) =>
+        r.url().endsWith("/api/v1/public/leads") &&
+        r.request().method() === "POST"
+    )
+    await page.getByRole("button", { name: "Send Message" }).click()
+    expect((await posted).status()).toBe(200)
+    await expect(
+      page.getByText(
+        "Thank you, your message has been sent. We will be in touch shortly."
+      )
+    ).toBeVisible()
+    await expect(page.getByLabel("Your Name")).toHaveValue("")
+    expect(external).toEqual([])
+  })
+
   test("footer legal links point at /privacy and /terms", async ({ page }) => {
     await page.goto("/")
     const footer = page.locator("footer")

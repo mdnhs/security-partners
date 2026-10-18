@@ -97,10 +97,9 @@ describe("view builders reproduce the static site's data (fixture sources)", () 
       text: "Tel: (057) 8697670 Ext 3",
       href: "tel:+353578697670",
     })
-    expect(view.contact.form.mailto).toEqual({
-      email: "info@securitypartnersltd.com",
-      subject: "Website enquiry from {name}",
-    })
+    // Phase 7: the form posts to the leads API; no mailto hand-off.
+    expect(view.contact.form).not.toHaveProperty("mailto")
+    expect(view.contact.form.labels.submitLabel).toBe("Send Message")
   })
 
   it("about, services and team pages", () => {

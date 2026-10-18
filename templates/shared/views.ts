@@ -171,7 +171,7 @@ export function aboutSectionView(s: SiteSources): AboutProps {
 export function contactSectionView(s: SiteSources): ContactProps {
   const section = s.settings["sections.contact"]
   const values = placeholders(s)
-  const { mailtoSubject, ...labels } = section.form
+  const f = section.form
   return {
     eyebrow: section.eyebrow,
     heading: section.heading,
@@ -185,8 +185,21 @@ export function contactSectionView(s: SiteSources): ContactProps {
       })),
     })),
     form: {
-      labels,
-      mailto: { email: s.settings.contact.email, subject: mailtoSubject },
+      labels: {
+        nameLabel: f.nameLabel,
+        namePlaceholder: f.namePlaceholder,
+        emailLabel: f.emailLabel,
+        emailPlaceholder: f.emailPlaceholder,
+        phoneLabel: f.phoneLabel,
+        phonePlaceholder: f.phonePlaceholder,
+        messageLabel: f.messageLabel,
+        messagePlaceholder: f.messagePlaceholder,
+        submitLabel: f.submitLabel,
+        sendingLabel: f.sendingLabel,
+        successMessage: f.successMessage,
+        errorMessage: f.errorMessage,
+        rateLimitedMessage: f.rateLimitedMessage,
+      },
     },
   }
 }

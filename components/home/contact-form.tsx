@@ -1,8 +1,12 @@
 "use client"
 
+import { useRef, useState } from "react"
+
 import { buttonClassName } from "@/components/ui/button"
-import { interpolate } from "@/lib/interpolate"
+import { LEADS_ENDPOINT } from "@/lib/schemas/api/leads"
 import { cn } from "@/lib/utils"
+
+import { useTurnstile } from "./use-turnstile"
 
 const inputClass =
   "w-full rounded-xl border border-brand-line bg-brand-surface px-[18px] text-[15px] text-brand-navy outline-none placeholder:text-brand-placeholder focus-visible:border-brand-blue focus-visible:ring-3 focus-visible:ring-brand-blue/20"
@@ -31,41 +35,87 @@ function Field({
   )
 }
 
-export type ContactFormProps = {
-  labels: {
-    nameLabel: string
-    namePlaceholder: string
-    emailLabel: string
-    emailPlaceholder: string
-    phoneLabel: string
-    phonePlaceholder: string
-    messageLabel: string
-    messagePlaceholder: string
-    submitLabel: string
-  }
-  /** Until Phase 7 the enquiry opens the visitor's mail client. */
-  mailto: { email: string; subject: string }
+export type ContactFormLabels = {
+  nameLabel: string
+  namePlaceholder: string
+  emailLabel: string
+  emailPlaceholder: string
+  phoneLabel: string
+  phonePlaceholder: string
+  messageLabel: string
+  messagePlaceholder: string
+  submitLabel: string
+  sendingLabel: string
+  successMessage: string
+  errorMessage: string
+  rateLimitedMessage: string
 }
 
-export function ContactForm({ labels, mailto }: ContactFormProps) {
-  // No backend yet: hand the enquiry to the visitor's mail client.
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+export type ContactFormProps = { labels: ContactFormLabels }
+
+type Feedback = { kind: "success" | "error"; message: string }
+
+/**
+ * Enquiry form (spec §9): posts to the leads API. Everything added for the
+ * API is absolutely positioned (outside the flex flow) so the form looks
+ * exactly as before until it is submitted.
+ */
+export function ContactForm({ labels }: ContactFormProps) {
+  const [sending, setSending] = useState(false)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const turnstileSlot = useRef<HTMLDivElement>(null)
+  const turnstile = useTurnstile(turnstileSlot)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const name = String(data.get("name") ?? "")
-    const body = [
-      `Name: ${name}`,
-      `Email: ${data.get("email") ?? ""}`,
-      `Phone: ${data.get("phone") ?? ""}`,
-      "",
-      String(data.get("message") ?? ""),
-    ].join("\n")
-    const subject = interpolate(mailto.subject, { name })
-    window.location.href = `mailto:${mailto.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    if (sending) return
+    const form = event.currentTarget
+    const data = new FormData(form)
+    const field = (name: string) => String(data.get(name) ?? "")
+    setSending(true)
+    setFeedback(null)
+    try {
+      const turnstileToken = await turnstile.getToken()
+      const res = await fetch(LEADS_ENDPOINT, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: field("name"),
+          email: field("email"),
+          phone: field("phone"),
+          message: field("message"),
+          consent: true,
+          sourcePage: window.location.pathname,
+          website: field("website"),
+          ...(turnstileToken ? { turnstileToken } : {}),
+        }),
+      })
+      if (res.ok) {
+        form.reset()
+        setFeedback({ kind: "success", message: labels.successMessage })
+      } else {
+        setFeedback({
+          kind: "error",
+          message:
+            res.status === 429
+              ? labels.rateLimitedMessage
+              : labels.errorMessage,
+        })
+      }
+    } catch {
+      setFeedback({ kind: "error", message: labels.errorMessage })
+    } finally {
+      setSending(false)
+      turnstile.reset()
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form
+      onSubmit={handleSubmit}
+      onFocus={() => void turnstile.prepare()}
+      className="flex flex-col gap-5"
+    >
       <div className="flex flex-col gap-4 sm:flex-row">
         <Field label={labels.nameLabel} htmlFor="name" className="flex-1">
           <input
@@ -110,13 +160,45 @@ export function ContactForm({ labels, mailto }: ContactFormProps) {
       </Field>
       <button
         type="submit"
+        disabled={sending}
         className={buttonClassName(
           { variant: "brand", size: "pill" },
           "w-full"
         )}
       >
-        {labels.submitLabel}
+        {sending ? labels.sendingLabel : labels.submitLabel}
       </button>
+      {/* Honeypot: invisible to people and assistive tech, filled by bots. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 -left-[10000px] h-px w-px overflow-hidden opacity-0"
+      >
+        <label htmlFor="website">Website</label>
+        <input
+          id="website"
+          name="website"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+        />
+      </div>
+      <div ref={turnstileSlot} className="absolute h-0 w-0 overflow-hidden" />
+      <p
+        role="status"
+        aria-live="polite"
+        className={
+          feedback
+            ? cn(
+                "text-[15px] leading-normal font-bold",
+                feedback.kind === "success"
+                  ? "text-brand-green-dark"
+                  : "text-red-700"
+              )
+            : "sr-only"
+        }
+      >
+        {feedback?.message ?? ""}
+      </p>
     </form>
   )
 }
