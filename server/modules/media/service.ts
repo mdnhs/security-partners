@@ -56,7 +56,11 @@ import { mediaUrl } from "@/server/lib/storage/paths"
 import type { ByteRange, StoredStream } from "@/server/lib/storage/types"
 import { sanitizeSvg, SvgSanitizeError } from "@/server/lib/svg-sanitize"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
-import { enqueueKeyedJob, findJobByKey } from "@/server/modules/jobs/repo"
+import {
+  enqueueKeyedJob,
+  findJobByKey,
+  insertKeyedJobIfAbsent,
+} from "@/server/modules/jobs/repo"
 
 import {
   countMediaByDriver,
@@ -503,11 +507,63 @@ export async function deleteMedia(
   return { ok: true }
 }
 
+// Replaced files (final review minor 10). The job module imports this
+// service, so its name is repeated here (no import cycle).
+export const RETIRED_MEDIA_JOB_NAME = "delete-retired-media"
+const RETIRED_KEY_PREFIX = "media-retired:"
+/**
+ * How long a replaced file stays servable at its old URL: pages already
+ * rendered with it (open tabs, bfcache, a CDN or proxy cache) keep working.
+ */
+export const RETIRED_FILE_GRACE_MS = 24 * 60 * 60_000
+
+/** jobs.payload of a retired file: enough to serve it, then delete it. */
+type RetiredFile = Omit<MediaFile, "etag"> & { mediaId: string }
+
+function retiredFileOf(payload: unknown): RetiredFile | null {
+  if (typeof payload !== "object" || payload === null) return null
+  const p = payload as Record<string, unknown>
+  if (
+    typeof p.key !== "string" ||
+    (p.driver !== "disk" && p.driver !== "r2") ||
+    typeof p.mime !== "string" ||
+    typeof p.size !== "number" ||
+    typeof p.mediaId !== "string"
+  )
+    return null
+  return {
+    key: p.key,
+    driver: p.driver,
+    mime: p.mime,
+    size: p.size,
+    originalName: typeof p.originalName === "string" ? p.originalName : "",
+    mediaId: p.mediaId,
+  }
+}
+
+/** The retired-file job (scheduler): deletes the file once the grace period is over. */
+export async function deleteRetiredMediaFile(
+  payload: unknown
+): Promise<{ warning?: string }> {
+  const file = retiredFileOf(payload)
+  if (!file) return { warning: "Unreadable retired-file job; nothing deleted" }
+  const storage = await storageFor(file.driver)
+  if (!storage)
+    return {
+      warning: `R2 is not configured any more; ${file.key} was left in the old bucket`,
+    }
+  // Errors propagate: the scheduler retries the job.
+  await storage.delete(file.key)
+  return {}
+}
+
 /**
  * New file for the same media row (spec §8.1 "replace"): usages keep
  * pointing at the id; the new key makes a new immutable URL. Same pipeline
- * as an upload (sniffing, sanitising, re-encoding, active driver, R2 guard);
- * the old file is deleted only after the commit.
+ * as an upload (sniffing, sanitising, re-encoding, active driver, R2 guard).
+ * The old file is retired, not deleted: a keyed job written in the same
+ * transaction keeps it servable at its old URL for RETIRED_FILE_GRACE_MS,
+ * then deletes it.
  */
 export async function replaceMedia(
   actor: Actor,
@@ -524,9 +580,9 @@ export async function replaceMedia(
         ? "Replace an image with another image, so the pages using it keep working"
         : "Replace a document with another PDF"
     )
-  const { updated, old } = await storePrepared(prepared, async (tx, stored) => {
+  const { updated } = await storePrepared(prepared, async (tx, stored) => {
     // Locked: a concurrent replace or delete runs before or after this one,
-    // so `old` is the key this commit really stops pointing at.
+    // so `current.key` is the key this commit really stops pointing at.
     const current = await lockMediaRow(tx, id)
     if (!current) throw notFound("Media")
     const row = await updateMediaRow(tx, id, {
@@ -554,9 +610,23 @@ export async function replaceMedia(
         driver: stored.driver,
       },
     })
-    return { updated: row, old: current }
+    // Static files live in public/ and are never deleted.
+    if (current.driver !== "static")
+      await insertKeyedJobIfAbsent(tx, {
+        name: RETIRED_MEDIA_JOB_NAME,
+        key: `${RETIRED_KEY_PREFIX}${current.key}`,
+        runAt: new Date(Date.now() + RETIRED_FILE_GRACE_MS),
+        payload: {
+          key: current.key,
+          driver: current.driver,
+          mime: current.mime,
+          size: current.size,
+          originalName: current.originalName,
+          mediaId: id,
+        } satisfies RetiredFile,
+      })
+    return { updated: row }
   })
-  await deleteStoredFile(old, id)
   invalidate(tag.media(id))
   return toItem(updated)
 }
@@ -577,7 +647,13 @@ export type MediaFile = {
 
 /** The servable file named by `key` (null = 404); no storage is touched. */
 export async function findMediaFile(key: string): Promise<MediaFile | null> {
-  const row = await findServableMedia(getDb(), key)
+  const found = await findServableMedia(getDb(), key)
+  // A replaced file stays servable until its retired-file job deletes it.
+  const row =
+    found ??
+    retiredFileOf(
+      (await findJobByKey(getDb(), `${RETIRED_KEY_PREFIX}${key}`))?.payload
+    )
   if (!row || row.driver === "static") return null
   const hash = createHash("sha256")
     .update(`${row.key}\n${row.size}\n${row.mime}`)

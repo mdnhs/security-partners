@@ -226,9 +226,25 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
           .fieldErrors
       ).sort()
     ).toEqual(["accessKeyId", "secretAccessKey"])
-    // The bucket name is not a target: the keys stay.
+    // A new bucket is a new target too: the keys must be entered again.
+    const bucket = await put(owner, "integrations.r2", 1, {
+      bucket: "sp-media-2",
+    })
+    expect(bucket.status).toBe(422)
     expect(
-      (await put(owner, "integrations.r2", 1, { bucket: "sp-media-2" })).status
+      Object.keys(
+        (JSON.parse(bucket.text) as { error: { fieldErrors: object } }).error
+          .fieldErrors
+      ).sort()
+    ).toEqual(["accessKeyId", "secretAccessKey"])
+    // Rotating the keys for the same bucket needs nothing else.
+    expect(
+      (
+        await put(owner, "integrations.r2", 1, {
+          accessKeyId: "AKIDROTATED5678",
+          secretAccessKey: "r2-secret-access-key-1111",
+        })
+      ).status
     ).toBe(200)
 
     await put(owner, "integrations.ai", 0, {
@@ -486,6 +502,66 @@ describe("DELETE /api/v1/admin/integrations/:key (Disconnect)", () => {
       method: "DELETE",
     })
     expect(res.status).toBe(409)
+  })
+})
+
+describe("PUT integrations.r2 while files are stored there (final review I2)", () => {
+  const r2Values = {
+    accountId: "0123456789abcdef0123456789abcdef",
+    jurisdiction: "default",
+    bucket: "sp-media",
+    accessKeyId: "AKID1234",
+    secretAccessKey: R2_SECRET,
+  }
+  const storeOneFile = () =>
+    getDb().insert(media).values({
+      key: "2026/10/0190a6e0-0000-7000-8000-000000000002.png",
+      driver: "r2",
+      mime: "image/png",
+      size: 10,
+    })
+
+  it.each([
+    ["bucket", { bucket: "sp-media-2" }],
+    ["account", { accountId: "fedcba9876543210fedcba9876543210" }],
+    ["jurisdiction", { jurisdiction: "eu" }],
+  ])(
+    "a new %s → 409 naming the stored files; the row is unchanged",
+    async (_name, change) => {
+      await put(owner, "integrations.r2", 0, r2Values)
+      await storeOneFile()
+      const before = await rawDraft("integrations.r2")
+      const res = await put(owner, "integrations.r2", 1, {
+        ...r2Values,
+        ...change,
+        accessKeyId: "AKIDNEW5678",
+        secretAccessKey: "r2-secret-access-key-2222",
+      })
+      expect(res.status).toBe(409)
+      expect(
+        (JSON.parse(res.text) as { error: { message: string } }).error.message
+      ).toMatch(/1 uploaded file is stored in the current R2 bucket/)
+      expect(await rawDraft("integrations.r2")).toEqual(before)
+    }
+  )
+
+  it("rotating the keys of the same bucket still saves", async () => {
+    await put(owner, "integrations.r2", 0, r2Values)
+    await storeOneFile()
+    const res = await put(owner, "integrations.r2", 1, {
+      accessKeyId: "AKIDNEW5678",
+      secretAccessKey: "r2-secret-access-key-2222",
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it("without stored files the bucket may change (keys entered again)", async () => {
+    await put(owner, "integrations.r2", 0, r2Values)
+    const res = await put(owner, "integrations.r2", 1, {
+      ...r2Values,
+      bucket: "sp-media-2",
+    })
+    expect(res.status).toBe(200)
   })
 })
 

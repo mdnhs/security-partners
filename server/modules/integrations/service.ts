@@ -217,10 +217,11 @@ const RETARGET_RULES: Partial<
     secrets: { password: "Enter the password again for the new server" },
   },
   "integrations.r2": {
-    targets: ["accountId", "jurisdiction"],
+    // Every field that shapes where files are read from and written to.
+    targets: ["accountId", "jurisdiction", "bucket"],
     secrets: {
-      accessKeyId: "Enter the access key ID again for the new account",
-      secretAccessKey: "Enter the secret access key again for the new account",
+      accessKeyId: "Enter the access key ID again for the new bucket",
+      secretAccessKey: "Enter the secret access key again for the new bucket",
     },
   },
   "integrations.ai": {
@@ -250,6 +251,28 @@ function retargetErrors(
       errors[field] = [message]
   }
   return errors
+}
+
+/**
+ * Stored r2 files live only in the current bucket (migrate-media deletes the
+ * disk copies): pointing R2 at another account, jurisdiction or bucket would
+ * break every stored file's URL, and backups would stop being pruned in the
+ * old bucket. Same rule as Disconnect. The caller holds the settings row lock.
+ */
+async function assertR2NotRetargetedWithFiles(
+  tx: DbOrTx,
+  previous: Values,
+  next: Values
+): Promise<void> {
+  const targets = RETARGET_RULES["integrations.r2"]?.targets ?? []
+  if (targets.every((field) => sameValue(next[field], previous[field]))) return
+  const stored = await countMediaByDriver(tx, "r2")
+  if (stored === 0) return
+  const one = stored === 1
+  throw new AppError(
+    "CONFLICT",
+    `${stored} uploaded file${one ? " is" : "s are"} stored in the current R2 bucket. The account, location and bucket cannot change while ${one ? "it is" : "they are"} there: delete ${one ? "it" : "them"} from the media library first.`
+  )
 }
 
 /** Host names compare case-insensitively, without surrounding space. */
@@ -302,11 +325,24 @@ export async function saveIntegration(
       }
     : null
   return getDb().transaction(async (tx) => {
+    // R2: row lock first, in the same order as Disconnect and uploads
+    // (media `lockR2Settings` holds it FOR SHARE), so the file count below
+    // cannot miss an upload in flight.
+    if (key === "integrations.r2") await lockIntegrationRow(tx, key)
     const row = await findIntegrationRow(tx, key)
     if ((row?.version ?? 0) !== input.version) throw conflict(toDto(key, row))
     const opened = row ? openRow(key, row) : null
     const previous = opened?.values ?? null
     const merged = mergeValues(key, input.values, previous)
+    if (key === "integrations.r2" && previous) {
+      // Before field validation: re-entering the keys cannot help here.
+      const candidate = INTEGRATIONS[key].schema.safeParse(merged)
+      await assertR2NotRetargetedWithFiles(
+        tx,
+        previous,
+        candidate.success ? (candidate.data as Values) : merged
+      )
+    }
     // SMTP without sign-in sends no password: none is kept.
     if (key === "integrations.smtp" && String(merged.user ?? "").trim() === "")
       merged.password = ""

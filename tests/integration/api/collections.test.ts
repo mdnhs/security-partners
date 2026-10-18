@@ -16,7 +16,7 @@ import type {
 import type { Paginated } from "@/lib/schemas/api/list"
 import type { ServiceDto, ServiceListItem } from "@/lib/schemas/api/services"
 import { getDb } from "@/server/db/client"
-import { media, revisions, services } from "@/server/db/schema"
+import { clients, media, revisions, services } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { listMediaUsagesFor } from "@/server/modules/media/repo"
 
@@ -338,6 +338,41 @@ describe("services (master 4.6): draft/publish, slug, delete", () => {
   })
 })
 
+describe("concurrent saves of one record (final review minor 2)", () => {
+  it("queue up on the row: all succeed, one revision each, no false duplicate-name 409", async () => {
+    const client = await json<ClientItem>(
+      await adminRequest("/clients", {
+        cookie: editor,
+        method: "POST",
+        json: { name: "Race Ltd", logo: { mediaId: logoId }, url: null },
+      })
+    )
+    const statuses = await Promise.all(
+      Array.from({ length: 8 }, async (_, i) => {
+        const res = await adminRequest(`/clients/${client.id}`, {
+          cookie: editor,
+          method: "PUT",
+          json: {
+            name: "Race Ltd",
+            logo: { mediaId: logoId },
+            url: `https://race.example/${i}`,
+          },
+        })
+        return [res.status, await res.text()] as const
+      })
+    )
+    expect(statuses.filter(([status]) => status !== 200)).toEqual([])
+    const revs = await getDb()
+      .select({ version: revisions.version })
+      .from(revisions)
+      .where(eq(revisions.entityId, client.id))
+    expect(revs).toHaveLength(9)
+    expect(await listMediaUsagesFor(getDb(), "client", client.id)).toEqual([
+      { mediaId: logoId, field: "logo" },
+    ])
+  })
+})
+
 describe("PUT /reorder/:collection (master 4.6)", () => {
   it("persists sortOrder and invalidates the collection tag", async () => {
     const { items } = await json<Paginated<TeamItem>>(
@@ -356,6 +391,37 @@ describe("PUT /reorder/:collection (master 4.6)", () => {
     expect(after.items.map((t) => t.id)).toEqual(reversed)
     expect(after.items.map((t) => t.sortOrder)).toEqual([0, 1, 2, 3])
     expect(revalidateTag).toHaveBeenCalledWith("team", { expire: 0 })
+  })
+
+  it("concurrent saves of opposite orders never deadlock (final review minor 1)", async () => {
+    await getDb()
+      .insert(clients)
+      .values(
+        Array.from({ length: 60 }, (_, i) => ({
+          name: `Reorder client ${i}`,
+          logoId,
+        }))
+      )
+    const ids = (await getDb().select({ id: clients.id }).from(clients)).map(
+      (c) => c.id
+    )
+    const save = async (order: string[]) =>
+      (
+        await adminRequest("/reorder/clients", {
+          cookie: editor,
+          method: "PUT",
+          json: { ids: order },
+        })
+      ).status
+    for (let round = 0; round < 3; round++) {
+      const statuses = await Promise.all([
+        save(ids),
+        save([...ids].reverse()),
+        save(ids),
+        save([...ids].reverse()),
+      ])
+      expect(statuses).toEqual([200, 200, 200, 200])
+    }
   })
 
   it("409 when the list is out of date; 403 without update permission", async () => {

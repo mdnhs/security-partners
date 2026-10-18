@@ -393,7 +393,7 @@ export async function addLeadNote(
   return getLead(actor, id)
 }
 
-/** GDPR erasure: the lead and its events (cascade). The audit row keeps no personal data. */
+/** GDPR erasure: the lead, its events and the AI conversations opened on it. The audit row keeps no personal data. */
 export async function deleteLead(
   actor: Actor,
   id: string

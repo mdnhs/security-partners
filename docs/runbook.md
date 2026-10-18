@@ -177,7 +177,11 @@ restore) bypass the app's cache: restart the app afterwards.
 3. `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error -d "$DATABASE_URL" <name>.dump`
    (from the app container: `PGPASSWORD=… pg_restore … -h <db host> -U <user> -d <db>`).
    The role must own the objects it drops (the app's own user does).
-4. Start the app; check `/api/v1/health` and sign in.
+4. Release the job claims the dump captured (the backup job always holds
+   its own while it runs; otherwise those jobs wait 10 minutes):
+   `psql "$DATABASE_URL" -c "update jobs set locked_at = null where locked_at is not null"`
+   (`psql` is in the app image). `db:sync` does this itself.
+5. Start the app; check `/api/v1/health` and sign in.
 
 Sessions in the dump stay valid (same secret). Rate-limit tables come back
 empty, and so do pending invites and password links: re-send them. If the dump came from another environment, use `db:sync` instead: it
@@ -296,7 +300,16 @@ replicas never run one twice:
   that fail are skipped; when a run makes no progress it stops ("stopped",
   failures listed) and must be started again after fixing the files. One
   tick may block for up to ~40 s; an object copied to R2 whose database
-  update then failed is logged by key and left in the bucket.
+  update then failed is logged by key and left in the bucket;
+- replaced media files (one `delete-retired-media` row per old file): a
+  replaced file stays servable at its old URL for 24 hours (pages already
+  open keep their images), then it is deleted. Disconnecting or re-pointing
+  R2 within those 24 hours leaves the old object in the old bucket (warning
+  on the job).
+
+A job row whose name no release handles any more (renamed or removed) is
+logged and parked with "No handler for job …" instead of retrying; delete
+the row once you have checked it.
 
 Jobs expire caches through `http://127.0.0.1:$PORT` (signed request) — the
 image binds `HOSTNAME=0.0.0.0`, which includes loopback; do not override

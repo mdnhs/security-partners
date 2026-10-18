@@ -36,6 +36,7 @@ import {
   findCollectionRow,
   insertCollectionRow,
   listCollectionPage,
+  lockCollectionRow,
   nextCollectionSortOrder,
   updateCollectionRow,
 } from "./repo"
@@ -206,12 +207,19 @@ export async function getCollectionItem<C extends CollectionName>(
   return toItem(name, row)
 }
 
-/** Concurrent saves of one record race for the same revision number. */
-const REVISION_UNIQUE = "revisions_entity_version_unique"
+/**
+ * Concurrent writes of one record race for the same revision number or
+ * media usage row (updates/deletes queue on the row lock; a create racing
+ * a usage write is the remaining case).
+ */
+const RACE_CONSTRAINTS = new Set([
+  "revisions_entity_version_unique",
+  "media_usages_unique",
+])
 
-/** 23505 → 409: a lost revision race (retry) or the collection's unique field. */
+/** 23505 → 409: a lost race (retry) or the collection's unique field. */
 function uniqueViolation(name: CollectionName, err: unknown): AppError {
-  if (pgConstraint(err) === REVISION_UNIQUE)
+  if (RACE_CONSTRAINTS.has(pgConstraint(err) ?? ""))
     return new AppError(
       "CONFLICT",
       "This record was changed by someone else at the same time. Reload and try again."
@@ -285,7 +293,9 @@ export async function updateCollectionItem<C extends CollectionName>(
   )
   try {
     const row = await getDb().transaction(async (tx) => {
-      if (!(await findCollectionRow(tx, name, id))) throw notFound(config.label)
+      // Row lock first: a second save of this record waits here instead of
+      // racing on media_usages / revision numbers.
+      if (!(await lockCollectionRow(tx, name, id))) throw notFound(config.label)
       await syncMediaUsages(tx, config.entityType, id, value)
       const updated = await updateCollectionRow(
         tx,
@@ -319,7 +329,7 @@ export async function deleteCollectionItem(
   const config = configOf(name)
   try {
     await getDb().transaction(async (tx) => {
-      const existing = await findCollectionRow(tx, name, id)
+      const existing = await lockCollectionRow(tx, name, id)
       if (!existing) throw notFound(config.label)
       if (name === "categories") {
         const n = await countArticlesInCategory(tx, id)

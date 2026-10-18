@@ -32,6 +32,7 @@ import {
   secretAad,
 } from "@/server/modules/integrations/service"
 import { runIntegrationTest } from "@/server/modules/integrations/testers"
+import { releaseAllJobClaims } from "@/server/modules/jobs/repo"
 import { seedDemoUsers } from "@/server/modules/users/bootstrap"
 
 /** Spec §14: data never copied between environments. */
@@ -331,6 +332,8 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
     const integrationsRemoved = opts.keepIntegrations
       ? []
       : await removeSharedIntegrations()
+    // The source was dumped mid-tick: its claims belong to no worker here.
+    await releaseAllJobClaims(getDb())
     const rotate = await rotateSecrets({
       fromSecret: opts.fromSecret,
       via: "db:sync",

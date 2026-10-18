@@ -20,9 +20,12 @@ vi.mock("next/cache", () => ({
 import type { MediaItem, MediaUsage } from "@/lib/schemas/api/media"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
-import { auditLog, media } from "@/server/db/schema"
+import { auditLog, jobs, media } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
+import { deleteRetiredMediaJob } from "@/server/lib/jobs/delete-retired-media"
+import { tick } from "@/server/lib/scheduler"
 import { diskStorage } from "@/server/lib/storage"
+import { RETIRED_FILE_GRACE_MS } from "@/server/modules/media/service"
 
 import { resetDb } from "../db"
 import { adminRequest, ORIGIN, signedInUser } from "../helpers/auth"
@@ -200,7 +203,49 @@ describe("usages and DELETE (media_usages RESTRICT → 409)", () => {
 })
 
 describe("POST /api/v1/admin/media/:id/replace", () => {
-  it("keeps the id, writes a new file and removes the old one", async () => {
+  it("keeps serving the old file for a grace period, then a job deletes it (final review minor 10)", async () => {
+    const { body: first } = await send(
+      "/upload",
+      editor,
+      await png(),
+      "retired-old.png"
+    )
+    const before = Date.now()
+    const { status } = await send(
+      `/${first.id}/replace`,
+      editor,
+      await png("#fff"),
+      "retired-new.png"
+    )
+    expect(status).toBe(200)
+    // Already-rendered pages (open tabs, bfcache) still load the old URL.
+    expect(await diskStorage().read(keyOf(first))).not.toBeNull()
+    expect((await app.request(first.url)).status).toBe(200)
+    const [row] = await getDb()
+      .select()
+      .from(jobs)
+      .where(eq(jobs.key, `media-retired:${keyOf(first)}`))
+    expect(row.name).toBe(deleteRetiredMediaJob.name)
+    expect(row.runAt.getTime()).toBeGreaterThanOrEqual(
+      before + RETIRED_FILE_GRACE_MS
+    )
+
+    await tick({
+      now: new Date(row.runAt.getTime() + 1),
+      jobs: [deleteRetiredMediaJob],
+      revalidate: vi.fn(),
+    })
+    expect(await diskStorage().read(keyOf(first))).toBeNull()
+    expect((await app.request(first.url)).status).toBe(404)
+    expect(
+      await getDb()
+        .select()
+        .from(jobs)
+        .where(eq(jobs.key, `media-retired:${keyOf(first)}`))
+    ).toEqual([])
+  })
+
+  it("keeps the id, writes a new file and retires the old one", async () => {
     const { body: first } = await send(
       "/upload",
       editor,
@@ -227,7 +272,7 @@ describe("POST /api/v1/admin/media/:id/replace", () => {
       originalName: "logo-new.jpg",
     })
     expect(body.url).not.toBe(first.url)
-    expect(await diskStorage().read(keyOf(first))).toBeNull()
+    expect(await diskStorage().read(keyOf(first))).not.toBeNull()
     expect((await app.request(body.url)).status).toBe(200)
     expect(revalidateTag).toHaveBeenCalledWith(`media:${first.id}`, {
       expire: 0,

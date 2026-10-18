@@ -36,6 +36,7 @@ import {
   auditLog,
   clients,
   groupCompanies,
+  jobs,
   media,
   mediaUsages,
   services,
@@ -57,8 +58,30 @@ import {
   lockMediaRow,
   replaceMediaUsages,
 } from "@/server/modules/media/repo"
+import {
+  deleteRetiredMediaFile,
+  RETIRED_MEDIA_JOB_NAME,
+} from "@/server/modules/media/service"
 
 import { resetDb } from "../db"
+
+/**
+ * Runs the retired-file jobs of one media row now (normally a day after the
+ * replace) and returns the keys they covered.
+ */
+async function deleteRetiredFiles(mediaId: string): Promise<string[]> {
+  const rows = await getDb()
+    .delete(jobs)
+    .where(
+      and(
+        eq(jobs.name, RETIRED_MEDIA_JOB_NAME),
+        sql`${jobs.payload}->>'mediaId' = ${mediaId}`
+      )
+    )
+    .returning()
+  for (const row of rows) await deleteRetiredMediaFile(row.payload)
+  return rows.map((row) => (row.payload as { key: string }).key).sort()
+}
 import { adminRequest, createUser, ORIGIN, signedInUser } from "../helpers/auth"
 
 let editor: string
@@ -309,9 +332,13 @@ describe("replace runs the upload pipeline", () => {
     expect([a.status, b.status]).toEqual([200, 200])
     const final = await rowOf(first.id)
     const disk = diskStorage()
+    const superseded = [keyOf(first), keyOf(a.body), keyOf(b.body)].filter(
+      (key) => key !== final.key
+    )
+    // Each superseded file was retired exactly once, then deleted.
+    expect(await deleteRetiredFiles(first.id)).toEqual(superseded.sort())
     expect(await disk.read(final.key)).not.toBeNull()
-    for (const key of [keyOf(first), keyOf(a.body), keyOf(b.body)])
-      if (key !== final.key) expect(await disk.read(key), key).toBeNull()
+    for (const key of superseded) expect(await disk.read(key), key).toBeNull()
   })
 })
 
@@ -533,7 +560,7 @@ describe("replace to R2 (same guard as upload)", () => {
     return body
   }
 
-  it("moves a disk file to R2 and deletes the disk file after the commit", async () => {
+  it("moves a disk file to R2 and retires the disk file (deleted by its job)", async () => {
     const first = await diskUpload()
     expect(first.driver).toBe("disk")
     const { status, body } = await send(
@@ -544,6 +571,8 @@ describe("replace to R2 (same guard as upload)", () => {
     expect(status).toBe(200)
     expect(body.driver).toBe("r2")
     expect(objects.has(keyOf(body))).toBe(true)
+    expect(await diskStorage().read(keyOf(first))).not.toBeNull()
+    expect(await deleteRetiredFiles(first.id)).toEqual([keyOf(first)])
     expect(await diskStorage().read(keyOf(first))).toBeNull()
     expect(revalidateTag).toHaveBeenCalledWith(`media:${first.id}`, {
       expire: 0,

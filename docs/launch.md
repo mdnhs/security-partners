@@ -123,7 +123,10 @@ jobs on shutdown is best effort.
   assistant off / away from the intake role.
 - **AI conversations:** kept until a user deletes them (no automatic
   purge), and an admin using "View as" can read that user's conversations.
-  Confirm, or ask for a retention purge.
+  Deleting a lead (erasure) or the lead retention purge also deletes the
+  conversations opened on that lead's screen; a conversation started on
+  another screen that was later given a lead's text cannot be linked to the
+  lead and stays. Confirm, or ask for a retention purge.
 - **Backups:** they share the media bucket and API token and are encrypted
   at rest only by R2. Confirm, or provide a separate bucket/token or ask for
   client-side encryption.

@@ -10,6 +10,8 @@ vi.mock("next/cache", () => ({
 
 import { getDb } from "@/server/db/client"
 import {
+  aiConversations,
+  aiMessages,
   auditLog,
   jobs,
   leadEvents,
@@ -24,6 +26,7 @@ import { deleteLeadsCreatedBefore } from "@/server/modules/leads/repo"
 import { ensureRecurringJobs, tick } from "@/server/lib/scheduler"
 
 import { resetDb } from "../db"
+import { createUser } from "../helpers/auth"
 
 const NOW = new Date("2026-10-16T12:00:00.000Z")
 
@@ -74,6 +77,45 @@ describe("purge-leads job (spec §9 retention, §12)", () => {
       .where(eq(auditLog.action, "lead.purged"))
     expect(audit).toMatchObject({ actorId: null })
     expect(audit.diff).toEqual({ count: 1, cutoff: "2024-10-16T12:00:00.000Z" })
+  })
+
+  it("also erases AI conversations opened on purged leads, in batches (final review I3)", async () => {
+    const user = await createUser({ roles: ["admin"] })
+    const openOn = async (leadId: string) => {
+      const [row] = await getDb()
+        .insert(aiConversations)
+        .values({
+          userId: user.id,
+          title: "Summary",
+          context: {
+            screen: "Lead details",
+            entityType: "lead",
+            entityId: leadId,
+          },
+        })
+        .returning()
+      await getDb()
+        .insert(aiMessages)
+        .values({ conversationId: row.id, role: "assistant", content: "x" })
+    }
+    const entityIds = async () =>
+      (await getDb().select().from(aiConversations)).map(
+        (c) => (c.context as { entityId: string }).entityId
+      )
+
+    // Several batches (size 1): every batch erases its conversations.
+    for (const year of [2021, 2022, 2023])
+      await openOn((await addLead(`old${year}`, new Date(`${year}-01-01`))).id)
+    expect(await deleteLeadsCreatedBefore(getDb(), NOW, 1)).toBe(3)
+    expect(await entityIds()).toEqual([])
+    expect(await getDb().select().from(aiMessages)).toEqual([])
+
+    // The daily job: only the purged leads' conversations go.
+    await openOn((await addLead("ancient", new Date("2024-01-01"))).id)
+    const kept = await addLead("recent", new Date("2026-10-01"))
+    await openOn(kept.id)
+    await purgeLeadsJob.run({ now: NOW, payload: null })
+    expect(await entityIds()).toEqual([kept.id])
   })
 
   it("does nothing (with a warning) while settings.leads is unpublished", async () => {

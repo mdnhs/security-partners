@@ -28,15 +28,26 @@ const OPEN = ["new", "contacted", "qualified"] as const
 
 const irishDay = sql<string>`to_char(${leads.createdAt} at time zone 'Europe/Dublin', 'YYYY-MM-DD')`
 
+/**
+ * Query: non-spam leads created on or after the Irish calendar day `day`
+ * ("2026-09-20"). Compares created_at with one constant instant (midnight
+ * in Dublin, computed by Postgres' own tz data), so leads_created_at_idx
+ * can serve the range — never a per-row conversion (full scan).
+ */
+export function leadsFromDayQuery(db: DbOrTx, day: string) {
+  const dublinMidnight = sql`(${day}::date::timestamp at time zone 'Europe/Dublin')`
+  return db
+    .select({ n: count() })
+    .from(leads)
+    .where(and(gte(leads.createdAt, dublinMidnight), ne(leads.status, "spam")))
+}
+
 /** Non-spam leads created on or after the Irish calendar day `day` ("2026-09-20"). */
 export async function countLeadsFromDay(
   db: DbOrTx,
   day: string
 ): Promise<number> {
-  const [row] = await db
-    .select({ n: count() })
-    .from(leads)
-    .where(and(gte(irishDay, day), ne(leads.status, "spam")))
+  const [row] = await leadsFromDayQuery(db, day)
   return row.n
 }
 
@@ -75,7 +86,9 @@ export async function publishedCounts(db: DbOrTx) {
     db
       .select({ n: count() })
       .from(articles)
-      .where(eq(articles.status, "published")),
+      // Live = has a published version, also while an update is scheduled
+      // (status 'scheduled') — the same rule as pages and services.
+      .where(isNotNull(articles.published)),
   ])
   return { pages: p.n, services: s.n, articles: a.n }
 }

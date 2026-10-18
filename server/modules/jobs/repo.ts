@@ -1,6 +1,17 @@
 import "server-only"
 
-import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { jobs } from "@/server/db/schema"
@@ -104,6 +115,14 @@ export async function enqueueKeyedJob(
   return rows.length > 0
 }
 
+/** Inserts a keyed one-off job with its payload; an existing row with that key is left as is. */
+export async function insertKeyedJobIfAbsent(
+  db: DbOrTx,
+  job: { name: string; key: string; runAt: Date; payload: unknown }
+): Promise<void> {
+  await db.insert(jobs).values(job).onConflictDoNothing({ target: jobs.key })
+}
+
 export async function findJobByKey(
   db: DbOrTx,
   key: string
@@ -125,6 +144,21 @@ export async function releaseClaimedJob(
     .update(jobs)
     .set({ lockedAt: null, attempts: sql`greatest(${jobs.attempts} - 1, 0)` })
     .where(and(eq(jobs.id, id), eq(jobs.lockedAt, claimedAt)))
+}
+
+/**
+ * After a restore (db:sync, manual pg_restore): claims copied from the dump
+ * belong to no running worker (a backup always captures its own claim), so
+ * they are released at once instead of after LOCK_TIMEOUT_MS. Only safe
+ * while no app runs against this database (both restore paths stop it).
+ */
+export async function releaseAllJobClaims(db: DbOrTx): Promise<number> {
+  const rows = await db
+    .update(jobs)
+    .set({ lockedAt: null })
+    .where(isNotNull(jobs.lockedAt))
+    .returning({ id: jobs.id })
+  return rows.length
 }
 
 /** Removes a finished one-off job (only while this claim still holds it). */

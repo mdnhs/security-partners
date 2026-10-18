@@ -32,6 +32,8 @@ export const PARKED_RUN_AT = new Date("9999-12-31T00:00:00.000Z")
 const CLAIM_LIMIT = 10
 const ERROR_MAX_LENGTH = 2_000
 const REVALIDATE_TIMEOUT_MS = 10_000
+/** revalidateInput (lib/schemas/api/internal.ts) accepts at most 100 tags. */
+const REVALIDATE_CHUNK = 100
 
 export type TickResult = {
   name: string
@@ -120,6 +122,28 @@ export async function revalidateViaApi(tags: string[]): Promise<void> {
   if (!res.ok) throw new Error(`Cache refresh answered ${res.status}`)
 }
 
+/**
+ * Expires `tags` in requests of at most REVALIDATE_CHUNK tags (the internal
+ * route's cap), so a set that grew during a long outage still drains. Stops
+ * at the first failure (the loopback is most likely down: no point waiting
+ * for every chunk to time out) and returns the tags not yet expired.
+ */
+async function refreshInChunks(
+  revalidate: (tags: string[]) => Promise<void>,
+  tags: readonly string[],
+  notes: string[]
+): Promise<string[]> {
+  for (let start = 0; start < tags.length; start += REVALIDATE_CHUNK) {
+    try {
+      await revalidate(tags.slice(start, start + REVALIDATE_CHUNK))
+    } catch (err) {
+      notes.push(`Cache refresh failed: ${message(err)}`)
+      return tags.slice(start)
+    }
+  }
+  return []
+}
+
 /** Claims and runs the due jobs once. Options exist for tests (clock, jobs, cache). */
 export async function tick(
   options: {
@@ -159,14 +183,16 @@ export async function tick(
     // cacheLife("max") a lost refresh would otherwise hide the change.
     let unrefreshed = pendingTagsOf(job.payload)
     if (unrefreshed.length > 0)
-      try {
-        await revalidate(unrefreshed)
-        unrefreshed = []
-      } catch (err) {
-        notes.push(`Cache refresh failed: ${message(err)}`)
-      }
+      unrefreshed = await refreshInChunks(revalidate, unrefreshed, notes)
     try {
-      if (!definition) throw new Error(`No handler for job "${job.name}"`)
+      if (!definition) {
+        // Renamed or removed in a release: retrying cannot help. Parked
+        // (with its error) until someone deletes or re-queues the row.
+        console.error(
+          `[scheduler] No handler for job "${job.name}" (key ${job.key ?? "none"}): parked`
+        )
+        throw new Error(`No handler for job "${job.name}"`)
+      }
       const result = await definition.run({ now, payload: job.payload })
       done = result.done === true
       park = result.park
@@ -176,12 +202,11 @@ export async function tick(
         if (unrefreshed.length > 0)
           unrefreshed = [...new Set([...unrefreshed, ...tags])]
         else
-          try {
-            await revalidate(tags)
-          } catch (err) {
-            unrefreshed = tags
-            notes.push(`Cache refresh failed: ${message(err)}`)
-          }
+          unrefreshed = await refreshInChunks(
+            revalidate,
+            [...new Set(tags)],
+            notes
+          )
       }
     } catch (err) {
       ok = false
@@ -195,7 +220,7 @@ export async function tick(
     else
       await finishJob(db, job.id, now, {
         runAt:
-          ok && park
+          (ok && park) || !definition
             ? PARKED_RUN_AT
             : new Date(
                 now.getTime() +
