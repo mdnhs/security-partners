@@ -184,6 +184,18 @@ describe("API error envelope", () => {
     expect(text).not.toContain("secret upstream detail")
   })
 
+  it("HTTPException 5xx is logged server-side with the request id", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const res = await app.request("/api/v1/__test/http-exception-5xx", {
+      headers: { "x-request-id": "0190a6e0-0000-7000-8000-00000000abcd" },
+    })
+    expect(res.status).toBe(502)
+    expect(error).toHaveBeenCalledWith(
+      "[api] 0190a6e0-0000-7000-8000-00000000abcd HTTP 502: secret upstream detail"
+    )
+    error.mockRestore()
+  })
+
   it("zv → 422 VALIDATION_FAILED with dotted fieldErrors", async () => {
     const res = await app.request("/api/v1/__test/validate", {
       method: "POST",

@@ -19,7 +19,11 @@ once per page load. Drafts never run on the site; publishing applies at once.
   Pixel. The choice is kept in the `sp_consent` cookie for 6 months; the
   "Cookie settings" button reopens the banner, and withdrawing a category
   clears the GA/Meta cookies and reloads the page.
-- The site sends no Content-Security-Policy today. If one is added later, it
+- Pages send a Content-Security-Policy that restricts no source:
+  `base-uri 'self'; object-src 'none'; frame-ancestors 'self'` (`'none'` under
+  `/admin`, next.config.ts). Public pages are Cache Components static shells,
+  so a per-request nonce is not possible without making every page dynamic
+  (Next CSP guide). If a stricter policy (`script-src` etc.) is added later, it
   must allow:
   - `script-src`: the inline loaders (a per-request nonce on
     `#sp-custom-code-*`, or `'unsafe-inline'`), Next's own scripts (inline
