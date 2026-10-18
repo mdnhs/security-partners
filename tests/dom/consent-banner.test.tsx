@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   ConsentBanner,
@@ -107,5 +107,96 @@ describe("consent banner (spec §10)", () => {
     await user.click(screen.getByRole("button", { name: "Save choices" }))
     expect(consentCookie()).toMatch(/^1\.1\.0\./)
     expect(reload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("consent banner focus and visibility (WCAG 2.4.3, 2.4.11)", () => {
+  const stored = () =>
+    (document.cookie = `sp_consent=1.0.0.${Math.floor(Date.now() / 1000)}; Path=/`)
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    document.documentElement.style.scrollPaddingBottom = ""
+  })
+
+  it("after a choice, focus moves to the Cookie settings button", async () => {
+    const user = userEvent.setup()
+    renderBanner()
+    await user.click(screen.getByRole("button", { name: "Accept all" }))
+    expect(
+      screen.getByRole("button", { name: "Cookie settings" })
+    ).toHaveFocus()
+  })
+
+  it("reopening focuses the heading and offers Reject / Accept / Save and Close", async () => {
+    stored()
+    const user = userEvent.setup()
+    const reload = renderBanner()
+    await user.click(screen.getByRole("button", { name: "Cookie settings" }))
+    const banner = screen.getByRole("region", { name: "We use cookies" })
+    expect(
+      within(banner).getByRole("heading", { name: "We use cookies" })
+    ).toHaveFocus()
+    for (const name of [
+      "Reject non-essential",
+      "Accept all",
+      "Save choices",
+      "Close",
+    ])
+      expect(within(banner).getByRole("button", { name })).toBeInTheDocument()
+    expect(
+      within(banner).queryByRole("button", { name: "Customise" })
+    ).toBeNull()
+
+    const before = consentCookie()
+    await user.click(within(banner).getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("region", { name: "We use cookies" })).toBeNull()
+    expect(consentCookie()).toBe(before)
+    expect(reload).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("button", { name: "Cookie settings" })
+    ).toHaveFocus()
+  })
+
+  it("Escape closes a reopened banner", async () => {
+    stored()
+    const user = userEvent.setup()
+    renderBanner()
+    await user.click(screen.getByRole("button", { name: "Cookie settings" }))
+    await user.keyboard("{Escape}")
+    expect(screen.queryByRole("region", { name: "We use cookies" })).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "Cookie settings" })
+    ).toHaveFocus()
+  })
+
+  it("while open, <html> scroll padding keeps focused content above the banner", async () => {
+    let height = 240
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => ({ height }) as DOMRect
+    )
+    const observers: (() => void)[] = []
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback)
+        }
+        observe() {}
+        disconnect() {}
+      }
+    )
+    const user = userEvent.setup()
+    renderBanner()
+    const root = document.documentElement
+    expect(root.style.scrollPaddingBottom).toBe("240px")
+    height = 380.2
+    act(() => observers.forEach((notify) => notify()))
+    expect(root.style.scrollPaddingBottom).toBe("381px")
+    await user.click(
+      screen.getByRole("button", { name: "Reject non-essential" })
+    )
+    expect(root.style.scrollPaddingBottom).toBe("")
   })
 })

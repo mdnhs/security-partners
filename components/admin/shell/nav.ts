@@ -18,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react"
 
+import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 
 /** Live counts shown beside nav items (Leads arrives in Phase 7). */
@@ -202,7 +203,8 @@ export const NAV_SECTIONS: NavSection[] = [
           {
             label: "Custom code",
             href: "/admin/marketing/custom-code",
-            permission: { customCode: ["update"] },
+            // Owner only; the same rule the page and API check.
+            permission: GROWTH_SETTINGS.customCode.read,
           },
         ],
       },

@@ -23,5 +23,8 @@ describe("marketing screen notices", () => {
     expect(alert).toHaveTextContent("every public page")
     expect(alert).toHaveTextContent("DNS")
     expect(alert).toHaveTextContent("Content-Security-Policy")
+    expect(alert).toHaveTextContent(
+      "anything that sets cookies or tracks visitors needs consent — use Tracking"
+    )
   })
 })

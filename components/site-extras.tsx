@@ -16,22 +16,34 @@ import { siteJsonLd } from "@/templates/shared/structured-data"
  * Site-wide additions: the business JSON-LD; the consent banner and
  * consent-gated tags only when tracking is enabled (spec §10 — otherwise
  * nothing visible, so the public design stays pixel-identical); the
- * owner's custom code. Rendered inside <Suspense> in the root layout; on
- * any failure it renders nothing, so a database outage still reaches the
- * page's error.tsx instead of breaking the layout.
+ * owner's custom code. Rendered inside <Suspense> in the root layout. The
+ * two loads fail independently: without marketing settings the JSON-LD
+ * still renders; without site sources nothing does, so a database outage
+ * still reaches the page's error.tsx instead of breaking the layout.
+ *
+ * Custom code must stay server-rendered here: its loader is an inline
+ * <script> emitted in the HTML, and a script element React inserts on the
+ * client never runs.
  */
 export async function SiteExtras() {
   await connection()
-  const data = await loadExtras()
-  if (!data) return null
-  const { s, marketing } = data
-  const { tracking, consent, customCode } = marketing
+  const [sources, loaded] = await Promise.allSettled([
+    loadSiteSources(),
+    loadPublicMarketing(),
+  ])
+  for (const result of [sources, loaded])
+    if (result.status === "rejected") unstable_rethrow(result.reason)
+  if (sources.status === "rejected") return null
+  const s = sources.value
+  const marketing = loaded.status === "fulfilled" ? loaded.value : null
+  const tracking = marketing?.tracking
+  const consent = marketing?.consent
   return (
     <>
       <JsonLd
         data={siteJsonLd(s, publicOrigin(s.settings.site.productionUrl))}
       />
-      {tracking.enabled && consent ? (
+      {tracking?.enabled && consent ? (
         <ConsentProvider>
           <ConsentBanner copy={consentBannerCopy(s, consent)} />
           <TrackingScripts
@@ -43,22 +55,12 @@ export async function SiteExtras() {
           />
         </ConsentProvider>
       ) : null}
-      <CustomCode html={customCode.headHtml} target="head" />
-      <CustomCode html={customCode.bodyEndHtml} target="body" />
+      {marketing ? (
+        <>
+          <CustomCode html={marketing.customCode.headHtml} target="head" />
+          <CustomCode html={marketing.customCode.bodyEndHtml} target="body" />
+        </>
+      ) : null}
     </>
   )
-}
-
-/** Site sources and published marketing settings; null when they cannot be loaded. */
-async function loadExtras() {
-  try {
-    const [s, marketing] = await Promise.all([
-      loadSiteSources(),
-      loadPublicMarketing(),
-    ])
-    return { s, marketing }
-  } catch (error) {
-    unstable_rethrow(error)
-    return null
-  }
 }

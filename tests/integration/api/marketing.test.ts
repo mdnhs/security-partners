@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { revalidateTag } = vi.hoisted(() => ({ revalidateTag: vi.fn() }))
@@ -9,6 +10,7 @@ vi.mock("next/cache", () => ({
 
 import type { GrowthSettingsDto } from "@/lib/schemas/api/marketing"
 import { getDb } from "@/server/db/client"
+import { auditLog } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 
 import { resetDb } from "../db"
@@ -75,6 +77,33 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
     expect(revalidateTag).toHaveBeenCalledWith("settings:tracking", {
       expire: 0,
     })
+  })
+
+  it("publishing tracking and custom code is audited (settings.published)", async () => {
+    expect(
+      (
+        await saveAndPublish(marketer, "tracking", (d) => ({
+          ...d,
+          enabled: true,
+        }))
+      ).status
+    ).toBe(200)
+    expect(
+      (
+        await saveAndPublish(owner, "customCode", () => ({
+          headHtml: "<!-- x -->",
+          bodyEndHtml: "",
+        }))
+      ).status
+    ).toBe(200)
+    const rows = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "settings.published"))
+    expect(rows.map((r) => r.entityId).sort()).toEqual([
+      "customCode",
+      "tracking",
+    ])
   })
 
   it("permissions per key; custom code is owner-only", async () => {

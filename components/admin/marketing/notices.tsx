@@ -53,9 +53,11 @@ export function CustomCodeNotice() {
           by DNS rather than with a meta tag.
         </span>
         <span>
-          Tracking tags that need consent belong under Tracking, not here. If a
-          Content-Security-Policy is added to the site, its script, connect and
-          image sources must allow the hosts used here (see the runbook).
+          It runs without the visitor&apos;s consent, so anything that sets
+          cookies or tracks visitors needs consent — use Tracking for it, not
+          this page. If a Content-Security-Policy is added to the site, its
+          script, connect and image sources must allow the hosts used here (see
+          the runbook).
         </span>
       </AlertDescription>
     </Alert>

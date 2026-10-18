@@ -2,6 +2,10 @@
 // <head>, so the snippet travels as a JSON string inside one inline
 // loader that parses it with Range.createContextualFragment (scripts in
 // such a fragment run when inserted) and appends it to <head> or <body>.
+// Keep <CustomCode> server-rendered (components/site-extras.tsx): the
+// loader runs because it arrives in the HTML; a <script> React creates
+// during a client render is never executed, so the snippet would silently
+// not run. Do not add "use client" here or render it from client code.
 
 /** The loader script; the snippet cannot close it ("<" is escaped). */
 export function customCodeScript(html: string, target: "head" | "body") {

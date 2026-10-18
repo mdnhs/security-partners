@@ -41,4 +41,35 @@ describe("0009_consent_manage_label (custom data migration)", () => {
     })
     expect(row.draft).toEqual({ title: "T", manageLabel: "Privacy choices" })
   })
+
+  it("patches draft and published independently; null published stays null", async () => {
+    await getDb()
+      .insert(settings)
+      .values({ key: "consent", draft: { title: "T" }, published: null })
+    for (const statement of statements)
+      await getDb().execute(sql.raw(statement))
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "consent"))
+    expect(row.draft).toEqual({ title: "T", manageLabel: "Cookie settings" })
+    expect(row.published).toBeNull()
+  })
+
+  it("patches a published object even when the draft is not an object", async () => {
+    await getDb()
+      .insert(settings)
+      .values({ key: "consent", draft: "broken", published: { title: "P" } })
+    for (const statement of statements)
+      await getDb().execute(sql.raw(statement))
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "consent"))
+    expect(row.draft).toBe("broken")
+    expect(row.published).toEqual({
+      title: "P",
+      manageLabel: "Cookie settings",
+    })
+  })
 })

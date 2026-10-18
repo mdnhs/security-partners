@@ -31,6 +31,8 @@ type ConsentContextValue = {
   bannerOpen: boolean
   /** Reopens the banner on its category choices ("Cookie settings"). */
   reopen: () => void
+  /** Closes a reopened banner, keeping the stored choice. */
+  close: () => void
   save: (choice: ConsentChoice) => void
 }
 
@@ -121,6 +123,7 @@ export function ConsentProvider({
       choice,
       bannerOpen: choice !== PENDING && (choice === null || reopened),
       reopen: () => setReopened(true),
+      close: () => setReopened(false),
       save,
     }),
     [choice, reopened, save]

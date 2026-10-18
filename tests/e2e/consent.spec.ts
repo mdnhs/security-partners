@@ -57,6 +57,28 @@ async function stubTrackers(page: Page): Promise<string[]> {
 }
 
 test.describe.serial("consent and tracking (master 8.3)", () => {
+  // Start from tracking off and no custom code, even if an earlier run was
+  // interrupted before its `finally` reset them.
+  test.beforeAll(async ({ browser }) => {
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "x-forwarded-for": clientIpFor("consent beforeAll") },
+    })
+    const page = await context.newPage()
+    await signIn(page, E2E_OWNER.email)
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      enabled: false,
+      gtmId: null,
+      ga4Id: null,
+      metaPixelId: null,
+    }))
+    await publishSetting(page, "customCode", () => ({
+      headHtml: "",
+      bodyEndHtml: "",
+    }))
+    await context.close()
+  })
+
   test("tracking off: no banner, no reopen button, no tracker requests", async ({
     page,
   }) => {
