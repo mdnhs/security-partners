@@ -40,6 +40,7 @@ import {
 import { useAdminSession } from "@/components/admin/session-provider"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -324,14 +325,15 @@ function RolesSection({
   const changed =
     roles.length !== user.roles.length ||
     roles.some((role) => !user.roles.includes(role))
-  // Your own owner/admin roles about to go: saving would lock you out of
-  // Users (and the role could only be given back by another owner/admin).
-  const dropping =
-    user.id === me.id
-      ? ADMINISTRATIVE.filter(
-          (role) => user.roles.includes(role) && !roles.includes(role)
-        )
-      : []
+  // Lock-out: you hold an administrative role now and the new set keeps
+  // none (an owner dropping only "admin" still manages users). Saving would
+  // shut you out of Users; only another owner/admin could let you back in.
+  const isAdministrative = (role: Role) => ADMINISTRATIVE.includes(role)
+  const lockOut =
+    user.id === me.id &&
+    user.roles.some(isAdministrative) &&
+    !roles.some(isAdministrative)
+  const dropping = lockOut ? user.roles.filter(isAdministrative) : []
   const save = useMutation({
     mutationFn: () =>
       unwrap(
@@ -373,9 +375,7 @@ function RolesSection({
           type="button"
           className={cn(FORM_ACTION, "self-start")}
           disabled={!changed || roles.length === 0 || save.isPending}
-          onClick={() =>
-            dropping.length > 0 ? setConfirming(true) : save.mutate()
-          }
+          onClick={() => (lockOut ? setConfirming(true) : save.mutate())}
         >
           Save roles
         </Button>
@@ -395,14 +395,14 @@ function RolesSection({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep my roles</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={save.isPending}
               onClick={() => save.mutate()}
             >
               Remove {dropping.length > 1 ? "roles" : "role"}
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -543,14 +543,14 @@ function AccessSection({ user, isSelf }: { user: UserItem; isSelf: boolean }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button
+            <AlertDialogAction
               type="button"
               variant="destructive"
               disabled={ban.isPending}
               onClick={() => ban.mutate()}
             >
               Ban
-            </Button>
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

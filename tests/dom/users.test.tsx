@@ -381,11 +381,16 @@ describe("user detail", () => {
       name: "Ban Edith Editor?",
     })
     expect(confirm).toHaveTextContent("for 7 days")
-    // Confirm buttons are 44 px on touch screens (WCAG 2.5.8), set once at
-    // the primitive so every alert dialog complies.
-    expect(
-      confirm.querySelector('[data-slot="alert-dialog-footer"]')
-    ).toHaveClass("pointer-coarse:**:data-[slot=button]:h-11")
+    // Cancel and the action are 44 px on touch screens (WCAG 2.5.8): the
+    // class sits on AlertDialogCancel / AlertDialogAction themselves (their
+    // own data-slot replaces Button's, so a footer descendant rule keyed on
+    // data-slot=button would miss them).
+    expect(within(confirm).getByRole("button", { name: "Cancel" })).toHaveClass(
+      "pointer-coarse:h-11"
+    )
+    expect(within(confirm).getByRole("button", { name: "Ban" })).toHaveClass(
+      "pointer-coarse:h-11"
+    )
     await user.click(within(confirm).getByRole("button", { name: "Ban" }))
     await waitFor(() =>
       expect(bodyOf("POST", `/api/v1/admin/users/${EDITOR}/ban`)).toEqual({
@@ -451,6 +456,34 @@ describe("user detail", () => {
         roles: ["editor"],
       })
     )
+  })
+
+  it("does not ask when you keep an administrative role (owner drops admin)", async () => {
+    const base = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init) => {
+      const url = new URL(String(input), "http://localhost")
+      if (
+        (init?.method ?? "GET") === "GET" &&
+        url.pathname === `/api/v1/admin/users/${ME}`
+      )
+        return json(
+          200,
+          person({ id: ME, name: "Me", roles: ["owner", "admin"] })
+        )
+      return base(input, init)
+    })
+    const user = userEvent.setup()
+    renderAs(["owner"], <UserDetail id={ME} />)
+    await screen.findByRole("heading", { level: 1, name: "Me" })
+    await user.click(tab("Roles"))
+    await user.click(await screen.findByRole("checkbox", { name: "Admin" }))
+    await user.click(screen.getByRole("button", { name: "Save roles" }))
+    await waitFor(() =>
+      expect(bodyOf("PUT", `/api/v1/admin/users/${ME}/roles`)).toEqual({
+        roles: ["owner"],
+      })
+    )
+    expect(screen.queryByRole("alertdialog")).toBeNull()
   })
 
   it("creates a password link and signs the user out everywhere", async () => {

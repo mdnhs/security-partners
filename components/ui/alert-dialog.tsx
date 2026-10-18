@@ -85,8 +85,9 @@ function AlertDialogFooter({
     <div
       data-slot="alert-dialog-footer"
       className={cn(
-        // Every footer button (action, cancel, or a plain Button) is 44 px on
-        // touch screens (WCAG 2.5.8), set here once for all alert dialogs.
+        // A plain <Button> placed in the footer is 44 px on touch screens
+        // (WCAG 2.5.8); AlertDialogAction / AlertDialogCancel carry the
+        // class themselves (their own data-slot replaces Button's).
         "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end pointer-coarse:**:data-[slot=button]:h-11",
         className
       )}
@@ -150,7 +151,7 @@ function AlertDialogAction({
   return (
     <Button
       data-slot="alert-dialog-action"
-      className={cn(className)}
+      className={cn("pointer-coarse:h-11", className)}
       {...props}
     />
   )
@@ -166,7 +167,7 @@ function AlertDialogCancel({
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-cancel"
-      className={cn(className)}
+      className={cn("pointer-coarse:h-11", className)}
       render={<Button variant={variant} size={size} />}
       {...props}
     />
