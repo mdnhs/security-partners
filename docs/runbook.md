@@ -336,6 +336,13 @@ once per page load. Drafts never run on the site; publishing applies at once.
 - Only paste code from vendors you trust: it runs with full access to every
   visitor's page and is not covered by the cookie banner. Consent-dependent
   tags (Google, Meta) belong under Marketing › Tracking.
+- The Tracking tag IDs (GTM, GA4, Meta Pixel) load third-party script, and
+  a GTM container can carry any code ("Custom HTML" tags). The admin and API
+  share the public origin, so such code runs with the session of any admin
+  who visits the site. Changing an ID therefore needs the owner (the API
+  refuses it for others on draft save, publish and restore; other roles see
+  the IDs read-only). A separate admin origin would remove this class of
+  risk (owner decision, `docs/launch.md`).
 - Verify domains by DNS (Google Search Console, Meta Business), not with a
   `<meta>` tag: the tag only exists after JavaScript runs.
 - Tracking (Marketing › Tracking) loads nothing until a visitor consents:

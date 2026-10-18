@@ -1,5 +1,32 @@
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
-import type { GrowthSettingsKey } from "@/lib/admin/growth-settings"
+import {
+  type GrowthSettingsKey,
+  TRACKING_TAG_FIELDS,
+} from "@/lib/admin/growth-settings"
+
+const TAG_OWNER_ONLY =
+  "Only an owner can change this ID: the tags it loads can run any code on this site, the admin included."
+
+/**
+ * The key's editor meta for this user. Tracking tag IDs are owner-only
+ * (final review I1; the API enforces it): without that right they are
+ * read-only and say why.
+ */
+export function growthMetaFor(
+  key: GrowthSettingsKey,
+  { canEditTrackingTags }: { canEditTrackingTags: boolean }
+): EditorMeta {
+  const meta = growthEditorMeta[key]
+  if (key !== "tracking" || canEditTrackingTags) return meta
+  const fields = { ...meta.fields }
+  for (const name of TRACKING_TAG_FIELDS)
+    fields[name] = {
+      ...fields[name],
+      readOnly: true,
+      help: `${fields[name]?.help ?? ""} ${TAG_OWNER_ONLY}`.trim(),
+    }
+  return { ...meta, fields }
+}
 
 /** Editor hints for SEO defaults, tracking, consent and custom code. */
 export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {

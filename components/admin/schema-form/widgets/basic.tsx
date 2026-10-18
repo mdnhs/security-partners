@@ -138,7 +138,7 @@ export function TextWidget({ field, path }: WidgetProps) {
                 : "text"
           }
           value={composed ?? (value as string | null | undefined) ?? ""}
-          readOnly={composed !== undefined}
+          readOnly={composed !== undefined || field.meta.readOnly}
           placeholder={field.meta.placeholder}
           disabled={disabled}
           aria-invalid={!!error}

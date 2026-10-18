@@ -70,6 +70,12 @@ jobs on shutdown is best effort.
       to any address).
 - [ ] Tracking: GTM / GA4 / Meta pixel IDs and consent banner copy in
       Marketing; turn tracking on only when ready (the banner appears then).
+      Only an owner can change the tag IDs: a GTM container can run any
+      script, and the admin shares the public site's origin, so a tag could
+      act with a signed-in admin's session. Marketers keep the on/off switch
+      and the banner copy. Owner decision: serving the admin and API from a
+      separate origin (e.g. an `admin.` subdomain) is the stronger long-term
+      fix for custom code and tags alike.
 - [ ] Custom code (Marketing ▸ Custom code, owner only): it runs on every
       page **without** waiting for cookie consent. Only paste code that sets
       no non-essential cookies, or put consent-dependent tags under Tracking

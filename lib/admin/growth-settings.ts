@@ -56,6 +56,30 @@ export const GROWTH_SETTINGS: Record<
   },
 }
 
+/**
+ * Tracking fields that make every public page load a third-party script
+ * (final review I1). A GTM container can ship Custom HTML, i.e. any code,
+ * and the admin shares the public origin, so changing one of these is the
+ * same capability as custom code: owner-only. The enable toggle stays with
+ * marketing.
+ */
+export const TRACKING_TAG_FIELDS = ["gtmId", "ga4Id", "metaPixelId"] as const
+export const TRACKING_TAG_UPDATE: PermissionRequest = {
+  customCode: ["update"],
+}
+
+const tagValue = (data: unknown, field: string): unknown =>
+  data && typeof data === "object"
+    ? ((data as Record<string, unknown>)[field] ?? null)
+    : null
+
+/** Whether `after` loads a different tag than `before` (null/absent = none). */
+export function trackingTagsChanged(before: unknown, after: unknown): boolean {
+  return TRACKING_TAG_FIELDS.some(
+    (field) => tagValue(before, field) !== tagValue(after, field)
+  )
+}
+
 export function isGrowthSettingsKey(value: string): value is GrowthSettingsKey {
   return Object.hasOwn(GROWTH_SETTINGS, value)
 }
