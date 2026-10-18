@@ -23,6 +23,7 @@ import { getAuth } from "@/server/auth/auth"
 import {
   createPasswordToken,
   INVITE_TOKEN_EXPIRES_IN,
+  newPasswordToken,
   passwordUrl,
   RECOVERY_TOKEN_EXPIRES_IN,
 } from "@/server/auth/tokens"
@@ -245,14 +246,15 @@ export async function setRoles(
     const revoked: Record<string, number> = {}
     if (input.roles.includes("owner") && !from.includes("owner")) {
       // New owner: links and "View as" sessions issued while they were not
-      // an owner (by non-owners) must not grant owner access.
+      // an owner (by non-owners) must not grant owner access, and neither
+      // may sessions opened with a password someone else set (ledger P02-4).
       revoked.passwordLinksRevoked = await repo.deletePasswordTokens(tx, id)
       revoked.impersonationsRevoked = await repo.deleteImpersonationSessionsOf(
         tx,
         id
       )
-    }
-    if (impersonates(from) && !impersonates(input.roles))
+      revoked.sessionsRevoked = await repo.deleteUserSessions(tx, id)
+    } else if (impersonates(from) && !impersonates(input.roles))
       revoked.sessionsRevoked = await repo.deleteUserSessions(tx, id)
     await writeAudit(tx, actor, {
       action: "user.roles_change",
@@ -302,6 +304,8 @@ export async function unbanUser(actor: Actor, id: string): Promise<UserItem> {
   const db = getDb()
   const target = await loadTarget(db, id)
   assertMayTouch(actor, target)
+  // Nothing to undo: no change, no audit row (ledger P02-4).
+  if (!target.banned) return toUserItem(target)
   await db.transaction(async (tx) => {
     await repo.setUserBan(tx, id, null)
     await writeAudit(tx, actor, {
@@ -356,6 +360,8 @@ export async function revokeSessions(
  * Single-use link to choose a password: "set-password" for invited users,
  * "reset-password" otherwise. Emailed when SMTP works; always returned so an
  * admin can pass it on when it does not (spec §17 bootstrap without SMTP).
+ * Under the owners lock, in one transaction: the target is re-checked, older
+ * links die and the new one is created together (ledger P02-4).
  */
 export async function createPasswordLink(
   actor: Actor,
@@ -363,26 +369,35 @@ export async function createPasswordLink(
 ): Promise<PasswordLinkResult> {
   need(actor, { user: ["update"] })
   const db = getDb()
-  const target = await loadTarget(db, id)
-  assertMayTouch(actor, target)
-  if (isBannedNow(target))
-    throw new AppError(
-      "CONFLICT",
-      "Unban this user before sending a password link"
-    )
-  // Only the newest link works: earlier invite/reset links stop working.
-  const revoked = await repo.deletePasswordTokens(db, id)
-  const token = await createPasswordToken(id, RECOVERY_TOKEN_EXPIRES_IN)
+  const token = newPasswordToken()
+  const target = await db.transaction(async (tx) => {
+    await repo.lockOwners(tx)
+    const found = await loadTarget(tx, id)
+    assertMayTouch(actor, found)
+    if (isBannedNow(found))
+      throw new AppError(
+        "CONFLICT",
+        "Unban this user before sending a password link"
+      )
+    // Only the newest link works: earlier invite/reset links stop working.
+    const revoked = await repo.deletePasswordTokens(tx, id)
+    await repo.insertPasswordToken(tx, {
+      userId: id,
+      token,
+      expiresAt: new Date(Date.now() + RECOVERY_TOKEN_EXPIRES_IN * 1000),
+    })
+    await writeAudit(tx, actor, {
+      action: "user.password_link",
+      entityType: "user",
+      entityId: id,
+      diff: { passwordLinksRevoked: revoked },
+    })
+    return found
+  })
   const url = passwordUrl(
     target.hasPassword ? "reset-password" : "set-password",
     token
   )
-  await writeAudit(db, actor, {
-    action: "user.password_link",
-    entityType: "user",
-    entityId: id,
-    diff: { passwordLinksRevoked: revoked },
-  })
   const { delivered } = target.hasPassword
     ? await mailer.send({
         to: target.email,

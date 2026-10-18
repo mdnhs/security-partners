@@ -9,6 +9,7 @@ import {
   exists,
   gt,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   like,
@@ -288,4 +289,49 @@ export async function clearTwoFactor(
     .update(users)
     .set({ twoFactorEnabled: false })
     .where(eq(users.id, userId))
+}
+
+/**
+ * The same verification row Better Auth's /request-password-reset writes
+ * (`reset-password:<token>` → user id), inside the caller's transaction.
+ */
+export async function insertPasswordToken(
+  db: DbOrTx,
+  row: { userId: string; token: string; expiresAt: Date }
+): Promise<void> {
+  await db.insert(verifications).values({
+    identifier: `reset-password:${row.token}`,
+    value: row.userId,
+    expiresAt: row.expiresAt,
+  })
+}
+
+export async function deleteUserById(db: DbOrTx, id: string): Promise<void> {
+  await db.delete(users).where(eq(users.id, id))
+}
+
+/** Users whose email ends in "@<domain>" (demo accounts). */
+export async function listUsersByEmailDomain(
+  db: DbOrTx,
+  domain: string
+): Promise<UserRow[]> {
+  const rows = await db
+    .select(userColumns)
+    .from(users)
+    .where(like(users.email, `%@${escapeLike(domain)}`))
+    .orderBy(asc(users.email))
+  return rows as UserRow[]
+}
+
+/** Deletes users (sessions, accounts, 2FA cascade; authored rows keep a null actor). */
+export async function deleteUsersByIds(
+  db: DbOrTx,
+  ids: string[]
+): Promise<number> {
+  if (ids.length === 0) return 0
+  const deleted = await db
+    .delete(users)
+    .where(inArray(users.id, ids))
+    .returning({ id: users.id })
+  return deleted.length
 }

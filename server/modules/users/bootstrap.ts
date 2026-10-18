@@ -23,8 +23,9 @@ import { mailer } from "@/server/lib/mailer"
 import * as repo from "./repo"
 
 // Operator commands (scripts/admin-create.ts, owner-recover.ts,
-// demo-seed.ts). They run with database access only, so there is no actor:
-// audit rows have actorId null and record the command in `diff.via`.
+// demo-seed.ts, demo-remove.ts). They run with database access only, so
+// there is no actor: audit rows have actorId null and record the command in
+// `diff.via`.
 
 export type LinkResult = {
   userId: string
@@ -84,16 +85,25 @@ export async function createOwner(input: {
   const { user } = await getAuth().api.createUser({
     body: { email, name, role: ["owner"] },
   })
-  const url = passwordUrl(
-    "set-password",
-    await createPasswordToken(user.id, INVITE_TOKEN_EXPIRES_IN)
-  )
-  await writeAudit(db, null, {
-    action: "user.invite",
-    entityType: "user",
-    entityId: user.id,
-    diff: { email, roles: ["owner"], via: "admin:create" },
-  })
+  let url: string
+  try {
+    url = passwordUrl(
+      "set-password",
+      await createPasswordToken(user.id, INVITE_TOKEN_EXPIRES_IN)
+    )
+    await writeAudit(db, null, {
+      action: "user.invite",
+      entityType: "user",
+      entityId: user.id,
+      diff: { email, roles: ["owner"], via: "admin:create" },
+    })
+  } catch (err) {
+    // All or nothing: a half-created owner would block the next attempt
+    // ("already exists") without a working link (ledger P02-7).
+    await repo.deletePasswordTokens(db, user.id)
+    await repo.deleteUserById(db, user.id)
+    throw err
+  }
   const { delivered } = await sendInviteEmail({
     to: email,
     name,
@@ -176,7 +186,7 @@ export async function seedDemoUsers(password: string): Promise<DemoUser[]> {
   )
     throw new AppError(
       "VALIDATION_FAILED",
-      `--password must be ${PASSWORD_MIN_LENGTH}-${PASSWORD_MAX_LENGTH} characters`
+      `--password (or DEMO_PASSWORD) must be ${PASSWORD_MIN_LENGTH}–${PASSWORD_MAX_LENGTH} characters`
     )
   const auth = getAuth()
   const ctx = await auth.$context
@@ -213,5 +223,46 @@ export async function seedDemoUsers(password: string): Promise<DemoUser[]> {
     if (existing) await repo.deleteUserSessions(db, userId)
     result.push({ email, role, created: !existing })
   }
+  await writeAudit(db, null, {
+    action: "user.demo_seeded",
+    diff: { emails: result.map((u) => u.email), via: "demo:seed" },
+  })
   return result
+}
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000"
+
+/**
+ * demo:remove (spec §14 "remove before handover"): deletes every
+ * <role>@demo.local account under the owners lock, signing them out
+ * everywhere first. Refuses (and changes nothing) when no real active owner
+ * would remain.
+ */
+export async function removeDemoUsers(): Promise<{ removed: string[] }> {
+  const db = getDb()
+  return db.transaction(async (tx) => {
+    await repo.lockOwners(tx)
+    const demo = await repo.listUsersByEmailDomain(tx, DEMO_EMAIL_DOMAIN)
+    if (demo.length === 0) return { removed: [] }
+    for (const user of demo) {
+      await repo.deleteUserSessions(tx, user.id)
+      // Unused password links point at the user id (no FK to cascade).
+      await repo.deletePasswordTokens(tx, user.id)
+    }
+    await repo.deleteUsersByIds(
+      tx,
+      demo.map((user) => user.id)
+    )
+    if ((await repo.countActiveOwners(tx, NIL_UUID)) === 0)
+      throw new AppError(
+        "CONFLICT",
+        "Create a real owner first (pnpm admin:create), then remove the demo accounts"
+      )
+    const removed = demo.map((user) => user.email)
+    await writeAudit(tx, null, {
+      action: "user.demo_removed",
+      diff: { emails: removed, via: "demo:remove" },
+    })
+    return { removed }
+  })
 }
