@@ -1,5 +1,9 @@
 import "server-only"
 
+import { ZodError } from "zod"
+
+import { pgErrorCode } from "./pg-errors"
+
 export const ERROR_CODES = [
   "VALIDATION_FAILED",
   "UNAUTHENTICATED",
@@ -65,4 +69,20 @@ export function fieldErrorsFromIssues(
     ;(out[key] ??= []).push(issue.message)
   }
   return out
+}
+
+/**
+ * Text safe to store or show for a failure outside a request (e.g.
+ * jobs.last_error): an AppError's or validation error's own message;
+ * anything else (database, driver) → `fallback`, never its raw text.
+ */
+export function safeErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof AppError) return err.message
+  if (err instanceof ZodError) return "Some fields need attention"
+  return fallback
+}
+
+/** SQLSTATE / driver code or error name, for logs that must not echo SQL or data. */
+export function errorKind(err: unknown): string {
+  return pgErrorCode(err) ?? (err instanceof Error ? err.name : typeof err)
 }

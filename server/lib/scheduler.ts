@@ -2,6 +2,8 @@ import "server-only"
 
 import { getDb } from "@/server/db/client"
 import { getEnv } from "@/server/env"
+import { errorKind } from "@/server/lib/errors"
+import { pgErrorCode } from "@/server/lib/pg-errors"
 import {
   claimDueJobs,
   finishJob,
@@ -37,6 +39,37 @@ export type TickResult = {
 
 const message = (err: unknown) =>
   err instanceof Error ? err.message : String(err)
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+/** Cache tags a previous run of this job could not expire. */
+function pendingTagsOf(payload: unknown): string[] {
+  const tags = isRecord(payload) ? payload.pendingTags : undefined
+  return Array.isArray(tags)
+    ? tags.filter((t): t is string => typeof t === "string")
+    : []
+}
+
+/** The payload with `pendingTags` set to `tags` (removed when empty; null when nothing is left). */
+function withPendingTags(payload: unknown, tags: string[]): unknown {
+  if (!isRecord(payload) && payload !== null && tags.length === 0)
+    return payload
+  const rest: Record<string, unknown> = isRecord(payload) ? { ...payload } : {}
+  delete rest.pendingTags
+  if (tags.length > 0) rest.pendingTags = tags
+  return Object.keys(rest).length > 0 ? rest : null
+}
+
+/**
+ * jobs.last_error for a failed run: a database error is logged by code only
+ * and stored as fixed text (raw driver messages carry SQL and parameters).
+ */
+function failureText(job: string, err: unknown): string {
+  if (pgErrorCode(err) === undefined) return message(err)
+  console.error(`[scheduler] ${job}: database error ${errorKind(err)}`)
+  return "Database error while running the job"
+}
 
 /** Inserts missing recurring job rows; existing rows keep their schedule. */
 export async function ensureRecurringJobs(
@@ -95,25 +128,40 @@ export async function tick(
   for (const job of claimed) {
     const definition = definitions.find((d) => d.name === job.name)
     let ok = true
-    let error: string | null = null
+    const notes: string[] = []
     let tags: string[] = []
+    // Tags a previous run could not expire (loopback down, restart): retried
+    // first, kept in the payload until a refresh succeeds — with
+    // cacheLife("max") a lost refresh would otherwise hide the change.
+    let unrefreshed = pendingTagsOf(job.payload)
+    if (unrefreshed.length > 0)
+      try {
+        await revalidate(unrefreshed)
+        unrefreshed = []
+      } catch (err) {
+        notes.push(`Cache refresh failed: ${message(err)}`)
+      }
     try {
       if (!definition) throw new Error(`No handler for job "${job.name}"`)
       const result = await definition.run({ now, payload: job.payload })
       tags = result.tags ?? []
-      error = result.warning ?? null
-      if (tags.length > 0)
-        try {
-          await revalidate(tags)
-        } catch (err) {
-          error = [error, `Cache refresh failed: ${message(err)}`]
-            .filter(Boolean)
-            .join("; ")
-        }
+      if (result.warning) notes.unshift(result.warning)
+      if (tags.length > 0) {
+        if (unrefreshed.length > 0)
+          unrefreshed = [...new Set([...unrefreshed, ...tags])]
+        else
+          try {
+            await revalidate(tags)
+          } catch (err) {
+            unrefreshed = tags
+            notes.push(`Cache refresh failed: ${message(err)}`)
+          }
+      }
     } catch (err) {
       ok = false
-      error = message(err)
+      notes.unshift(failureText(job.name, err))
     }
+    const error = notes.length > 0 ? notes.join("; ") : null
     await finishJob(db, job.id, now, {
       runAt: new Date(
         now.getTime() + (ok && definition ? definition.everyMs : RETRY_DELAY_MS)
@@ -121,6 +169,7 @@ export async function tick(
       lastRunAt: now,
       lastError: error?.slice(0, ERROR_MAX_LENGTH) ?? null,
       succeeded: ok,
+      payload: withPendingTags(job.payload, unrefreshed),
     })
     results.push({ name: job.name, key: job.key, ok, error, tags })
   }

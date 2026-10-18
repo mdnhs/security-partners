@@ -13,9 +13,20 @@ import { type Db, type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { writeAudit } from "@/server/lib/audit"
 import { invalidate, tag } from "@/server/lib/cache-tags"
-import { AppError, conflict, forbidden, notFound } from "@/server/lib/errors"
+import {
+  AppError,
+  conflict,
+  errorKind,
+  forbidden,
+  notFound,
+  safeErrorMessage,
+} from "@/server/lib/errors"
 import { clearMediaUsages, syncMediaUsages } from "@/server/lib/media-usages"
-import { pgErrorCode, UNIQUE_VIOLATION } from "@/server/lib/pg-errors"
+import {
+  pgConstraint,
+  pgErrorCode,
+  UNIQUE_VIOLATION,
+} from "@/server/lib/pg-errors"
 import {
   restoreRevision,
   saveDraft,
@@ -381,6 +392,9 @@ export async function deleteArticle(
 
 // ---------------------------------------------------------------- workflow
 
+/** revisions UNIQUE(entity_type, entity_id, version) (migration 0004). */
+const REVISION_VERSION_UNIQUE = "revisions_entity_version_unique"
+
 async function runTransition(
   actor: Actor,
   id: string,
@@ -393,7 +407,10 @@ async function runTransition(
   try {
     after = await transitionInTx(db, actor, id, version, transition, extra)
   } catch (err) {
-    if (pgErrorCode(err) === UNIQUE_VIOLATION) {
+    if (
+      pgErrorCode(err) === UNIQUE_VIOLATION &&
+      pgConstraint(err) === REVISION_VERSION_UNIQUE
+    ) {
       // Like Phase 4 publish(): the versioned UPDATE serialises transitions
       // of one article (row lock), so a revision clash after the article
       // moved on is a lost race → 409 with the current state. Otherwise a
@@ -404,7 +421,10 @@ async function runTransition(
       console.error(
         `[articles] article/${id}: revision ${version + 1} already exists; ${transition.action} rolled back`
       )
-    }
+    } else if (pgErrorCode(err) === UNIQUE_VIOLATION)
+      console.error(
+        `[articles] article/${id}: ${transition.action} hit a unique constraint (${pgConstraint(err) ?? "unknown"}); rolled back`
+      )
     throw err
   }
   if (transition.changesSite) invalidate(tag.articles, tag.article(after.slug))
@@ -500,6 +520,8 @@ export async function unpublishArticle(
  * Returns the cache tags to expire — the caller has no request context
  * (ledger ruling).
  */
+const PUBLISH_FAILED = "Database error while publishing"
+
 export async function publishDueArticles(
   now: Date = new Date()
 ): Promise<{ published: string[]; failed: string[]; tags: string[] }> {
@@ -524,9 +546,14 @@ export async function publishDueArticles(
           if (updated) published.push(updated.slug)
         })
       } catch (err) {
-        failed.push(
-          `${label}: ${err instanceof Error ? err.message : String(err)}`
-        )
+        const text = safeErrorMessage(err, PUBLISH_FAILED)
+        // Raw driver text (SQL, parameters) goes neither to jobs.last_error
+        // nor to the log: only its code.
+        if (text === PUBLISH_FAILED)
+          console.error(
+            `[scheduler] publish ${label} failed: ${errorKind(err)}`
+          )
+        failed.push(`${label}: ${text}`)
       }
     }
   })

@@ -35,6 +35,7 @@ describe("startScheduler (master 5.4)", () => {
   })
 
   it("does not start without the app env (logged, not thrown)", () => {
+    for (const key of Object.keys(ENV)) vi.stubEnv(key, undefined)
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     expect(startScheduler()).toBe(false)
     expect(vi.getTimerCount()).toBe(0)

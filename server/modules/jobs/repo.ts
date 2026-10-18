@@ -60,6 +60,8 @@ export async function finishJob(
     lastRunAt: Date
     lastError: string | null
     succeeded: boolean
+    /** Replaces the payload when given (e.g. tags still to expire). */
+    payload?: unknown
   }
 ): Promise<void> {
   await db
@@ -69,6 +71,7 @@ export async function finishJob(
       runAt: result.runAt,
       lastRunAt: result.lastRunAt,
       lastError: result.lastError,
+      ...(result.payload !== undefined ? { payload: result.payload } : {}),
       ...(result.succeeded ? { attempts: 0 } : {}),
     })
     .where(and(eq(jobs.id, id), eq(jobs.lockedAt, claimedAt)))

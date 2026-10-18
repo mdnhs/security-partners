@@ -98,6 +98,14 @@ async function job(key: string) {
   return row
 }
 
+async function idOf(slug: string) {
+  const [row] = await getDb()
+    .select({ id: articles.id })
+    .from(articles)
+    .where(eq(articles.slug, slug))
+  return row.id
+}
+
 async function article(id: string) {
   const [row] = await getDb().select().from(articles).where(eq(articles.id, id))
   return row
@@ -273,5 +281,88 @@ describe("scheduler (master 5.4)", () => {
       Array.from({ length: 50 }, (_, i) => i + 6)
     )
     expect(await versions("prune-b")).toEqual([1, 2, 3])
+  })
+
+  it("a failed cache refresh keeps its tags in the job payload (merged, deduped); the next tick retries them first and clears them", async () => {
+    await scheduled("timed-retry")
+    await ensureRecurringJobs(new Date())
+    const now = later()
+    const failing = vi.fn(async () => {
+      throw new Error("connect ECONNREFUSED")
+    })
+    await tick({ now, revalidate: failing })
+    const first = await job("publish-scheduled")
+    expect(first.payload).toEqual({
+      pendingTags: ["articles", "article:timed-retry"],
+    })
+    expect(first.lastError).toContain("Cache refresh failed")
+    expect((await article(await idOf("timed-retry"))).status).toBe("published")
+
+    // Another article goes live while the loopback is still down.
+    await scheduled("timed-second")
+    const second = new Date(now.getTime() + 60_000)
+    await tick({ now: second, revalidate: failing })
+    expect((await job("publish-scheduled")).payload).toEqual({
+      pendingTags: ["articles", "article:timed-retry", "article:timed-second"],
+    })
+
+    const ok = vi.fn(async () => undefined)
+    const third = new Date(second.getTime() + 60_000)
+    const [run] = (await tick({ now: third, revalidate: ok })).filter(
+      (r) => r.name === "publish-scheduled"
+    )
+    expect(run).toMatchObject({ ok: true, error: null })
+    expect(ok.mock.calls).toEqual([
+      [["articles", "article:timed-retry", "article:timed-second"]],
+    ])
+    const cleared = await job("publish-scheduled")
+    expect(cleared.payload).toBeNull()
+    expect(cleared.lastError).toBeNull()
+  })
+
+  it("last_error names the article but never carries raw database text", async () => {
+    const id = await scheduled("db-fault-timed")
+    const row = await article(id)
+    // A leftover revision row at the version the publish would write.
+    await getDb()
+      .insert(revisions)
+      .values({
+        entityType: "article",
+        entityId: id,
+        version: row.version + 1,
+        data: {},
+      })
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const result = await publishScheduledJob.run({
+        now: later(),
+        payload: null,
+      })
+      expect(result.warning).toBe(
+        "Not published: db-fault-timed: Database error while publishing"
+      )
+      const logged = error.mock.calls.map((args) => args.join(" ")).join("\n")
+      expect(logged).toContain("23505")
+      expect(logged).not.toMatch(/duplicate key|revisions_entity/)
+    } finally {
+      error.mockRestore()
+    }
+    expect((await article(id)).status).toBe("scheduled")
+  })
+
+  it("a validation failure keeps its own message in last_error", async () => {
+    const bad = await scheduled("invalid-timed")
+    const row = await article(bad)
+    await getDb()
+      .update(articles)
+      .set({ draft: { ...row.draft, title: "" } })
+      .where(eq(articles.id, bad))
+    const result = await publishScheduledJob.run({
+      now: later(),
+      payload: null,
+    })
+    expect(result.warning).toBe(
+      "Not published: invalid-timed: Some fields need attention"
+    )
   })
 })
