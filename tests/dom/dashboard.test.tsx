@@ -179,6 +179,53 @@ describe("dashboard (JW layout)", () => {
     ).toHaveAttribute("href", "/admin/settings/integrations/smtp")
   })
 
+  it("Next up leads with the spam-protection warning when Turnstile settings can't be read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
+        if (path.endsWith("/dashboard"))
+          return Response.json({
+            ...dto,
+            nextUp: [
+              {
+                id: "turnstile-unreadable",
+                title: "Spam protection is off",
+                description:
+                  "Turnstile settings can't be read — re-enter the keys in Integrations.",
+                href: "/admin/settings/integrations/turnstile",
+                done: false,
+              },
+              ...dto.nextUp,
+            ],
+          } satisfies DashboardDto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    const next = await screen.findByRole("region", { name: "Next up" })
+    expect(next).toHaveTextContent(
+      "Spam protection is off" +
+        "Turnstile settings can't be read — re-enter the keys in Integrations."
+    )
+    const list = within(next).getByRole("list", { name: "Setup checklist" })
+    expect(
+      within(list).getByRole("link", {
+        name: /Spam protection is off.*\(to do\)/,
+      })
+    ).toHaveAttribute("href", "/admin/settings/integrations/turnstile")
+    expect(
+      within(next).getByRole("link", { name: "Get started" })
+    ).toHaveAttribute("href", "/admin/settings/integrations/turnstile")
+  })
+
+  it("no spam-protection warning in the default (seeded) dashboard", async () => {
+    renderDashboard(["owner"])
+    const next = await screen.findByRole("region", { name: "Next up" })
+    expect(next).not.toHaveTextContent("Spam protection is off")
+  })
+
   it("team activity for audit readers only", async () => {
     renderDashboard(["owner"])
     const feed = await screen.findByRole("region", { name: "Team activity" })
