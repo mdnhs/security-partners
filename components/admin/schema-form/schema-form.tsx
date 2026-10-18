@@ -29,11 +29,16 @@ export type FocusedTextField = {
   path: string
   label: string
   maxLength: number | null
+  /** A textarea widget (line breaks allowed). */
+  multiline: boolean
   /** DOM id of the input. */
   elementId: string
   read: () => string
-  /** Sets the value as if typed: dirty, touched, validated, emitted through onChange. */
-  setValue: (text: string) => void
+  /**
+   * Sets the value as if typed: dirty, touched, validated, emitted through
+   * onChange. False (nothing set) when the path no longer holds a value.
+   */
+  setValue: (text: string) => boolean
 }
 
 export type SchemaFormProps<S extends z.ZodObject> = {
@@ -196,17 +201,22 @@ export function SchemaForm<S extends z.ZodObject>({
       path,
       label: field.label,
       maxLength: field.meta.maxLength ?? stringMaxLength(field.schema),
+      multiline: field.kind === "textarea",
       elementId: target.id,
       read: () => {
         const current: unknown = form.getValues(name)
         return typeof current === "string" ? current : ""
       },
-      setValue: (text) =>
+      setValue: (text) => {
+        // The field may be gone since it was focused (list item removed).
+        if (form.getValues(name) === undefined) return false
         form.setValue(name, text as never, {
           shouldDirty: true,
           shouldTouch: true,
           shouldValidate: true,
-        }),
+        })
+        return true
+      },
     })
   }
   return (

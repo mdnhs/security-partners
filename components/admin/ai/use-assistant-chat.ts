@@ -52,6 +52,9 @@ export function useAssistantChat(): AssistantChat {
   // A reply that finishes after "New chat" or after opening another
   // conversation must not write into the new one.
   const epoch = useRef(0)
+  // Past conversations load asynchronously: only the latest request (and
+  // only if nothing changed the conversation meanwhile) may switch to it.
+  const opening = useRef(0)
 
   // Stopping aborts the fetch: the server then cancels the provider call
   // and saves no assistant message (readChatStream alone never cancels).
@@ -66,6 +69,7 @@ export function useAssistantChat(): AssistantChat {
     (id: string | null, next: ChatMessage[]) => {
       stop()
       epoch.current += 1
+      opening.current += 1
       conversation.current = id
       setConversationId(id)
       setMessages(next)
@@ -79,8 +83,10 @@ export function useAssistantChat(): AssistantChat {
 
   const open = useCallback(
     async (id: string) => {
+      const mine = ++opening.current
       try {
         const loaded = await fetchConversation(id)
+        if (opening.current !== mine) return
         switchTo(
           id,
           loaded.messages.map((m) => ({
@@ -91,7 +97,7 @@ export function useAssistantChat(): AssistantChat {
           }))
         )
       } catch (err) {
-        setError(errorMessage(err))
+        if (opening.current === mine) setError(errorMessage(err))
       }
     },
     [switchTo]
@@ -102,6 +108,7 @@ export function useAssistantChat(): AssistantChat {
       const message = text.trim()
       if (!message || controller.current) return
       const mine = epoch.current
+      opening.current += 1
       const abort = new AbortController()
       controller.current = abort
       const replyId = localId("reply")

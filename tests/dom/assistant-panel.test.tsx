@@ -42,7 +42,7 @@ const ON: AiStatusDto = {
 
 type Call = { method: string; path: string; body: unknown }
 let calls: Call[]
-let routes: Record<string, (init?: RequestInit) => Response>
+let routes: Record<string, (init?: RequestInit) => Response | Promise<Response>>
 
 beforeEach(() => {
   calls = []
@@ -76,7 +76,16 @@ beforeEach(() => {
   )
 })
 
-const apply = vi.fn()
+const apply = vi.fn<(text: string) => boolean | void>()
+
+/** Per-test overrides of the stand-in's focused field (fix round 1). */
+let standIn: { maxLength: number | null; multiline: boolean; hidden: boolean }
+
+beforeEach(() => {
+  apply.mockReset()
+  toast.error.mockClear()
+  standIn = { maxLength: 80, multiline: false, hidden: false }
+})
 
 /** Stands in for an editor: shares a record and reports a focused field. */
 function EditorStandIn() {
@@ -86,7 +95,7 @@ function EditorStandIn() {
     entityId: "home",
     record: { hero: { heading: "Old" } },
   })
-  return (
+  const input = (
     <input
       id="probe-heading"
       aria-label="Heading"
@@ -94,7 +103,8 @@ function EditorStandIn() {
         setField({
           path: "hero.heading",
           label: "Heading",
-          maxLength: 80,
+          maxLength: standIn.maxLength,
+          multiline: standIn.multiline,
           elementId: "probe-heading",
           read: () => "Old",
           apply,
@@ -102,6 +112,8 @@ function EditorStandIn() {
       }
     />
   )
+  // A field in a section tab that is not selected: rendered, but hidden.
+  return standIn.hidden ? <div data-testid="tab">{input}</div> : input
 }
 
 function renderAssistant(
@@ -467,5 +479,196 @@ describe("Stopping an answer aborts the request (server cancels the provider)", 
     expect(signals[1]!.aborted).toBe(false)
     view.unmount()
     expect(signals[1]!.aborted).toBe(true)
+  })
+})
+
+describe("Insert respects the field (fix round 1)", () => {
+  it("puts a multi-line reply on one line in a single-line field (max 80)", async () => {
+    routes["POST /api/v1/admin/ai/chat"] = () =>
+      reply("“Safer nights,\n  safer shops”")
+    const user = userEvent.setup()
+    renderAssistant()
+    await user.click(screen.getByLabelText("Heading"))
+    const dialog = await openPanel(user)
+    await sendMessage(user, dialog, "Rewrite it")
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Insert into Heading" })
+    )
+    expect(apply).toHaveBeenCalledWith("Safer nights, safer shops")
+  })
+
+  it("refuses a reply longer than the field allows; the panel stays open", async () => {
+    routes["POST /api/v1/admin/ai/chat"] = () =>
+      reply(`${"Round-the-clock security ".repeat(4)}for Irish businesses`)
+    const user = userEvent.setup()
+    renderAssistant()
+    await user.click(screen.getByLabelText("Heading"))
+    const dialog = await openPanel(user)
+    await sendMessage(user, dialog, "Rewrite it")
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Insert into Heading" })
+    )
+    expect(apply).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(
+      "Too long for “Heading” (120/80) — copy it instead"
+    )
+    expect(screen.getByRole("dialog", { name: "AI assistant" })).toBeVisible()
+  })
+
+  it("the success toast offers Undo, which puts the previous value back", async () => {
+    routes["POST /api/v1/admin/ai/chat"] = () => reply("Safer nights")
+    const user = userEvent.setup()
+    renderAssistant()
+    await user.click(screen.getByLabelText("Heading"))
+    const dialog = await openPanel(user)
+    await sendMessage(user, dialog, "Rewrite it")
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Insert into Heading" })
+    )
+    const options = toast.success.mock.calls.at(-1)![1] as {
+      action: { label: string; onClick: () => void }
+    }
+    expect(options.action.label).toBe("Undo")
+    act(() => options.action.onClick())
+    expect(apply).toHaveBeenLastCalledWith("Old")
+  })
+
+  it("refuses when the field is gone from the form", async () => {
+    apply.mockReturnValue(false)
+    routes["POST /api/v1/admin/ai/chat"] = () => reply("Safer nights")
+    const user = userEvent.setup()
+    renderAssistant()
+    await user.click(screen.getByLabelText("Heading"))
+    const dialog = await openPanel(user)
+    await sendMessage(user, dialog, "Rewrite it")
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Insert into Heading" })
+    )
+    expect(toast.error).toHaveBeenCalledWith(
+      "“Heading” is no longer on the form — copy it instead"
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it("returns focus to the AI button when the field is in a hidden tab", async () => {
+    standIn.hidden = true
+    routes["POST /api/v1/admin/ai/chat"] = () => reply("Safer nights")
+    const user = userEvent.setup()
+    renderAssistant()
+    await user.click(screen.getByLabelText("Heading"))
+    // The user switches section tab: the field is hidden, not unmounted.
+    screen.getByTestId("tab").hidden = true
+    const dialog = await openPanel(user)
+    await sendMessage(user, dialog, "Rewrite it")
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Insert into Heading" })
+    )
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(screen.getByRole("button", { name: "AI assistant" })).toHaveFocus()
+  })
+})
+
+describe("Panel accessibility and keyboard (fix round 1)", () => {
+  it("marks the log busy while a reply streams; the error is outside the log", async () => {
+    const signals: AbortSignal[] = []
+    routes["POST /api/v1/admin/ai/chat"] = hangingAnswer(signals)
+    const user = userEvent.setup()
+    renderAssistant(ON, { editor: false })
+    const dialog = await openPanel(user)
+    const log = within(dialog).getByRole("log", { name: "Conversation" })
+    expect(log).toHaveAttribute("aria-busy", "false")
+    await sendMessage(user, dialog, "Hi")
+    await within(dialog).findByText("Partial answer")
+    expect(log).toHaveAttribute("aria-busy", "true")
+    await user.click(within(dialog).getByRole("button", { name: "Stop" }))
+    await waitFor(() => expect(log).toHaveAttribute("aria-busy", "false"))
+
+    routes["POST /api/v1/admin/ai/chat"] = () =>
+      json({ error: { code: "RATE_LIMITED", message: "Wait a bit." } }, 429)
+    await sendMessage(user, dialog, "Again")
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert).toHaveTextContent("Wait a bit.")
+    expect(log).not.toContainElement(alert)
+  })
+
+  it("read-only: focus starts on Close (the composer is disabled)", async () => {
+    const user = userEvent.setup()
+    renderAssistant({ ...ON, readOnly: true }, { editor: false })
+    const dialog = await openPanel(user)
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Close" })
+      ).toHaveFocus()
+    )
+  })
+
+  it("Ctrl+J does nothing while another modal dialog is open", async () => {
+    const user = userEvent.setup()
+    renderAssistant(ON, { editor: false })
+    const other = document.createElement("div")
+    other.setAttribute("role", "dialog")
+    other.setAttribute("aria-modal", "true")
+    document.body.append(other)
+    await user.keyboard("{Control>}j{/Control}")
+    expect(screen.queryByRole("dialog", { name: "AI assistant" })).toBeNull()
+    other.remove()
+    await user.keyboard("{Control>}j{/Control}")
+    expect(
+      await screen.findByRole("dialog", { name: "AI assistant" })
+    ).toBeInTheDocument()
+  })
+
+  it("a past conversation that loads after New chat does not replace it", async () => {
+    let release: () => void = () => {}
+    routes["GET /api/v1/admin/ai/conversations"] = () =>
+      json({
+        items: [
+          {
+            id: "c9",
+            title: "Old chat",
+            createdAt: "2026-10-15T09:00:00.000Z",
+            updatedAt: "2026-10-15T09:05:00.000Z",
+          },
+        ],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+      })
+    routes["GET /api/v1/admin/ai/conversations/c9"] = () =>
+      new Promise<Response>((resolve) => {
+        release = () =>
+          resolve(
+            json({
+              id: "c9",
+              title: "Old chat",
+              createdAt: "2026-10-15T09:00:00.000Z",
+              updatedAt: "2026-10-15T09:05:00.000Z",
+              messages: [
+                {
+                  id: "m2",
+                  role: "assistant",
+                  content: "Earlier answer",
+                  createdAt: "2026-10-15T09:00:05.000Z",
+                },
+              ],
+            })
+          )
+      })
+    const user = userEvent.setup()
+    renderAssistant(ON, { editor: false })
+    const dialog = await openPanel(user)
+    await user.click(
+      within(dialog).getByRole("button", { name: "Past conversations" })
+    )
+    await user.click(await screen.findByRole("button", { name: "Old chat" }))
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.path === "/api/v1/admin/ai/conversations/c9")
+      ).toBe(true)
+    )
+    await user.click(within(dialog).getByRole("button", { name: "New chat" }))
+    await act(async () => release())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(within(dialog).queryByText("Earlier answer")).toBeNull()
   })
 })

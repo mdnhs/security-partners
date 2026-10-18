@@ -6,6 +6,7 @@ import type {
 } from "@/components/admin/ai/assistant-context"
 import {
   chatContextFrom,
+  insertText,
   starterPrompts,
 } from "@/components/admin/ai/chat-context"
 import { leadAssistantScreen } from "@/components/admin/ai/screens"
@@ -23,6 +24,7 @@ const field: AssistantField = {
   path: "hero.heading",
   label: "Heading",
   maxLength: 80,
+  multiline: false,
   elementId: "sf-hero-heading",
   read: () => "Typed just now",
   apply: vi.fn(),
@@ -139,5 +141,28 @@ describe("leadAssistantScreen (summarise a lead, spec §8.3)", () => {
     const json = JSON.stringify(shared)
     expect(json).not.toContain("jane@example.ie")
     expect(json).not.toContain("555 0100")
+  })
+})
+
+describe("insertText (fix round 1: Insert respects the field)", () => {
+  it("puts a multi-line reply on one line for a single-line field", () => {
+    expect(
+      insertText("“Safer nights,\n  safer shops”", {
+        multiline: false,
+        maxLength: 80,
+      })
+    ).toEqual({ ok: true, text: "Safer nights, safer shops" })
+    expect(
+      insertText("Line one\n\nLine two", { multiline: true, maxLength: null })
+    ).toEqual({ ok: true, text: "Line one\n\nLine two" })
+  })
+
+  it("refuses text longer than the field allows", () => {
+    expect(
+      insertText("x".repeat(81), { multiline: false, maxLength: 80 })
+    ).toEqual({ ok: false, length: 81, max: 80 })
+    expect(
+      insertText("x".repeat(80), { multiline: false, maxLength: 80 })
+    ).toEqual({ ok: true, text: "x".repeat(80) })
   })
 })

@@ -27,18 +27,20 @@ export type AssistantField = {
   path: string
   label: string
   maxLength: number | null
+  /** A textarea (line breaks allowed); single-line inputs get one line. */
+  multiline: boolean
   /** DOM id of the input, focused after inserting. */
   elementId: string
   /** The field's value now. */
   read: () => string
-  apply: (text: string) => void
+  /** Writes the text; false when the field is gone (e.g. its list item was removed). */
+  apply: (text: string) => boolean | void
 }
 
 type Registration = { token: symbol; get: () => AssistantScreen }
 
-type AssistantContextValue = {
-  screen: ScreenInfo | null
-  field: AssistantField | null
+/** Stable for the provider's lifetime: editors use only these, so they never re-render on panel state. */
+type AssistantActions = {
   /** The shared screen as it is now (latest record). */
   snapshot: () => AssistantScreen | null
   register: (registration: Registration, info: ScreenInfo) => void
@@ -46,16 +48,21 @@ type AssistantContextValue = {
   setField: (token: symbol, field: AssistantField | null) => void
 }
 
-const NOOP: AssistantContextValue = {
-  screen: null,
-  field: null,
+type AssistantState = {
+  screen: ScreenInfo | null
+  field: AssistantField | null
+}
+
+const NOOP_ACTIONS: AssistantActions = {
   snapshot: () => null,
   register: () => {},
   unregister: () => {},
   setField: () => {},
 }
+const EMPTY_STATE: AssistantState = { screen: null, field: null }
 
-const AssistantContext = createContext<AssistantContextValue>(NOOP)
+const ActionsContext = createContext<AssistantActions>(NOOP_ACTIONS)
+const StateContext = createContext<AssistantState>(EMPTY_STATE)
 
 /** Holds the screen the assistant may see (one at a time; the newest wins). */
 export function AssistantProvider({ children }: { children: ReactNode }) {
@@ -89,30 +96,28 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   )
   const snapshot = useCallback(() => current.current?.get() ?? null, [])
 
-  const value = useMemo<AssistantContextValue>(
-    () => ({
-      screen,
-      field: owned?.field ?? null,
-      snapshot,
-      register,
-      unregister,
-      setField,
-    }),
-    [screen, owned, snapshot, register, unregister, setField]
+  const actions = useMemo<AssistantActions>(
+    () => ({ snapshot, register, unregister, setField }),
+    [snapshot, register, unregister, setField]
+  )
+  const state = useMemo<AssistantState>(
+    () => ({ screen, field: owned?.field ?? null }),
+    [screen, owned]
   )
   return (
-    <AssistantContext.Provider value={value}>
-      {children}
-    </AssistantContext.Provider>
+    <ActionsContext.Provider value={actions}>
+      <StateContext.Provider value={state}>{children}</StateContext.Provider>
+    </ActionsContext.Provider>
   )
 }
 
 /** The panel's view of the shared screen. Outside the provider: nothing shared. */
-export function useAssistant(): Pick<
-  AssistantContextValue,
-  "screen" | "field" | "snapshot"
-> {
-  return useContext(AssistantContext)
+export function useAssistant(): AssistantState & {
+  snapshot: () => AssistantScreen | null
+} {
+  const { snapshot } = useContext(ActionsContext)
+  const state = useContext(StateContext)
+  return useMemo(() => ({ ...state, snapshot }), [state, snapshot])
 }
 
 /**
@@ -128,7 +133,7 @@ export function useAssistantScreen(screen: AssistantScreen | null): {
     register,
     unregister,
     setField: setOwnedField,
-  } = useContext(AssistantContext)
+  } = useContext(ActionsContext)
   const [token] = useState(() => Symbol("assistant-screen"))
   const latest = useRef(screen)
   useEffect(() => {

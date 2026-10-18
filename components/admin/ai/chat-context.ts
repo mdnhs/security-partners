@@ -1,3 +1,4 @@
+import { suggestionText } from "@/lib/ai/suggestion"
 import {
   AI_MAX_FIELD_CHARS,
   AI_MAX_RECORD_CHARS,
@@ -9,6 +10,23 @@ import type {
   AssistantScreen,
   ScreenInfo,
 } from "./assistant-context"
+
+/**
+ * What "Insert" would put into the field, or why it cannot. A single-line
+ * field gets the whole reply on one line (line breaks and the spaces
+ * around them become one space, so nothing is dropped silently); a reply
+ * longer than the field allows is refused (the user copies it instead).
+ */
+export function insertText(
+  reply: string,
+  field: Pick<AssistantField, "multiline" | "maxLength">
+): { ok: true; text: string } | { ok: false; length: number; max: number } {
+  let text = suggestionText(reply)
+  if (!field.multiline) text = text.replace(/\s*\n\s*/g, " ").trim()
+  if (field.maxLength !== null && text.length > field.maxLength)
+    return { ok: false, length: text.length, max: field.maxLength }
+  return { ok: true, text }
+}
 
 /**
  * The context sent with one message (spec §8.3): the screen, the focused

@@ -75,6 +75,7 @@ describe("SchemaForm focused-field API (master 9.2: Insert via SchemaForm)", () 
       path: "hero.heading",
       label: "Main heading",
       maxLength: 80,
+      multiline: false,
       elementId: "sf-hero-heading",
     })
     expect(field.read()).toBe("Old heading")
@@ -92,7 +93,11 @@ describe("SchemaForm focused-field API (master 9.2: Insert via SchemaForm)", () 
 
     await user.click(screen.getByLabelText("Subheading"))
     expect(onFieldFocus).toHaveBeenLastCalledWith(
-      expect.objectContaining({ path: "hero.subheading", maxLength: 300 })
+      expect.objectContaining({
+        path: "hero.subheading",
+        maxLength: 300,
+        multiline: true,
+      })
     )
     // A switch is not a text field.
     await user.click(screen.getByRole("switch"))
@@ -111,6 +116,40 @@ const SESSION: AdminSession = {
   roles: ["owner"],
   impersonatedBy: null,
 }
+
+describe("SchemaForm setValue when the field is gone (fix round 1)", () => {
+  it("returns false and sets nothing once the list item no longer exists", async () => {
+    const listSchema = z.object({ highlights: z.array(z.string().max(40)) })
+    const onFieldFocus = vi.fn<(field: FocusedTextField) => void>()
+    const onChange = vi.fn()
+    const ui = (highlights: string[], resetKey: number) => (
+      <QueryClientProvider client={makeQueryClient()}>
+        <SchemaForm
+          schema={listSchema}
+          meta={{ fields: {} }}
+          value={{ highlights }}
+          onChange={onChange}
+          resetKey={resetKey}
+          onFieldFocus={onFieldFocus}
+        />
+      </QueryClientProvider>
+    )
+    const view = render(ui(["One", "Two"], 0))
+    act(() => document.getElementById("sf-highlights-1")!.focus())
+    const field = onFieldFocus.mock.calls.at(-1)![0]
+    expect(field.path).toBe("highlights.1")
+    view.rerender(ui(["One"], 1))
+    await waitFor(() =>
+      expect(document.getElementById("sf-highlights-1")).toBeNull()
+    )
+    let result: boolean | undefined
+    act(() => {
+      result = field.setValue("Three")
+    })
+    expect(result).toBe(false)
+    expect(field.read()).toBe("")
+  })
+})
 
 type Dto = VersionedDto<Hero>
 const dto = (version: number, heading: string): Dto => ({

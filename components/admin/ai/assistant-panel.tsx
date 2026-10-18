@@ -37,13 +37,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { suggestionText } from "@/lib/ai/suggestion"
 import { errorMessage } from "@/lib/api-client"
 import { AI_MAX_MESSAGE_CHARS, type AiStatusDto } from "@/lib/schemas/api/ai"
 import { cn } from "@/lib/utils"
 
 import { useAssistant } from "./assistant-context"
-import { chatContextFrom, starterPrompts } from "./chat-context"
+import { chatContextFrom, insertText, starterPrompts } from "./chat-context"
 import { MessageList } from "./message-list"
 import {
   AI_CONVERSATIONS_KEY,
@@ -74,6 +73,7 @@ export function AssistantPanel({
   // The "Using: …" chip: ✕ leaves the screen out of the next message only.
   const [shareScreen, setShareScreen] = useState(true)
   const composer = useRef<HTMLTextAreaElement>(null)
+  const closeButton = useRef<HTMLButtonElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   // Focus on close: the field a suggestion went into, else the button.
   const returnFocus = useRef<HTMLElement | null>(null)
@@ -105,10 +105,25 @@ export function AssistantPanel({
   const insert = (reply: string) => {
     const field = assistant.field
     if (!field || readOnly) return
-    field.apply(suggestionText(reply))
-    returnFocus.current = document.getElementById(field.elementId)
+    const fit = insertText(reply, field)
+    if (!fit.ok) {
+      toast.error(
+        `Too long for “${field.label}” (${fit.length}/${fit.max}) — copy it instead`
+      )
+      return
+    }
+    const previous = field.read()
+    if (field.apply(fit.text) === false) {
+      toast.error(`“${field.label}” is no longer on the form — copy it instead`)
+      return
+    }
+    // Back to the field, unless it sits in a hidden section tab (then the
+    // AI button, via finalFocus).
+    const target = document.getElementById(field.elementId)
+    returnFocus.current = target && !target.closest("[hidden]") ? target : null
     toast.success(`Inserted into “${field.label}”`, {
       description: "Check it, then save or publish as usual.",
+      action: { label: "Undo", onClick: () => void field.apply(previous) },
     })
     onOpenChange(false)
   }
@@ -123,7 +138,10 @@ export function AssistantPanel({
       <SheetContent
         side="right"
         showCloseButton={false}
-        initialFocus={composer}
+        // Read-only: the composer is disabled, so focus starts on Close.
+        initialFocus={readOnly ? closeButton : composer}
+        // Ctrl+J ignores other modal dialogs, not this one (hotkey toggles it).
+        data-assistant-panel=""
         finalFocus={() => returnFocus.current ?? trigger.current ?? true}
         className="w-full gap-0 overflow-hidden bg-sidebar p-0 data-[side=right]:w-full sm:data-[side=right]:max-w-[33rem]"
       >
@@ -169,6 +187,7 @@ export function AssistantPanel({
             <SheetClose
               render={
                 <Button
+                  ref={closeButton}
                   type="button"
                   variant="ghost"
                   size="icon-sm"
@@ -186,6 +205,8 @@ export function AssistantPanel({
           ref={scroller}
           role="log"
           aria-live="polite"
+          // Announce a reply once it is complete, not every streamed piece.
+          aria-busy={chat.busy}
           aria-label="Conversation"
           className="min-h-0 flex-1 overflow-y-auto"
         >
@@ -227,16 +248,17 @@ export function AssistantPanel({
                 onInsert={insert}
               />
             )}
-            {chat.error ? (
-              <p
-                role="alert"
-                className="bg-danger-soft text-danger rounded-xl px-3 py-2 text-sm"
-              >
-                {chat.error}
-              </p>
-            ) : null}
           </div>
         </div>
+        {/* Outside the log: announced once as an alert, not again by the log. */}
+        {chat.error ? (
+          <p
+            role="alert"
+            className="bg-danger-soft text-danger mx-4 mt-3 shrink-0 rounded-xl px-3 py-2 text-sm sm:mx-6"
+          >
+            {chat.error}
+          </p>
+        ) : null}
 
         <Composer
           boxRef={composer}

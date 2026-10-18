@@ -217,12 +217,13 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
       path: field.path,
       label: field.label,
       maxLength: field.maxLength,
+      multiline: field.multiline,
       elementId: field.elementId,
       read: field.read,
       // An inserted suggestion is an edit like typing: autosave picks it up.
       apply: (text) => {
         markTouched()
-        field.setValue(text)
+        return field.setValue(text)
       },
     })
   const onFormChange = (value: unknown) => {
