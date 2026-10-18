@@ -13,6 +13,10 @@ export type E2EFixtures = {
   account: { email: string; name: string }
   /** Articles workflow (Phase 5): drafts and submits, never publishes. */
   author: { email: string; name: string }
+  /** Leads (Phase 7): sees only Dashboard, Leads and Account. */
+  intake: { email: string; name: string }
+  /** settings.leads.recipients[0] in sp_e2e; mail lands in Mailpit. */
+  leadsInbox: string
 }
 
 /**

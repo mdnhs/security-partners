@@ -3,6 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 
+import { eq } from "drizzle-orm"
 import { URI } from "otpauth"
 
 import { getAuth } from "@/server/auth/auth"
@@ -14,6 +15,7 @@ import {
 import { closeDb, getDb } from "@/server/db/client"
 import { seedContent } from "@/server/db/seed"
 import { runMigrations } from "@/server/db/migrate"
+import { settings } from "@/server/db/schema"
 import { getEnv } from "@/server/env"
 
 import { resetDb } from "../integration/db"
@@ -92,12 +94,30 @@ await auth.api.createUser({
   body: { ...author, role: ["author"], password: E2E_PASSWORD },
 })
 
+// Leads (Phase 7): an intake user, staff notifications to a Mailpit inbox.
+const intake = { email: "intake@e2e.test", name: "Ian Intake" }
+await auth.api.createUser({
+  body: { ...intake, role: ["intake"], password: E2E_PASSWORD },
+})
+const leadsInbox = "leads@e2e.test"
+const leadsSettings = {
+  recipients: [leadsInbox],
+  retentionMonths: 24,
+  acknowledgement: false,
+}
+await getDb()
+  .update(settings)
+  .set({ draft: leadsSettings, published: leadsSettings })
+  .where(eq(settings.key, "leads"))
+
 const fixtures: E2EFixtures = {
   editor,
   invitee: { ...invitee, inviteUrl },
   twoFactor: { ...twoFactor, totpUri: enabled.totpURI },
   account,
   author,
+  intake,
+  leadsInbox,
 }
 mkdirSync(dirname(FIXTURES_FILE), { recursive: true })
 writeFileSync(FIXTURES_FILE, JSON.stringify(fixtures, null, 2))
