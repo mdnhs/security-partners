@@ -8,11 +8,13 @@ import type { AppEnv } from "@/server/api/context"
 import { actorOf, can } from "@/server/api/middleware/auth"
 import { zv } from "@/server/api/validate"
 import { notFound } from "@/server/lib/errors"
+import { ifRangeHolds, noneMatch, parseRange } from "@/server/lib/http-range"
 import {
   decodeKeyPath,
   IMMUTABLE_CACHE,
   MEDIA_FILE_PATH,
 } from "@/server/lib/storage/paths"
+import type { ByteRange } from "@/server/lib/storage/types"
 
 import * as service from "./service"
 
@@ -120,6 +122,10 @@ function fileHeaders(file: {
  * default next/image optimizer can fetch it. Keys never change, so the
  * response is immutable. Only keys with a disk/r2 media row are served
  * (temp files, healthchecks and static rows are 404).
+ *
+ * Files are streamed from the driver, never buffered. One `Range` gets a
+ * 206 (several get the whole file), an unsatisfiable one a 416; the ETag
+ * answers If-None-Match with a 304 and gates If-Range.
  */
 export const mediaFileRoutes = new Hono<AppEnv>().get("/*", async (c) => {
   // The raw request path (the catch-all route hands Hono the undecoded URL),
@@ -128,12 +134,71 @@ export const mediaFileRoutes = new Hono<AppEnv>().get("/*", async (c) => {
   const key = pathname.startsWith(MEDIA_FILE_PATH)
     ? decodeKeyPath(pathname.slice(MEDIA_FILE_PATH.length))
     : null
-  const file = key ? await service.readMediaFile(key) : null
-  if (!file) throw notFound("File")
-  return c.body(
-    // fs/S3 bytes are backed by a plain ArrayBuffer, never a shared one.
-    file.bytes as Uint8Array<ArrayBuffer>,
-    200,
-    fileHeaders({ ...file, size: file.bytes.byteLength })
-  )
+  const head = c.req.method === "HEAD"
+  // Twice: a migration may move the file between the lookup and the read.
+  for (let attempt = 0; key && attempt < 2; attempt++) {
+    const file = await service.findMediaFile(key)
+    if (!file) break
+    const headers = {
+      ...fileHeaders(file),
+      "Accept-Ranges": "bytes",
+      ETag: file.etag,
+    }
+    if (noneMatch(c.req.header("if-none-match"), file.etag))
+      return c.body(null, 304, {
+        ETag: file.etag,
+        "Cache-Control": IMMUTABLE_CACHE,
+      })
+    const range = ifRangeHolds(c.req.header("if-range"), file.etag)
+      ? parseRange(c.req.header("range"), file.size)
+      : null
+    if (range === "unsatisfiable")
+      return c.body(null, 416, {
+        "Content-Range": `bytes */${file.size}`,
+        "X-Content-Type-Options": "nosniff",
+      })
+    // HEAD answers from the row alone and never opens storage: cheap, and it
+    // cannot leak a file handle. A row whose object has gone still gets 200
+    // here; the following GET is the one that 404s (or retries a migration).
+    if (head)
+      return c.body(
+        null,
+        range ? 206 : 200,
+        range ? partialHeaders(headers, range, file.size) : headers
+      )
+    const stored = await service.openMediaFile(file, range ?? undefined)
+    if (!stored) continue
+    if (stored.size !== file.size || (range && !stored.partial)) {
+      // The row's size is wrong (never expected): the ETag and any range
+      // were computed from it, so send the whole object as it really is.
+      // R2 may already have answered with the whole object (InvalidRange).
+      console.error(`[media] size mismatch for ${file.key}`)
+      let whole: typeof stored | null = stored
+      if (stored.partial) {
+        await stored.body.cancel()
+        whole = await service.openMediaFile(file)
+      }
+      if (!whole) continue
+      return c.body(whole.body, 200, {
+        ...fileHeaders({ ...file, size: whole.size }),
+        "Accept-Ranges": "bytes",
+      })
+    }
+    return range
+      ? c.body(stored.body, 206, partialHeaders(headers, range, file.size))
+      : c.body(stored.body, 200, headers)
+  }
+  throw notFound("File")
 })
+
+function partialHeaders(
+  headers: Record<string, string>,
+  range: ByteRange,
+  size: number
+): Record<string, string> {
+  return {
+    ...headers,
+    "Content-Length": String(range.end - range.start + 1),
+    "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
+  }
+}

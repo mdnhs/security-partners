@@ -228,7 +228,14 @@ describe("uploads to R2 (Disconnect cannot race them)", () => {
       if (command instanceof GetObjectCommand) {
         const bytes = objects.get(command.input.Key!)
         if (!bytes) throw new NoSuchKey({ message: "missing", $metadata: {} })
-        return { Body: { transformToByteArray: async () => bytes } }
+        return {
+          ContentLength: bytes.byteLength,
+          Body: {
+            transformToByteArray: async () => bytes,
+            transformToWebStream: () =>
+              new Response(new Uint8Array(bytes)).body!,
+          },
+        }
       }
       if (command instanceof DeleteObjectCommand) {
         if (failDelete) throw new Error("provider detail AKIDEXAMPLE1234")

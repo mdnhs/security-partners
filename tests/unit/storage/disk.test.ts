@@ -39,6 +39,26 @@ describe("diskStorage", () => {
     expect(disk.url(key)).toBe(`/api/v1/media/file/${key}`)
   })
 
+  it("streams the whole file or an inclusive byte range, with the total size", async () => {
+    const disk = diskStorage(root)
+    await disk.put(key, new Uint8Array([0, 1, 2, 3, 4, 5]), "image/png")
+    const whole = await disk.stream(key)
+    expect(whole?.size).toBe(6)
+    expect([
+      ...new Uint8Array(await new Response(whole!.body).arrayBuffer()),
+    ]).toEqual([0, 1, 2, 3, 4, 5])
+    const part = await disk.stream(key, { start: 2, end: 4 })
+    expect(part?.size).toBe(6)
+    expect(part?.partial).toBe(true)
+    expect([
+      ...new Uint8Array(await new Response(part!.body).arrayBuffer()),
+    ]).toEqual([2, 3, 4])
+    expect(await disk.stream("2026/10/missing.png")).toBeNull()
+    await mkdir(join(root, "2026/11/dir.png"), { recursive: true })
+    expect(await disk.stream("2026/11/dir.png")).toBeNull()
+    await expect(disk.stream("../../etc/passwd")).rejects.toThrow()
+  })
+
   it("refuses keys that escape the root", async () => {
     const disk = diskStorage(root)
     await expect(
@@ -96,6 +116,7 @@ describe("diskStorage", () => {
       await symlink(join(outside, "secret.png"), join(root, "2025/01/link.png"))
       const disk = diskStorage(root)
       expect(await disk.read("2025/01/link.png")).toBeNull()
+      expect(await disk.stream("2025/01/link.png")).toBeNull()
       await disk.delete("2025/01/link.png") // removes the link only
       expect(existsSync(join(outside, "secret.png"))).toBe(true)
     })
