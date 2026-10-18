@@ -34,6 +34,7 @@ import {
   type VersionedStore,
   versionedDto,
 } from "@/server/lib/versioning"
+import { recordMove } from "@/server/modules/redirects/service"
 import { insertRevision } from "@/server/modules/revisions/repo"
 
 import {
@@ -348,6 +349,12 @@ export async function changeArticleMeta(
           },
         },
       })
+      if (row.published !== null && updated.slug !== row.slug)
+        await recordMove(tx, actor, {
+          from: `/blog/${row.slug}`,
+          to: `/blog/${updated.slug}`,
+          reason: "article.slug_changed",
+        })
       return { before: row, after: updated }
     })
     if (before.published !== null)
@@ -383,6 +390,12 @@ export async function deleteArticle(
       entityId: id,
       diff: { slug: row.slug, version: row.version },
     })
+    if (row.published !== null)
+      await recordMove(tx, actor, {
+        from: `/blog/${row.slug}`,
+        to: "/blog",
+        reason: "article.deleted",
+      })
     return row
   })
   if (removed.published !== null)

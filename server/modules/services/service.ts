@@ -23,6 +23,7 @@ import {
   type VersionedStore,
   versionedDto,
 } from "@/server/lib/versioning"
+import { recordMove } from "@/server/modules/redirects/service"
 
 import {
   deleteServiceIfVersion,
@@ -185,6 +186,12 @@ export async function changeServiceSlug(
         entityId: id,
         diff: { from: existing.slug, to: input.slug },
       })
+      if (existing.published !== null && existing.slug !== input.slug)
+        await recordMove(tx, actor, {
+          from: `/services/${existing.slug}`,
+          to: `/services/${input.slug}`,
+          reason: "service.slug_changed",
+        })
       return { before: existing, after: updated }
     })
     invalidate(tag.services, tag.service(before.slug), tag.service(after.slug))
@@ -218,6 +225,12 @@ export async function deleteService(
       entityId: id,
       diff: { slug: existing.slug },
     })
+    if (existing.published !== null)
+      await recordMove(tx, actor, {
+        from: `/services/${existing.slug}`,
+        to: "/services",
+        reason: "service.deleted",
+      })
     return existing
   })
   invalidate(tag.services, tag.service(removed.slug))
