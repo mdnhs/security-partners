@@ -659,6 +659,49 @@ describe("triggered jobs in the scheduler", () => {
     expect(requeued.runAt.getTime()).toBeLessThanOrEqual(Date.now())
   })
 
+  it("a parked job whose failed files are gone reports idle without stale failures", async () => {
+    const owner = (await signedInUser(["owner"])).cookie
+    await adminRequest("/integrations/integrations.r2", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        version: 0,
+        values: {
+          accountId: "0123456789abcdef0123456789abcdef",
+          jurisdiction: "default",
+          bucket: "sp-media",
+          accessKeyId: "AKID",
+          secretAccessKey: "SECRET",
+        },
+      },
+    })
+    await getDb()
+      .insert(jobs)
+      .values({
+        ...MIGRATE_MEDIA_JOB,
+        runAt: PARKED_RUN_AT,
+        lastError: `Not moved: ${KEYS[0]}: file missing on the server disk`,
+        payload: {
+          parked: { failed: [`${KEYS[0]}: file missing on the server disk`] },
+        },
+      })
+    const read = async () =>
+      (await (
+        await adminRequest("/integrations/integrations.r2/migrate-media", {
+          cookie: owner,
+        })
+      ).json()) as MediaMigrationStatus
+    expect(await read()).toMatchObject({ state: "stopped", onDisk: 3 })
+
+    await getDb().delete(media).where(eq(media.driver, "disk"))
+    expect(await read()).toMatchObject({
+      state: "idle",
+      onDisk: 0,
+      failed: [],
+      lastError: null,
+    })
+  })
+
   it("saved R2 settings that cannot be decrypted are reported, not hidden as 'not set up'", async () => {
     const owner = (await signedInUser(["owner"])).cookie
     await adminRequest("/integrations/integrations.r2", {

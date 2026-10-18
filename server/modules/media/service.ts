@@ -762,6 +762,19 @@ async function migrationStatus(): Promise<MediaMigrationStatus> {
   const inR2 = await countMediaByDriver(db, "r2")
   const job = await findJobByKey(db, MIGRATION_JOB.key)
   const parked = job ? parkedFailures(job.payload) : null
+  // A parked job with nothing left on disk is over (the failed files were
+  // deleted or replaced since): idle, without its stale failures.
+  if (parked && !job?.lockedAt && onDisk === 0)
+    return {
+      r2Configured: r2.configured,
+      r2Error: r2.error,
+      onDisk,
+      inR2,
+      state: "idle",
+      failed: [],
+      lastRunAt: job?.lastRunAt?.toISOString() ?? null,
+      lastError: null,
+    }
   return {
     r2Configured: r2.configured,
     r2Error: r2.error,
