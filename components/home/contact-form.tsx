@@ -63,12 +63,16 @@ type Feedback = { kind: "success" | "error"; message: string }
 export function ContactForm({ labels }: ContactFormProps) {
   const [sending, setSending] = useState(false)
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  // State is read from a stale closure until React re-renders; the ref
+  // blocks a second submit fired in the same tick.
+  const inFlight = useRef(false)
   const turnstileSlot = useRef<HTMLDivElement>(null)
   const turnstile = useTurnstile(turnstileSlot)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (sending) return
+    if (inFlight.current) return
+    inFlight.current = true
     const form = event.currentTarget
     const data = new FormData(form)
     const field = (name: string) => String(data.get(name) ?? "")
@@ -105,6 +109,7 @@ export function ContactForm({ labels }: ContactFormProps) {
     } catch {
       setFeedback({ kind: "error", message: labels.errorMessage })
     } finally {
+      inFlight.current = false
       setSending(false)
       turnstile.reset()
     }
