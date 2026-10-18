@@ -11,7 +11,7 @@ import { getEnv } from "@/server/env"
 
 import { resetDb } from "../integration/db"
 
-import { VISUAL_ADMIN, VISUAL_EDITOR } from "./admin-user"
+import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
 
 const { DATABASE_URL } = getEnv()
 const name = new URL(DATABASE_URL).pathname
@@ -38,7 +38,15 @@ await auth.api.createUser({
     password: VISUAL_EDITOR.password,
   },
 })
+await auth.api.createUser({
+  body: {
+    email: VISUAL_AUTHOR.email,
+    name: VISUAL_AUTHOR.name,
+    role: ["author"],
+    password: VISUAL_AUTHOR.password,
+  },
+})
 await closeDb()
 console.log(
-  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin, 1 editor)`
+  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin, 1 editor, 1 author)`
 )

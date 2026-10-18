@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { z } from "zod"
 
+import type { StatusPillSpec } from "@/components/admin/kit/content-status"
 import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
 import { Button, buttonClassName } from "@/components/ui/button"
@@ -58,10 +59,52 @@ export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
   publicHref?: string
   canEdit: boolean
   canPublish: boolean
-  /** Extra header actions (e.g. delete a service). */
-  actions?: ReactNode
-  /** Side panel (e.g. a service's slug). */
-  aside?: ReactNode
+  /** Extra header actions (e.g. delete a service, an article's workflow). */
+  actions?: EditorSlot<Dto>
+  /** Side panel (e.g. a service's slug, an article's settings). */
+  aside?: EditorSlot<Dto>
+  /** See EditorLayout: "xl" puts the side panel beside the form sooner. */
+  asideColumnFrom?: "xl" | "2xl"
+  /** See EditorLayout: long titles keep room beside the actions. */
+  longTitle?: boolean
+  /**
+   * Status pills (default: Draft / Published / Unpublished changes), from
+   * the record and whether it has edits the site does not show.
+   */
+  status?: (record: Dto, dirty: boolean) => readonly StatusPillSpec[]
+}
+
+/** A plain node, or one rendered from the editor's state. */
+export type EditorSlot<Dto> =
+  ReactNode | ((ctx: EditorActionContext<Dto>) => ReactNode)
+
+/** Renders an EditorSlot: a plain node as is, a function with the context. */
+function Slot<Dto>({
+  value,
+  ctx,
+}: {
+  value: EditorSlot<Dto>
+  ctx: EditorActionContext<Dto>
+}) {
+  return typeof value === "function" ? value(ctx) : value
+}
+
+/** What render-prop actions and side panels get from the editor. */
+export type EditorActionContext<Dto> = {
+  /** The record as last returned by the API. */
+  record: Dto
+  /** The form's current (possibly unsaved) draft. */
+  draft: unknown
+  /** Saves pending edits now; false when the draft is invalid or the save failed. */
+  flush: () => Promise<boolean>
+  /** The version to send with the next request (updated after every save). */
+  version: () => number
+  /** Takes a record returned by another request (new status/version). */
+  accept: (dto: Dto) => void
+  /** Marks every invalid field; true when there were errors. */
+  showAllErrors: () => boolean
+  /** True while the form may be edited. */
+  canEdit: boolean
 }
 
 /**
@@ -281,6 +324,22 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
 
   const conflict = autosave.conflict ?? publishConflict
   const current = (conflict?.current ?? null) as Dto | null
+  const actionContext: EditorActionContext<Dto> = {
+    record,
+    draft,
+    flush: autosave.flush,
+    version: () => baseRef.current.version,
+    accept: (dto) => accept(dto),
+    showAllErrors,
+    canEdit: props.canEdit,
+  }
+  // Rendered by a child (Slot): the context's functions read refs, which
+  // only event handlers may call, never this render.
+  const slot = (value: EditorSlot<Dto>) =>
+    value == null || value === false ? null : (
+      <Slot value={value} ctx={actionContext} />
+    )
+  const dirty = autosave.dirty || record.dirty
   const resolveConflict = () => {
     autosave.resolveConflict()
     setPublishConflict(null)
@@ -294,10 +353,11 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         backLabel={props.backLabel}
         title={props.title}
         path={props.path}
-        status={{
-          published: record.published,
-          dirty: autosave.dirty || record.dirty,
-        }}
+        status={
+          props.status
+            ? props.status(record, dirty)
+            : { published: record.published, dirty }
+        }
         saveState={
           props.canEdit ? (
             <SaveStateIndicator
@@ -308,7 +368,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         }
         actions={
           <>
-            {props.actions}
+            {slot(props.actions)}
             {paneAvailable ? (
               <LivePreviewToggle
                 checked={livePreview}
@@ -354,7 +414,9 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
             ) : null}
           </>
         }
-        aside={props.aside}
+        aside={slot(props.aside)}
+        asideColumnFrom={props.asideColumnFrom}
+        longTitle={props.longTitle}
         preview={
           paneAvailable && livePreview ? (
             <PreviewPane src={props.previewHref!} refreshKey={base.version} />

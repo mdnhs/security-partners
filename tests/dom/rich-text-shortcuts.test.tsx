@@ -85,6 +85,18 @@ describe("rich text editor shortcuts and counts (Phase 5)", () => {
     )
   })
 
+  it("describes the editor with its word count (no live region)", async () => {
+    renderEditor({ describedBy: "body-help" })
+    const count = await screen.findByText("3 words · about 1 min read")
+    expect(count.id).toBe("body-word-count")
+    expect(count).not.toHaveAttribute("aria-live")
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Article text" })
+      ).toHaveAttribute("aria-describedby", "body-help body-word-count")
+    )
+  })
+
   it("shows the word count and read time in full mode only", async () => {
     const { unmount } = renderEditor()
     expect(

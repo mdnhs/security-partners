@@ -186,13 +186,17 @@ async function assertAuthor(db: DbOrTx, id: string) {
  * The blog page features one article by slug (pages.blog featuredArticle):
  * hiding it or changing its address would empty the featured block.
  */
-async function assertNotFeatured(db: DbOrTx, slug: string, field?: string) {
+async function featuredSlugs(db: DbOrTx): Promise<string[]> {
   const blog = await findPageByKey(db, "blog")
-  const featured = [blog?.draft, blog?.published].map(
+  const slugs = [blog?.draft, blog?.published].map(
     (data) =>
       (data as { featuredArticle?: string | null } | null)?.featuredArticle
   )
-  if (!featured.includes(slug)) return
+  return [...new Set(slugs.filter((s): s is string => !!s))]
+}
+
+async function assertNotFeatured(db: DbOrTx, slug: string, field?: string) {
+  if (!(await featuredSlugs(db)).includes(slug)) return
   const message =
     "The blog page features this article. Choose another featured article on the Blog page first."
   throw new AppError(
@@ -238,8 +242,11 @@ export async function getArticleAdmin(
 export async function getArticleOptions(actor: Actor): Promise<ArticleOptions> {
   need(actor, "read")
   const db = getDb()
-  const categories = await repo.listCategoryOptions(db)
-  if (!roleCan(actor, "updateAny")) return { categories, authors: [] }
+  const [categories, featured] = await Promise.all([
+    repo.listCategoryOptions(db),
+    featuredSlugs(db),
+  ])
+  if (!roleCan(actor, "updateAny")) return { categories, authors: [], featured }
   const [people, bylines] = await Promise.all([
     repo.listUsersForByline(db),
     repo.bylineAuthorIds(db),
@@ -253,6 +260,7 @@ export async function getArticleOptions(actor: Actor): Promise<ArticleOptions> {
           hasPermission(parseRoles(person.role), { article: ["create"] })
       )
       .map(({ id, name, title }) => ({ id, name, title })),
+    featured,
   }
 }
 

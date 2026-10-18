@@ -8,12 +8,14 @@ import { isSettingsKey } from "@/lib/schemas/settings"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { forbidden, notFound } from "@/server/lib/errors"
+import { findArticleForEdit } from "@/server/modules/articles/repo"
 import { findServiceById } from "@/server/modules/services/repo"
 import { isPageKey, PAGE_PATHS } from "@/templates/registry"
 
 const READ: Record<PreviewEntity, PermissionRequest> = {
   page: { page: ["read"] },
   service: { service: ["read"] },
+  article: { article: ["read"] },
   settings: { settings: ["read"] },
 }
 
@@ -42,6 +44,14 @@ export async function previewPath(
       const service = await findServiceById(getDb(), id)
       if (!service) throw notFound("Service")
       return `/services/${service.slug}`
+    }
+    case "article": {
+      const article = z.uuid().safeParse(id).success
+        ? await findArticleForEdit(getDb(), id)
+        : null
+      if (!article) throw notFound("Article")
+      // In draft mode the public queries read drafts: unpublished articles show too.
+      return `/blog/${article.slug}`
     }
     case "settings":
       if (!isSettingsKey(id)) throw notFound("Settings")

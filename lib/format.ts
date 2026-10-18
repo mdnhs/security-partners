@@ -79,3 +79,66 @@ export function formatPostDate(value: Date): string {
   const [year, month, day] = isoDate(value).split("-")
   return `${day} ${MONTHS[Number(month) - 1]} ${year}`
 }
+
+// Schedule dialog: <input type="datetime-local"> holds Irish wall-clock time.
+const wallClock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: SITE_TIME_ZONE,
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+})
+
+function wallClockParts(date: Date): Record<string, string> {
+  return Object.fromEntries(
+    wallClock.formatToParts(date).map((p) => [p.type, p.value])
+  )
+}
+
+/** Minutes Irish time is ahead of UTC at `date` (0 in winter, 60 in summer). */
+function dublinOffsetMinutes(date: Date): number {
+  const p = wallClockParts(date)
+  const asUtc = Date.UTC(
+    Number(p.year),
+    Number(p.month) - 1,
+    Number(p.day),
+    Number(p.hour),
+    Number(p.minute),
+    Number(p.second)
+  )
+  return Math.round((asUtc - Math.floor(date.getTime() / 1000) * 1000) / 60_000)
+}
+
+/** "2026-07-01T10:00": the Irish wall-clock time of an instant (datetime-local value). */
+export function toDublinInput(date: Date): string {
+  const p = wallClockParts(date)
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
+}
+
+const LOCAL_INPUT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+
+/**
+ * The instant an Irish wall-clock time denotes; null when malformed. A time
+ * skipped by the spring change (01:xx on the last Sunday of March) moves
+ * one hour later; a time repeated in autumn takes the later (GMT) instant.
+ */
+export function fromDublinInput(value: string): Date | null {
+  const match = LOCAL_INPUT.exec(value)
+  if (!match) return null
+  const [year, month, day, hour, minute] = match.slice(1).map(Number)
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59
+  )
+    return null
+  const naive = Date.UTC(year, month - 1, day, hour, minute)
+  const first = naive - dublinOffsetMinutes(new Date(naive)) * 60_000
+  return new Date(naive - dublinOffsetMinutes(new Date(first)) * 60_000)
+}

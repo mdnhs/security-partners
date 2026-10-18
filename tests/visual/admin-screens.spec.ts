@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test"
 
 import { clientIpFor } from "../e2e/fixtures"
 
-import { VISUAL_ADMIN, VISUAL_EDITOR } from "./admin-user"
+import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
 
 // JW parity baselines (phase-04b Task 12): every Phase 4 admin screen in
 // light and dark, desktop and phone. Relative times and the time-of-day
@@ -194,6 +194,75 @@ async function editorReady(page: Page, title: string) {
   await page.evaluate(() => document.fonts.ready)
 }
 
+/** Pinned dates and rights for the article editor shots (Phase 5). */
+const ARTICLE_TIMES = {
+  createdAt: "2026-10-12T09:00:00.000Z",
+  updatedAt: "2026-10-16T09:00:00.000Z",
+}
+const AUTHOR_RIGHTS = {
+  update: true,
+  delete: true,
+  submit: true,
+  publish: false,
+  changeAuthor: false,
+}
+const EDITOR_RIGHTS = {
+  update: true,
+  delete: true,
+  submit: true,
+  publish: true,
+  changeAuthor: true,
+}
+
+/**
+ * Opens a seeded article in the editor with its state pinned: the API's
+ * record (seeded content, real cover image) with the workflow fields
+ * replaced, so the shot shows a draft / review / schedule whatever the seed
+ * published, and the dates never change.
+ */
+async function openArticle(
+  page: Page,
+  slug: string,
+  state: Record<string, unknown>
+) {
+  const list = await page.request.get(
+    `/api/v1/admin/articles?q=${encodeURIComponent(slug)}`
+  )
+  const { items } = (await list.json()) as {
+    items: { id: string; slug: string; title: string }[]
+  }
+  const article = items.find((a) => a.slug === slug)!
+  await page.route(`**/api/v1/admin/articles/${article.id}`, async (route) => {
+    if (route.request().method() !== "GET") return route.continue()
+    const response = await route.fetch()
+    const record = (await response.json()) as Record<string, unknown>
+    await route.fulfill({
+      json: { ...record, ...ARTICLE_TIMES, ...state },
+    })
+  })
+  await page.goto(`/admin/articles/${article.id}`)
+  return article
+}
+
+/** The article editor has loaded (read-only ones have no save state). */
+async function articleReady(page: Page, title: string, editable = true) {
+  if (editable) await editorReady(page, title)
+  else {
+    await expect(
+      page.getByRole("heading", { level: 1, name: title })
+    ).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+  }
+  await expect(page.getByLabel("Category", { exact: true })).toBeVisible()
+  // The cover thumbnail and the word count have rendered.
+  await expect(
+    page.getByText(/words · about \d+ min read|No text yet/)
+  ).toBeVisible()
+}
+
+const PATROLS = "mobile-patrols-protect-your-business-after-hours"
+const PATROLS_TITLE = "How Mobile Patrols Protect Your Business After Hours"
+
 for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`${colorScheme} theme`, () => {
     test.use({ colorScheme })
@@ -309,6 +378,105 @@ for (const colorScheme of ["light", "dark"] as const) {
       )
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("new-article"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin article editor as author ${colorScheme}`, async ({ page }) => {
+      await signIn(page, VISUAL_AUTHOR)
+      await openArticle(page, PATROLS, {
+        live: false,
+        status: "draft",
+        published: null,
+        dirty: true,
+        publishedAt: null,
+        scheduledAt: null,
+        readTimeMinutes: null,
+        permissions: AUTHOR_RIGHTS,
+        author: { id: "author", name: VISUAL_AUTHOR.name, title: null },
+        updatedBy: { id: "author", name: VISUAL_AUTHOR.name },
+      })
+      await articleReady(page, PATROLS_TITLE)
+      await expect(
+        page.getByRole("button", { name: "Submit for review" })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("article-author"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin article in review ${colorScheme}`, async ({ page }) => {
+      await signIn(page, VISUAL_EDITOR)
+      await openArticle(page, PATROLS, {
+        live: false,
+        status: "in_review",
+        published: null,
+        dirty: true,
+        publishedAt: null,
+        scheduledAt: null,
+        readTimeMinutes: null,
+        permissions: EDITOR_RIGHTS,
+        updatedBy: { id: "author", name: VISUAL_AUTHOR.name },
+      })
+      await articleReady(page, PATROLS_TITLE)
+      await expect(
+        page.getByRole("button", { name: "Publish", exact: true })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("article-review"), {
+        mask: await masks(page),
+      })
+    })
+
+    for (const dialog of [false, true])
+      test(`admin article scheduled${dialog ? " + schedule dialog" : ""} ${colorScheme}`, async ({
+        page,
+      }) => {
+        await signIn(page, VISUAL_EDITOR)
+        await openArticle(page, PATROLS, {
+          live: false,
+          status: "scheduled",
+          published: null,
+          dirty: true,
+          publishedAt: null,
+          scheduledAt: "2099-11-02T09:30:00.000Z",
+          readTimeMinutes: null,
+          permissions: EDITOR_RIGHTS,
+        })
+        await articleReady(page, PATROLS_TITLE)
+        await expect(
+          page.getByRole("button", { name: "Cancel schedule" })
+        ).toBeVisible()
+        if (!dialog) {
+          await expect(page).toHaveScreenshot(shot("article-scheduled"), {
+            mask: await masks(page),
+          })
+          return
+        }
+        await page.getByRole("button", { name: "Reschedule" }).click()
+        const schedule = page.getByRole("dialog", {
+          name: "Schedule publishing",
+        })
+        await expect(schedule.getByLabel("Publish on")).toHaveValue(
+          "2099-11-02T09:30"
+        )
+        await expect(page).toHaveScreenshot(shot("article-schedule-dialog"), {
+          mask: await overlayOnly(page),
+        })
+      })
+
+    test(`admin featured article settings ${colorScheme}`, async ({ page }) => {
+      // The live, featured article: settings and details filled in, and the
+      // panel says why it cannot be unpublished, deleted or moved.
+      await signIn(page, VISUAL_EDITOR)
+      await openArticle(page, "18-years-of-watching-over-ireland", {
+        publishedAt: "2026-10-01T08:00:00.000Z",
+        permissions: EDITOR_RIGHTS,
+      })
+      await articleReady(page, "18 Years of Watching Over Ireland")
+      await expect(
+        page.getByText(/The blog page features this article\./)
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("article-featured"), {
         mask: await masks(page),
       })
     })

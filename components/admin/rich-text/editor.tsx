@@ -28,8 +28,12 @@ export function isLinkShortcut(event: KeyboardEvent): boolean {
   )
 }
 
-/** "N words · about M min read" under article bodies (same 200 wpm as the site). */
-function WordCount({ editor }: { editor: Editor }) {
+/**
+ * "N words · about M min read" under article bodies (same 200 wpm as the
+ * site). Part of the editor's description, not a live region: it would
+ * speak after every keystroke.
+ */
+function WordCount({ editor, id }: { editor: Editor; id: string }) {
   const words = useEditorState({
     editor,
     selector: ({ editor: e }) =>
@@ -38,7 +42,10 @@ function WordCount({ editor }: { editor: Editor }) {
       ),
   })
   return (
-    <p className="border-t bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
+    <p
+      id={id}
+      className="border-t bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground"
+    >
       {words === 0
         ? "No text yet"
         : `${words} ${words === 1 ? "word" : "words"} · about ${minutesFor(words)} min read`}
@@ -72,6 +79,9 @@ export function RichTextEditor({
   disabled?: boolean
 }) {
   const [linkOpen, setLinkOpen] = useState(false)
+  const wordCountId = mode === "full" ? `${id}-word-count` : undefined
+  const description =
+    [describedBy, wordCountId].filter(Boolean).join(" ") || undefined
   const extensions = useMemo(
     () =>
       richTextExtensions(mode, {
@@ -87,11 +97,11 @@ export function RichTextEditor({
       role: "textbox",
       "aria-multiline": "true",
       "aria-label": label,
-      ...(describedBy ? { "aria-describedby": describedBy } : {}),
+      ...(description ? { "aria-describedby": description } : {}),
       ...(invalid ? { "aria-invalid": "true" } : {}),
       class: "rich-text-content min-h-36 px-3 py-2 outline-none",
     }),
-    [id, label, describedBy, invalid]
+    [id, label, description, invalid]
   )
   const editor = useEditor(
     {
@@ -142,24 +152,28 @@ export function RichTextEditor({
     <div
       className={cn(
         "overflow-hidden rounded-lg border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
-        invalid && "border-destructive ring-3 ring-destructive/20",
-        disabled && "opacity-60"
+        invalid && "border-destructive ring-3 ring-destructive/20"
       )}
     >
-      {editor ? (
-        <RichTextToolbar
-          editor={editor}
-          mode={mode}
-          editorId={id}
-          disabled={disabled}
-          linkOpen={linkOpen}
-          onLinkOpenChange={setLinkOpen}
-        />
+      {/* Dimmed when read-only; the word count below stays legible (AA). */}
+      <div className={cn(disabled && "opacity-60")}>
+        {editor ? (
+          <RichTextToolbar
+            editor={editor}
+            mode={mode}
+            editorId={id}
+            disabled={disabled}
+            linkOpen={linkOpen}
+            onLinkOpenChange={setLinkOpen}
+          />
+        ) : null}
+        <RichTextDisabledContext value={!!disabled}>
+          <EditorContent editor={editor} />
+        </RichTextDisabledContext>
+      </div>
+      {editor && wordCountId ? (
+        <WordCount editor={editor} id={wordCountId} />
       ) : null}
-      <RichTextDisabledContext value={!!disabled}>
-        <EditorContent editor={editor} />
-      </RichTextDisabledContext>
-      {editor && mode === "full" ? <WordCount editor={editor} /> : null}
     </div>
   )
 }

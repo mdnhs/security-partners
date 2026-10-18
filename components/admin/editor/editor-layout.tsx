@@ -15,6 +15,8 @@ import {
 import {
   type ContentState,
   ContentStatusPills,
+  type StatusPillSpec,
+  StatusPills,
 } from "@/components/admin/kit/content-status"
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { cn } from "@/lib/utils"
@@ -58,6 +60,8 @@ export function EditorLayout({
   saveState,
   actions,
   aside,
+  asideColumnFrom = "2xl",
+  longTitle = false,
   preview,
   children,
 }: {
@@ -65,12 +69,24 @@ export function EditorLayout({
   backHref?: string
   backLabel?: string
   title: string
-  status: ContentState
+  /** The record's state (Draft / Published / Unpublished changes), or pills of its own. */
+  status: ContentState | readonly StatusPillSpec[]
   /** Public path of the record ("/services/cctv"), shown beside the pills. */
   path?: string
   saveState: ReactNode
   actions: ReactNode
   aside?: ReactNode
+  /**
+   * Width from which the side panel becomes a column beside the form
+   * (above the form before that). "xl" for a panel the work needs at hand
+   * (an article's settings); without the live preview only.
+   */
+  asideColumnFrom?: "xl" | "2xl"
+  /**
+   * Titles are usually long (articles): the title side keeps at least
+   * 24rem, so a long action row drops below it instead of truncating it.
+   */
+  longTitle?: boolean
   /** Live preview pane (Task 8): a sticky column beside the form from 2xl. */
   preview?: ReactNode
   children: ReactNode
@@ -103,7 +119,14 @@ export function EditorLayout({
             title side can shrink (its pills wrap under the title), and the
             actions only drop below it when they still do not fit. */}
         <div className="flex flex-col gap-4 @2xl/bar:flex-row @2xl/bar:flex-wrap @2xl/bar:items-center @2xl/bar:justify-between">
-          <div className="flex min-w-0 flex-col gap-1.5 @2xl/bar:flex-[1_1_14rem]">
+          <div
+            className={cn(
+              "flex min-w-0 flex-col gap-1.5",
+              longTitle
+                ? "@2xl/bar:flex-[1_1_24rem]"
+                : "@2xl/bar:flex-[1_1_14rem]"
+            )}
+          >
             {backHref ? (
               <Link
                 href={backHref}
@@ -114,7 +137,7 @@ export function EditorLayout({
               </Link>
             ) : null}
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-              <h1 className="xl:text-title min-w-0 truncate text-2xl font-bold tracking-tight">
+              <h1 className="xl:text-title line-clamp-3 min-w-0 text-2xl font-bold tracking-tight [overflow-wrap:anywhere]">
                 {title}
               </h1>
               {path ? (
@@ -122,7 +145,11 @@ export function EditorLayout({
                   {path}
                 </code>
               ) : null}
-              <ContentStatusPills record={status} />
+              {isPillList(status) ? (
+                <StatusPills pills={status} />
+              ) : (
+                <ContentStatusPills record={status} />
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -154,7 +181,10 @@ export function EditorLayout({
         <div
           ref={contentRef}
           className={cn(
-            "grid w-full gap-6 2xl:grid-cols-[minmax(0,1fr)_18rem]",
+            "grid w-full gap-6",
+            asideColumnFrom === "xl"
+              ? "xl:grid-cols-[minmax(0,1fr)_18rem]"
+              : "2xl:grid-cols-[minmax(0,1fr)_18rem]",
             inTabs ? "max-w-240" : "max-w-304"
           )}
         >
@@ -162,7 +192,12 @@ export function EditorLayout({
             {children}
           </div>
           {aside ? (
-            <aside className="order-first flex flex-col gap-4 2xl:order-0">
+            <aside
+              className={cn(
+                "order-first flex flex-col gap-4",
+                asideColumnFrom === "xl" ? "xl:order-0" : "2xl:order-0"
+              )}
+            >
               {aside}
             </aside>
           ) : null}
@@ -171,6 +206,10 @@ export function EditorLayout({
     </div>
   )
 }
+
+const isPillList = (
+  status: ContentState | readonly StatusPillSpec[]
+): status is readonly StatusPillSpec[] => Array.isArray(status)
 
 /** An element's border-box height, kept current as it wraps or resizes. */
 function useHeight(ref: RefObject<HTMLElement | null>): number {

@@ -12,3 +12,10 @@ export const VISUAL_EDITOR = {
   name: "Eddie Visual",
   password: "visual-password-0123456789",
 } as const
+
+// An author (Phase 5): the article editor as they see it (no publishing).
+export const VISUAL_AUTHOR = {
+  email: "arthur@visual.test",
+  name: "Arthur Visual",
+  password: "visual-password-0123456789",
+} as const

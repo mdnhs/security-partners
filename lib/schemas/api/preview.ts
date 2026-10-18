@@ -1,6 +1,11 @@
 import { z } from "zod"
 
-export const PREVIEW_ENTITIES = ["page", "service", "settings"] as const
+export const PREVIEW_ENTITIES = [
+  "page",
+  "service",
+  "article",
+  "settings",
+] as const
 export type PreviewEntity = (typeof PREVIEW_ENTITIES)[number]
 
 /** GET /api/v1/admin/preview?entity=page&id=home */

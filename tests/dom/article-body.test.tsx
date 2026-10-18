@@ -50,6 +50,52 @@ const seededBodies: [string, RichTextDoc][] = [
   ),
   ["privacy", pages.privacy.data.body],
   ["terms", pages.terms.data.body],
+  // Synthetic: every mark and node the seeded bodies do not all use.
+  [
+    "kitchen sink",
+    {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Plain, " },
+            { type: "text", text: "bold", marks: [{ type: "bold" }] },
+            { type: "text", text: ", " },
+            { type: "text", text: "italic", marks: [{ type: "italic" }] },
+            { type: "text", text: ", " },
+            {
+              type: "text",
+              text: "both",
+              marks: [{ type: "bold" }, { type: "italic" }],
+            },
+            { type: "text", text: " and a " },
+            {
+              type: "text",
+              text: "link",
+              marks: [{ type: "link", attrs: { href: "/contact" } }],
+            },
+            { type: "text", text: "." },
+            { type: "hardBreak" },
+            { type: "text", text: "After a line break." },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 3 },
+          content: [{ type: "text", text: "A third-level heading" }],
+        },
+        {
+          type: "orderedList",
+          attrs: { start: 1 },
+          content: ["First step", "Second step"].map((text) => ({
+            type: "listItem",
+            content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+          })),
+        },
+      ],
+    },
+  ],
 ]
 
 describe("editor ↔ public renderer (master 5.2)", () => {

@@ -79,6 +79,49 @@ describe("describeActivity", () => {
     expect(summary.status?.tone).toBe(tone)
   })
 
+  it.each([
+    ["article.created", "added an article", undefined, undefined],
+    ["article.draft_saved", "saved a draft of an article", "Draft", "neutral"],
+    [
+      "article.submitted",
+      "submitted an article for review",
+      "In review",
+      "info",
+    ],
+    ["article.published", "published an article", "Published", "success"],
+    ["article.scheduled", "scheduled an article", "Scheduled", "info"],
+    [
+      "article.unscheduled",
+      "cancelled an article's schedule",
+      undefined,
+      undefined,
+    ],
+    [
+      "article.unpublished",
+      "took an article off the site",
+      "Unpublished",
+      "neutral",
+    ],
+    [
+      "article.meta_changed",
+      "changed an article's address, category or byline",
+      undefined,
+      undefined,
+    ],
+    [
+      "article.restored",
+      "restored a version of an article",
+      undefined,
+      undefined,
+    ],
+    ["article.deleted", "deleted an article", undefined, undefined],
+  ])("articles (Phase 5): %s → %s", (action, text, label, tone) => {
+    const summary = describeActivity(row(action, "article", "x"))
+    expect(summary.text).toBe(text)
+    expect(summary.status?.label).toBe(label)
+    expect(summary.status?.tone).toBe(tone)
+  })
+
   it("falls back to the raw action", () => {
     expect(describeActivity(row("something.odd")).text).toBe("something.odd")
   })

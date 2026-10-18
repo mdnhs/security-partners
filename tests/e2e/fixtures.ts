@@ -11,6 +11,8 @@ export type E2EFixtures = {
   invitee: { email: string; name: string; inviteUrl: string }
   twoFactor: { email: string; name: string; totpUri: string }
   account: { email: string; name: string }
+  /** Articles workflow (Phase 5): drafts and submits, never publishes. */
+  author: { email: string; name: string }
 }
 
 /**

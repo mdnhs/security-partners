@@ -92,6 +92,48 @@ async function openServiceEditor(page: Page) {
   ).toBeVisible()
 }
 
+/**
+ * Opens a seeded article in the editor; `state` replaces workflow fields of
+ * the API's record (the seed publishes every article), so the draft,
+ * review and schedule states are audited too.
+ */
+async function openArticle(
+  page: Page,
+  slug: string,
+  state: Record<string, unknown> = {}
+) {
+  const { items } = (await (
+    await page.request.get(`/api/v1/admin/articles?q=${slug}`)
+  ).json()) as { items: { id: string; slug: string; title: string }[] }
+  const article = items.find((a) => a.slug === slug)!
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+  await page.route(`**/api/v1/admin/articles/${article.id}`, async (route) => {
+    if (route.request().method() !== "GET") return route.continue()
+    const record = (await (await route.fetch()).json()) as object
+    await route.fulfill({ json: { ...record, ...state } })
+  })
+  await page.goto(`/admin/articles/${article.id}`)
+  await expect(
+    page.getByRole("heading", { level: 1, name: article.title })
+  ).toBeVisible()
+  await expect(page.getByLabel("Category", { exact: true })).toBeVisible()
+}
+
+const PATROLS = "mobile-patrols-protect-your-business-after-hours"
+const UNPUBLISHED = {
+  live: false,
+  published: null,
+  publishedAt: null,
+  dirty: true,
+}
+const AUTHOR_RIGHTS = {
+  update: true,
+  delete: true,
+  submit: true,
+  publish: false,
+  changeAuthor: false,
+}
+
 for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`admin a11y (${colorScheme})`, () => {
     test.use({ colorScheme })
@@ -102,6 +144,56 @@ for (const colorScheme of ["light", "dark"] as const) {
       await openServiceEditor(page)
       for (const violation of await blocking(page))
         failures.push(`service editor → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`article editor in ${colorScheme}`, async ({ page, browser }) => {
+      const failures: string[] = []
+      const audit = async (label: string) => {
+        for (const violation of await blocking(page))
+          failures.push(`${label} → ${violation}`)
+      }
+      // Editor: live (published), in review, scheduled + the schedule dialog,
+      // and the featured article (disabled actions with their reason).
+      await signIn(page, readFixtures().editor)
+      await openArticle(page, PATROLS)
+      await audit("article editor (published)")
+      await openArticle(page, PATROLS, { ...UNPUBLISHED, status: "in_review" })
+      await audit("article editor (in review)")
+      await openArticle(page, PATROLS, {
+        ...UNPUBLISHED,
+        status: "scheduled",
+        scheduledAt: "2099-11-02T09:30:00.000Z",
+      })
+      await audit("article editor (scheduled)")
+      await page.getByRole("button", { name: "Reschedule" }).click()
+      await expect(
+        page.getByRole("dialog", { name: "Schedule publishing" })
+      ).toBeVisible()
+      await audit("schedule dialog")
+      await page.keyboard.press("Escape")
+      await openArticle(page, "18-years-of-watching-over-ireland")
+      await audit("article editor (featured)")
+      // Author: their own draft, and someone's live article (read-only).
+      const context = await browser.newContext({
+        colorScheme,
+        extraHTTPHeaders: {
+          "x-forwarded-for": clientIpFor(`a11y author ${colorScheme}`),
+        },
+      })
+      const authorPage = await context.newPage()
+      await signIn(authorPage, readFixtures().author)
+      await openArticle(authorPage, PATROLS, {
+        ...UNPUBLISHED,
+        status: "draft",
+        permissions: AUTHOR_RIGHTS,
+      })
+      for (const violation of await blocking(authorPage))
+        failures.push(`article editor (author draft) → ${violation}`)
+      await openArticle(authorPage, PATROLS)
+      for (const violation of await blocking(authorPage))
+        failures.push(`article editor (author, read-only) → ${violation}`)
+      await context.close()
       expect(failures).toEqual([])
     })
 

@@ -84,4 +84,10 @@ export type ArticleOptions = {
   categories: { id: string; slug: string; name: string }[]
   /** Possible bylines (only for users who may change them; else empty). */
   authors: { id: string; name: string; title: string | null }[]
+  /**
+   * Slugs the blog page features (draft or published): such an article
+   * cannot be unpublished, deleted or moved (409), so the editor says why.
+   * Always sent by the API (optional for older fixtures).
+   */
+  featured?: string[]
 }

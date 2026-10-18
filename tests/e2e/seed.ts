@@ -86,11 +86,18 @@ await auth.api.createUser({
   body: { ...E2E_ADMIN, role: ["admin"], password: E2E_PASSWORD },
 })
 
+// Articles workflow (Phase 5): an author who drafts and submits.
+const author = { email: "author@e2e.test", name: "Arthur Author" }
+await auth.api.createUser({
+  body: { ...author, role: ["author"], password: E2E_PASSWORD },
+})
+
 const fixtures: E2EFixtures = {
   editor,
   invitee: { ...invitee, inviteUrl },
   twoFactor: { ...twoFactor, totpUri: enabled.totpURI },
   account,
+  author,
 }
 mkdirSync(dirname(FIXTURES_FILE), { recursive: true })
 writeFileSync(FIXTURES_FILE, JSON.stringify(fixtures, null, 2))

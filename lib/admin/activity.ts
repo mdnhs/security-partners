@@ -40,6 +40,24 @@ const FIXED: Record<string, ActivitySummary> = {
   "user.impersonate_start": { text: "started viewing as another user" },
   "user.impersonate_stop": { text: "stopped viewing as another user" },
   "service.slug_changed": { text: "changed a service's address" },
+  // Articles workflow (Phase 5); created, draft_saved, published, restored
+  // and deleted read like every other record's below.
+  "article.submitted": {
+    text: "submitted an article for review",
+    status: { label: "In review", tone: "info" },
+  },
+  "article.scheduled": {
+    text: "scheduled an article",
+    status: { label: "Scheduled", tone: "info" },
+  },
+  "article.unscheduled": { text: "cancelled an article's schedule" },
+  "article.unpublished": {
+    text: "took an article off the site",
+    status: { label: "Unpublished", tone: "neutral" },
+  },
+  "article.meta_changed": {
+    text: "changed an article's address, category or byline",
+  },
 }
 
 const SINGULAR: Record<string, string> = {

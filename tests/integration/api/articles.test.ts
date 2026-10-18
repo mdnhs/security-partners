@@ -584,6 +584,9 @@ describe("articles API (master 5.1)", () => {
     )
     expect(forAuthor.categories.map((c) => c.slug)).toContain("mobile-patrols")
     expect(forAuthor.authors).toEqual([])
+    // The blog's featured article (cannot be unpublished, deleted or moved):
+    // the editor says why before anyone tries.
+    expect(forAuthor.featured).toEqual(["18-years-of-watching-over-ireland"])
 
     const forEditor = await json<ArticleOptions>(
       await call(editor, "/articles/options")
