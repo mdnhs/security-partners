@@ -83,6 +83,10 @@ beforeAll(async () => {
     },
     version: 1,
   })
+  // Dumped mid-tick: the backup job holds its claim (final review minor 9).
+  await source
+    .insert(schema.jobs)
+    .values({ name: "backup", key: "backup", runAt: new Date(), lockedAt: new Date() })
   await pool.end()
 })
 afterAll(() => admin(`drop database if exists ${SOURCE_DB} with (force)`))
@@ -165,6 +169,10 @@ describe("dbSync (spec §14 db:sync)", () => {
     const emails = (await db.select().from(schema.users)).map((u) => u.email)
     expect(emails).toEqual(["prod.person@example.test"])
     expect(await db.select().from(schema.sessions)).toHaveLength(0)
+    // Claims copied from the source are released: no 10-minute wait.
+    expect(
+      (await db.select().from(schema.jobs)).map((j) => [j.key, j.lockedAt])
+    ).toEqual([["backup", null]])
     expect((await readIntegrationConfig("integrations.smtp"))?.password).toBe(
       "prod-smtp-password"
     )

@@ -173,7 +173,11 @@ restore) bypass the app's cache: restart the app afterwards.
 3. `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error -d "$DATABASE_URL" <name>.dump`
    (from the app container: `PGPASSWORD=… pg_restore … -h <db host> -U <user> -d <db>`).
    The role must own the objects it drops (the app's own user does).
-4. Start the app; check `/api/v1/health` and sign in.
+4. Release the job claims the dump captured (the backup job always holds
+   its own while it runs; otherwise those jobs wait 10 minutes):
+   `psql "$DATABASE_URL" -c "update jobs set locked_at = null where locked_at is not null"`
+   (`psql` is in the app image). `db:sync` does this itself.
+5. Start the app; check `/api/v1/health` and sign in.
 
 Sessions in the dump stay valid (same secret). Rate-limit tables come back
 empty. If the dump came from another environment, use `db:sync` instead: it

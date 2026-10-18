@@ -13,7 +13,7 @@ import {
   INTEGRATIONS,
   type IntegrationKey,
 } from "@/lib/schemas/integrations"
-import { closeDb, pingDb } from "@/server/db/client"
+import { closeDb, getDb, pingDb } from "@/server/db/client"
 import { describeDatabase } from "@/server/db/seed/guard"
 import { getEnv } from "@/server/env"
 import { type BackupResult, runBackup } from "@/server/lib/backup"
@@ -30,6 +30,7 @@ import {
   secretAad,
 } from "@/server/modules/integrations/service"
 import { runIntegrationTest } from "@/server/modules/integrations/testers"
+import { releaseAllJobClaims } from "@/server/modules/jobs/repo"
 import { seedDemoUsers } from "@/server/modules/users/bootstrap"
 
 /** Spec §14: data never copied between environments. */
@@ -291,6 +292,8 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
       await rm(dir, { recursive: true, force: true })
     }
 
+    // The source was dumped mid-tick: its claims belong to no worker here.
+    await releaseAllJobClaims(getDb())
     const rotate = await rotateSecrets({
       fromSecret: opts.fromSecret,
       via: "db:sync",
