@@ -106,6 +106,18 @@ describe("SectionRail", () => {
     ).toHaveAttribute("aria-current", "page")
   })
 
+  it("no rail for a role with a single child (marketer: Articles only)", () => {
+    renderAt("/admin/insights", ["marketer"])
+    expect(screen.queryByRole("navigation")).toBeNull()
+    expect(document.querySelector("[data-slot=section-content]")).toBeNull()
+    expect(screen.getByText("Body")).toBeInTheDocument()
+  })
+
+  it("the same marketer gets the SEO rail (three children)", () => {
+    renderAt("/admin/seo", ["marketer"])
+    expect(links("SEO")).toEqual(["Overview", "Defaults", "Redirects"])
+  })
+
   it("no rail when only one child is visible (author: Articles only)", () => {
     renderAt("/admin/insights", ["author"])
     expect(screen.queryByRole("navigation", { name: "Insights" })).toBeNull()
@@ -182,5 +194,44 @@ describe("SectionRail", () => {
     expect(
       screen.getByRole("tablist", { name: "Groups" }).parentElement
     ).toHaveClass("xl:w-52")
+  })
+})
+
+describe("SectionRail scrolling row (below lg)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("scrolls the current tab into view by its box, not offsetLeft", () => {
+    // A 300 px row whose content is 900 px wide; the current tab (Integrations,
+    // last) sits at 700–800 px of the content while the row is at 0.
+    const proto = HTMLElement.prototype
+    vi.spyOn(proto, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.tagName === "UL" ? 900 : 0
+    })
+    vi.spyOn(proto, "clientWidth", "get").mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.tagName === "UL" ? 300 : 0
+    })
+    vi.spyOn(proto, "offsetLeft", "get").mockReturnValue(0)
+    vi.spyOn(proto, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement
+    ) {
+      const box = (left: number, width: number) =>
+        ({ left, width, right: left + width }) as DOMRect
+      if (this.tagName === "UL") return box(40, 300)
+      if (this.dataset.current) return box(40 + 700, 100)
+      return box(0, 0)
+    })
+    const scrollTo = vi.fn()
+    Object.defineProperty(proto, "scrollTo", {
+      configurable: true,
+      value: scrollTo,
+    })
+    renderAt("/admin/settings/integrations", ["owner"])
+    expect(scrollTo).toHaveBeenCalledWith({ left: 700 - 16 })
   })
 })

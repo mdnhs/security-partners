@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { ArticlesScreen } from "@/components/admin/articles/articles-screen"
 import { requirePermission } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Articles" }
+export const metadata: Metadata = { title: "Insights" }
 
 export default function ArticlesPage() {
   return (

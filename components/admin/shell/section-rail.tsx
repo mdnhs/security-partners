@@ -53,7 +53,7 @@ export function SectionRail({ children }: { children: ReactNode }) {
   useCurrentInView(listRef, current?.id)
   if (!item || tabs.length < 2) return children
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
       <nav aria-label={item.label} className={COLUMN}>
         <p
           aria-hidden
@@ -63,7 +63,8 @@ export function SectionRail({ children }: { children: ReactNode }) {
         </p>
         <ul
           ref={listRef}
-          className="-mx-1 flex [scrollbar-width:thin] gap-1 overflow-x-auto px-1 pb-1 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
+          // -m-1/p-1: the row's overflow clip keeps clear of focus rings.
+          className="-m-1 flex [scrollbar-width:thin] gap-1 overflow-x-auto p-1 lg:mx-0 lg:my-0 lg:flex-col lg:overflow-visible lg:px-0 lg:py-0"
         >
           {tabs.map((tab) => {
             const active = tab.id === current?.id
@@ -113,8 +114,12 @@ function useCurrentInView(
     const row = list.current
     const active = row?.querySelector<HTMLElement>("[data-current]")
     if (!row || !active || row.scrollWidth <= row.clientWidth) return
-    const left = active.offsetLeft
-    const right = left + active.offsetWidth
+    // The tab's place in the row's scrolled content, from the boxes (the
+    // tab's offsetParent is not the row).
+    const rowBox = row.getBoundingClientRect()
+    const box = active.getBoundingClientRect()
+    const left = box.left - rowBox.left + row.scrollLeft
+    const right = left + box.width
     if (left < row.scrollLeft || right > row.scrollLeft + row.clientWidth)
       row.scrollTo({ left: left - 16 })
   }, [list, current])

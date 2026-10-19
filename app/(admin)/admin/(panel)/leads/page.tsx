@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { LeadsScreen } from "@/components/admin/leads/leads-screen"
 import { requirePermission } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Leads" }
+export const metadata: Metadata = { title: "Enquiries" }
 
 export default function LeadsPage() {
   return (

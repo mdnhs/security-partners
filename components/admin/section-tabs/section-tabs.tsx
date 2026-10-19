@@ -179,7 +179,8 @@ const LAYOUT = {
     tab: "xl:w-full",
     marker: "xl:block",
     columnFrom: 1280,
-    // Nested sets already sit on their parent's card.
+    // A nested set: on its parent's card, or beside the shell's section
+    // rail on the panel; either way no card of its own.
     content: "min-w-0 flex-1",
   },
 } as const
