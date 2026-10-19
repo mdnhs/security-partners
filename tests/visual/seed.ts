@@ -12,7 +12,12 @@ import { getEnv } from "@/server/env"
 import { assertE2eDatabase } from "../e2e/env"
 import { resetDb } from "../integration/db"
 
-import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
+import {
+  VISUAL_ADMIN,
+  VISUAL_AUTHOR,
+  VISUAL_EDITOR,
+  VISUAL_OWNER,
+} from "./admin-user"
 
 const { DATABASE_URL } = getEnv()
 assertE2eDatabase(DATABASE_URL)
@@ -46,7 +51,15 @@ await auth.api.createUser({
     password: VISUAL_AUTHOR.password,
   },
 })
+await auth.api.createUser({
+  body: {
+    email: VISUAL_OWNER.email,
+    name: VISUAL_OWNER.name,
+    role: ["owner"],
+    password: VISUAL_OWNER.password,
+  },
+})
 await closeDb()
 console.log(
-  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin, 1 editor, 1 author)`
+  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin, 1 editor, 1 author, 1 owner)`
 )

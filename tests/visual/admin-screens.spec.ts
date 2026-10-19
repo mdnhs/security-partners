@@ -14,7 +14,12 @@ import {
   visibleImagesLoaded,
 } from "../e2e/media-pins"
 
-import { VISUAL_ADMIN, VISUAL_AUTHOR, VISUAL_EDITOR } from "./admin-user"
+import {
+  VISUAL_ADMIN,
+  VISUAL_AUTHOR,
+  VISUAL_EDITOR,
+  VISUAL_OWNER,
+} from "./admin-user"
 
 // Baselines are macOS renders (ledger ruling): CI runs E2E only.
 test.skip(process.platform !== "darwin", "visual baselines are macOS-only")
@@ -938,9 +943,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
-    // Phase 8 Task 11: Marketing tabs. Custom code is owner-only and the
-    // visual seed has no owner (adding one would change the Users list
-    // baseline); it is covered by tests/e2e/admin-a11y.spec.ts and consent.spec.ts.
+    // Phase 8 Task 11: Marketing tabs. Custom code is owner-only; it is
+    // covered by tests/e2e/admin-a11y.spec.ts and consent.spec.ts. (The
+    // visual seed gained an owner in MK-parity A7 for /admin/design.)
     for (const [path, title, name] of [
       ["/admin/marketing/tracking", "Tracking", "marketing-tracking"],
       ["/admin/marketing/consent", "Consent banner", "marketing-consent"],
@@ -1473,6 +1478,23 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("forbidden"))
+    })
+
+    // MK-parity A7: the owner-only component gallery, on its own sample data
+    // (no API calls, nothing to pin).
+    test(`admin design system ${colorScheme}`, async ({ page }) => {
+      await signIn(page, VISUAL_OWNER)
+      await page.goto("/admin/design")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Design system" })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("region", { name: "Team activity list" })
+      ).toBeVisible()
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(shot("design"), {
+        mask: await masks(page),
+      })
     })
 
     test(`admin not found ${colorScheme}`, async ({ page }) => {
