@@ -9,6 +9,7 @@ import {
   mergeListSearch,
   replaceListSearch,
 } from "@/components/admin/data-table/list-url"
+import { isUnsavedGuardEntry } from "@/components/admin/editor/unsaved-guard"
 import { isLeadId, parseLeadFilters } from "@/lib/admin/leads"
 import type { LeadStatus } from "@/lib/schemas/api/leads"
 
@@ -28,6 +29,9 @@ export type LeadsParams = {
    */
   assignee?: string
 }
+
+/** History-state key on the entry pushed when a lead's drawer opens. */
+const DRAWER_KEY = "spLeadDrawer"
 
 /** localStorage key of the last chosen view (this browser only). */
 export const LEADS_VIEW_KEY = "sp-leads-view"
@@ -166,12 +170,30 @@ export function useLeadsParams(): [
     setSearch(next)
     if (changes.lead) {
       const { pathname, hash } = window.location
+      // Marked, so closing can step back off it (D3.2 review I1).
       window.history.pushState(
-        null,
+        { [DRAWER_KEY]: changes.lead },
         "",
         `${pathname}${next ? `?${next}` : ""}${hash}`
       )
-    } else replaceListSearch(next)
+      return
+    }
+    const openLead = (window.history.state as Record<string, unknown> | null)?.[
+      DRAWER_KEY
+    ]
+    if (
+      "lead" in patch &&
+      !changes.lead &&
+      typeof openLead === "string" &&
+      openLead === parseLeadsParams(window.location.search).lead
+    ) {
+      // Closing a drawer this screen opened: go back to the list's entry,
+      // so no `?lead=` entry is left behind for Back to reopen. A note's
+      // unsaved-changes guard entry sits above the drawer's: step over both.
+      window.history.go(isUnsavedGuardEntry(window.history.state) ? -2 : -1)
+      return
+    }
+    replaceListSearch(next)
   }
 
   return [parseLeadsParams(search, storedView), update]

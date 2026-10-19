@@ -76,11 +76,27 @@ export function replaceListSearch(search: string): void {
   const { pathname, hash } = window.location
   if (search === window.location.search.replace(/^\?/, "")) return
   window.history.replaceState(
-    null,
+    ownHistoryState(),
     "",
     `${pathname}${search ? `?${search}` : ""}${hash}`
   )
   rememberListSearch(pathname, search)
+}
+
+const NEXT_HISTORY_KEYS = ["__NA", "_N", "__PRIVATE_NEXTJS_INTERNALS_TREE"]
+
+/**
+ * This entry's history state without Next's own keys (D3.2 review M5): the
+ * unsaved-changes guard's and the lead drawer's markers survive a replace.
+ * Next adds its keys back itself, and only syncs useSearchParams when they
+ * are absent from the state it is given.
+ */
+export function ownHistoryState(): Record<string, unknown> {
+  const state = window.history.state as Record<string, unknown> | null
+  if (!state || typeof state !== "object") return {}
+  const own = { ...state }
+  for (const key of NEXT_HISTORY_KEYS) delete own[key]
+  return own
 }
 
 /**

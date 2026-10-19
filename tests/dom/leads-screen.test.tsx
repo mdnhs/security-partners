@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -7,11 +7,26 @@ const replace = vi.fn()
 const refresh = vi.fn()
 // The screen writes the URL with the native history API (Next keeps
 // useSearchParams in sync with it): read the live address.
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/leads",
-  useRouter: () => ({ push, replace, refresh }),
-  useSearchParams: () => new URLSearchParams(window.location.search),
-}))
+// Back/Forward (popstate) re-render it, as Next's router does.
+vi.mock("next/navigation", async () => {
+  const { useSyncExternalStore } = await import("react")
+  const subscribe = (onChange: () => void) => {
+    window.addEventListener("popstate", onChange)
+    return () => window.removeEventListener("popstate", onChange)
+  }
+  return {
+    usePathname: () => "/admin/leads",
+    useRouter: () => ({ push, replace, refresh }),
+    useSearchParams: () =>
+      new URLSearchParams(
+        useSyncExternalStore(
+          subscribe,
+          () => window.location.search,
+          () => ""
+        )
+      ),
+  }
+})
 
 import { LeadsScreen } from "@/components/admin/leads/leads-screen"
 import { makeQueryClient } from "@/components/admin/providers"
@@ -230,7 +245,15 @@ describe("leads screen: Inbox/Spam tabs, view toggle, drawer (D3.2)", () => {
 
     await user.click(within(drawer).getByRole("button", { name: "Close" }))
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
-    expect(window.location.search).toBe("")
+    await waitFor(() => expect(window.location.search).toBe(""))
+    // Focus goes back to the lead's row (review M1), not to <body>.
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("table", { name: "Leads" })).getByRole("link", {
+          name: "Dinn Rí",
+        })
+      ).toHaveFocus()
+    )
   })
 
   it("the name link opens the drawer; Esc closes it", async () => {
@@ -372,5 +395,111 @@ describe("leads screen: board view (D3.3)", () => {
         )
       ).toBeInTheDocument()
     )
+  })
+})
+
+describe("leads drawer and the browser's Back/Forward (D3.2 review I1, I2)", () => {
+  /** An earlier list entry (status=won), then the screen's own entry. */
+  function startAfterWonList() {
+    window.history.pushState(null, "", "/admin/leads?status=won")
+    window.history.pushState(null, "", "/admin/leads")
+  }
+  const settle = () => act(() => new Promise((r) => setTimeout(r, 50)))
+  async function openFromRow(user: ReturnType<typeof userEvent.setup>) {
+    const table = await screen.findByRole("table", { name: "Leads" })
+    await user.click(await within(table).findByText("Unassigned"))
+    return screen.findByRole("dialog", { name: "Dinn Rí" })
+  }
+  async function addNote(
+    user: ReturnType<typeof userEvent.setup>,
+    drawer: HTMLElement
+  ) {
+    await user.type(
+      await within(drawer).findByLabelText("Add a note"),
+      "Rang them"
+    )
+    await user.click(within(drawer).getByRole("button", { name: "Add note" }))
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === "POST" && c.url.includes("/events"))
+      ).toBe(true)
+    )
+    await waitFor(() =>
+      expect(within(drawer).getByLabelText("Add a note")).toHaveValue("")
+    )
+  }
+  async function closeDrawer(
+    user: ReturnType<typeof userEvent.setup>,
+    drawer: HTMLElement
+  ) {
+    await user.click(within(drawer).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() => expect(window.location.search).toBe(""))
+  }
+
+  it("Back closes an open drawer and Forward opens it again", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    await openFromRow(user)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe(""))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    act(() => window.history.forward())
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+    expect(
+      await screen.findByRole("dialog", { name: "Dinn Rí" })
+    ).toBeInTheDocument()
+  })
+
+  it("open, close, Back: the list before it, not the drawer or a copy", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    await closeDrawer(user, await openFromRow(user))
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?status=won"))
+    await settle()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(screen.getByLabelText("Status")).toHaveTextContent("Won")
+  })
+
+  it("add a note, close, Back: the drawer does not open again", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const drawer = await openFromRow(user)
+    await addNote(user, drawer)
+    await closeDrawer(user, drawer)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?status=won"))
+    await settle()
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("a note typed in a drawer opened again: Back asks before it is lost", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const first = await openFromRow(user)
+    await addNote(user, first)
+    await closeDrawer(user, first)
+    await settle()
+
+    const again = await openFromRow(user)
+    await user.type(
+      await within(again).findByLabelText("Add a note"),
+      "Not sent yet"
+    )
+    await settle()
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+    // Still there to finish (hidden from the tree behind the prompt).
+    expect(
+      screen.getByRole("dialog", { name: "Dinn Rí", hidden: true })
+    ).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Not sent yet")).toBeInTheDocument()
   })
 })

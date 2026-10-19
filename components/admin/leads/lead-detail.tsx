@@ -101,6 +101,7 @@ const UTM_LABELS: Record<UtmKey, string> = {
 function Section({
   id,
   title,
+  count,
   description,
   children,
   className,
@@ -108,6 +109,8 @@ function Section({
 }: {
   id: string
   title: string
+  /** Shown after the heading ("Notes · 2 notes"); the region keeps its name. */
+  count?: string
   description?: React.ReactNode
   children: React.ReactNode
 } & Omit<React.ComponentProps<"section">, "id" | "title">) {
@@ -118,9 +121,16 @@ function Section({
       {...rest}
     >
       <header className="flex flex-col gap-0.5">
-        <h3 id={`${id}-title`} className="text-sm font-semibold">
-          {title}
-        </h3>
+        <span className="flex items-center gap-2">
+          <h3 id={`${id}-title`} className="text-sm font-semibold">
+            {title}
+          </h3>
+          {count ? (
+            <span className="rounded-full bg-muted px-2 text-xs text-muted-foreground tabular-nums">
+              {count}
+            </span>
+          ) : null}
+        </span>
         {description ? (
           <p className="text-xs text-muted-foreground">{description}</p>
         ) : null}
@@ -487,6 +497,11 @@ export function LeadDetailBody({
         <Section
           id={`${uid}-notes`}
           title="Notes"
+          count={
+            notes.length
+              ? `${notes.length} ${notes.length === 1 ? "note" : "notes"}`
+              : undefined
+          }
           description="For the team only; never sent to the person."
         >
           {notes.length ? (
@@ -507,7 +522,7 @@ export function LeadDetailBody({
               }}
             >
               {/* A note typed but not added is not dropped silently. */}
-              <UnsavedGuard when={note.trim() !== ""} />
+              <UnsavedGuard when={note.trim() !== ""} scope={`lead:${id}`} />
               <FieldShell id={noteId} label="Add a note">
                 <Textarea
                   ref={noteRef}

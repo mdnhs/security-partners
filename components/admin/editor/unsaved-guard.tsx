@@ -31,9 +31,28 @@ const SENTINEL_KEY = "__spUnsaved"
 /** History-state key marking the page's own entry below the guard entry. */
 const OWN_KEY = "__spUnsavedOwn"
 
+/**
+ * Is this history state a guard entry (pushed above the entry where the
+ * first unsaved edit happened)? Code that steps back off its own entry
+ * (the lead drawer's close) steps over it too.
+ */
+export function isUnsavedGuardEntry(state: unknown): boolean {
+  return (
+    typeof state === "object" &&
+    state !== null &&
+    typeof (state as Record<string, unknown>)[SENTINEL_KEY] === "string"
+  )
+}
+
 type UnsavedRegistry = {
-  /** Marks one edit surface dirty until the returned function runs. */
-  register(): () => void
+  /**
+   * Marks one edit surface dirty until the returned function runs. `scope`
+   * names a surface that comes and goes within one page (a lead's drawer):
+   * the Back guard is armed for it on its own entry.
+   */
+  register(scope?: string): () => void
+  /** A scoped surface is gone: its Back guard no longer applies. */
+  release(scope: string): void
   isDirty(): boolean
   /** Resolves true when nothing is dirty or the person chose to leave. */
   confirmLeave(): Promise<boolean>
@@ -75,6 +94,8 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const tokens = useRef(new Set<symbol>())
   const [dirtyCount, setDirtyCount] = useState(0)
+  /** The scope of the latest dirty surface (undefined: the whole page). */
+  const [scope, setScope] = useState<string | undefined>(undefined)
   const [prompt, setPrompt] = useState<((leave: boolean) => void) | null>(null)
   /** The open prompt's resolver: a second ask() settles it as "stay". */
   const pending = useRef<((leave: boolean) => void) | null>(null)
@@ -84,7 +105,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
    * (where the first unsaved edit happened), and a guard entry sits above
    * it. null when nothing is armed.
    */
-  const guard = useRef<{ own: string; path: string } | null>(null)
+  const guard = useRef<{ own: string; path: string; scope?: string } | null>(
+    null
+  )
   /** A confirmed Back is under way: the next popstate is its landing. */
   const backing = useRef(false)
   /** A confirmed link click re-dispatched to the link itself. */
@@ -108,9 +131,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   )
 
   /** Marks the current entry as the page's own and pushes the guard entry. */
-  const arm = useCallback(() => {
+  const arm = useCallback((scope?: string) => {
     const own = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    guard.current = { own, path: window.location.pathname }
+    guard.current = { own, path: window.location.pathname, scope }
     const state = (window.history.state ?? {}) as Record<string, unknown>
     window.history.replaceState(
       { ...state, [OWN_KEY]: own },
@@ -132,14 +155,19 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       return leave
     }
     return {
-      register() {
+      register(scope) {
         const token = Symbol("unsaved")
         tokens.current.add(token)
         setDirtyCount(tokens.current.size)
+        setScope(scope)
         return () => {
           tokens.current.delete(token)
           setDirtyCount(tokens.current.size)
         }
+      },
+      release(scope) {
+        // Its entries may stay in the history; they no longer ask.
+        if (guard.current?.scope === scope) guard.current = null
       },
       isDirty: () => tokens.current.size > 0,
       confirmLeave,
@@ -173,10 +201,17 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
   // The guard entry: pushed on the first unsaved edit and kept for the
   // page's visit (autosave flips dirty every few seconds; consuming and
-  // re-pushing it each time would churn the router).
+  // re-pushing it each time would churn the router). A scoped surface (a
+  // drawer) gets its own guard on its own entry: one for an earlier
+  // surface would sit below it and never ask (D3.2 review I1).
   useEffect(() => {
-    if (dirty && guard.current === null) arm()
-  }, [dirty, arm])
+    if (!dirty) return
+    if (
+      guard.current === null ||
+      (scope !== undefined && guard.current.scope !== scope)
+    )
+      arm(scope)
+  }, [dirty, scope, arm])
 
   useEffect(() => {
     function onPopState() {
@@ -188,7 +223,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         // (the entry below was the same page): guard again.
         backing.current = false
         guard.current = null
+        // (A scoped surface closes with its entry: nothing to guard again.)
         if (
+          current.scope === undefined &&
           window.location.pathname === current.path &&
           tokens.current.size > 0
         )
@@ -336,12 +373,27 @@ export function useConfirmLeave(): () => Promise<boolean> {
  * pages) it falls back to the browser's beforeunload prompt and a confirm()
  * for same-origin links.
  */
-export function UnsavedGuard({ when }: { when: boolean }) {
+export function UnsavedGuard({
+  when,
+  scope,
+}: {
+  when: boolean
+  /**
+   * For a surface that opens and closes within one page (a lead's drawer):
+   * its Back guard is armed on its own history entry and released when it
+   * unmounts.
+   */
+  scope?: string
+}) {
   const registry = useContext(UnsavedContext)
   useEffect(() => {
     if (!when || !registry) return
-    return registry.register()
-  }, [when, registry])
+    return registry.register(scope)
+  }, [when, registry, scope])
+  useEffect(() => {
+    if (!registry || scope === undefined) return
+    return () => registry.release(scope)
+  }, [registry, scope])
   useEffect(() => {
     if (!when || registry) return
     function onBeforeUnload(event: BeforeUnloadEvent) {
