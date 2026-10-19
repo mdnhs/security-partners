@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -56,8 +57,6 @@ function createStore(version: number, maxAgeSeconds: number) {
   const publish = (next: ConsentChoice | null) => {
     value = next
     ;(window as AnalyticsWindow).__spConsent = next
-    // Custom code snippets wait on this (components/consent/custom-code.tsx).
-    window.dispatchEvent(new CustomEvent(CONSENT_EVENT, { detail: next }))
   }
   return {
     subscribe(listener: () => void) {
@@ -116,6 +115,13 @@ export function ConsentProvider({
     serverSnapshot
   )
   const [reopened, setReopened] = useState(false)
+  // Custom code snippets wait on this (components/consent/custom-code.tsx).
+  // Dispatched after commit, never during render: listeners run third-party
+  // snippet code. Once the stored choice is known, then after each choice.
+  useEffect(() => {
+    if (choice === PENDING) return
+    window.dispatchEvent(new CustomEvent(CONSENT_EVENT, { detail: choice }))
+  }, [choice])
   const save = useCallback(
     (next: ConsentChoice) => {
       const previous = store.get()

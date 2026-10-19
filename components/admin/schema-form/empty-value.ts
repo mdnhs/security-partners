@@ -2,6 +2,7 @@ import type { z } from "zod"
 
 import { newSnippetId } from "@/lib/analytics/snippets"
 import { link, mediaRef, paragraphsText, richText } from "@/lib/schemas/common"
+import { snippetId } from "@/lib/schemas/settings/custom-code"
 
 import { arrayBounds, unwrapSchema } from "./resolve-widget"
 
@@ -18,6 +19,9 @@ export function emptyValue(schema: z.ZodType): unknown {
   if (inner === richText || inner === paragraphsText)
     return { type: "doc", content: [{ type: "paragraph" }] }
   if (inner === link) return { label: "", href: "" }
+  // Only the custom code snippet id is generated (a hidden field); any
+  // other uuid stays empty, so a missing reference fails "required".
+  if (inner === snippetId) return newSnippetId()
   const def = (inner as unknown as { def: { type: string } }).def
   switch (def.type) {
     case "object": {
@@ -39,12 +43,6 @@ export function emptyValue(schema: z.ZodType): unknown {
       return (inner as z.ZodNumber).minValue ?? 0
     case "enum":
       return (inner as z.ZodEnum).options[0]
-    case "string":
-      // A z.uuid() id (custom code snippets) starts as a fresh v4 id: it is
-      // hidden in the form, so it could never be filled in.
-      return (inner as { format?: string | null }).format === "uuid"
-        ? newSnippetId()
-        : ""
     default:
       return ""
   }

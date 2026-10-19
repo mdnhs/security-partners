@@ -156,7 +156,7 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
       allowedHosts: {
         label: "Allowed hosts",
         itemName: "Host",
-        help: "Script addresses must be https:// on one of these hosts, e.g. www.googletagmanager.com.",
+        help: "Script addresses must be https:// on one of these hosts, e.g. www.googletagmanager.com. This checks the Script address field only: scripts inside HTML blocks, and whatever a script loads, are not checked.",
       },
       "allowedHosts[]": { label: "Host", placeholder: "cdn.example.com" },
       snippets: {
@@ -187,7 +187,7 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
           { value: "analytics", label: "Analytics" },
           { value: "marketing", label: "Marketing" },
         ],
-        help: "Anything that sets cookies or tracks visitors needs Analytics or Marketing: it then waits for the visitor's consent (and never runs while tracking is off).",
+        help: "Anything that sets cookies or tracks visitors needs Analytics or Marketing: it then waits for the visitor's consent (and never runs while tracking is off). The consent check runs in the visitor's browser, like any page script.",
       },
       "snippets[].src": {
         label: "Script address",

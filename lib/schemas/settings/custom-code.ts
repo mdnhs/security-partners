@@ -18,6 +18,19 @@ export const routePattern = z
   .trim()
   .max(120)
   .regex(/^\/[\w\-/]*\*?$/, 'Use a path like "/" or "/blog/*"')
+  // The regex allows "/blog*", which routeMatches would treat as a literal
+  // path that never matches: a section is always "/blog/*".
+  .refine((p) => !p.endsWith("*") || p.endsWith("/*"), {
+    message: 'Use "/blog/*" for a section: "*" must follow "/"',
+  })
+  .refine((p) => !p.includes("//"), { message: 'Remove the double "/"' })
+
+/**
+ * A snippet's id. SchemaForm gives this schema (by identity, like mediaRef)
+ * a fresh uuid when a snippet is added: the field is hidden, so it could
+ * never be filled in (components/admin/schema-form/empty-value.ts).
+ */
+export const snippetId = z.uuid()
 
 /** A bare DNS host name with at least one dot: no scheme, port, path or wildcard. */
 export const hostname = z
@@ -31,7 +44,7 @@ export const hostname = z
   )
 
 export const snippet = z.object({
-  id: z.uuid(),
+  id: snippetId,
   name: z.string().trim().min(1).max(60),
   placement: z.enum(["head", "body"]),
   src: z.string().trim().max(500),

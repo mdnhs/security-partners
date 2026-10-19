@@ -5,9 +5,10 @@ import type {
 } from "@/lib/schemas/settings/custom-code"
 
 /**
- * Window event ConsentProvider dispatches whenever `window.__spConsent`
- * is set (the stored choice on load, then each new choice). The custom
- * code loader (components/consent/custom-code.tsx) listens for it.
+ * Window event ConsentProvider dispatches (from an effect, never during
+ * render) once the choice is known and after each new choice. The custom
+ * code loader (components/consent/custom-code.tsx) listens for it, but
+ * reads the choice from `window.__spConsent`, never from the event.
  */
 export const CONSENT_EVENT = "sp:consent"
 
@@ -45,6 +46,19 @@ export function runnableSnippets(
   )
 }
 
+/**
+ * Every enabled snippet of `placement` ([] when switched off), whatever its
+ * routes: the site layout persists across client navigation, so the loader
+ * matches routes in the browser, against the path at the moment it runs.
+ */
+export function placementSnippets(
+  cfg: CustomCodeSettings,
+  placement: "head" | "body"
+): Snippet[] {
+  if (cfg.disabled) return []
+  return cfg.snippets.filter((s) => s.enabled && s.placement === placement)
+}
+
 /** Necessary snippets always run; the others need consent to their category. */
 export function snippetAllowed(
   s: Snippet,
@@ -53,6 +67,27 @@ export function snippetAllowed(
   if (s.category === "necessary") return true
   return consent?.[s.category] === true
 }
+
+/**
+ * Window event the site layout dispatches after a client-side navigation
+ * (components/consent/route-change-event.tsx); the loader re-checks then.
+ */
+export const NAVIGATE_EVENT = "sp:navigate"
+
+/**
+ * The loader's copy of routeMatches (spMatches), "routes empty or one
+ * matches" (spRoutesMatch) and snippetAllowed (spAllowed), as browser
+ * JavaScript inlined into the loader (components/consent/custom-code.tsx).
+ * tests/unit/analytics/snippets.test.ts runs this text against the
+ * TypeScript functions above, so the two cannot drift. Keep it free of
+ * "<" (it is inlined into a <script>).
+ */
+export const SNIPPET_RULES_JS = [
+  'function spTrim(x){return x.length>1&&x.slice(-1)==="/"?x.slice(0,-1):x}',
+  'function spMatches(p,path){path=spTrim(path);if(p.slice(-2)==="/*"){var b=spTrim(p.slice(0,-2)||"/");return b==="/"||path===b||path.indexOf(b+"/")===0}return spTrim(p)===path}',
+  "function spRoutesMatch(r,path){return r.length===0||r.some(function(p){return spMatches(p,path)})}",
+  'function spAllowed(s,c){return s.category==="necessary"||(!!c&&c[s.category]===true)}',
+].join("")
 
 const hasCode = (html: string) => /\S/.test(html)
 

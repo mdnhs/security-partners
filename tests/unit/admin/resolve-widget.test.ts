@@ -246,6 +246,10 @@ describe("custom code snippets in SchemaForm (D2.3)", () => {
     expect(a.id).not.toBe(b.id)
     expect(a.name).toBe("")
     expect(emptyValue(z.string())).toBe("")
+    // Only the snippet id is generated: any other uuid (a reference)
+    // starts empty and fails "required" until chosen.
+    expect(emptyValue(z.uuid())).toBe("")
+    expect(emptyValue(z.object({ id: z.uuid() }))).toEqual({ id: "" })
   })
 
   it("meta.required makes a defaulted field required (review D2.2 I1)", () => {

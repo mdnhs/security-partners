@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   convertLegacyCustomCode,
+  placementSnippets,
   routeMatches,
+  SNIPPET_RULES_JS,
   runnableSnippets,
   snippetAllowed,
 } from "@/lib/analytics/snippets"
@@ -57,6 +59,85 @@ describe("routeMatches", () => {
     ["/*", "/anything/here", true],
   ])("%s vs %s → %s", (pattern, pathname, expected) => {
     expect(routeMatches(pattern, pathname)).toBe(expected)
+  })
+})
+
+// The loader runs SNIPPET_RULES_JS in the browser; it must agree with the
+// TypeScript rules everywhere (review D2.3 M4).
+describe("SNIPPET_RULES_JS agrees with routeMatches and snippetAllowed", () => {
+  const js = new Function(
+    `${SNIPPET_RULES_JS};return {spMatches:spMatches,spRoutesMatch:spRoutesMatch,spAllowed:spAllowed}`
+  )() as {
+    spMatches(p: string, path: string): boolean
+    spRoutesMatch(r: string[], path: string): boolean
+    spAllowed(s: { category: string }, c: unknown): boolean
+  }
+  const patterns = ["/", "/*", "/blog/*", "/about", "/about/", "/a-b/c_d/*"]
+  const paths = [
+    "/",
+    "/blog",
+    "/blog/",
+    "/blog/x/y",
+    "/blogs",
+    "/about",
+    "/about/",
+    "/about/team",
+    "/a-b/c_d",
+    "/a-b/c_d/e",
+    "/a-b",
+  ]
+
+  it("route matching", () => {
+    for (const p of patterns)
+      for (const path of paths)
+        expect(js.spMatches(p, path), `${p} vs ${path}`).toBe(
+          routeMatches(p, path)
+        )
+  })
+
+  it("routes: empty matches all, else any", () => {
+    for (const routes of [[], ["/blog/*"], ["/", "/about"]])
+      for (const path of paths) {
+        const cfg = settings({ snippets: [snippet({ routes })] })
+        expect(js.spRoutesMatch(routes, path), `${routes} vs ${path}`).toBe(
+          runnableSnippets(cfg, path, "head").length === 1
+        )
+      }
+  })
+
+  it("consent gating", () => {
+    const choices = [
+      null,
+      undefined,
+      { analytics: false, marketing: false },
+      { analytics: true, marketing: false },
+      { analytics: false, marketing: true },
+      { analytics: true, marketing: true },
+    ]
+    for (const category of ["necessary", "analytics", "marketing"] as const)
+      for (const c of choices)
+        expect(
+          js.spAllowed({ category }, c),
+          `${category} ${JSON.stringify(c)}`
+        ).toBe(snippetAllowed(snippet({ category }), c ?? null))
+  })
+
+  it("is safe to inline: no <", () => {
+    expect(SNIPPET_RULES_JS).not.toContain("<")
+  })
+})
+
+describe("placementSnippets", () => {
+  it("every enabled snippet of the placement, whatever its routes; [] when disabled", () => {
+    const blog = snippet({ id: ID, routes: ["/blog/*"] })
+    const off = snippet({ id: ID2, enabled: false })
+    const body = snippet({ id: ID2, placement: "body" })
+    expect(
+      placementSnippets(settings({ snippets: [blog, off, body] }), "head")
+    ).toEqual([blog])
+    expect(
+      placementSnippets(settings({ disabled: true, snippets: [blog] }), "head")
+    ).toEqual([])
   })
 })
 
@@ -251,5 +332,21 @@ describe("customCodeSettings schema", () => {
       expect(routePattern.safeParse(ok).success).toBe(true)
     for (const bad of ["blog", "/blog*/x", "/a b", "/blog?x", "https://x/"])
       expect(routePattern.safeParse(bad).success).toBe(false)
+  })
+
+  it('"/blog*" and "//" are rejected with a clear message on the route (review D2.3 M3)', () => {
+    for (const [bad, message] of [
+      ["/blog*", /"\/blog\/\*" for a section/],
+      ["/blog-x*", /"\/blog\/\*" for a section/],
+      ["//blog", /double/],
+      ["/blog//*", /double/],
+    ] as const) {
+      const r = routePattern.safeParse(bad)
+      expect(r.success, bad).toBe(false)
+      expect(r.error!.issues[0]!.message).toMatch(message)
+    }
+    expect(
+      issuePaths(settings({ snippets: [snippet({ routes: ["/", "/blog*"] })] }))
+    ).toEqual(["snippets.0.routes.1"])
   })
 })

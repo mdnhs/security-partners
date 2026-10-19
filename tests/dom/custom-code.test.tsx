@@ -11,12 +11,16 @@ import {
   CustomCodeSnippets,
   snippetsLoaderScript,
 } from "@/components/consent/custom-code"
-import { CONSENT_EVENT } from "@/lib/analytics/snippets"
+import { RouteChangeEvent } from "@/components/consent/route-change-event"
+import { CONSENT_EVENT, NAVIGATE_EVENT } from "@/lib/analytics/snippets"
 import type { AnalyticsWindow } from "@/lib/analytics/events"
 import type {
   CustomCodeSettings,
   Snippet,
 } from "@/lib/schemas/settings/custom-code"
+
+const nav = vi.hoisted(() => ({ pathname: "/" }))
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }))
 
 type ProbeWindow = AnalyticsWindow & Record<string, unknown>
 const w = () => window as unknown as ProbeWindow
@@ -44,7 +48,14 @@ const consent = (choice: { analytics: boolean; marketing: boolean } | null) => {
   window.dispatchEvent(new CustomEvent(CONSENT_EVENT, { detail: choice }))
 }
 
+/** A client-side navigation: the path changes, then RouteChangeEvent fires. */
+const navigate = (path: string) => {
+  window.history.pushState({}, "", path)
+  window.dispatchEvent(new CustomEvent(NAVIGATE_EVENT, { detail: path }))
+}
+
 beforeEach(() => {
+  window.history.replaceState({}, "", "/")
   delete w().__spConsent
   document.body.innerHTML = ""
   document.head.querySelectorAll("[data-t]").forEach((n) => n.remove())
@@ -52,11 +63,10 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe("CustomCodeSnippets (server-rendered loader)", () => {
-  it("renders nothing with the seeded value, when disabled, or off-route", () => {
+  it("renders nothing with the seeded value, when disabled, or with no enabled snippet of the placement", () => {
     const { container, rerender } = render(
       <CustomCodeSnippets
         settings={{ disabled: false, allowedHosts: [], snippets: [] }}
-        pathname="/"
         placement="head"
       />
     )
@@ -65,22 +75,21 @@ describe("CustomCodeSnippets (server-rendered loader)", () => {
     rerender(
       <CustomCodeSnippets
         settings={{ ...cfg([s]), disabled: true }}
-        pathname="/blog/x"
         placement="body"
       />
     )
     expect(container.innerHTML).toBe("")
-    rerender(
-      <CustomCodeSnippets settings={cfg([s])} pathname="/" placement="body" />
-    )
+    rerender(<CustomCodeSnippets settings={cfg([s])} placement="head" />)
     expect(container.innerHTML).toBe("")
     rerender(
       <CustomCodeSnippets
-        settings={cfg([s])}
-        pathname="/blog/x"
+        settings={cfg([{ ...s, enabled: false }])}
         placement="body"
       />
     )
+    expect(container.innerHTML).toBe("")
+    // Whatever the page: routes are matched in the browser (client nav).
+    rerender(<CustomCodeSnippets settings={cfg([s])} placement="body" />)
     expect(container.querySelector("script#sp-custom-code-body")).not.toBeNull()
   })
 
@@ -135,6 +144,19 @@ describe("snippet loader gating", () => {
     expect(count("ana")).toBe(1)
   })
 
+  it("only the provider's window.__spConsent counts: tracking off (no provider) never runs a gated snippet", () => {
+    run([snippet({ category: "analytics", html: '<i id="off1"></i>' })])
+    // Any other script dispatching the event, without the provider's
+    // choice on window, changes nothing.
+    window.dispatchEvent(
+      new CustomEvent(CONSENT_EVENT, {
+        detail: { analytics: true, marketing: true },
+      })
+    )
+    navigate("/about")
+    expect(count("off1")).toBe(0)
+  })
+
   it("a src snippet becomes <script src async>", () => {
     run(
       [
@@ -155,6 +177,76 @@ describe("snippet loader gating", () => {
     expect(el).not.toBeNull()
     expect(el!.async).toBe(true)
     el!.remove()
+  })
+})
+
+describe("route scope follows client-side navigation (review D2.3 I1)", () => {
+  it("/blog → / then Accept: the /blog/* snippet does NOT run", () => {
+    window.history.replaceState({}, "", "/blog")
+    run([
+      snippet({
+        category: "analytics",
+        routes: ["/blog/*"],
+        html: '<i id="nav-a"></i>',
+      }),
+    ])
+    expect(count("nav-a")).toBe(0)
+    navigate("/")
+    consent({ analytics: true, marketing: true })
+    expect(count("nav-a")).toBe(0)
+    // Back on the blog, with consent: now it runs.
+    navigate("/blog/post")
+    expect(count("nav-a")).toBe(1)
+  })
+
+  it("/ → /blog: the /blog/* snippet runs on arrival, once", () => {
+    run([
+      snippet({ routes: ["/blog/*"], html: '<i id="nav-b"></i>' }),
+      snippet({ routes: ["/"], html: '<i id="nav-home"></i>' }),
+    ])
+    expect(count("nav-b")).toBe(0)
+    expect(count("nav-home")).toBe(1)
+    navigate("/blog")
+    expect(count("nav-b")).toBe(1)
+    navigate("/")
+    navigate("/blog/x")
+    expect(count("nav-b")).toBe(1)
+    expect(count("nav-home")).toBe(1)
+  })
+
+  it("a gated snippet that becomes allowed runs only if the current path matches", () => {
+    window.history.replaceState({}, "", "/contact")
+    run([
+      snippet({
+        category: "marketing",
+        routes: ["/contact"],
+        html: '<i id="nav-c"></i>',
+      }),
+    ])
+    navigate("/about")
+    consent({ analytics: false, marketing: true })
+    expect(count("nav-c")).toBe(0)
+    navigate("/contact/")
+    expect(count("nav-c")).toBe(1)
+  })
+})
+
+describe("RouteChangeEvent", () => {
+  it("dispatches sp:navigate on a pathname change, never on the first render", () => {
+    const seen: unknown[] = []
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail)
+    window.addEventListener(NAVIGATE_EVENT, listener)
+    try {
+      nav.pathname = "/"
+      const { rerender } = render(<RouteChangeEvent />)
+      rerender(<RouteChangeEvent />)
+      expect(seen).toEqual([])
+      nav.pathname = "/blog"
+      rerender(<RouteChangeEvent />)
+      expect(seen).toEqual(["/blog"])
+    } finally {
+      window.removeEventListener(NAVIGATE_EVENT, listener)
+    }
   })
 })
 
