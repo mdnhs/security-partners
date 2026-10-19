@@ -100,10 +100,11 @@ export async function insertRedirect(db: DbOrTx, values: RedirectValues) {
   return row
 }
 
+/** `updatedAt` given → kept as is (an On/Off toggle is not an edit). */
 export async function updateRedirectRow(
   db: DbOrTx,
   id: string,
-  values: RedirectValues
+  values: RedirectValues & { updatedAt?: Date }
 ) {
   const [row] = await db
     .update(redirects)
@@ -169,7 +170,8 @@ export async function isPublishedSlug(
 /**
  * A live address moved from `from` to `to`: nothing may redirect away from
  * the new address, the redirects named in `repoint` (those that led to the
- * old one) follow it, and the old address gets a 301. Returns the source
+ * old one) follow it, and the old address gets a 301 (taking over any
+ * redirect already there, see below). Returns the source
  * paths deleted and re-pointed (for the audit).
  */
 export async function moveRedirects(
@@ -190,8 +192,10 @@ export async function moveRedirects(
           .where(inArray(redirects.fromPath, [...repoint]))
           .returning({ fromPath: redirects.fromPath })
       : []
-  // An Off leftover at the old address (allowed while it was a live page)
-  // is taken over: it becomes this automatic, active 301; its note stays.
+  // Any redirect already at the old address is taken over, because the
+  // move must answer there: an Off leftover (allowed while it was a live
+  // page) or a manual/imported one alike becomes this automatic, active
+  // 301 (source 'auto', is_active true); its note stays.
   await db
     .insert(redirects)
     .values({ fromPath: from, toPath: to, code: 301, source: "auto" })

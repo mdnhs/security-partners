@@ -212,13 +212,27 @@ export async function updateRedirect(
         note: patch.note ?? existing.note,
         isActive: patch.isActive ?? existing.isActive,
       }
+      // A new fromPath runs the create check, a superset of the turn-on
+      // check (live pages), so the turn-on check is only needed otherwise.
+      // Keep that coverage if this branch is ever split.
       if (next.fromPath !== existing.fromPath)
         await assertFromIsFree(tx, next.fromPath)
       else if (patch.isActive === true) await assertCanTurnOn(tx, next.fromPath)
       const edges = await listRedirectEdges(tx)
       edges.delete(existing.fromPath)
       assertChain(edges, next.fromPath, next.toPath, await siteOrigin(tx))
-      const updated = await updateRedirectRow(tx, id, next)
+      // Turning on/off alone is not an edit: updatedAt stays, so the row
+      // keeps its place in the default "Updated" sort (focus stays put).
+      const edited =
+        next.fromPath !== existing.fromPath ||
+        next.toPath !== existing.toPath ||
+        next.code !== existing.code ||
+        next.note !== existing.note
+      const updated = await updateRedirectRow(
+        tx,
+        id,
+        edited ? next : { ...next, updatedAt: existing.updatedAt }
+      )
       if (!updated) throw notFound("Redirect")
       await writeAudit(tx, actor, {
         action: "redirect.updated",

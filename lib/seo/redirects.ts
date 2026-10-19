@@ -15,6 +15,15 @@ export const redirectCode = (code: number): RedirectCode =>
     ? (code as RedirectCode)
     : 301
 
+/**
+ * Who made a redirect: manual (admin form), auto (rename/delete of a live
+ * page), import (CSV). Server-owned. The single list: the column type and
+ * the API type come from here; the DB check `redirects_source` repeats it
+ * in SQL (pinned by tests/integration/api/redirects-admin.test.ts).
+ */
+export const REDIRECT_SOURCES = ["manual", "auto", "import"] as const
+export type RedirectSource = (typeof REDIRECT_SOURCES)[number]
+
 const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
 /** A path ending in a file extension (static files; never a page or redirect source). */

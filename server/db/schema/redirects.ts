@@ -3,6 +3,8 @@ import "server-only"
 import { sql } from "drizzle-orm"
 import { boolean, check, integer, pgTable, text } from "drizzle-orm/pg-core"
 
+import type { RedirectSource } from "@/lib/seo/redirects"
+
 import { id, timestamps, tsz } from "./_shared"
 
 export const redirects = pgTable(
@@ -18,11 +20,8 @@ export const redirects = pgTable(
     note: text("note").notNull().default(""),
     /** Set with each counted hit; null = never hit. No visitor data is kept. */
     lastHitAt: tsz("last_hit_at"),
-    /** manual (admin form), auto (rename/delete of a live page), import (CSV). */
-    source: text("source")
-      .$type<"manual" | "auto" | "import">()
-      .notNull()
-      .default("manual"),
+    /** REDIRECT_SOURCES (lib/seo/redirects.ts); the check below repeats it in SQL. */
+    source: text("source").$type<RedirectSource>().notNull().default("manual"),
     ...timestamps(),
   },
   (t) => [

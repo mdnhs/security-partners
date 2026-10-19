@@ -52,6 +52,9 @@ const json = (status: number, body: unknown) =>
     headers: { "content-type": "application/json" },
   })
 
+/** While set, every PATCH waits for it (requests in flight). */
+let hold: Promise<void> | null = null
+
 const fetchMock = vi.fn(
   async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
@@ -64,6 +67,7 @@ const fetchMock = vi.fn(
         total: 2,
       })
     if (method === "PATCH") {
+      if (hold) await hold
       const body = JSON.parse(String(init!.body)) as Partial<RedirectDto>
       if (url.pathname.endsWith(AUTO_ROW.id) && body.isActive === true)
         return json(422, {
@@ -103,6 +107,7 @@ const fetchMock = vi.fn(
 const toastError = vi.spyOn(toast, "error")
 
 beforeEach(() => {
+  hold = null
   toastError.mockClear()
   fetchMock.mockClear()
   vi.stubGlobal("fetch", fetchMock)
@@ -298,6 +303,43 @@ describe("Redirects screen (master 8.2)", () => {
       "Temporary, keep method (307) — for forms and APIs",
       "Permanent, keep method (308) — for forms and APIs",
     ])
+  })
+
+  it("a toggle in flight keeps focus; every in-flight row is guarded (review D1.7 M2/M4)", async () => {
+    const user = userEvent.setup()
+    let release!: () => void
+    hold = new Promise<void>((resolve) => (release = resolve))
+    renderAs(["marketer"])
+    const table = await screen.findByRole("table", { name: "Redirects" })
+    const first = within(table).getByRole("button", {
+      name: "Turn off redirect from /old-alarms",
+    })
+    const second = within(table).getByRole("button", {
+      name: "Turn on redirect from /services/coming-soon",
+    })
+    await user.click(first)
+    expect(first).toHaveFocus()
+    expect(first).not.toBeDisabled()
+    expect(first).toHaveAttribute("aria-disabled", "true")
+    await user.click(second)
+    // The first row is still in flight: still guarded, and a second press
+    // sends nothing.
+    expect(first).toHaveAttribute("aria-disabled", "true")
+    expect(second).toHaveAttribute("aria-disabled", "true")
+    await user.click(first)
+    await user.click(second)
+    const patches = () =>
+      fetchMock.mock.calls.filter(([, init]) => init?.method === "PATCH")
+    expect(patches()).toHaveLength(2)
+    release()
+    await waitFor(() => expect(first).not.toHaveAttribute("aria-disabled"))
+    await waitFor(() => expect(second).not.toHaveAttribute("aria-disabled"))
+  })
+
+  it("explains the Automatic badge without hover (review D1.7 M3)", async () => {
+    renderAs(["marketer"])
+    await screen.findByRole("table", { name: "Redirects" })
+    expect(screen.getByText(/marked Automatic/)).toBeVisible()
   })
 
   it("viewers get no Turn on/off", async () => {

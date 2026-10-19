@@ -97,15 +97,26 @@ describe("CrawlPreview (D1.6)", () => {
     const user = userEvent.setup()
     render(<CrawlPreview />)
     expect(await screen.findByText(/Disallow: \/admin/)).toBeVisible()
-    responses["/robots.txt"] = async () =>
-      new Response("User-Agent: *\nDisallow: /\n", { status: 200 })
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    responses["/robots.txt"] = async () => {
+      await held
+      return new Response("User-Agent: *\nDisallow: /\n", { status: 200 })
+    }
     fetchMock.mockClear()
     const refresh = screen.getByRole("button", {
       name: "Refresh what crawlers see",
     })
     expect(refresh).toHaveClass("pointer-coarse:h-11")
     await user.click(refresh)
+    // Unavailable while loading, but it keeps keyboard focus (review D1.7 M2).
+    expect(refresh).toHaveFocus()
+    expect(refresh).not.toBeDisabled()
+    expect(refresh).toHaveAttribute("aria-disabled", "true")
+    release()
     expect(await screen.findByText(/Disallow: \/$/m)).toBeVisible()
+    expect(refresh).toHaveFocus()
+    expect(refresh).not.toHaveAttribute("aria-disabled")
     expect(fetchMock).toHaveBeenCalledWith("/robots.txt", expect.anything())
     expect(fetchMock).toHaveBeenCalledWith("/sitemap.xml", expect.anything())
   })

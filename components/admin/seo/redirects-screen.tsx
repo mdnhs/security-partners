@@ -34,6 +34,7 @@ import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import type { Paginated } from "@/lib/schemas/api/list"
 import type { RedirectCode, RedirectDto } from "@/lib/schemas/api/redirects"
+import { cn } from "@/lib/utils"
 
 import { RedirectDialog } from "./redirect-dialog"
 
@@ -47,9 +48,16 @@ type Actions = {
   onEdit: (row: RedirectDto) => void
   onDelete: (row: RedirectDto) => void
   onToggle: (row: RedirectDto) => void
-  /** Id of the redirect whose On/Off change is in flight. */
-  toggling: string | null
+  /** Ids of every redirect whose On/Off change is in flight. */
+  toggling: ReadonlySet<string>
 }
+
+/**
+ * aria-disabled instead of disabled: a pressed toggle keeps keyboard focus
+ * while its request runs (WCAG 2.4.3); onToggle ignores in-flight rows.
+ */
+const SOFT_DISABLED =
+  "aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:active:translate-y-0"
 const ActionsContext = createContext<Actions | null>(null)
 
 const PERMANENT = new Set<RedirectCode>([301, 308])
@@ -118,9 +126,9 @@ function RowActions({ row }: { row: RedirectDto }) {
           type="button"
           variant="outline"
           size="sm"
-          className="pointer-coarse:h-11"
+          className={cn("pointer-coarse:h-11", SOFT_DISABLED)}
           aria-label={`${row.isActive ? "Turn off" : "Turn on"} redirect from ${row.fromPath}`}
-          disabled={actions.toggling === row.id}
+          aria-disabled={actions.toggling.has(row.id) || undefined}
           onClick={() => actions.onToggle(row)}
         >
           {row.isActive ? "Turn off" : "Turn on"}
@@ -227,7 +235,18 @@ export function RedirectsScreen() {
     onError: (error) =>
       toast.error("Not deleted", { description: errorMessage(error) }),
   })
+  // useMutation keeps only the latest variables: track every row in flight.
+  const [toggling, setToggling] = useState<ReadonlySet<string>>(new Set())
+  const setInFlight = (id: string, on: boolean) =>
+    setToggling((current) => {
+      const next = new Set(current)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
   const toggle = useMutation({
+    onMutate: (row: RedirectDto) => setInFlight(row.id, true),
+    onSettled: (_data, _error, row) => setInFlight(row.id, false),
     mutationFn: (row: RedirectDto) =>
       unwrap(
         api.redirects[":id"].$patch({
@@ -261,14 +280,16 @@ export function RedirectsScreen() {
         canDelete,
         onEdit: setEditing,
         onDelete: setDeleting,
-        onToggle: (row) => toggle.mutate(row),
-        toggling: toggle.isPending ? (toggle.variables?.id ?? null) : null,
+        onToggle: (row) => {
+          if (!toggling.has(row.id)) toggle.mutate(row)
+        },
+        toggling,
       }}
     >
       <div className="flex flex-col gap-6">
         <PageHeader
           title="Redirects"
-          description="Send old addresses to their new home. Renamed or deleted services and articles are redirected automatically."
+          description="Send old addresses to their new home. Renamed or deleted services and articles are redirected automatically, marked Automatic."
           actions={addButton(PRIMARY_ACTION)}
         />
         <DataTable<Row>

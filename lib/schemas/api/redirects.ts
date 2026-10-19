@@ -3,8 +3,10 @@ import { z } from "zod"
 import {
   fromPathProblem,
   REDIRECT_CODES,
+  REDIRECT_SOURCES,
   type RedirectCode,
   redirectCode,
+  type RedirectSource,
   toPathProblem,
 } from "@/lib/seo/redirects"
 
@@ -16,9 +18,13 @@ const checked = (problem: (value: string) => string | null) =>
     if (message) ctx.addIssue({ code: "custom", message })
   })
 
-export { REDIRECT_CODES, type RedirectCode, redirectCode }
-export const REDIRECT_SOURCES = ["manual", "auto", "import"] as const
-export type RedirectSource = (typeof REDIRECT_SOURCES)[number]
+export {
+  REDIRECT_CODES,
+  REDIRECT_SOURCES,
+  type RedirectCode,
+  redirectCode,
+  type RedirectSource,
+}
 export const REDIRECT_NOTE_MAX = 200
 
 const fields = {
@@ -36,9 +42,10 @@ const fields = {
 
 /**
  * POST /redirects. Live pages and loops are checked by the service. `source`
- * is server-owned (manual here; auto from moves; import from CSV).
+ * is server-owned (manual here; auto from moves; import from CSV): unknown
+ * keys such as `source` are refused (422), not silently dropped.
  */
-export const redirectInput = z.object({
+export const redirectInput = z.strictObject({
   fromPath: fields.fromPath,
   toPath: fields.toPath,
   code: fields.code,
@@ -47,9 +54,9 @@ export const redirectInput = z.object({
 })
 export type RedirectInput = z.output<typeof redirectInput>
 
-/** PATCH /redirects/:id — any subset, at least one field. */
+/** PATCH /redirects/:id — any subset, at least one field; no other keys. */
 export const redirectPatch = z
-  .object(fields)
+  .strictObject(fields)
   .partial()
   .refine((value) => Object.keys(value).length > 0, "Nothing to change")
 export type RedirectPatch = z.infer<typeof redirectPatch>

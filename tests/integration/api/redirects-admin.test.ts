@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   cacheTag: vi.fn(),
 }))
 
-import type { RedirectDto } from "@/lib/schemas/api/redirects"
+import { REDIRECT_SOURCES, type RedirectDto } from "@/lib/schemas/api/redirects"
 import { getDb } from "@/server/db/client"
 import { redirects, services } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
@@ -131,10 +131,29 @@ describe("redirects admin (D1.7)", () => {
       })
       expect(res.status, JSON.stringify(json)).toBe(422)
     }
-    // source is server-owned: a client cannot claim "auto".
+    // source is server-owned: a client cannot claim "auto", even alongside
+    // a valid change (unknown keys are refused, not stripped).
     const dto = await create({ fromPath: "/claims-auto", toPath: "/" })
-    const res = await patch(dto.id, { source: "auto" })
+    const res = await patch(dto.id, { source: "auto", note: "x" })
     expect(res.status).toBe(422)
+    const post = await adminRequest("/redirects", {
+      cookie: marketer,
+      method: "POST",
+      json: {
+        fromPath: "/claims-auto-2",
+        toPath: "/",
+        code: 301,
+        source: "auto",
+      },
+    })
+    expect(post.status).toBe(422)
+    const [unchanged] = await listed("/claims-auto")
+    expect(unchanged).toMatchObject({ source: "manual", note: "" })
+    // Every listed source is allowed by the DB check (one list, REDIRECT_SOURCES).
+    for (const source of REDIRECT_SOURCES)
+      await getDb()
+        .insert(redirects)
+        .values({ fromPath: `/src-${source}`, toPath: "/", source })
     // The database refuses codes and sources outside the lists too.
     await expect(
       getDb()
@@ -222,5 +241,19 @@ describe("redirects admin (D1.7)", () => {
     const on = await patch(dto.id, { isActive: true })
     expect(on.status).toBe(200)
     expect(((await on.json()) as RedirectDto).isActive).toBe(true)
+  })
+
+  it("turning on/off keeps updatedAt, so the row keeps its place in the list", async () => {
+    const dto = await create({ fromPath: "/stays-put", toPath: "/" })
+    const off = (await (
+      await patch(dto.id, { isActive: false })
+    ).json()) as RedirectDto
+    expect(off.isActive).toBe(false)
+    expect(off.updatedAt).toBe(dto.updatedAt)
+    // Any other change still counts as an edit.
+    const edited = (await (
+      await patch(dto.id, { isActive: true, note: "edited" })
+    ).json()) as RedirectDto
+    expect(edited.updatedAt).not.toBe(dto.updatedAt)
   })
 })

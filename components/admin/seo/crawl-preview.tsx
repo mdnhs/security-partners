@@ -6,6 +6,10 @@ import { useEffect, useState } from "react"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
+
+const SOFT_DISABLED =
+  "aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:active:translate-y-0"
 
 /** Sitemap locations listed in the preview; the rest are only counted. */
 export const CRAWL_PREVIEW_LIMIT = 20
@@ -138,10 +142,14 @@ export function CrawlPreview() {
           type="button"
           variant="outline"
           size="sm"
-          className="pointer-coarse:h-11"
+          // aria-disabled, not disabled: keyboard focus stays on the button
+          // while it loads (WCAG 2.4.3); the handler checks the same flag.
+          className={cn("pointer-coarse:h-11", SOFT_DISABLED)}
           aria-label="Refresh what crawlers see"
-          disabled={loading}
-          onClick={() => setNonce((n) => n + 1)}
+          aria-disabled={loading || undefined}
+          onClick={() => {
+            if (!loading) setNonce((n) => n + 1)
+          }}
         >
           <RefreshCw aria-hidden data-icon="inline-start" />
           Refresh
