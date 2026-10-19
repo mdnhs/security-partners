@@ -2,11 +2,30 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+const { push, setTheme, signOut } = vi.hoisted(() => ({
+  push: vi.fn(),
+  setTheme: vi.fn(),
+  signOut: vi.fn(),
+}))
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin",
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
 }))
+// The real hooks run; only the calls the palette makes are spied on.
+vi.mock("next-themes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next-themes")>()
+  return { ...actual, useTheme: () => ({ ...actual.useTheme(), setTheme }) }
+})
+vi.mock("@/components/admin/shell/sign-out-context", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/components/admin/shell/sign-out-context")
+    >()
+  return {
+    ...actual,
+    useShellSignOut: () => ({ ...actual.useShellSignOut(), signOut }),
+  }
+})
 
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
@@ -38,6 +57,8 @@ const fetchMock = vi.fn()
 
 beforeEach(() => {
   push.mockReset()
+  setTheme.mockReset()
+  signOut.mockReset()
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost")
@@ -214,7 +235,11 @@ describe("⌘K command palette (master 4.1)", () => {
       "Dashboard",
       "Enquiries",
       "Account",
-      "Open the public site",
+      "Open the live site",
+      "Switch to light theme",
+      "Switch to dark theme",
+      "Use the system theme",
+      "Sign out",
     ])
     await user.type(within(dialog).getByRole("combobox"), "acc")
     expect(
@@ -237,15 +262,139 @@ describe("⌘K command palette (master 4.1)", () => {
       .getAllByRole("option")
       .map((o) => o.textContent)
     expect(actions).toEqual([
-      "Edit the home page",
-      "New service",
       "New article",
-      "Open the public site",
+      "New service",
+      "Open the live site",
+      "Switch to light theme",
+      "Switch to dark theme",
+      "Use the system theme",
+      "Sign out",
     ])
     await user.click(
       within(dialog).getByRole("option", { name: "New service" })
     )
     expect(push).toHaveBeenCalledWith("/admin/services/new")
+  })
+
+  describe("registry destinations and actions (MK B6)", () => {
+    const empty = () =>
+      fetchMock.mockImplementation(async () => Response.json({ items: [] }))
+    async function openPalette() {
+      const user = userEvent.setup()
+      await user.keyboard("{Control>}k{/Control}")
+      const dialog = await screen.findByRole("dialog", {
+        name: "Search the admin",
+      })
+      const input = () =>
+        within(dialog).getByRole("combobox", { name: "Search" })
+      return { user, dialog, input }
+    }
+
+    it("uses the MK placeholder and puts Go to first", async () => {
+      empty()
+      renderShell(["owner"])
+      const { dialog, input } = await openPalette()
+      expect(input()).toHaveAttribute(
+        "placeholder",
+        "Search pages and actions…"
+      )
+      // The default search mock answers with one record.
+      fetchMock.mockReset()
+      fetchMock.mockImplementation(async () =>
+        Response.json({
+          items: [
+            {
+              type: "service",
+              id: "s1",
+              title: "Alarm Responses",
+              subtitle: null,
+              href: "/admin/services/s1",
+            },
+          ],
+        })
+      )
+      await userEvent.type(input(), "se")
+      const records = await within(dialog).findByRole("group", {
+        name: "Records",
+      })
+      const goTo = within(dialog).getByRole("group", { name: "Go to" })
+      const actions = within(dialog).getByRole("group", { name: "Actions" })
+      expect(
+        goTo.compareDocumentPosition(records) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        records.compareDocumentPosition(actions) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+
+    it("Go to lists registry destinations with keywords", async () => {
+      empty()
+      renderShell(["owner"])
+      const { user, input } = await openPalette()
+      await user.type(input(), "chatbot")
+      expect(
+        screen.getByRole("option", { name: /AI assistant/ })
+      ).toBeInTheDocument()
+    })
+
+    it("matches a sub-page by its section's keywords, every word", async () => {
+      empty()
+      renderShell(["owner"])
+      const { user, dialog, input } = await openPalette()
+      await user.type(input(), "blog cat")
+      const goTo = within(dialog).getByRole("group", { name: "Go to" })
+      expect(
+        within(goTo)
+          .getAllByRole("option")
+          .map((o) => o.textContent)
+      ).toEqual(["CategoriesInsights"])
+    })
+
+    it("hides destinations the role cannot open", async () => {
+      empty()
+      renderShell(["marketer"])
+      const { user, input } = await openPalette()
+      await user.type(input(), "custom code")
+      expect(screen.queryByRole("option", { name: /Custom code/ })).toBeNull()
+    })
+
+    it("hides AI assistant from an editor", async () => {
+      empty()
+      renderShell(["editor"])
+      const { user, input } = await openPalette()
+      await user.type(input(), "chatbot")
+      expect(screen.queryByRole("option", { name: /AI assistant/ })).toBeNull()
+    })
+
+    it("theme and sign-out actions run", async () => {
+      empty()
+      renderShell(["author"])
+      const first = await openPalette()
+      await first.user.type(first.input(), "dark")
+      await first.user.keyboard("{Enter}")
+      expect(setTheme).toHaveBeenCalledWith("dark")
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Search the admin" })
+        ).toBeNull()
+      )
+      const again = await openPalette()
+      await again.user.type(again.input(), "sign out")
+      await again.user.keyboard("{Enter}")
+      expect(signOut).toHaveBeenCalled()
+    })
+
+    it("opens the live site in a new tab", async () => {
+      empty()
+      const open = vi.spyOn(window, "open").mockReturnValue(null)
+      renderShell(["author"])
+      const { user, input } = await openPalette()
+      await user.type(input(), "website")
+      await user.keyboard("{Enter}")
+      expect(open).toHaveBeenCalledWith("/", "_blank", "noopener,noreferrer")
+      open.mockRestore()
+    })
   })
 
   it("leaves Mod-K to a focused widget that handles it", async () => {
