@@ -4,7 +4,7 @@ import { CheckCircle2, CircleAlert, KeyRound, LoaderCircle } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
-import { NativeSelect } from "@/components/admin/schema-form/widgets/basic"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
   describedBy,
   ErrorText,
@@ -12,6 +12,7 @@ import {
   HelpText,
   LABEL_CLASS,
 } from "@/components/admin/schema-form/widgets/field-shell"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import type { Role } from "@/lib/auth/roles"
@@ -140,6 +141,7 @@ export function IntegrationField({
     const selected = Array.isArray(value) ? (value as Role[]) : []
     return (
       <fieldset
+        id={id}
         className="flex flex-col gap-1"
         aria-describedby={describedBy(id, { help, error })}
         disabled={disabled}
@@ -150,21 +152,19 @@ export function IntegrationField({
           {field.roles.map((role) => (
             <label
               key={role}
-              htmlFor={`${id}-${role}`}
               className={cn(
-                "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-muted/60 has-checked:bg-primary/5 has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+                "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-muted/60 has-data-checked:bg-primary/5",
                 disabled && "cursor-default opacity-70 hover:bg-transparent"
               )}
             >
-              <input
-                id={`${id}-${role}`}
-                type="checkbox"
-                className="size-4 shrink-0 accent-primary outline-none"
+              {/* The wrapping label names the checkbox (Base UI links it). */}
+              <Checkbox
                 aria-invalid={invalid}
+                disabled={disabled}
                 checked={selected.includes(role)}
-                onChange={(e) =>
+                onCheckedChange={(checked) =>
                   onChange(
-                    e.target.checked
+                    checked
                       ? field.roles.filter(
                           (r) => r === role || selected.includes(r)
                         )
@@ -186,20 +186,16 @@ export function IntegrationField({
   let extraId: string | undefined
   if (field.kind === "select") {
     control = (
-      <NativeSelect
+      <OptionSelect
         id={id}
         value={String(value ?? "")}
+        options={field.options}
+        aria-required
         disabled={disabled}
-        invalid={!!error}
-        describedBy={describedBy(id, { help, error })}
+        aria-invalid={!!error}
+        aria-describedby={describedBy(id, { help, error })}
         onChange={onChange}
-      >
-        {field.options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </NativeSelect>
+      />
     )
   } else if (field.kind === "secret") {
     extraId = `${id}-saved`

@@ -4,13 +4,7 @@ import { useController } from "react-hook-form"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { OptionSelect } from "@/components/admin/option-select"
 import { cn } from "@/lib/utils"
 
 import { fieldId, useSchemaForm, type WidgetProps } from "../context"
@@ -24,7 +18,7 @@ import {
   LABEL_CLASS,
 } from "./field-shell"
 
-export type ChoiceItem = { value: string; label: string }
+const NONE = "— None —"
 
 /** Label of an enum value from meta.options, else the value itself. */
 function choiceItems(field: WidgetProps["field"], values: string[]) {
@@ -32,73 +26,6 @@ function choiceItems(field: WidgetProps["field"], values: string[]) {
     value,
     label: field.meta.options?.find((o) => o.value === value)?.label ?? value,
   }))
-}
-
-const NONE = "— None —"
-
-/**
- * shadcn Select for one value (labelled by FieldShell's <label for=id>).
- * `null` is "nothing chosen": a "— None —" item when `allowNone`.
- * The trigger takes RHF's ref, so a failed submit focuses it.
- */
-export function ChoiceSelect({
-  id,
-  value,
-  items,
-  onChange,
-  onBlur,
-  allowNone,
-  noneLabel = NONE,
-  disabled,
-  invalid,
-  required,
-  describedBy: ariaDescribedBy,
-  triggerRef,
-}: {
-  id: string
-  value: string | null
-  items: ChoiceItem[]
-  onChange: (value: string | null) => void
-  onBlur?: () => void
-  allowNone?: boolean
-  noneLabel?: string
-  disabled?: boolean
-  invalid?: boolean
-  required?: boolean
-  describedBy?: string
-  triggerRef?: React.Ref<HTMLButtonElement>
-}) {
-  // Base UI shows the raw value unless `items` maps values to labels.
-  const all: { value: string | null; label: string }[] = allowNone
-    ? [{ value: null, label: noneLabel }, ...items]
-    : items
-  return (
-    <Select
-      items={all}
-      value={value}
-      disabled={disabled}
-      onValueChange={(next) => onChange((next as string | null) ?? null)}
-    >
-      <SelectTrigger
-        id={id}
-        ref={triggerRef}
-        className="w-full rounded-lg bg-background px-3 shadow-xs data-[size=default]:h-10"
-        aria-invalid={invalid || undefined}
-        aria-required={required || undefined}
-        aria-describedby={ariaDescribedBy}
-        onBlur={onBlur}
-      >
-        <SelectValue placeholder={allowNone ? noneLabel : "Choose…"} />
-      </SelectTrigger>
-      <SelectContent>
-        {all.map((item) => (
-          <SelectItem key={item.value ?? ""} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
 }
 
 /** An enum as a shadcn Select (meta.widget "select", or by default). */
@@ -120,17 +47,21 @@ export function SelectWidget({ field, path }: WidgetProps) {
       error={error}
       optional={optional}
     >
-      <ChoiceSelect
+      <OptionSelect
         id={id}
-        value={(value as string | null | undefined) ?? null}
-        items={choiceItems(field, enumValues(field.schema) ?? [])}
-        allowNone={optional}
+        // "" is the "— None —" option of an optional field (null in the form).
+        value={(value as string | null | undefined) ?? ""}
+        options={[
+          ...(optional ? [{ value: "", label: NONE }] : []),
+          ...choiceItems(field, enumValues(field.schema) ?? []),
+        ]}
+        placeholder="Choose…"
         disabled={disabled}
-        invalid={!!error}
-        required={!optional}
-        describedBy={describedBy(id, { help, error })}
+        aria-invalid={!!error}
+        aria-required={!optional}
+        aria-describedby={describedBy(id, { help, error })}
         triggerRef={ref}
-        onChange={onChange}
+        onChange={(next) => onChange(next === "" ? null : next)}
         onBlur={onBlur}
       />
     </FieldShell>

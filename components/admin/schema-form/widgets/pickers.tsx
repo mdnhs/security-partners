@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 import type { OptionCollection, OptionItem } from "@/lib/schemas/api/search"
 
 import { fieldId, useSchemaForm, type WidgetProps } from "../context"
-import { ChoiceSelect } from "./choice"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
   deepErrorText,
   describedBy,
@@ -275,22 +275,24 @@ export function CollectionWidget({ field, path }: WidgetProps) {
       error={error}
       optional={field.optional || field.nullable}
     >
-      <ChoiceSelect
+      <OptionSelect
         id={id}
-        value={value || null}
-        items={
+        value={value}
+        options={[
+          { value: "", label: options.isPending ? "Loading…" : "— None —" },
           // A stored slug the list no longer has stays visible (and chosen).
-          value && !items.some((i) => i.value === value)
-            ? [{ value, label: value }, ...items]
-            : items
-        }
-        allowNone
-        noneLabel={options.isPending ? "Loading…" : undefined}
+          ...(value &&
+          !options.isPending &&
+          !items.some((i) => i.value === value)
+            ? [{ value, label: value }]
+            : []),
+          ...items,
+        ]}
         disabled={disabled || options.isPending}
-        invalid={!!error}
-        describedBy={describedBy(id, { help, error })}
+        aria-invalid={!!error}
+        aria-describedby={describedBy(id, { help, error })}
         triggerRef={f.ref}
-        onChange={f.onChange}
+        onChange={(next) => f.onChange(next === "" ? null : next)}
         onBlur={f.onBlur}
       />
     </FieldShell>

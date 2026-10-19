@@ -1,6 +1,7 @@
 "use client"
 
 import { ErrorText } from "@/components/admin/schema-form/widgets/field-shell"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ROLE_INFO } from "@/lib/admin/user-roles"
 import type { Role } from "@/lib/auth/roles"
 import { cn } from "@/lib/utils"
@@ -38,21 +39,20 @@ export function RolesField({
         return (
           <label
             key={role}
-            htmlFor={inputId}
             className={cn(
-              "-mx-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60 has-checked:bg-primary/5 has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+              "-mx-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60 has-data-checked:bg-primary/5",
               disabled && "cursor-default opacity-70 hover:bg-transparent"
             )}
           >
-            <input
-              id={inputId}
-              type="checkbox"
-              className="mt-0.5 size-4 shrink-0 accent-primary outline-none"
+            {/* The wrapping label names the checkbox (Base UI links it). */}
+            <Checkbox
+              className="mt-0.5"
               checked={value.includes(role)}
+              disabled={disabled}
               aria-describedby={`${inputId}-help`}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 onChange(
-                  event.target.checked
+                  checked
                     ? options.filter((r) => r === role || value.includes(r))
                     : value.filter((r) => r !== role)
                 )

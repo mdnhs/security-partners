@@ -8,7 +8,7 @@ import { toast } from "sonner"
 
 import type { EditorActionContext } from "@/components/admin/editor/versioned-editor"
 import { ADMIN_CONTROL, FormCard } from "@/components/admin/form/form-ui"
-import { NativeSelect } from "@/components/admin/schema-form/widgets/basic"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
   ErrorText,
   HelpText,
@@ -244,23 +244,21 @@ function PlacementCard({
         <label htmlFor="article-category" className={LABEL_CLASS}>
           Category
         </label>
-        <NativeSelect
+        <OptionSelect
           id="article-category"
           value={categoryId}
+          options={categories.map((c) => ({ value: c.id, label: c.name }))}
+          aria-required
           disabled={!editable}
-          invalid={!!errors.categoryId}
-          describedBy={errors.categoryId ? "article-category-error" : undefined}
+          aria-invalid={!!errors.categoryId}
+          aria-describedby={
+            errors.categoryId ? "article-category-error" : undefined
+          }
           onChange={(value) => {
             setCategoryId(value)
             setErrors({})
           }}
-        >
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </NativeSelect>
+        />
         {errors.categoryId ? (
           <ErrorText id="article-category-error">
             {errors.categoryId[0]}
@@ -272,23 +270,22 @@ function PlacementCard({
           <label htmlFor="article-author" className={LABEL_CLASS}>
             Byline
           </label>
-          <NativeSelect
+          <OptionSelect
             id="article-author"
             value={authorId}
-            invalid={!!errors.authorId}
-            describedBy={errors.authorId ? "article-author-error" : undefined}
+            options={[
+              { value: "", label: "No byline" },
+              ...bylines.map((a) => ({ value: a.id, label: a.name })),
+            ]}
+            aria-invalid={!!errors.authorId}
+            aria-describedby={
+              errors.authorId ? "article-author-error" : undefined
+            }
             onChange={(value) => {
               setAuthorId(value)
               setErrors({})
             }}
-          >
-            <option value="">No byline</option>
-            {bylines.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </NativeSelect>
+          />
           {errors.authorId ? (
             <ErrorText id="article-author-error">
               {errors.authorId[0]}

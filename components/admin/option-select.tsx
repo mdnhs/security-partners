@@ -20,7 +20,8 @@ export const ADMIN_SELECT_TRIGGER =
  * replacement for the native select element. Name it with a `<label htmlFor={id}>`
  * (or `aria-label`); the label shows in the trigger through `items`. A value
  * whose option is missing (not loaded yet) shows `placeholder`, not its raw id.
- * `""` is an ordinary option value.
+ * `""` is an ordinary option value. In a react-hook-form field pass
+ * `triggerRef` (field.ref: a failed submit focuses the trigger) and `onBlur`.
  */
 export function OptionSelect({
   id,
@@ -33,6 +34,9 @@ export function OptionSelect({
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
+  "aria-required": ariaRequired,
+  triggerRef,
+  onBlur,
 }: {
   id?: string
   value: string
@@ -45,6 +49,9 @@ export function OptionSelect({
   "aria-label"?: string
   "aria-describedby"?: string
   "aria-invalid"?: boolean
+  "aria-required"?: boolean
+  triggerRef?: React.Ref<HTMLButtonElement>
+  onBlur?: () => void
 }) {
   return (
     <Select
@@ -58,6 +65,9 @@ export function OptionSelect({
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid || undefined}
+        aria-required={ariaRequired || undefined}
+        ref={triggerRef}
+        onBlur={onBlur}
         className={cn(ADMIN_SELECT_TRIGGER, className)}
       >
         <SelectValue>

@@ -53,9 +53,9 @@ test("author drafts and submits, cannot publish via the API; an editor publishes
   await page
     .getByRole("textbox", { name: "Excerpt" })
     .fill("Ten checks our officers make on every night patrol.")
-  await page
-    .getByLabel("Category", { exact: true })
-    .selectOption({ label: "Mobile Patrols" })
+  // shadcn Select (MK parity A6): open the combobox, pick the option.
+  await page.getByRole("combobox", { name: "Category", exact: true }).click()
+  await page.getByRole("option", { name: "Mobile Patrols" }).click()
   await page.getByRole("button", { name: "Choose image: Cover image" }).click()
   const picker = page.getByRole("dialog", { name: "Choose: Cover image" })
   await picker.getByRole("searchbox", { name: "Search images" }).fill("hero")

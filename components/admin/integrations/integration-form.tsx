@@ -139,8 +139,13 @@ export function IntegrationForm({
     const field = meta.fields.find((f) => f.name === focusField.name)
     if (!field) return
     const id = fieldId(key, field.name)
-    const target = field.kind === "roles" ? `${id}-${field.roles[0]}` : id
-    document.getElementById(target)?.focus()
+    const element = document.getElementById(id)
+    // Roles: the fieldset carries the id; focus its first checkbox.
+    const target =
+      field.kind === "roles"
+        ? element?.querySelector<HTMLElement>('[role="checkbox"]')
+        : element
+    target?.focus()
   }, [focusField, key, meta.fields])
 
   const typedSecrets = Object.fromEntries(
