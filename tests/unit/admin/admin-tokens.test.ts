@@ -130,9 +130,11 @@ const TEXT_PAIRS: [text: string, surface: string][] = [
 ]
 
 // Chart marks the reader must perceive (WCAG 1.4.11): bars and swatches.
-// --hatch (the striped comparison series) follows MK's light tint (spec
-// §4.2) and is told apart by its stripes and the legend, not its colour.
-const NON_TEXT_PAIRS: [mark: string, surface: string][] = [["chart-2", "card"]]
+// --hatch is the striped comparison series (spec §4.2 A1 nudge).
+const NON_TEXT_PAIRS: [mark: string, surface: string][] = [
+  ["chart-2", "card"],
+  ["hatch", "card"],
+]
 
 describe.each([
   ["light", light],

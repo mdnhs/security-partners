@@ -104,7 +104,8 @@ export const SP_ADMIN_LIGHT: Readonly<Record<AdminTokenName, string>> = {
   danger: "#b91c1c",
   "danger-soft": "#fee2e2",
   skeleton: "#e1e4e9",
-  hatch: "#a7d98a",
+  // A1 nudge (WCAG 1.4.11): #a7d98a → #709f53, 3:1 on the card.
+  hatch: "#709f53",
   "hero-from": "#0d1b36",
   "hero-to": "#1b3566",
   "hero-foreground": "#ffffff",
@@ -164,7 +165,8 @@ export const SP_ADMIN_DARK: Readonly<Partial<Record<AdminTokenName, string>>> =
     danger: "#f87171",
     "danger-soft": "#3a1414",
     skeleton: "#29303b",
-    hatch: "#3f6b25",
+    // A1 nudge (WCAG 1.4.11): #3f6b25 → #4a7731, 3:1 on the card.
+    hatch: "#4a7731",
   }
 
 /** Text (and control) on the surface it sits on, with its WCAG minimum. */

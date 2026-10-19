@@ -135,7 +135,7 @@ html[data-admin] {
   --danger: #b91c1c;
   --danger-soft: #fee2e2;
   --skeleton: #e1e4e9;
-  --hatch: #a7d98a;
+  --hatch: #709f53;
   --hero-from: #0d1b36;
   --hero-to: #1b3566;
   --hero-foreground: #ffffff;
@@ -188,7 +188,7 @@ html[data-admin].dark {
   --danger: #f87171;
   --danger-soft: #3a1414;
   --skeleton: #29303b;
-  --hatch: #3f6b25;
+  --hatch: #4a7731;
 }
 
 @utility bg-hatch {
