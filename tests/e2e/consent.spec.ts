@@ -322,6 +322,36 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     ).not.toContainText("Custom code")
   })
 
+  test("a marketer sees the Event catalogue tab and table (D2.4)", async ({
+    page,
+  }) => {
+    await signIn(page, "marketer@demo.local")
+    await page.goto("/admin/marketing")
+    const tabs = page.getByRole("navigation", { name: "Marketing" })
+    await tabs.getByRole("link", { name: "Event catalogue" }).click()
+    await page.waitForURL("**/admin/marketing/events")
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Event catalogue" })
+    ).toBeVisible()
+    const table = page.getByRole("table")
+    await expect(table.getByRole("columnheader")).toHaveText([
+      "Event",
+      "Fires when",
+      "Params",
+      "GA4",
+      "Meta",
+    ])
+    await expect(table.getByRole("row")).toHaveCount(7)
+    await expect(
+      table.getByRole("row").filter({ hasText: "page_view_virtual" })
+    ).toContainText("page_view")
+    await expect(page.getByText("docs/gtm-container.json")).toBeVisible()
+    const axe = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+      .analyze()
+    expect(axe.violations.map((v) => v.id)).toEqual([])
+  })
+
   test("custom code: the owner's snippets run on public pages", async ({
     page,
     browser,

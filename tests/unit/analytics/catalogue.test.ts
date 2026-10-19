@@ -49,8 +49,11 @@ type GtmExport = {
 const gtm = JSON.parse(
   readFileSync(join(process.cwd(), "docs/gtm-container.json"), "utf8")
 ) as GtmExport
-const { tag: tags, trigger: triggers, variable: variables } =
-  gtm.containerVersion
+const {
+  tag: tags,
+  trigger: triggers,
+  variable: variables,
+} = gtm.containerVersion
 
 const param = (list: GtmParameter[], key: string) =>
   list.find((p) => p.key === key)
@@ -155,19 +158,21 @@ describe("docs/gtm-container.json", () => {
     expect(tags).toHaveLength(EVENT_CATALOGUE.length)
     for (const row of EVENT_CATALOGUE) {
       const trigger = triggerFor(row.event)!
-      const tag = tags.find((t) => t.firingTriggerId.includes(trigger.triggerId))
+      const tag = tags.find((t) =>
+        t.firingTriggerId.includes(trigger.triggerId)
+      )
       expect(tag, row.event).toBeDefined()
       expect(tag!.type).toBe("gaawe")
       expect(param(tag!.parameter, "eventName")?.value).toBe(row.ga4)
       expect(param(tag!.parameter, "measurementIdOverride")?.value).toBe(
         "{{GA4 Measurement ID}}"
       )
-      const sent = (param(tag!.parameter, "eventSettingsTable")?.list ?? []).map(
-        (entry) => [
-          param(entry.map, "parameter")?.value,
-          param(entry.map, "parameterValue")?.value,
-        ]
-      )
+      const sent = (
+        param(tag!.parameter, "eventSettingsTable")?.list ?? []
+      ).map((entry) => [
+        param(entry.map, "parameter")?.value,
+        param(entry.map, "parameterValue")?.value,
+      ])
       expect(sent).toEqual(
         row.params.map((key) => [key, `{{${dlvFor(key)?.name}}}`])
       )
