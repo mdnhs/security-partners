@@ -167,7 +167,7 @@ export function resolveWidget(
   const { inner, optional, nullable } = unwrapSchema(schema)
   const base = {
     schema: inner,
-    optional,
+    optional: optional && !meta.required,
     nullable,
     meta,
     label: meta.label ?? humanize(name),

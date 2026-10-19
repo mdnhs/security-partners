@@ -28,6 +28,12 @@ export type FieldMeta = {
    */
   hidden?: boolean
   label?: string
+  /**
+   * Edited as a required field although the schema has a `.default()`:
+   * a blank value is an error instead of silently becoming the default
+   * (e.g. consent.version, where 1 would revive older consent).
+   */
+  required?: boolean
   help?: string
   placeholder?: string
   /** Force a widget (e.g. "collection" for a slug that picks an article). */

@@ -49,6 +49,11 @@ export type ConsentBannerViewProps = {
    * Accept / Save instead of Save alone.
    */
   reopened?: boolean
+  /**
+   * The title's heading level: 2 on the public site; 3 in the admin
+   * preview, which sits under its card's own h2.
+   */
+  headingLevel?: 2 | 3
   sectionRef?: Ref<HTMLElement>
   headingRef?: Ref<HTMLHeadingElement>
   manageRef?: Ref<HTMLButtonElement>
@@ -78,11 +83,13 @@ export function ConsentBannerView({
   onClose,
   inline = false,
   reopened = false,
+  headingLevel = 2,
   sectionRef,
   headingRef,
   manageRef,
 }: ConsentBannerViewProps): JSX.Element {
   const titleId = useId()
+  const Heading = headingLevel === 3 ? "h3" : "h2"
 
   if (mode === "closed")
     return (
@@ -123,14 +130,14 @@ export function ConsentBannerView({
           </button>
         ) : null}
         <div className="flex flex-col gap-2">
-          <h2
+          <Heading
             ref={headingRef}
             id={titleId}
             tabIndex={-1}
             className="text-lg font-black outline-none md:text-xl"
           >
             {copy.title}
-          </h2>
+          </Heading>
           <p className="text-[15px] leading-[1.6] text-white/85">
             {copy.body}{" "}
             <a

@@ -138,7 +138,8 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
       "categories.marketing": { label: "Marketing" },
       version: {
         label: "Consent version",
-        help: "Raise it by 1 when what you ask consent for changes: every visitor sees the banner again, and nothing loads until they choose.",
+        required: true,
+        help: "Raise it by 1 when what you ask consent for changes: every visitor sees the banner again, and nothing loads until they choose. It can't go below the published version.",
       },
       reconsentMonths: {
         label: "Ask again after (months)",

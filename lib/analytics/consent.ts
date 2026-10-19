@@ -41,6 +41,20 @@ export function readConsent(
   return { analytics: match[2] === "1", marketing: match[3] === "1" }
 }
 
+/**
+ * The choice a cookie records, whatever its version or age. Only for
+ * cleanup: a choice that no longer counts (readConsent → null) may still
+ * have let GA/Meta set cookies, which a new Reject must clear.
+ */
+export function recordedChoice(
+  raw: string | null | undefined
+): ConsentChoice | null {
+  const match = /^\d+\.([01])\.([01])\.\d+$/.exec(raw ?? "")
+  return match
+    ? { analytics: match[1] === "1", marketing: match[2] === "1" }
+    : null
+}
+
 export function consentCookie(
   choice: ConsentChoice,
   nowMs: number,

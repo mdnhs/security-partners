@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -59,6 +62,17 @@ function renderBanner() {
 }
 
 describe("ConsentBanner markup is frozen (public design, 0 px)", () => {
+  // toMatchFileSnapshot writes a missing file outside CI: a deleted
+  // snapshot must fail here instead of becoming "today's markup".
+  it.each(["first", "custom", "closed", "reopened"])(
+    "the %s snapshot file exists",
+    (state) => {
+      expect(
+        existsSync(fileURLToPath(new URL(snapshot(state), import.meta.url)))
+      ).toBe(true)
+    }
+  )
+
   it("first layer", async () => {
     await expect(markup(renderBanner())).toMatchFileSnapshot(snapshot("first"))
   })
@@ -117,6 +131,14 @@ describe("ConsentBannerView (pure markup)", () => {
       await expect(markup(container)).toMatchFileSnapshot(snapshot(state))
     }
   )
+
+  it("headingLevel 3 nests the title under a card heading; the default stays h2", () => {
+    renderView({ headingLevel: 3 })
+    expect(
+      screen.getByRole("heading", { level: 3, name: "We use cookies" })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull()
+  })
 
   it("calls back and keeps no state of its own", async () => {
     const view = renderView()

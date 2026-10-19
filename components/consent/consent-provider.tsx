@@ -18,6 +18,7 @@ import {
   consentModeUpdate,
   cookieValue,
   readConsent,
+  recordedChoice,
   withdrawn,
 } from "@/lib/analytics/consent"
 import type { AnalyticsWindow } from "@/lib/analytics/events"
@@ -48,6 +49,8 @@ export function useConsent(): ConsentContextValue {
 /** The visitor's choice: read once from the cookie, then kept in memory. */
 function createStore(version: number, maxAgeSeconds: number) {
   let value: ConsentChoice | null | undefined
+  /** A cookie's choice that no longer counts (other version, too old). */
+  let lapsed: ConsentChoice | null = null
   const listeners = new Set<() => void>()
   const publish = (next: ConsentChoice | null) => {
     value = next
@@ -61,18 +64,17 @@ function createStore(version: number, maxAgeSeconds: number) {
       }
     },
     get(): ConsentChoice | null {
-      if (value === undefined)
-        publish(
-          readConsent(
-            cookieValue(document.cookie, CONSENT_COOKIE),
-            Date.now(),
-            version,
-            maxAgeSeconds
-          )
-        )
+      if (value === undefined) {
+        const raw = cookieValue(document.cookie, CONSENT_COOKIE)
+        const current = readConsent(raw, Date.now(), version, maxAgeSeconds)
+        if (current === null) lapsed = recordedChoice(raw)
+        publish(current)
+      }
       return value ?? null
     },
+    lapsed: () => lapsed,
     set(next: ConsentChoice) {
+      lapsed = null
       publish(next)
       for (const listener of listeners) listener()
     },
@@ -102,6 +104,8 @@ export function ConsentProvider({
   maxAgeSeconds: number
   reload?: () => void
 }) {
+  // Read once: the layout persists across soft navigation, so a newly
+  // published version or interval applies from the next full page load.
   const [store] = useState(() => createStore(version, maxAgeSeconds))
   const choice = useSyncExternalStore<ConsentState>(
     store.subscribe,
@@ -112,6 +116,7 @@ export function ConsentProvider({
   const save = useCallback(
     (next: ConsentChoice) => {
       const previous = store.get()
+      const lapsed = store.lapsed()
       document.cookie = consentCookie(next, Date.now(), {
         version,
         maxAgeSeconds,
@@ -127,6 +132,11 @@ export function ConsentProvider({
       if (withdrawn(previous, next)) {
         clearTrackingCookies(document, window.location.hostname)
         reload()
+      } else if (withdrawn(lapsed, next)) {
+        // Re-consent (new version or interval over) answered with Reject:
+        // the old choice's GA/Meta cookies go too. Nothing has loaded
+        // under the new version, so no reload is needed.
+        clearTrackingCookies(document, window.location.hostname)
       }
     },
     [store, reload, version, maxAgeSeconds]

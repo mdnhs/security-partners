@@ -105,6 +105,7 @@ export function ConsentPreview({ value }: { value: ConsentSettings }) {
           onSave={noop}
           onToggle={(key, on) => setChoice({ ...choice, [key]: on })}
           onClose={noop}
+          headingLevel={3}
         />
       </div>
       <p className="text-sm text-muted-foreground">

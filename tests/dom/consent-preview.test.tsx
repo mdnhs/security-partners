@@ -46,6 +46,16 @@ describe("ConsentPreview (Marketing › Consent banner)", () => {
     )
   })
 
+  it("the banner title nests under the card's h2 (h3)", () => {
+    render(<ConsentPreview value={seeded} />)
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Preview" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { level: 3, name: seeded.title })
+    ).toBeInTheDocument()
+  })
+
   it("follows the draft copy", () => {
     render(
       <ConsentPreview

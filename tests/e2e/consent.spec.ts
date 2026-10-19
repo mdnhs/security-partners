@@ -22,7 +22,9 @@ const TRACKING_OFF = {
   metaPixelId: null,
 }
 
-const CONSENT_V1 = { version: 1, reconsentMonths: 6 }
+// The consent version can never go down (review D2.2 I1: 422), so tests
+// only reset the interval and read the version that is live.
+const CONSENT_RESET = { reconsentMonths: 6 }
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
@@ -85,7 +87,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       headHtml: "",
       bodyEndHtml: "",
     }))
-    await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_V1 }))
+    await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_RESET }))
     await context.close()
   })
 
@@ -151,7 +153,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       const cookie = (await visitor.cookies()).find(
         (c) => c.name === "sp_consent"
       )!
-      expect(cookie.value).toMatch(/^1\.1\.1\.\d+$/)
+      expect(cookie.value).toMatch(/^\d+\.1\.1\.\d+$/)
       const days = (cookie.expires * 1000 - Date.now()) / 86_400_000
       expect(days).toBeGreaterThan(179)
       expect(days).toBeLessThanOrEqual(180)
@@ -177,7 +179,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       expect(none).toEqual([])
       expect(
         (await other.cookies()).find((c) => c.name === "sp_consent")?.value
-      ).toMatch(/^1\.0\.0\./)
+      ).toMatch(/^\d+\.0\.0\./)
       await other.close()
     } finally {
       await publishSetting(page, "tracking", (d) => ({
@@ -256,6 +258,10 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       gtmEnabled: true,
       gtmId: "GTM-E2ETEST",
     }))
+    const live = (await (
+      await page.request.get("/api/v1/admin/marketing/consent")
+    ).json()) as { published: { version: number } }
+    const v = live.published.version
     try {
       await page.goto("/admin/marketing/consent")
       const preview = page.getByRole("region", { name: "Preview" })
@@ -278,11 +284,11 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
         (await visitor.cookies()).find((c) => c.name === "sp_consent")!
       await expect
         .poll(async () => (await consentCookie()).value)
-        .toMatch(/^1\.1\.1\./)
+        .toMatch(new RegExp(`^${v}\\.1\\.1\\.`))
 
       await publishSetting(page, "consent", (d) => ({
         ...d,
-        version: 2,
+        version: v + 1,
         reconsentMonths: 2,
       }))
       requested.length = 0
@@ -295,7 +301,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       await banner.getByRole("button", { name: "Accept all" }).click()
       await expect
         .poll(async () => (await consentCookie()).value)
-        .toMatch(/^2\.1\.1\.\d+$/)
+        .toMatch(new RegExp(`^${v + 1}\\.1\\.1\\.\\d+$`))
       const days =
         ((await consentCookie()).expires * 1000 - Date.now()) / 86_400_000
       expect(days).toBeGreaterThan(59)
@@ -303,7 +309,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       await expect.poll(() => requested.length).toBeGreaterThan(0)
       await visitor.close()
     } finally {
-      await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_V1 }))
+      await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_RESET }))
       await publishSetting(page, "tracking", (d) => ({
         ...d,
         ...TRACKING_OFF,

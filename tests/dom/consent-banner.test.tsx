@@ -143,6 +143,29 @@ describe("consent version and re-consent interval (D2.2)", () => {
     })
   })
 
+  it("rejecting after a version bump clears the old tracking cookies (no reload)", async () => {
+    document.cookie = `sp_consent=1.1.1.${now()}; Path=/`
+    document.cookie = "_ga=GA1.1.1; Path=/"
+    document.cookie = "_fbp=fb.1.1; Path=/"
+    const user = userEvent.setup()
+    const reload = renderBanner(vi.fn(), { ...COPY, version: 2 })
+    await user.click(
+      screen.getByRole("button", { name: "Reject non-essential" })
+    )
+    expect(consentCookie()).toMatch(/^2\.0\.0\.\d+$/)
+    expect(document.cookie).not.toMatch(/_ga=|_fbp=/)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it("accepting after a version bump keeps the tracking cookies", async () => {
+    document.cookie = `sp_consent=1.1.1.${now()}; Path=/`
+    document.cookie = "_ga=GA1.1.1; Path=/"
+    const user = userEvent.setup()
+    renderBanner(vi.fn(), { ...COPY, version: 2 })
+    await user.click(screen.getByRole("button", { name: "Accept all" }))
+    expect(document.cookie).toMatch(/_ga=/)
+  })
+
   it("a choice older than the re-consent interval asks again", () => {
     document.cookie = `sp_consent=1.1.1.${now() - 61 * 86_400}; Path=/`
     renderBanner(vi.fn(), { ...COPY, reconsentMonths: 2 })
