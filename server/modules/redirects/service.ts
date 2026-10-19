@@ -15,7 +15,6 @@ import { writeAudit } from "@/server/lib/audit"
 import { invalidate, tag } from "@/server/lib/cache-tags"
 import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { pgErrorCode, UNIQUE_VIOLATION } from "@/server/lib/pg-errors"
-import { isPublishedBuilderSlug } from "@/server/modules/builder-pages/repo"
 import { readPublishedSettings } from "@/server/modules/settings/service"
 import { PAGE_PATHS } from "@/templates/registry"
 
@@ -102,7 +101,7 @@ async function assertFromIsFree(db: DbOrTx, fromPath: string) {
       "This address is a live page. Rename or unpublish it first."
     )
   const builder = BUILDER.exec(fromPath)
-  if (builder && (await isPublishedBuilderSlug(db, builder[1])))
+  if (builder && (await isPublishedSlug(db, "builder", builder[1])))
     throw invalid(
       "fromPath",
       "This address is a live page. Rename or unpublish it first."

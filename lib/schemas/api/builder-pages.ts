@@ -48,11 +48,15 @@ export const builderDraftInput = z.object({
 })
 export type BuilderDraftInput = z.infer<typeof builderDraftInput>
 
-export const builderMetaInput = z.object({
-  version: z.number().int(),
-  title: z.string().trim().min(1).max(80).optional(),
-  slug: builderSlug.optional(),
-})
+export const builderMetaInput = z
+  .object({
+    version: z.number().int().min(1),
+    title: z.string().trim().min(1).max(80).optional(),
+    slug: builderSlug.optional(),
+  })
+  .refine((input) => input.title !== undefined || input.slug !== undefined, {
+    message: "Change the title or the address",
+  })
 export type BuilderMetaInput = z.infer<typeof builderMetaInput>
 
 /** DELETE /builder-pages/:id?redirectHome=true → 301 /p/<slug> → /. */
