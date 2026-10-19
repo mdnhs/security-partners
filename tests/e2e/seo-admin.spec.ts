@@ -62,7 +62,8 @@ test("owner adds a redirect in SEO › Redirects; the old address 301s", async (
 
 test("SEO overview: the sheet saves a page's description", async ({ page }) => {
   await signIn(page, E2E_OWNER.email)
-  await page.goto("/admin/seo")
+  // All: Terms may pass every check (Needs work would hide it).
+  await page.goto("/admin/seo?show=all")
   await page.getByRole("button", { name: "Edit SEO for Terms of use" }).click()
   const sheet = page.getByRole("dialog", { name: "SEO: Terms of use" })
   const description = sheet.getByRole("textbox", { name: /^Description/ })
@@ -100,4 +101,48 @@ test("SEO overview: the sheet saves a page's description", async ({ page }) => {
     await again.getByRole("button", { name: "Save SEO" }).click()
     await expect(again).toBeHidden()
   }
+})
+
+test("SEO overview: alt-text card, Needs work / All, Fix opens the editor's SEO tab", async ({
+  page,
+}) => {
+  await signIn(page, E2E_OWNER.email)
+  await page.goto("/admin/seo")
+  const alt = page.getByRole("region", { name: "Alt text" })
+  await expect(alt).toContainText(
+    /\d+ of \d+ images described · \d+ decorative/
+  )
+  await expect(
+    alt.getByRole("link", { name: "Find images without alt text" })
+  ).toHaveAttribute("href", "/admin/media?missingAlt=true")
+
+  const filter = page.getByRole("navigation", { name: "Show" })
+  await expect(
+    filter.getByRole("link", { name: "Needs work" })
+  ).toHaveAttribute("aria-current", "page")
+  // Needs work never says "All checks pass"; All lists the passing records.
+  await expect(page.getByText("All checks pass")).toHaveCount(0)
+  await filter.getByRole("link", { name: "All" }).click()
+  await page.waitForURL((url) => url.searchParams.get("show") === "all")
+  await expect(filter.getByRole("link", { name: "All" })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await filter.getByRole("link", { name: "Needs work" }).click()
+  await page.waitForURL((url) => !url.searchParams.has("show"))
+
+  // The seed has issues (services' images lack alt text, D1.2 report):
+  // the first record Fix lands on that editor's SEO tab.
+  const fix = page
+    .getByRole("link", { name: /^Fix / })
+    .and(page.locator('[href*="?tab=seo"]'))
+    .first()
+  const href = await fix.getAttribute("href")
+  expect(href).toMatch(/^\/admin\/(pages|services|insights)\/.+\?tab=seo$/)
+  await fix.click()
+  await page.waitForURL((url) => url.searchParams.get("tab") === "seo")
+  await expect(page.getByRole("tab", { name: "SEO" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  )
 })

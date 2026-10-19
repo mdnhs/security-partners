@@ -166,7 +166,7 @@ const SEO_OVERVIEW = {
       issues: [
         {
           check: "description",
-          message: "Uses the site-wide default description.",
+          message: "Uses the site-wide default description",
         },
       ],
     },
@@ -220,6 +220,56 @@ const SEO_OVERVIEW = {
   checks: { passed: 11, total: 12 },
 }
 
+/**
+ * GET /seo/health, pinned (D1.5 overview, dashboard Content health): the
+ * same records as SEO_OVERVIEW (11 of 12 checks pass, Home has one issue),
+ * plus one image missing alt text.
+ */
+const SEO_FIX_BASE = {
+  page: "/admin/pages",
+  service: "/admin/services",
+  article: "/admin/insights",
+} as const
+const SEO_HEALTH = {
+  score: 92,
+  ...SEO_OVERVIEW.checks,
+  entities: SEO_OVERVIEW.entries.map((e) => ({
+    kind: e.kind,
+    id: e.id,
+    title: e.name,
+    path: e.path,
+    published: e.published,
+    results: e.issues.map((i) => ({
+      id: i.check,
+      ok: false,
+      message: i.message,
+    })),
+  })),
+  issues: [
+    ...SEO_OVERVIEW.entries.flatMap((e) =>
+      e.issues.map((i) => ({
+        kind: e.kind,
+        id: e.id,
+        title: e.name,
+        path: e.path,
+        ...i,
+        fixHref: `${SEO_FIX_BASE[e.kind as keyof typeof SEO_FIX_BASE]}/${e.id}?tab=seo`,
+      }))
+    ),
+    {
+      kind: "media",
+      id: "0190f0e0-0000-7000-8000-0000000000d1",
+      title: "patrol-van.jpg",
+      path: null,
+      check: "alt-text",
+      message: "1 image(s) missing alt text",
+      fixHref:
+        "/admin/media?missingAlt=true&open=0190f0e0-0000-7000-8000-0000000000d1",
+    },
+  ],
+  alt: { images: 24, described: 20, decorative: 3, missing: 1 },
+}
+
 /** SEO › Redirects, pinned (Phase 8 Task 9): hits change with every run. */
 const REDIRECT_TIMES = {
   createdAt: "2026-10-01T09:00:00.000Z",
@@ -260,17 +310,9 @@ async function pinData(page: Page) {
   await page.route("**/api/v1/admin/seo/overview", (route) =>
     route.fulfill({ json: SEO_OVERVIEW })
   )
-  // Dashboard Content health (D1.2): the same 11 of 12 as the overview.
+  // SEO overview + dashboard Content health: the same 11 of 12.
   await page.route("**/api/v1/admin/seo/health", (route) =>
-    route.fulfill({
-      json: {
-        score: 92,
-        ...SEO_OVERVIEW.checks,
-        entities: [],
-        issues: [],
-        alt: { images: 0, described: 0, decorative: 0, missing: 0 },
-      },
-    })
+    route.fulfill({ json: SEO_HEALTH })
   )
 }
 

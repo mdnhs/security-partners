@@ -17,7 +17,12 @@ import { makeQueryClient } from "@/components/admin/providers"
 import { SeoOverview } from "@/components/admin/seo/seo-overview"
 import { AdminSessionProvider } from "@/components/admin/session-provider"
 import type { Role } from "@/lib/auth/roles"
-import type { SeoEntry, SeoOverviewDto } from "@/lib/schemas/api/seo"
+import type {
+  SeoEntry,
+  SeoHealthDto,
+  SeoOverviewDto,
+} from "@/lib/schemas/api/seo"
+import { SEO_CHECKS } from "@/lib/seo/checks"
 
 const entry = (over: Partial<SeoEntry>): SeoEntry => ({
   kind: "page",
@@ -64,6 +69,76 @@ const OVERVIEW: SeoOverviewDto = {
   checks: { passed: 7, total: 8 },
 }
 
+const MEDIA_ID = "00000000-0000-7000-8000-0000000000aa"
+const passing = SEO_CHECKS.map((id) => ({ id, ok: true, message: "OK" }))
+const HOME_ISSUE = "Uses the site-wide default description"
+
+/** GET /seo/health: Home has one issue, a shared image lacks alt text. */
+const HEALTH: SeoHealthDto = {
+  score: 94,
+  passed: 15,
+  total: 16,
+  entities: [
+    {
+      kind: "page",
+      id: "home",
+      title: "Home",
+      path: "/",
+      published: true,
+      results: passing.map((r) =>
+        r.id === "description" ? { ...r, ok: false, message: HOME_ISSUE } : r
+      ),
+    },
+    {
+      kind: "service",
+      id: "00000000-0000-7000-8000-000000000001",
+      title: "Alarm Responses",
+      path: "/services/alarm-responses",
+      published: true,
+      results: passing,
+    },
+    {
+      kind: "article",
+      id: "00000000-0000-7000-8000-000000000002",
+      title: "Draft post",
+      path: "/blog/draft-post",
+      published: false,
+      results: passing,
+    },
+  ],
+  issues: [
+    {
+      kind: "page",
+      id: "home",
+      title: "Home",
+      path: "/",
+      check: "description",
+      message: HOME_ISSUE,
+      fixHref: "/admin/pages/home?tab=seo",
+    },
+    {
+      kind: "media",
+      id: MEDIA_ID,
+      title: "van.jpg",
+      path: null,
+      check: "alt-text",
+      message: "1 image(s) missing alt text",
+      fixHref: `/admin/media?missingAlt=true&open=${MEDIA_ID}`,
+    },
+  ],
+  alt: { images: 12, described: 9, decorative: 2, missing: 1 },
+}
+
+const ALL_PASS: SeoHealthDto = {
+  ...HEALTH,
+  score: 100,
+  passed: 16,
+  issues: [],
+  entities: HEALTH.entities.map((e) => ({ ...e, results: passing })),
+}
+
+let health: SeoHealthDto = HEALTH
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
     status,
@@ -75,6 +150,7 @@ const fetchMock = vi.fn(
     const url = new URL(String(input), "http://localhost")
     if (url.pathname === "/api/v1/admin/seo/overview")
       return json(200, OVERVIEW)
+    if (url.pathname === "/api/v1/admin/seo/health") return json(200, health)
     if (
       init?.method === "PUT" &&
       url.pathname === "/api/v1/admin/seo/entries/page/home"
@@ -89,6 +165,7 @@ const fetchMock = vi.fn(
 
 beforeEach(() => {
   nav.params = new URLSearchParams()
+  health = HEALTH
   nav.replace.mockReset()
   fetchMock.mockClear()
   vi.stubGlobal("fetch", fetchMock)
@@ -117,23 +194,84 @@ function renderAs(roles: Role[]) {
 }
 
 describe("SEO overview (master 8.1)", () => {
-  it("shows the health gauge and every record grouped, with its issues", async () => {
+  it("shows the health gauge from /seo/health", async () => {
     renderAs(["editor"])
-    expect(await screen.findByText("87%")).toBeInTheDocument()
+    expect(await screen.findByText("93%")).toBeInTheDocument()
     expect(
       screen.getByText("1 of 2 published pages need attention.")
     ).toBeInTheDocument()
+  })
+
+  it("the alt-text card counts images and links to the missing ones", async () => {
+    renderAs(["editor"])
+    const card = await screen.findByRole("region", { name: "Alt text" })
+    expect(card).toHaveTextContent("9 of 12 images described · 2 decorative")
     expect(
-      within(screen.getByRole("region", { name: "Pages" })).getByText(
-        "Uses the site-wide default description"
-      )
+      within(card).getByRole("link", { name: "Find images without alt text" })
+    ).toHaveAttribute("href", "/admin/media?missingAlt=true")
+  })
+
+  it("Needs work (default) lists only entities with issues, each with a Fix link", async () => {
+    renderAs(["editor"])
+    const home = await screen.findByRole("region", { name: "Home" })
+    expect(home).toHaveTextContent("/")
+    expect(home).toHaveTextContent(HOME_ISSUE)
+    expect(within(home).getByRole("link", { name: /^Fix/ })).toHaveAttribute(
+      "href",
+      "/admin/pages/home?tab=seo"
+    )
+    const image = screen.getByRole("region", { name: "van.jpg" })
+    expect(within(image).getByRole("link", { name: /^Fix/ })).toHaveAttribute(
+      "href",
+      `/admin/media?missingAlt=true&open=${MEDIA_ID}`
+    )
+    // Passing and unpublished records are hidden.
+    expect(screen.queryByRole("region", { name: "Alarm Responses" })).toBeNull()
+    expect(screen.queryByRole("region", { name: "Draft post" })).toBeNull()
+    expect(screen.queryByText("All checks pass")).toBeNull()
+    // The filter: Needs work current, All adds ?show=all.
+    const filter = screen.getByRole("navigation", { name: "Show" })
+    expect(
+      within(filter).getByRole("link", { name: "Needs work" })
+    ).toHaveAttribute("aria-current", "page")
+    expect(within(filter).getByRole("link", { name: "All" })).toHaveAttribute(
+      "href",
+      "/admin/seo?show=all"
+    )
+  })
+
+  it("All (?show=all) also lists passing entities", async () => {
+    nav.params = new URLSearchParams("show=all")
+    renderAs(["editor"])
+    const service = await screen.findByRole("region", {
+      name: "Alarm Responses",
+    })
+    expect(service).toHaveTextContent("All checks pass")
+    expect(within(service).queryByRole("link", { name: /^Fix/ })).toBeNull()
+    expect(
+      screen.getByRole("region", { name: "Draft post" })
+    ).toHaveTextContent("Not published")
+    expect(screen.getByRole("region", { name: "Home" })).toHaveTextContent(
+      HOME_ISSUE
+    )
+    const filter = screen.getByRole("navigation", { name: "Show" })
+    expect(within(filter).getByRole("link", { name: "All" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+    expect(
+      within(filter).getByRole("link", { name: "Needs work" })
+    ).toHaveAttribute("href", "/admin/seo")
+  })
+
+  it("no issues: Needs work says Nothing to fix", async () => {
+    health = ALL_PASS
+    renderAs(["editor"])
+    expect(await screen.findByText("Nothing to fix")).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Home" })).toBeNull()
+    expect(
+      screen.getByText("Every published page passes the checks.")
     ).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "Services" })).toHaveTextContent(
-      "All checks pass"
-    )
-    expect(screen.getByRole("region", { name: "Articles" })).toHaveTextContent(
-      "Not published"
-    )
   })
 
   it("Edit SEO puts the record in the address (?edit=)", async () => {
