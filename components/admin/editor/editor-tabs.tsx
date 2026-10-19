@@ -3,7 +3,10 @@
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
 import { type ReactNode, useEffect, useRef, useState } from "react"
 
-import { useTabParam } from "@/components/admin/section-tabs/section-tabs"
+import {
+  type TabChangeOptions,
+  useTabParam,
+} from "@/components/admin/section-tabs/section-tabs"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 /** ?tab= value of an editor's SEO tab (Fix links: `<editor>?tab=seo`). */
@@ -14,7 +17,7 @@ export type EditorTabState = {
   active: boolean
   /** The SEO tab was shown once: it stays mounted from then on. */
   seoMounted: boolean
-  select: (tab: "content" | "seo") => void
+  select: (tab: "content" | "seo", options?: TabChangeOptions) => void
 }
 
 /**
@@ -34,8 +37,11 @@ export function useEditorTab(enabled: boolean): EditorTabState {
   return {
     active,
     seoMounted,
-    select: (tab) =>
-      selectParam(tab === "seo" ? SEO_TAB : (lastSection.current ?? null)),
+    select: (tab, options) =>
+      selectParam(
+        tab === "seo" ? SEO_TAB : (lastSection.current ?? null),
+        options
+      ),
   }
 }
 

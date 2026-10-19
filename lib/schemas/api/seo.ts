@@ -39,6 +39,11 @@ export type SeoEntry = {
 export type SeoOverviewDto = {
   entries: SeoEntry[]
   checks: { passed: number; total: number }
+  /**
+   * SEO › Defaults the previews need: the "{title} | …" pattern and the
+   * site share image (media id). Always sent; optional for older fixtures.
+   */
+  defaults?: { titleTemplate: string; ogImageId: string | null }
 }
 
 /** One failed check with where to fix it (spec §7.1 fixHref). */

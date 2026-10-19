@@ -114,8 +114,12 @@ export function FormTabs({
       .map(([path]) => path)
     const keys = new Set(paths.map(topKey))
     if (keys.size === 0) return
+    // Already on the errored tab, unless ?tab= names something else (an
+    // editor's SEO tab): then the tab is shown and the URL says so.
+    const url = new URLSearchParams(window.location.search).get("tab")
+    const onOwnTab = url === null || tabs.some((tab) => tab.id === url)
     const current = tabs.find((tab) => tab.id === selectedRef.current)
-    if (current?.keys.some((key) => keys.has(key))) return
+    if (onOwnTab && current?.keys.some((key) => keys.has(key))) return
     const first = tabs.find((tab) => tab.keys.some((key) => keys.has(key)))
     if (!first) return
     // First invalid field in the tab's field order.

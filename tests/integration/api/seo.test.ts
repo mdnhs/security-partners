@@ -79,6 +79,11 @@ describe("SEO API (master 8.1)", () => {
       passed: live.length * SEO_CHECK_COUNT - issues,
       total: live.length * SEO_CHECK_COUNT,
     })
+    // The previews' defaults (title pattern, site share image).
+    expect(dto.defaults).toEqual({
+      titleTemplate: fx.settings["seo.defaults"].titleTemplate,
+      ogImageId: fx.settings["seo.defaults"].ogImage?.id ?? null,
+    })
   })
 
   it("overview: stored blank SEO fields fall back like the public page", async () => {

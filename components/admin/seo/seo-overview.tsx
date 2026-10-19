@@ -79,6 +79,7 @@ export function SeoOverview({ origin }: { origin: string }) {
           key={keyOf(entry)}
           entry={entry}
           origin={origin}
+          defaults={query.data?.defaults}
           onClose={() => setEditing(null)}
         />
       ) : null}

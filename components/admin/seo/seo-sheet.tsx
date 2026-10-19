@@ -12,7 +12,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { usePermission } from "@/hooks/use-permission"
-import type { SeoEntry } from "@/lib/schemas/api/seo"
+import type { SeoEntry, SeoOverviewDto } from "@/lib/schemas/api/seo"
 
 import { SeoPanel } from "./seo-panel"
 import { useSaveSeo } from "./use-save-seo"
@@ -21,10 +21,13 @@ import { useSaveSeo } from "./use-save-seo"
 export function SeoSheet({
   entry,
   origin,
+  defaults,
   onClose,
 }: {
   entry: SeoEntry
   origin: string
+  /** SeoOverviewDto.defaults (the site share image). */
+  defaults?: SeoOverviewDto["defaults"]
   onClose: () => void
 }) {
   const canEdit = usePermission({ seo: ["update"] })
@@ -67,6 +70,10 @@ export function SeoSheet({
               description:
                 entry.kind === "page" ? null : entry.fallback.description,
             }}
+            defaultDescription={
+              entry.kind === "page" ? entry.fallback.description : undefined
+            }
+            defaultImageId={defaults?.ogImageId ?? null}
             value={entry.seo}
             canEdit={canEdit}
             onDirtyChange={setDirty}
