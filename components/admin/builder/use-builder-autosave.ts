@@ -104,6 +104,7 @@ export function useBuilderAutosave(input: {
   const [savedCount, setSavedCount] = useState(0)
   const running = useRef<Promise<unknown> | null>(null)
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [held, setHeld] = useState(0)
   // Bumped by the retry timer; the effect below saves again.
   const [retries, setRetries] = useState(0)
@@ -115,6 +116,10 @@ export function useBuilderAutosave(input: {
   const clearRetry = () => {
     if (retry.current) clearTimeout(retry.current)
     retry.current = null
+  }
+  const clearDebounce = () => {
+    if (debounce.current) clearTimeout(debounce.current)
+    debounce.current = null
   }
 
   const flush = useCallback(async (options?: SaveOptions): Promise<boolean> => {
@@ -178,8 +183,11 @@ export function useBuilderAutosave(input: {
 
   useEffect(() => {
     if (!enabled || !dirty || paused || error || saving || held) return
-    const timer = setTimeout(() => void flush(), BUILDER_AUTOSAVE_MS)
-    return () => clearTimeout(timer)
+    debounce.current = setTimeout(() => {
+      debounce.current = null
+      void flush()
+    }, BUILDER_AUTOSAVE_MS)
+    return clearDebounce
   }, [doc, enabled, dirty, paused, error, saving, held, flush])
 
   // Tab hidden: save now (a phone may never come back).
@@ -203,7 +211,10 @@ export function useBuilderAutosave(input: {
       options?: { discardPending?: boolean }
     ) => {
       if (options?.discardPending) {
-        // Wait for a save in flight (its version), but send nothing new.
+        // Wait for a save in flight (its version), but send nothing new:
+        // no retry, no debounced save of the edits being thrown away.
+        clearRetry()
+        clearDebounce()
         while (running.current) await running.current.catch(() => undefined)
         if (conflictRef.current) throw new UnsavedChangesError()
       } else if (!(await flush())) throw new UnsavedChangesError()
@@ -215,7 +226,18 @@ export function useBuilderAutosave(input: {
       setHeld((n) => n + 1)
       try {
         const dto = await request(version.current)
-        version.current = dto.version
+        // Before the hold is released: a flush waiting on it (⌘S, retry,
+        // a debounce that fired, a hidden tab) then finds nothing to send.
+        // The result is what the server holds: the saved copy, the document
+        // a waiting flush sees (so it sends nothing stale), and a version
+        // that never goes backwards (review D5.5 R1).
+        if (dto.version >= version.current) {
+          version.current = dto.version
+          const read = readDraft(dto.draft)
+          const saved = read.ok ? read.doc : (dto.draft as DraftDocumentValue)
+          markSaved(saved)
+          latest.current = saved
+        }
         return dto
       } catch (err) {
         if (err instanceof ApiError && err.isConflict) {
@@ -238,7 +260,6 @@ export function useBuilderAutosave(input: {
     // `keepMine` (in the signature) needs nothing here: the caller simply
     // keeps its document, which now differs from the saved copy.
     (dto: BuilderPageDto) => {
-      version.current = dto.version
       conflictRef.current = null
       setConflict(null)
       setPaused(false)
@@ -246,6 +267,9 @@ export function useBuilderAutosave(input: {
       clearRetry()
       // Always the server's copy: with keepMine the caller's document now
       // differs from it, so the next flush really sends (review D5.5 I1).
+      // A result older than what was saved since is ignored (R1).
+      if (dto.version < version.current) return
+      version.current = dto.version
       const read = readDraft(dto.draft)
       markSaved(read.ok ? read.doc : (dto.draft as DraftDocumentValue))
     },

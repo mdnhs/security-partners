@@ -242,6 +242,54 @@ describe("caps follow the block schemas (review D5.5 M2/M3)", () => {
     ])
   })
 
+  it.each([
+    [
+      "one paragraph over the whole cap",
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "x".repeat(RICH_TEXT_MAX_CHARS + 10_000) },
+        ],
+      },
+    ],
+    [
+      "one list too long even with every text at one character",
+      {
+        type: "bulletList",
+        content: Array.from({ length: 3000 }, (_, i) => ({
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: `Item ${i}` }],
+            },
+          ],
+        })),
+      },
+    ],
+  ])(
+    "a single oversized legal node (%s) is shortened, never sent as is (review D5.5 N1)",
+    (_name, node) => {
+      const data = structuredClone(
+        fixture.pages.privacy.data
+      ) as PageData<"privacy">
+      data.body = {
+        type: "doc",
+        content: [node],
+      } as PageData<"privacy">["body"]
+      const { doc, notes } = copyFromTemplate("privacy", data)
+      const text = doc.blocks[1].data as { doc: unknown }
+      expect(JSON.stringify(text.doc).length).toBeLessThanOrEqual(
+        RICH_TEXT_MAX_CHARS
+      )
+      expect(validateDocument(doc).ok).toBe(true)
+      expect(DraftDocument.safeParse(doc).success).toBe(true)
+      expect(notes).toEqual([
+        expect.stringContaining("only its first part is copied"),
+      ])
+    }
+  )
+
   it("the seeded pages copy without notes; cut copy and lists say so", () => {
     for (const k of PAGE_KEYS)
       expect(copyFromTemplate(k, fixture.pages[k].data).notes, k).toEqual([])

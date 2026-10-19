@@ -396,6 +396,9 @@ describe("PageBuilder: overwrite and unreadable drafts (review D5.5)", () => {
           draft: {
             blocks: [hero, { ...stats, type: "richtext", anchor: "services" }],
           } as never,
+          // Published, so a Discard button would show if it were offered.
+          published: { blocks: [hero, stats] },
+          status: "published",
         })
       )
     renderWith(<PageBuilder id={ID} />)
@@ -409,6 +412,9 @@ describe("PageBuilder: overwrite and unreadable drafts (review D5.5)", () => {
       screen.queryByRole("navigation", { name: "Page outline" })
     ).toBeNull()
     expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled()
+    // Nothing can be saved, so no save pill, no Discard (review D5.5 N2).
+    expect(screen.queryByRole("status", { name: /^Save status/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull()
     await new Promise((r) => setTimeout(r, BUILDER_AUTOSAVE_MS + 300))
     expect(keysCalled().some((k) => k.startsWith("PUT"))).toBe(false)
   })
@@ -438,6 +444,9 @@ describe("PageBuilder: overwrite and unreadable drafts (review D5.5)", () => {
         name: "This draft cannot be opened in the builder",
       })
     ).toHaveTextContent('"team" is kept for the Team section')
+    // My unsaved edit is not reported as "Unsaved": it can never be saved.
+    expect(screen.queryByRole("status", { name: /^Save status/ })).toBeNull()
+    expect(screen.queryByText("Unpublished changes")).toBeNull()
     await new Promise((r) => setTimeout(r, BUILDER_AUTOSAVE_MS + 300))
     expect(calls.filter((c) => c.key.startsWith("PUT"))).toHaveLength(1)
   })

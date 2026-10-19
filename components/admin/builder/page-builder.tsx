@@ -384,7 +384,8 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
       ),
     [blockErrors]
   )
-  const dirty = record.dirty || autosave.state !== "saved"
+  // While the draft is unreadable only the server's flag counts.
+  const dirty = record.dirty || (broken === null && autosave.state !== "saved")
   const published = record.published !== null
   const preview = previewHref("builder-page", id)
   const SelectedIcon = selected
@@ -402,7 +403,10 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <UnsavedGuard when={canEdit && autosave.state !== "saved"} />
+      {/* An unreadable draft: nothing can be saved, so nothing is "unsaved". */}
+      <UnsavedGuard
+        when={canEdit && broken === null && autosave.state !== "saved"}
+      />
       <PageHeader
         breadcrumbs={[
           { label: "Pages", href: "/admin/pages" },
@@ -421,7 +425,7 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
         }
         actions={
           <>
-            {canEdit ? (
+            {canEdit && broken === null ? (
               <SaveStateIndicator
                 state={autosave.state}
                 onRetry={() => void autosave.flush()}
@@ -449,7 +453,7 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
               <span className="max-sm:sr-only">Preview</span>
               <span className="sr-only"> (opens in a new tab)</span>
             </a>
-            {canEdit && published ? (
+            {canEdit && published && broken === null ? (
               <Button
                 type="button"
                 variant="outline"
@@ -510,9 +514,8 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
           </h2>
           <p>
             The saved draft breaks rules the builder now enforces. Autosave is
-            off, so nothing here changes it. Restore a version from History
-            {published ? ", or discard the unpublished changes," : ""} to carry
-            on editing.
+            off, so nothing here changes it. Restore a version from History to
+            carry on editing.
           </p>
           <ul aria-label="Problems" className="list-disc pl-5">
             {broken.map((problem) => (

@@ -82,14 +82,70 @@ const take = <T>(list: T[], max: number): T[] => {
  * RICH_TEXT_MAX_CHARS of JSON): its first part (review D5.5 M3).
  */
 function capRichText(doc: RichTextDoc): RichTextDoc {
+  const size = (content: RichTextDoc["content"]) =>
+    JSON.stringify({ ...doc, content }).length
   let content = doc.content.slice(0, RICH_TEXT_MAX_NODES)
-  while (
-    content.length > 1 &&
-    JSON.stringify({ ...doc, content }).length > RICH_TEXT_MAX_CHARS
-  )
+  while (content.length > 1 && size(content) > RICH_TEXT_MAX_CHARS)
     content = content.slice(0, -1)
   if (content.length < doc.content.length) cutText = true
+  // One node alone is still too long (review D5.5 N1): shorten its text.
+  if (size(content) > RICH_TEXT_MAX_CHARS) {
+    cutText = true
+    content = [shortenNode(content[0], (node) => size([node]))]
+  }
   return { ...doc, content }
+}
+
+type TextLeaf = { type: "text"; text: string }
+type RichNode = RichTextDoc["content"][number]
+
+/** Every text leaf of a node (the objects themselves, for trimming). */
+function textLeaves(node: unknown, out: TextLeaf[] = []): TextLeaf[] {
+  if (!node || typeof node !== "object") return out
+  const value = node as { type?: unknown; text?: unknown; content?: unknown }
+  if (value.type === "text" && typeof value.text === "string")
+    out.push(value as TextLeaf)
+  if (Array.isArray(value.content))
+    for (const child of value.content) textLeaves(child, out)
+  return out
+}
+
+/**
+ * A node cut until `size(node)` fits: its longest text is shortened first
+ * (formatting kept, every text at least one character). If that cannot be
+ * enough, its plain text in one paragraph, cut to fit.
+ */
+function shortenNode(node: RichNode, size: (node: RichNode) => number) {
+  const copy = structuredClone(node)
+  const leaves = textLeaves(copy)
+  while (size(copy) > RICH_TEXT_MAX_CHARS) {
+    const longest = leaves.reduce<TextLeaf | null>(
+      (best, leaf) =>
+        !best || leaf.text.length > best.text.length ? leaf : best,
+      null
+    )
+    if (!longest || longest.text.length <= 1) break
+    const over = size(copy) - RICH_TEXT_MAX_CHARS
+    longest.text = longest.text.slice(
+      0,
+      Math.max(1, longest.text.length - over - 1)
+    )
+  }
+  if (size(copy) <= RICH_TEXT_MAX_CHARS) return copy
+  const plain = textLeaves(node)
+    .map((leaf) => leaf.text)
+    .join(" ")
+  const paragraph = (text: string): RichNode => ({
+    type: "paragraph",
+    content: [{ type: "text", text: text || " " }],
+  })
+  let text = plain.slice(0, RICH_TEXT_MAX_CHARS)
+  while (text.length > 1 && size(paragraph(text)) > RICH_TEXT_MAX_CHARS)
+    text = text.slice(
+      0,
+      text.length - (size(paragraph(text)) - RICH_TEXT_MAX_CHARS) - 1
+    )
+  return paragraph(text)
 }
 
 const media = (ref: MediaRef): MediaRef => ({ ...ref })

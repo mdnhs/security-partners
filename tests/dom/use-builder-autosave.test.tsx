@@ -257,6 +257,98 @@ describe("useBuilderAutosave", () => {
     expect(request).toHaveBeenCalledWith(3)
   })
 
+  describe("Discard cannot be undone by a queued save (review D5.5 R1)", () => {
+    const published = docWith("published")
+    function slowRequest() {
+      let resolve!: (d: BuilderPageDto) => void
+      const request = vi.fn(
+        () => new Promise<BuilderPageDto>((r) => (resolve = r))
+      )
+      return { request, done: (d: BuilderPageDto) => resolve(d) }
+    }
+
+    it("a pending retry is cancelled: the only write is the discard", async () => {
+      const save = vi
+        .fn<(doc: DraftDocumentValue, v: number) => Promise<BuilderPageDto>>()
+        .mockRejectedValueOnce(new ApiError(503, null))
+        .mockImplementation(async (_d, v) => dto(v + 1))
+      const { result, rerender } = setup(save)
+      rerender({ doc: docWith("edits") })
+      await tick(BUILDER_AUTOSAVE_MS)
+      expect(result.current.state).toBe("error")
+      const { request, done } = slowRequest()
+      const discarding = act(() =>
+        result.current.exclusive(request, { discardPending: true })
+      )
+      await tick(BUILDER_RETRY_MS + 100)
+      await act(async () => done(dto(4, published)))
+      await discarding
+      await tick(BUILDER_RETRY_MS * 2)
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(request).toHaveBeenCalledWith(3)
+      expect(result.current.version()).toBe(4)
+    })
+
+    it("⌘S during the discard sends nothing afterwards", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result, rerender } = setup(save)
+      rerender({ doc: docWith("edits") })
+      const { request, done } = slowRequest()
+      const discarding = act(() =>
+        result.current.exclusive(request, { discardPending: true })
+      )
+      await tick(0)
+      // ⌘S while the discard request runs: it waits for the hold…
+      let flushed: Promise<boolean> | undefined
+      act(() => {
+        flushed = result.current.flush()
+      })
+      await act(async () => done(dto(4, published)))
+      await discarding
+      // …and then finds the server's copy: nothing to send.
+      expect(await act(() => flushed!)).toBe(true)
+      expect(save).not.toHaveBeenCalled()
+      expect(result.current.version()).toBe(4)
+    })
+
+    it("a debounce that was about to fire never sends the discarded edits", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result, rerender } = setup(save)
+      rerender({ doc: docWith("edits") })
+      await tick(BUILDER_AUTOSAVE_MS - 1)
+      const { request, done } = slowRequest()
+      const discarding = act(() =>
+        result.current.exclusive(request, { discardPending: true })
+      )
+      await tick(BUILDER_AUTOSAVE_MS)
+      await act(async () => done(dto(4, published)))
+      await discarding
+      // The page then shows the discard result.
+      act(() => result.current.accept(dto(4, published)))
+      rerender({ doc: published })
+      await tick(BUILDER_AUTOSAVE_MS * 2)
+      expect(save).not.toHaveBeenCalled()
+      expect(result.current.state).toBe("saved")
+    })
+
+    it("accepting an older result never rolls the version back", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result, rerender } = setup(save)
+      rerender({ doc: docWith("b") })
+      await tick(BUILDER_AUTOSAVE_MS)
+      expect(result.current.version()).toBe(4)
+      act(() => result.current.accept(dto(2, docWith("old"))))
+      expect(result.current.version()).toBe(4)
+      expect(result.current.state).toBe("saved")
+    })
+  })
+
   it("flushes when the tab is hidden", async () => {
     const save = vi.fn(async (_d: DraftDocumentValue, v: number) => dto(v + 1))
     const { rerender } = setup(save)
