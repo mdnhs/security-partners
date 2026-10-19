@@ -1,6 +1,28 @@
 import { describe, expect, it } from "vitest"
 
-import { collectMediaIds, type MediaView, replaceMediaRefs } from "@/lib/media"
+import {
+  collectMediaIds,
+  isMediaId,
+  type MediaView,
+  replaceMediaRefs,
+} from "@/lib/media"
+
+describe("isMediaId (D1.1 re-review N2)", () => {
+  it("accepts only a UUID: dot segments and paths never reach the API", () => {
+    expect(isMediaId("0190f5a2-7c3b-7d4e-8f00-1234567890ab")).toBe(true)
+    expect(isMediaId("0190F5A2-7C3B-7D4E-8F00-1234567890AB")).toBe(true)
+    for (const bad of [
+      ".",
+      "..",
+      "",
+      "../users",
+      "x?role=admin",
+      null,
+      undefined,
+    ])
+      expect(isMediaId(bad)).toBe(false)
+  })
+})
 
 const view = (id: string): MediaView => ({
   id,

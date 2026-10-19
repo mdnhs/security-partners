@@ -43,7 +43,7 @@ const OVERVIEW: SeoOverviewDto = {
       issues: [
         {
           check: "description",
-          message: "Uses the site-wide default description.",
+          message: "Uses the site-wide default description",
         },
       ],
     }),
@@ -125,7 +125,7 @@ describe("SEO overview (master 8.1)", () => {
     ).toBeInTheDocument()
     expect(
       within(screen.getByRole("region", { name: "Pages" })).getByText(
-        "Uses the site-wide default description."
+        "Uses the site-wide default description"
       )
     ).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Services" })).toHaveTextContent(

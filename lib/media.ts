@@ -21,6 +21,14 @@ export type WithMedia<T> = T extends MediaRef
         ? { [K in keyof T]: WithMedia<T[K]> }
         : T
 
+const MEDIA_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Media ids are UUIDs: anything else is never sent to the API as a path. */
+export function isMediaId(value: string | null | undefined): value is string {
+  return typeof value === "string" && MEDIA_ID_RE.test(value)
+}
+
 function isMediaRef(value: unknown): value is MediaRef {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
   const keys = Object.keys(value)

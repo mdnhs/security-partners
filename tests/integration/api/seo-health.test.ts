@@ -1,3 +1,4 @@
+import { eq, sql } from "drizzle-orm"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/cache", () => ({
@@ -8,7 +9,7 @@ vi.mock("next/cache", () => ({
 
 import type { SeoHealthDto } from "@/lib/schemas/api/seo"
 import { getDb } from "@/server/db/client"
-import { media } from "@/server/db/schema"
+import { articles, media } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 
 import { resetDb } from "../db"
@@ -198,6 +199,48 @@ describe("GET /seo/health (D1.2)", () => {
     expect(fix("article", article.id)?.fixHref).toBe(
       `/admin/insights/${article.id}?tab=seo`
     )
+  })
+
+  it("internal-link reads the live article body from the database", async () => {
+    const { article } = await liveRecords()
+    const setBody = (body: unknown) =>
+      getDb()
+        .update(articles)
+        .set({
+          published: sql`jsonb_set(${articles.published}, '{body}', ${JSON.stringify(body)}::jsonb)`,
+        })
+        .where(eq(articles.id, article.id))
+    const paragraph = (href?: string) => ({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Read more",
+              ...(href ? { marks: [{ type: "link", attrs: { href } }] } : {}),
+            },
+          ],
+        },
+      ],
+    })
+
+    await setBody(paragraph())
+    expect(
+      result(await health(), "article", article.id, "internal-link").ok
+    ).toBe(false)
+
+    await setBody(paragraph("/contact"))
+    expect(
+      result(await health(), "article", article.id, "internal-link").ok
+    ).toBe(true)
+
+    // A body that does not parse fails (counted as 0), never passes silently.
+    await setBody({ type: "doc", content: [{ type: "nope" }] })
+    expect(
+      result(await health(), "article", article.id, "internal-link").ok
+    ).toBe(false)
   })
 
   it("seo:read only; the overview stays served", async () => {

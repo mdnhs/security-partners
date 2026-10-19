@@ -254,7 +254,6 @@ describe("dashboard (JW layout)", () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
         if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
-        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard") && fail)
           return Response.json(
             { error: { code: "FORBIDDEN", message: "Not allowed" } },
@@ -283,7 +282,6 @@ describe("dashboard (JW layout)", () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
         if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
-        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard")) return Response.json(dto)
         if (fail)
           return Response.json(
@@ -310,7 +308,6 @@ describe("dashboard (JW layout)", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
-        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard"))
           return Response.json({

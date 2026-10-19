@@ -17,18 +17,18 @@ const HEALTH = {
 }
 
 // D1.2: the card reads GET /seo/health (anything else is a 404 here).
-const fetchMock = vi.fn(
-  async (input: RequestInfo | URL) =>
-    new Response(
-      String(input).endsWith("/api/v1/admin/seo/health")
-        ? JSON.stringify(HEALTH)
-        : JSON.stringify({ error: { code: "NOT_FOUND", message: "Nope" } }),
-      {
-        status: String(input).endsWith("/seo/health") ? 200 : 404,
-        headers: { "content-type": "application/json" },
-      }
-    )
-)
+const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const health = String(input).endsWith("/api/v1/admin/seo/health")
+  return new Response(
+    health
+      ? JSON.stringify(HEALTH)
+      : JSON.stringify({ error: { code: "NOT_FOUND", message: "Nope" } }),
+    {
+      status: health ? 200 : 404,
+      headers: { "content-type": "application/json" },
+    }
+  )
+})
 
 beforeEach(() => {
   fetchMock.mockClear()

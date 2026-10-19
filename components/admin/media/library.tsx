@@ -33,6 +33,7 @@ import {
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
+import { isMediaId } from "@/lib/media"
 import type { MediaItem, MediaKind } from "@/lib/schemas/api/media"
 import { cn } from "@/lib/utils"
 
@@ -94,10 +95,8 @@ function Thumb({
 }
 
 /** `?open=` accepts only a UUID; anything else is ignored and dropped from the URL. */
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const openParam = (value: string | null): string | null =>
-  value && UUID_RE.test(value) ? value : null
+  isMediaId(value) ? value : null
 
 /**
  * Media library (spec §8.1): grid/list, search, kind and missing-alt filters,

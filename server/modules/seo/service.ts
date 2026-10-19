@@ -190,14 +190,17 @@ async function computeHealth(
     ...new Set(rows.map(shareImageOf).filter((id): id is string => !!id)),
   ])
 
-  const links = new Map<string, number | null>()
+  // No rich text (null) passes; rich text that does not parse counts as 0
+  // links, so the check fails visibly instead of passing silently.
+  const links = new Map<string, number>()
   for (const t of texts) {
+    if (t.doc === null || t.doc === undefined) continue
     const parsed = richText.safeParse(t.doc)
     links.set(
       key(t.kind, t.id),
       parsed.success
         ? countInternalLinks(parsed.data as RichTextDoc, ctx.origin)
-        : null
+        : 0
     )
   }
 
@@ -401,6 +404,9 @@ export async function updateSeo(
   })
   invalidate(...tagsFor(kind, id, slug))
   // With its checks: they depend on the other records (title-unique).
+  // Cost: a full health pass (every row, every rich-text body) per save.
+  // Fine at this site's size (tens of records); if PUT latency ever
+  // matters, compute only title-unique plus this record's own inputs.
   const entry = (await computeHealth(db)).entries.find(
     (e) => e.kind === kind && e.id === id
   )
