@@ -18,6 +18,10 @@ export default function HelpPage() {
 
 async function Help() {
   await requirePage("/admin/help")
+  // Deliberate (MK-parity B7 brief, controller ruling): every signed-in role,
+  // including author and intake and an impersonated session, sees the active
+  // owners' names and work emails here, though those roles cannot read
+  // /admin/users. Only name and email are read; no API route serves them.
   const owners = await listOwnerContacts()
   return (
     <>

@@ -67,9 +67,13 @@ export function UserMenu() {
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
+          {/* At lg (1024 px: a 688 px topbar beside the 20rem sidebar) the
+              identity caps at 144 px so search, AI, mail, bell, avatar and
+              the role chip still fit; xl gives it 224 px. Name and email
+              truncate inside. */}
           <span
             data-slot="user-identity"
-            className="hidden max-w-56 min-w-0 flex-col lg:flex"
+            className="hidden max-w-36 min-w-0 flex-col lg:flex xl:max-w-56"
           >
             <span className="truncate text-sm font-semibold text-foreground">
               {user.name}

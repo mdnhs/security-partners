@@ -54,7 +54,8 @@ export function FooterDock({
 }: DockProps & { tone: "card" | "rail" }) {
   const button = cn(
     buttonVariants({ variant: "ghost", size: "icon-lg" }),
-    "size-10 rounded-lg [&_svg]:size-5",
+    // 40 px, 44 px on coarse pointers.
+    "size-10 rounded-lg pointer-coarse:size-11 [&_svg]:size-5",
     DOCK_BUTTON[tone]
   )
   const links = shellDock(roles)

@@ -147,6 +147,28 @@ describe("account trigger identity", () => {
       "lg:flex"
     )
   })
+
+  it("fits the 1024 px topbar: identity capped at 144 px, name and email truncate", () => {
+    // 1024 px − 20rem sidebar − 16 px gutter = a 688 px topbar. Fixed parts:
+    // padding 40 + sidebar toggle 40 + AI, mail, bell 3×44 + avatar 52 +
+    // identity 144 + chip ≤70 + gaps (2×12 inside the trigger, 6×12 between)
+    // + trigger pr 16 = 590, leaving ≥98 px for the 44 px-min search pill.
+    // tests/e2e/admin-layout.spec.ts measures it in a real browser.
+    renderShell({
+      roles: ["marketer"],
+      user: {
+        name: "Bartholomew Fitzgerald-Montgomery",
+        email: "bartholomew.fitzgerald-montgomery@securitypartners.example",
+      },
+    })
+    const trigger = screen.getByRole("button", { name: /Bartholomew/ })
+    const identity = trigger.querySelector("[data-slot=user-identity]")!
+    expect(identity).toHaveClass("max-w-36", "xl:max-w-56", "min-w-0")
+    for (const line of identity.children) expect(line).toHaveClass("truncate")
+    expect(trigger.querySelector("[data-slot=role-pill]")).toHaveClass(
+      "shrink-0"
+    )
+  })
 })
 
 describe("brand chip", () => {

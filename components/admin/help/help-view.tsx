@@ -29,8 +29,11 @@ const SHORTCUTS: { keys: string[][]; action: string }[] = [
   { keys: [["Esc"]], action: "Close panels" },
 ]
 
-/** Sections of docs/runbook.md (not served by the site, so titles only). */
-const GUIDES = [
+/**
+ * Sections of docs/runbook.md (not served by the site, so titles only);
+ * tests/unit/admin/help-guides.test.ts pins each to a `## ` heading there.
+ */
+export const HELP_GUIDES: readonly string[] = [
   "Owner locked out",
   "Sessions and sign-in",
   "Backups and the restore drill",
@@ -84,11 +87,12 @@ export function HelpView({ owners }: { owners: OwnerContact[] }) {
                 <span className="font-semibold text-foreground">
                   {owner.name}
                 </span>
+                {/* 44 px tall on coarse pointers; the inner span truncates. */}
                 <a
                   href={`mailto:${owner.email}`}
-                  className="w-fit truncate text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:py-2.5"
+                  className="inline-flex w-fit max-w-full items-center text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:min-h-11"
                 >
-                  {owner.email}
+                  <span className="truncate">{owner.email}</span>
                 </a>
               </li>
             ))}
@@ -106,7 +110,7 @@ export function HelpView({ owners }: { owners: OwnerContact[] }) {
         className="xl:col-span-2"
       >
         <ul className="grid list-disc gap-2 pl-5 text-sm text-foreground sm:grid-cols-2">
-          {GUIDES.map((guide) => (
+          {HELP_GUIDES.map((guide) => (
             <li key={guide}>{guide}</li>
           ))}
         </ul>

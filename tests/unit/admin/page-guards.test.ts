@@ -126,10 +126,11 @@ describe("panel page guards", () => {
   it.each(Object.entries(FINER_CHECKS))(
     "%s keeps its finer check",
     (file, check) => {
-      // Only a statement counts: `await check` starting a line. Text after
-      // code (`void check() // await check`) or inside a string does not.
+      // Only a statement counts: `await check` starting a line, optionally
+      // bound (`const actor = await check`). Text after code
+      // (`void check() // await check`) or inside a string does not.
       const statement = new RegExp(
-        `^\\s*await ${check.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+        `^\\s*(?:(?:const|let)\\s+\\w+\\s*=\\s*)?await ${check.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
         "m"
       )
       expect(source(`${ROOT}/${file}`)).toMatch(statement)
