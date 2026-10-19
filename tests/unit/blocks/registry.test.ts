@@ -113,6 +113,128 @@ describe("block registry", () => {
     ).toBe(true)
   })
 
+  it("caps icon cards, department cards and rich text (D5.1 review)", () => {
+    const card = {
+      title: "Proactive",
+      description: "Early",
+      icon: { mediaId: MEDIA },
+    }
+    const cards = (item: Record<string, unknown>) =>
+      BLOCK_BY_TYPE.iconCards.schema.safeParse({
+        eyebrow: "Values",
+        title: "What we stand for",
+        description: "Intro",
+        items: [{ ...card, ...item }],
+      }).success
+    expect(cards({})).toBe(true)
+    expect(cards({ title: "x".repeat(80) })).toBe(true)
+    expect(cards({ title: "x".repeat(81) })).toBe(false)
+    expect(cards({ description: "x".repeat(240) })).toBe(true)
+    expect(cards({ description: "x".repeat(241) })).toBe(false)
+
+    const line = { text: "Tel: 01 234", href: "tel:+3531234" }
+    const dept = {
+      title: "HR",
+      icon: { mediaId: MEDIA },
+      name: "Sarah",
+      role: "Manager",
+      lines: [line],
+    }
+    const departments = (item: Record<string, unknown>) =>
+      BLOCK_BY_TYPE.departments.schema.safeParse({
+        eyebrow: "Departments",
+        heading: "Who to call",
+        intro: "Intro",
+        items: [{ ...dept, ...item }],
+      }).success
+    expect(departments({})).toBe(true)
+    expect(departments({ lines: Array(4).fill(line) })).toBe(true)
+    expect(departments({ lines: Array(5).fill(line) })).toBe(false)
+    expect(departments({ lines: [{ ...line, text: "x".repeat(121) }] })).toBe(
+      false
+    )
+    expect(departments({ name: "x".repeat(81) })).toBe(false)
+
+    const para = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    })
+    const rich = (content: unknown[]) =>
+      BLOCK_BY_TYPE.richtext.schema.safeParse({
+        doc: { type: "doc", content },
+      }).success
+    expect(rich(Array(200).fill(para("Hi")))).toBe(true)
+    expect(rich(Array(201).fill(para("Hi")))).toBe(false)
+    expect(rich([para("x".repeat(20_000))])).toBe(true)
+    expect(rich([para("x".repeat(50_001))])).toBe(false)
+    expect(
+      rich([
+        {
+          type: "image",
+          attrs: { media: { mediaId: MEDIA }, alt: "x".repeat(50_001) },
+        },
+      ])
+    ).toBe(false)
+  })
+
+  it("refuses unsafe links and strips unknown keys at block level", () => {
+    const linked = (href: string) =>
+      BLOCK_BY_TYPE.richtext.schema.safeParse({
+        doc: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "Click",
+                  marks: [{ type: "link", attrs: { href } }],
+                },
+              ],
+            },
+          ],
+        },
+      }).success
+    expect(linked("/contact")).toBe(true)
+    expect(linked("javascript:alert(1)")).toBe(false)
+    expect(linked("//evil.example")).toBe(false)
+
+    const departments = (href: string) =>
+      BLOCK_BY_TYPE.departments.schema.safeParse({
+        eyebrow: "Departments",
+        heading: "Who to call",
+        intro: "Intro",
+        items: [
+          {
+            title: "HR",
+            icon: { mediaId: MEDIA },
+            name: "Sarah",
+            role: "Manager",
+            lines: [{ text: "Write", href }],
+          },
+        ],
+      }).success
+    expect(departments("mailto:hr@example.com")).toBe(true)
+    expect(departments("//evil")).toBe(false)
+    expect(departments("javascript:alert(1)")).toBe(false)
+
+    const parsed = BlockInstance.parse({
+      id: "block-1",
+      type: "team",
+      anchor: "team",
+      hidden: false,
+      html: "<script>",
+      data: {
+        heading: "Team",
+        intro: "Who",
+        dangerouslySetInnerHTML: { __html: "<script>" },
+      },
+    })
+    expect(parsed).not.toHaveProperty("html")
+    expect(parsed.data).toEqual({ heading: "Team", intro: "Who" })
+  })
+
   it("BlockInstance discriminates on type", () => {
     const ok = BlockInstance.safeParse({
       id: "block-1",

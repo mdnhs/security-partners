@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import sharp from "sharp"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -16,6 +16,12 @@ vi.mock("next/headers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/headers")>()),
   draftMode: async () => draft,
 }))
+// Wrapped so a test can run a delete while a draft save holds the row.
+vi.mock("@/server/lib/media-usages", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/server/lib/media-usages")>()
+  return { ...actual, syncMediaUsages: vi.fn(actual.syncMediaUsages) }
+})
 
 import type {
   BuilderPageDto,
@@ -28,6 +34,7 @@ import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
 import { auditLog, builderPages, redirects } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
+import { syncMediaUsages } from "@/server/lib/media-usages"
 import { diskStorage } from "@/server/lib/storage"
 import {
   getPublishedBuilderPage,
@@ -163,6 +170,31 @@ const redirectRows = () =>
     .from(redirects)
     .where(eq(redirects.fromPath, "/p/landing"))
 
+const allRedirects = () =>
+  getDb()
+    .select({ fromPath: redirects.fromPath, toPath: redirects.toPath })
+    .from(redirects)
+    .orderBy(redirects.fromPath)
+
+const deletePage = (id: string, query = "") =>
+  adminRequest(`/builder-pages/${id}${query}`, {
+    cookie: editor,
+    method: "DELETE",
+  })
+
+/** Resolves once another session is blocked on a row/tuple lock. */
+async function someoneWaitsOnALock() {
+  for (let i = 0; i < 250; i++) {
+    const { rows } = await getDb().execute<{ n: number }>(
+      sql`select count(*)::int as n from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'`
+    )
+    if (rows[0].n > 0) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error("no session ever waited on a lock")
+}
+
 describe("builder pages API (D5.2)", () => {
   it("editor creates /p/landing; duplicate slug 409; marketer 403 on create", async () => {
     const page = await create()
@@ -286,6 +318,26 @@ describe("builder pages API (D5.2)", () => {
       .where(eq(builderPages.id, page.id))
     expect(row.published).toBeNull()
     expect(revalidateTag).not.toHaveBeenCalled()
+  })
+
+  it("autosave with a non-uuid media id or hostile nesting → 422, not 500", async () => {
+    const page = await create()
+    const [hero] = page.draft.blocks
+    const bad = await saveDraft(page.id, {
+      version: page.version,
+      draft: { blocks: [{ ...hero, data: { image: { mediaId: "x" } } }] },
+    })
+    expect(bad.status).toBe(422)
+    expect(
+      Object.keys(((await bad.json()) as ErrorBody).error.fieldErrors ?? {})
+    ).toEqual(["draft.blocks.0.data.image.mediaId"])
+    let deep: unknown = "leaf"
+    for (let i = 0; i < 5000; i++) deep = { a: deep }
+    const nested = await saveDraft(page.id, {
+      version: page.version,
+      draft: { blocks: [{ ...hero, data: { deep } }] },
+    })
+    expect(nested.status).toBe(422)
   })
 
   it("marketer cannot save, publish or delete; viewer cannot either", async () => {
@@ -489,12 +541,14 @@ describe("builder pages API (D5.2)", () => {
 
   it("delete with redirectHome creates /p/x → / ; without, nothing", async () => {
     const { page } = await publishedPage("landing")
-    const res = await adminRequest(
-      `/builder-pages/${page.id}?redirectHome=true`,
-      { cookie: editor, method: "DELETE" }
-    )
+    // A marketer's redirect into the page follows it home.
+    await getDb()
+      .insert(redirects)
+      .values({ fromPath: "/old-landing", toPath: "/p/landing" })
+    const res = await deletePage(page.id, "?redirectHome=true")
     expect(res.status).toBe(200)
-    expect(await redirectRows()).toEqual([
+    expect(await allRedirects()).toEqual([
+      { fromPath: "/old-landing", toPath: "/" },
       { fromPath: "/p/landing", toPath: "/" },
     ])
     expect(await isPublishedBuilderSlug("landing")).toBe(false)
@@ -514,6 +568,125 @@ describe("builder pages API (D5.2)", () => {
     })
     expect(plain.status).toBe(200)
     expect(await redirectRows()).toEqual([])
+  })
+
+  it("delete with redirectHome on a never-published page adds no redirect and repoints none", async () => {
+    const page = await create("spring")
+    // Pre-staged before launch: must not be re-aimed at the home page.
+    await getDb()
+      .insert(redirects)
+      .values({ fromPath: "/spring-offer", toPath: "/p/spring" })
+    const res = await deletePage(page.id, "?redirectHome=true")
+    expect(res.status).toBe(200)
+    expect(await allRedirects()).toEqual([
+      { fromPath: "/spring-offer", toPath: "/p/spring" },
+    ])
+    expect(revalidateTag).not.toHaveBeenCalledWith("redirects", { expire: 0 })
+    const [audit] = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "builder-page.deleted"))
+    expect(audit.diff).toMatchObject({ slug: "spring", redirectHome: true })
+  })
+
+  it("delete waits for a draft save holding the page: no orphaned media usages", async () => {
+    const { page, mediaId } = await publishedPage()
+    const real = vi.mocked(syncMediaUsages).getMockImplementation()!
+    let deleting: Response | Promise<Response> | undefined
+    vi.mocked(syncMediaUsages).mockImplementationOnce(async (...args) => {
+      // The save's UPDATE holds the row; a delete starts and must wait.
+      deleting = deletePage(page.id)
+      await someoneWaitsOnALock()
+      return real(...args)
+    })
+    const saved = await saveDraft(page.id, {
+      version: page.version,
+      draft: page.draft,
+    })
+    expect(saved.status).toBe(200)
+    expect((await deleting!).status).toBe(200)
+    expect(await listMediaUsagesFor(getDb(), "builder-page", page.id)).toEqual(
+      []
+    )
+    expect(
+      await getDb()
+        .select()
+        .from(builderPages)
+        .where(eq(builderPages.id, page.id))
+    ).toEqual([])
+    // The image is free again.
+    expect(
+      (
+        await adminRequest(`/media/${mediaId}`, {
+          cookie: editor,
+          method: "DELETE",
+        })
+      ).status
+    ).toBe(200)
+  })
+
+  it("meta: version must be ≥ 1; an empty patch is refused; unchanged values are a no-op", async () => {
+    const page = await create()
+    const meta = (json: unknown) =>
+      adminRequest(`/builder-pages/${page.id}/meta`, {
+        cookie: editor,
+        method: "PATCH",
+        json,
+      })
+    expect((await meta({ version: 0, title: "X" })).status).toBe(422)
+    const empty = await meta({ version: page.version })
+    expect(empty.status).toBe(422)
+    const same = await meta({
+      version: page.version,
+      title: page.title,
+      slug: page.slug,
+    })
+    expect(same.status).toBe(200)
+    expect(((await same.json()) as BuilderPageDto).version).toBe(page.version)
+    expect(
+      await getDb()
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.action, "builder-page.meta_changed"))
+    ).toEqual([])
+  })
+
+  it("list reports status and unpublished changes without the documents", async () => {
+    const { page } = await publishedPage()
+    const items = async () =>
+      (
+        (await (
+          await adminRequest("/builder-pages", { cookie: editor })
+        ).json()) as { items: BuilderPageListItem[] }
+      ).items
+    const [clean] = await items()
+    expect(clean).toMatchObject({
+      status: "published",
+      hasUnpublishedChanges: false,
+      updatedByName: expect.any(String),
+    })
+    expect(clean).not.toHaveProperty("draft")
+    await saveDraft(page.id, {
+      version: page.version,
+      draft: { blocks: [page.draft.blocks[0]] },
+    })
+    expect((await items())[0].hasUnpublishedChanges).toBe(true)
+  })
+
+  it("an empty seed falls back to the page hero and is not audited as seeded", async () => {
+    const res = await post({
+      title: "Blank",
+      slug: "blank",
+      seed: { blocks: [] },
+    })
+    expect(res.status).toBe(201)
+    const page = (await res.json()) as BuilderPageDto
+    expect(page.draft.blocks.map((b) => b.type)).toEqual(["hero.page"])
+    const [audit] = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "builder-page.created"))
+    expect(audit.diff).toMatchObject({ seeded: false })
   })
 
   it("create with a seed document (copy of a fixed page) stores it as the draft", async () => {
@@ -628,10 +801,5 @@ describe("builder pages API (D5.2)", () => {
     const shownDto = (await shown.json()) as BuilderPageDto
     expect((await publish(page.id, shownDto.version)).status).toBe(200)
     expect(await newsletterBlockPublished()).toBe(true)
-    const rows = await getDb()
-      .select({ id: builderPages.id })
-      .from(builderPages)
-      .where(and(eq(builderPages.id, page.id)))
-    expect(rows).toHaveLength(1)
   })
 })

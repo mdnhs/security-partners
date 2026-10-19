@@ -16,7 +16,7 @@ import {
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
 import { containsPattern } from "@/server/db/like"
-import { articles, redirects, services } from "@/server/db/schema"
+import { articles, builderPages, redirects, services } from "@/server/db/schema"
 
 export type RedirectRow = typeof redirects.$inferSelect
 type RedirectValues = { fromPath: string; toPath: string; code: number }
@@ -131,24 +131,24 @@ export async function lockRedirects(db: DbOrTx): Promise<void> {
   await db.execute(sql`select pg_advisory_xact_lock(hashtext('sp:redirects'))`)
 }
 
-/** True when a published service/article uses `slug` (its page is live). */
+const SLUG_TABLES = {
+  service: services,
+  article: articles,
+  builder: builderPages,
+} as const
+
+/** True when a published service/article/builder page uses `slug` (its page is live). */
 export async function isPublishedSlug(
   db: DbOrTx,
-  kind: "service" | "article",
+  kind: keyof typeof SLUG_TABLES,
   slug: string
 ): Promise<boolean> {
-  const rows =
-    kind === "service"
-      ? await db
-          .select({ id: services.id })
-          .from(services)
-          .where(and(eq(services.slug, slug), isNotNull(services.published)))
-          .limit(1)
-      : await db
-          .select({ id: articles.id })
-          .from(articles)
-          .where(and(eq(articles.slug, slug), isNotNull(articles.published)))
-          .limit(1)
+  const table = SLUG_TABLES[kind]
+  const rows = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(and(eq(table.slug, slug), isNotNull(table.published)))
+    .limit(1)
   return rows.length > 0
 }
 

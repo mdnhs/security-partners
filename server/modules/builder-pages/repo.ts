@@ -29,8 +29,42 @@ export type BuilderPageRow = NonNullable<
   Awaited<ReturnType<typeof findBuilderPageForEdit>>
 >
 
-export function listBuilderPagesForEdit(db: DbOrTx) {
-  return editQuery(db).orderBy(asc(builderPages.title), asc(builderPages.slug))
+/**
+ * The admin list: columns only, never the documents. `dirty` mirrors
+ * versionedDto (unpublished, or draft ≠ published; jsonb equality ignores
+ * key order like isDeepEqual).
+ */
+export function listBuilderPageSummaries(db: DbOrTx) {
+  return db
+    .select({
+      id: builderPages.id,
+      slug: builderPages.slug,
+      title: builderPages.title,
+      status: builderPages.status,
+      dirty: sql<boolean>`(${builderPages.published} is null or ${builderPages.draft} <> ${builderPages.published})`,
+      updatedAt: builderPages.updatedAt,
+      updatedByName: users.name,
+    })
+    .from(builderPages)
+    .leftJoin(users, eq(users.id, builderPages.updatedBy))
+    .orderBy(asc(builderPages.title), asc(builderPages.slug))
+}
+
+/**
+ * Locks the page row FOR UPDATE (delete): a draft save that holds the row
+ * finishes first, and one that starts later waits and then finds no row.
+ */
+export async function lockBuilderPage(db: DbOrTx, id: string) {
+  const [row] = await db
+    .select({
+      slug: builderPages.slug,
+      version: builderPages.version,
+      published: builderPages.published,
+    })
+    .from(builderPages)
+    .where(eq(builderPages.id, id))
+    .for("update")
+  return row ?? null
 }
 
 export async function insertBuilderPage(

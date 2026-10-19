@@ -16,6 +16,10 @@ describe("public section components", () => {
   it("public section components are unchanged since phase start", () => {
     expect(Object.keys(FROZEN).length).toBeGreaterThan(0)
     for (const [file, sha] of Object.entries(FROZEN))
-      expect(sha256(readFileSync(file)), file).toBe(sha)
+      // Resolved from this file, not process.cwd(): works from any directory.
+      expect(
+        sha256(readFileSync(new URL(`../../../${file}`, import.meta.url))),
+        file
+      ).toBe(sha)
   })
 })

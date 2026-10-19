@@ -72,7 +72,11 @@ const iconCards = defineBlock({
     eyebrow: text(40),
     title: text(80),
     description: text(240),
-    items: z.array(iconCard).min(1).max(6),
+    // The shared iconCard allows 5000 characters; cards carry design copy.
+    items: z
+      .array(iconCard.extend({ title: text(80), description: text(240) }))
+      .min(1)
+      .max(6),
   }),
   defaults: { eyebrow: "", title: "", description: "", items: [] },
 })
@@ -138,13 +142,31 @@ const blog = defineBlock({
 })
 
 const contactDepartments = contactTemplate.shape.departments
+const departmentItem = contactDepartments.shape.items.element
+const departmentLine = departmentItem.shape.lines.element
 const departments = defineBlock({
   type: "departments",
   label: "Departments",
   icon: "Building2",
   description: "Up to six department contact cards.",
+  // The contact template's copy is uncapped (5000); a card has room for
+  // a short title, name, role and up to four contact lines.
   schema: contactDepartments.extend({
-    items: contactDepartments.shape.items.max(6),
+    ...sectionCopy,
+    items: z
+      .array(
+        departmentItem.extend({
+          title: text(40),
+          name: text(80),
+          role: text(80),
+          lines: z
+            .array(departmentLine.extend({ text: text(120) }))
+            .min(1)
+            .max(4),
+        })
+      )
+      .min(1)
+      .max(6),
   }),
   defaults: { eyebrow: "", heading: "", intro: "", items: [] },
 })
@@ -169,12 +191,22 @@ const map = defineBlock({
   max: 1,
 })
 
+/** Text-block budget: the shared richText has no node or length caps. */
+const RICH_TEXT_MAX_NODES = 200
+const RICH_TEXT_MAX_CHARS = 50_000
+const cappedRichText = richText
+  .extend({ content: richText.shape.content.max(RICH_TEXT_MAX_NODES) })
+  .refine(
+    (doc) => JSON.stringify(doc).length <= RICH_TEXT_MAX_CHARS,
+    "This text is too long for one block. Split it into several."
+  )
+
 const richtext = defineBlock({
   type: "richtext",
   label: "Text",
   icon: "Type",
   description: "Formatted text: headings, lists, quotes and images.",
-  schema: z.object({ doc: richText }),
+  schema: z.object({ doc: cappedRichText }),
   defaults: {},
 })
 

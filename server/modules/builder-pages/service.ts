@@ -110,20 +110,17 @@ export async function listBuilderPages(
   actor: Actor
 ): Promise<BuilderPageListItem[]> {
   assertCan(actor, { page: ["read"] })
-  const rows = await repo.listBuilderPagesForEdit(getDb())
-  return rows.map((row) => {
-    const dto = toDto(row)
-    return {
-      id: dto.id,
-      slug: dto.slug,
-      title: dto.title,
-      path: dto.path,
-      status: dto.status,
-      hasUnpublishedChanges: dto.dirty,
-      updatedAt: dto.updatedAt,
-      updatedByName: row.updatedByName,
-    }
-  })
+  const rows = await repo.listBuilderPageSummaries(getDb())
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    path: builderPath(row.slug),
+    status: row.status,
+    hasUnpublishedChanges: row.dirty,
+    updatedAt: row.updatedAt.toISOString(),
+    updatedByName: row.updatedByName,
+  }))
 }
 
 export async function getBuilderPage(
@@ -146,8 +143,11 @@ export async function createBuilderPage(
   seed?: DraftDocument
 ): Promise<BuilderPageDto> {
   assertCan(actor, { page: ["create"] })
+  const seeded = (seed?.blocks.length ?? 0) > 0
+  // The route already parsed `seed`; parsing again keeps direct service
+  // callers (seed scripts, D5.5 copy) behind the same draft rules.
   const draft: DraftDocument =
-    seed && seed.blocks.length > 0
+    seed && seeded
       ? DraftDocument.parse(seed)
       : { blocks: [emptyBlock("hero.page", { blocks: [] })] }
   const db = getDb()
@@ -164,7 +164,7 @@ export async function createBuilderPage(
         action: `${BUILDER_ENTITY}.created`,
         entityType: BUILDER_ENTITY,
         entityId: newId,
-        diff: { slug: input.slug, title: input.title, seeded: Boolean(seed) },
+        diff: { slug: input.slug, title: input.title, seeded },
       })
       return newId
     })
@@ -214,39 +214,46 @@ export async function changeBuilderMeta(
 ): Promise<BuilderPageDto> {
   assertCan(actor, { page: ["update"] })
   try {
-    const { before, after, moved } = await getDb().transaction(async (tx) => {
-      const row = await loadRow(tx, id)
-      if (row.version !== input.version) throw conflict(toDto(row))
-      const patch: repo.BuilderPagePatch = { updatedBy: actor.userId }
-      if (input.title !== undefined) patch.title = input.title
-      if (input.slug !== undefined) patch.slug = input.slug
-      const updated = await repo.updateBuilderPageIfVersion(
-        tx,
-        id,
-        input.version,
-        patch
-      )
-      if (!updated) throw conflict(toDto(await loadRow(tx, id)))
-      await writeAudit(tx, actor, {
-        action: `${BUILDER_ENTITY}.meta_changed`,
-        entityType: BUILDER_ENTITY,
-        entityId: id,
-        diff: {
-          from: { slug: row.slug, title: row.title },
-          to: { slug: updated.slug, title: updated.title },
-        },
-      })
-      const moved =
-        row.published !== null &&
-        updated.slug !== row.slug &&
-        (await recordMove(tx, actor, {
-          from: builderPath(row.slug),
-          to: builderPath(updated.slug),
-          reason: `${BUILDER_ENTITY}.slug_changed`,
-        }))
-      return { before: row, after: updated, moved }
-    })
-    if (before.published !== null)
+    const { before, after, moved, changed } = await getDb().transaction(
+      async (tx) => {
+        const row = await loadRow(tx, id)
+        if (row.version !== input.version) throw conflict(toDto(row))
+        const patch: repo.BuilderPagePatch = { updatedBy: actor.userId }
+        if (input.title !== undefined && input.title !== row.title)
+          patch.title = input.title
+        if (input.slug !== undefined && input.slug !== row.slug)
+          patch.slug = input.slug
+        // Nothing changes: no version bump, no audit, no invalidation.
+        if (patch.title === undefined && patch.slug === undefined)
+          return { before: row, after: row, moved: false, changed: false }
+        const updated = await repo.updateBuilderPageIfVersion(
+          tx,
+          id,
+          input.version,
+          patch
+        )
+        if (!updated) throw conflict(toDto(await loadRow(tx, id)))
+        await writeAudit(tx, actor, {
+          action: `${BUILDER_ENTITY}.meta_changed`,
+          entityType: BUILDER_ENTITY,
+          entityId: id,
+          diff: {
+            from: { slug: row.slug, title: row.title },
+            to: { slug: updated.slug, title: updated.title },
+          },
+        })
+        const moved =
+          row.published !== null &&
+          updated.slug !== row.slug &&
+          (await recordMove(tx, actor, {
+            from: builderPath(row.slug),
+            to: builderPath(updated.slug),
+            reason: `${BUILDER_ENTITY}.slug_changed`,
+          }))
+        return { before: row, after: updated, moved, changed: true }
+      }
+    )
+    if (changed && before.published !== null)
       invalidate(
         tag.builderPages,
         tag.builderPage(before.slug),
@@ -259,7 +266,12 @@ export async function changeBuilderMeta(
   }
 }
 
-/** Removes the page and its usages; `redirectHome` adds a 301 /p/<slug> → /. */
+/**
+ * Removes the page and its usages. `redirectHome` adds a 301 /p/<slug> → /
+ * (and re-points redirects that led to the page) only for a page that was
+ * published: a never-public address has no links to keep, and other
+ * people's pre-staged redirects to it must stay as they are.
+ */
 export async function deleteBuilderPage(
   actor: Actor,
   id: string,
@@ -267,7 +279,10 @@ export async function deleteBuilderPage(
 ): Promise<void> {
   assertCan(actor, { page: ["delete"] })
   const { removed, moved } = await getDb().transaction(async (tx) => {
-    const row = await loadRow(tx, id)
+    // Row lock first: a concurrent draft save (which syncs usages while it
+    // holds the row) commits before we clear, or waits and then 404s.
+    const row = await repo.lockBuilderPage(tx, id)
+    if (!row) throw notFound("Page")
     await clearMediaUsages(tx, BUILDER_ENTITY, id)
     if (!(await repo.deleteBuilderPageRow(tx, id))) throw notFound("Page")
     await writeAudit(tx, actor, {
@@ -282,6 +297,7 @@ export async function deleteBuilderPage(
     })
     const moved =
       input.redirectHome &&
+      row.published !== null &&
       (await recordMove(tx, actor, {
         from: builderPath(row.slug),
         to: "/",

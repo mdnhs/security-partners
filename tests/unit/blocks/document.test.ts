@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   BuilderDocument,
@@ -169,5 +169,91 @@ describe("DraftDocument", () => {
       DraftDocument.safeParse({ blocks: [{ ...block, type: "nope" }] }).success
     ).toBe(false)
     expect(DraftDocument.safeParse({ blocks: [] }).success).toBe(true)
+  })
+
+  it("refuses a media reference that is not a media id, on its field", () => {
+    const block = {
+      ...emptyBlock("hero.page", none),
+      data: { image: { mediaId: "x" }, crumb: "" },
+    }
+    const bad = DraftDocument.safeParse({ blocks: [block] })
+    expect(bad.success).toBe(false)
+    if (!bad.success)
+      expect(bad.error.issues.map((i) => i.path.join("."))).toEqual([
+        "blocks.0.data.image.mediaId",
+      ])
+    const ok = DraftDocument.safeParse({
+      blocks: [{ ...block, data: { image: { mediaId: MEDIA } } }],
+    })
+    expect(ok.success).toBe(true)
+  })
+
+  it("refuses data nested deeper than any block needs", () => {
+    let deep: unknown = "leaf"
+    for (let i = 0; i < 10_000; i++) deep = [deep]
+    const block = { ...emptyBlock("richtext", none), data: { doc: deep } }
+    expect(DraftDocument.safeParse({ blocks: [block] }).success).toBe(false)
+    // A real rich text list (the deepest block shape) is fine.
+    const list = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [
+                    {
+                      type: "text",
+                      text: "a",
+                      marks: [{ type: "link", attrs: { href: "/x" } }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    expect(
+      DraftDocument.safeParse({ blocks: [{ ...block, data: { doc: list } }] })
+        .success
+    ).toBe(true)
+  })
+})
+
+describe("document rules: hardening (D5.1 review)", () => {
+  it("does not echo an invalid duplicate anchor into the messages", () => {
+    const junk = "X".repeat(5000)
+    const r = validateDocument({
+      blocks: [
+        hero("hero-1"),
+        richtext("text-1", junk),
+        richtext("text-2", junk),
+      ],
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok)
+      for (const messages of Object.values(r.fieldErrors))
+        for (const m of messages) expect(m).not.toContain(junk)
+  })
+
+  it("emptyBlock mints valid ids without crypto.randomUUID (plain http)", () => {
+    const real = globalThis.crypto
+    vi.stubGlobal("crypto", {
+      getRandomValues: real.getRandomValues.bind(real),
+    })
+    try {
+      const a = emptyBlock("stats", none)
+      const b = emptyBlock("stats", none)
+      expect(BlockId.safeParse(a.id).success).toBe(true)
+      expect(a.id).not.toBe(b.id)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
