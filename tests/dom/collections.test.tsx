@@ -2,14 +2,16 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { push, replace, search } = vi.hoisted(() => ({
-  push: vi.fn(),
-  replace: vi.fn(),
-  search: { current: new URLSearchParams() },
-}))
+const { push, replace, router, search } = vi.hoisted(() => {
+  const push = vi.fn()
+  const replace = vi.fn()
+  // Stable like Next's router, so effects keyed on it do not re-run per render.
+  const router = { push, replace, refresh: vi.fn() }
+  return { push, replace, router, search: { current: new URLSearchParams() } }
+})
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/insights/categories",
-  useRouter: () => ({ push, replace, refresh: vi.fn() }),
+  useRouter: () => router,
   useSearchParams: () => search.current,
 }))
 
@@ -445,6 +447,44 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
       }
       unmount()
     }
+  })
+
+  it("a soft navigation from a record to a bad ?edit is gated and stripped each time (SEC1)", async () => {
+    const target = category(2)
+    route((url) =>
+      url.pathname === `/api/v1/admin/categories/${target.id}`
+        ? json(200, target)
+        : undefined
+    )
+    search.current = new URLSearchParams(`edit=${target.id}`)
+    const queryClient = makeQueryClient()
+    const tree = () => (
+      <AdminShell queryClient={queryClient} session={session(["editor"])}>
+        <CollectionScreen name="categories" />
+      </AdminShell>
+    )
+    const { rerender } = render(tree())
+    await screen.findByRole("dialog", { name: "Category" })
+
+    // The router mock does not change the URL, so each bad value stays put
+    // until the next navigation: both must be stripped.
+    for (const payload of ["../../admin/users", "..%2F..%2Fusers%2Fx"]) {
+      fetchMock.mockClear()
+      replace.mockReset()
+      const params = new URLSearchParams()
+      params.set("edit", payload)
+      search.current = params
+      rerender(tree())
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
+      )
+      for (const [input] of fetchMock.mock.calls) {
+        const raw = String(input)
+        expect(raw).not.toContain("..")
+        expect(raw).not.toContain("users")
+      }
+    }
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
   })
 
   it("?edit=<unknown id> asks for that id only and says not found (SEC1)", async () => {

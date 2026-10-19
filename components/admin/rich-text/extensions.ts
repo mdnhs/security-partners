@@ -12,6 +12,7 @@ import { Plugin } from "@tiptap/pm/state"
 import { StarterKit } from "@tiptap/starter-kit"
 
 import { isSafeRichTextHref } from "@/lib/href"
+import { isUuid } from "@/lib/ids"
 
 // The editor's schema is exactly what lib/schemas/common.ts accepts and
 // lib/rich-text/render.tsx renders (spec §5.3): paragraph, h2/h3, bullet and
@@ -23,10 +24,6 @@ import { isSafeRichTextHref } from "@/lib/href"
 
 /** "full": articles and legal pages; "paragraphs": about copy, service overview. */
 export type RichTextMode = "full" | "paragraphs"
-
-/** A uuid as `mediaRef` (z.uuid()) accepts it; anything else is dropped. */
-const MEDIA_ID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** attrs: { media: { mediaId }, alt } — same shape the renderer reads. */
 export const MediaImage = Node.create({
@@ -58,9 +55,7 @@ export const MediaImage = Node.create({
       {
         tag: "img[data-media-id]",
         getAttrs: (element) =>
-          MEDIA_ID.test(element.getAttribute("data-media-id") ?? "")
-            ? null
-            : false,
+          isUuid(element.getAttribute("data-media-id")) ? null : false,
       },
     ]
   },
