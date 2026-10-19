@@ -38,6 +38,7 @@ const lead: LeadDto = {
   updatedAt: "2026-10-16T09:00:00.000Z",
   message: "Line one\nLine two",
   consent: true,
+  attribution: null,
   events: [
     {
       id: "e1",
@@ -60,6 +61,8 @@ const lead: LeadDto = {
 let holdPatch: Promise<void> | null = null
 let failPatch = false
 let exportStatus = 200
+/** What GET /leads/:id answers (D3.1 source section). */
+let detail: LeadDto = lead
 
 const calls: { url: string; method: string; body: unknown }[] = []
 beforeEach(() => {
@@ -68,6 +71,7 @@ beforeEach(() => {
   holdPatch = null
   failPatch = false
   exportStatus = 200
+  detail = lead
   push.mockClear()
   replace.mockClear()
   refresh.mockClear()
@@ -141,7 +145,7 @@ beforeEach(() => {
           return reply({ ...lead, ...body })
         }
         if (method === "DELETE") return reply({ ok: true })
-        return reply(lead)
+        return reply(detail)
       }
       return reply({ items: [lead], page: 1, pageSize: 20, total: 1 })
     })
@@ -372,6 +376,45 @@ describe("leads inbox (master 7.4)", () => {
     expect(await screen.findByText("Not saved")).toBeInTheDocument()
     expect(screen.getByText("Someone else saved")).toBeInTheDocument()
     await waitFor(() => expect(select).toHaveTextContent("New"))
+  })
+
+  it("detail: a Source section shows attribution as plain text (D3.1)", async () => {
+    detail = {
+      ...lead,
+      attribution: {
+        referrer: "https://www.google.com/search",
+        landingPath: "/services/static-guarding",
+        utm: {
+          utm_source: "<script>alert(1)</script>",
+          utm_campaign: "=HYPERLINK(1)",
+        },
+        capturedAt: "2026-10-16T08:55:00.000Z",
+      },
+    }
+    renderAs(["intake"], <LeadDetail id={ID} />)
+    const source = await screen.findByRole("region", { name: "Source" })
+    const facts = Object.fromEntries(
+      within(source)
+        .getAllByRole("term")
+        .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent])
+    )
+    expect(facts).toMatchObject({
+      Referrer: "https://www.google.com/search",
+      "Landing page": "/services/static-guarding",
+      "UTM source": "<script>alert(1)</script>",
+      "UTM campaign": "=HYPERLINK(1)",
+    })
+    // Missing UTM values read as "Not given", not blank.
+    expect(facts["UTM medium"]).toContain("Not given")
+    // Never a link or markup: hostile values stay text.
+    expect(within(source).queryByRole("link")).toBeNull()
+    expect(source.querySelector("script")).toBeNull()
+  })
+
+  it("detail: the Source section says when nothing was recorded (D3.1)", async () => {
+    renderAs(["intake"], <LeadDetail id={ID} />)
+    const source = await screen.findByRole("region", { name: "Source" })
+    expect(source).toHaveTextContent("No source was recorded for this enquiry.")
   })
 
   it("the sidebar's Leads item shows the server's new-leads count", () => {
