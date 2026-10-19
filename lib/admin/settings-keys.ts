@@ -132,7 +132,10 @@ export const SETTINGS_ENTRIES: Record<
       "Turning on a placement adds the signup form to the public site.",
     group: "Forms",
     read: { settings: ["read"] },
-    update: { settings: ["update"] },
+    // Operational, not content (like leads): the placement starts collecting
+    // personal data on the public site and pendingDays drives deletion, so
+    // only owner/admin (newsletter:delete) change it.
+    update: { settings: ["update"], newsletter: ["delete"] },
   },
 }
 

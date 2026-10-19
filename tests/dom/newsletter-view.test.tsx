@@ -10,6 +10,23 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
 }))
 
+// Stub one action away while the rest follows the real role matrix: no
+// built-in role reads the newsletter without exporting it.
+const perm = vi.hoisted(() => ({ deny: [] as string[] }))
+vi.mock("@/hooks/use-permission", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/use-permission")>()
+  return {
+    ...actual,
+    usePermission: (req: Record<string, string[]>) => {
+      const allowed = actual.usePermission(req)
+      const denied = Object.entries(req).some(([resource, actions]) =>
+        actions.some((a) => perm.deny.includes(`${resource}:${a}`))
+      )
+      return allowed && !denied
+    },
+  }
+})
+
 import { NewsletterView } from "@/components/admin/newsletter/newsletter-view"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
@@ -35,6 +52,7 @@ beforeEach(() => {
   calls.length = 0
   search = ""
   items = [ann]
+  perm.deny = []
   replace.mockClear()
   window.history.replaceState(null, "", "/admin/newsletter")
   vi.stubGlobal(
@@ -171,11 +189,37 @@ describe("NewsletterView (D4.3)", () => {
     expect(screen.queryByRole("button", { name: /Delete/ })).toBeNull()
   })
 
-  it("hides Export without newsletter:export", async () => {
-    // No built-in role reads the newsletter without exporting it; a viewer
-    // reaching the view (the page guard refuses) still sees no export.
-    renderAs(["viewer"])
+  it("hides Export without newsletter:export (the list still loads)", async () => {
+    perm.deny = ["newsletter:export"]
+    renderAs(["admin"])
+    const table = await screen.findByRole("table", { name: "Subscribers" })
+    expect(within(table).getByText("ann@example.ie")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull()
+  })
+
+  it("the tabs control one tab panel holding the list", async () => {
+    renderAs(["admin"])
+    const panel = screen.getByRole("tabpanel")
+    expect(
+      await within(panel).findByRole("table", { name: "Subscribers" })
+    ).toBeInTheDocument()
+    expect(panel).toHaveAccessibleName("Confirmed")
+    expect(screen.getByRole("tablist")).toHaveClass("overflow-x-auto")
+  })
+
+  it("Delete buttons are 44 px targets on touch (table and card)", async () => {
+    renderAs(["admin"])
+    await screen.findByRole("table", { name: "Subscribers" })
+    const buttons = screen.getAllByRole("button", {
+      name: "Delete ann@example.ie",
+      hidden: true,
+    })
+    expect(buttons).toHaveLength(2)
+    for (const button of buttons)
+      expect(button).toHaveClass(
+        "pointer-coarse:h-11",
+        "pointer-coarse:min-w-11"
+      )
   })
 
   it("asks before deleting a subscriber", async () => {
@@ -207,8 +251,9 @@ describe("NewsletterView (D4.3)", () => {
     )
   })
 
-  it("empty: says so, and points to the placement while it is off", async () => {
+  it("empty All tab: No subscribers yet, and points to the placement while it is off", async () => {
     items = []
+    search = "tab=all"
     renderAs(["admin"], "off")
     expect(await screen.findByText("No subscribers yet")).toBeInTheDocument()
     expect(
@@ -218,8 +263,27 @@ describe("NewsletterView (D4.3)", () => {
 
   it("empty with a placement on: no placement hint", async () => {
     items = []
+    search = "tab=all"
     renderAs(["admin"], "article")
     expect(await screen.findByText("No subscribers yet")).toBeInTheDocument()
     expect(screen.queryByText(/Turn on a placement/)).toBeNull()
+  })
+
+  it("each empty tab says what it lists, without filter advice", async () => {
+    items = []
+    const user = userEvent.setup()
+    renderAs(["admin"], "blog")
+    expect(
+      await screen.findByText("Nobody has confirmed yet")
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("tab", { name: "Pending" }))
+    expect(
+      await screen.findByText("Nobody is waiting to confirm")
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("tab", { name: "Unsubscribed" }))
+    expect(
+      await screen.findByText("Nobody has unsubscribed")
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Try different filters/)).toBeNull()
   })
 })

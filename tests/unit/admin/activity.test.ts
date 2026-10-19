@@ -33,6 +33,18 @@ describe("describeActivity", () => {
       "success",
     ],
     [
+      row("newsletter.looked_up", "newsletter", null),
+      "checked an address against the newsletter list",
+      undefined,
+      undefined,
+    ],
+    [
+      row("newsletter.deleted", "newsletter", "x"),
+      "deleted a newsletter subscriber",
+      undefined,
+      undefined,
+    ],
+    [
       row("service.created", "service", "x"),
       "added a service",
       undefined,

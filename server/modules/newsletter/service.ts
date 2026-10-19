@@ -8,6 +8,7 @@ import { createElement } from "react"
 import { NewsletterConfirmation } from "@/emails/newsletter-confirmation"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { CSV_BOM, toCsv } from "@/lib/csv"
+import { exportPermission } from "@/lib/newsletter/export"
 import {
   confirmTokenHash,
   formatUnsubscribeToken,
@@ -303,20 +304,7 @@ export async function listSubscribers(
   }
 }
 
-/**
- * Who may export which statuses. "confirmed" needs newsletter:export
- * (owner, admin, marketer). "all" also hands out pending (never consented)
- * and unsubscribed (opted out) addresses, which must never be imported into
- * a mailing tool, so it additionally needs newsletter:delete — the
- * owner/admin-only grant over the whole list.
- */
-export function exportPermission(
-  status: "all" | "confirmed"
-): PermissionRequest {
-  return status === "all"
-    ? { newsletter: ["export", "delete"] }
-    : { newsletter: ["export"] }
-}
+export { exportPermission }
 
 /** CSV (formula-guarded, BOM for Excel). Audits the count only, never addresses. */
 export async function exportSubscribers(
@@ -398,13 +386,24 @@ export async function countSubscribers(
   return repo.countConfirmed(getDb(), new Date(now.getTime() - 30 * 86_400_000))
 }
 
-/** DSAR helper (lead CSV-by-email): needs newsletter:read, like the list. */
+/**
+ * DSAR helper (lead CSV-by-email): needs newsletter:read, like the list.
+ * Each lookup is audited (found yes/no, never the address) for the
+ * privacy-request trail.
+ */
 export async function findSubscriberByEmail(
   actor: Actor,
   email: string
 ): Promise<SubscriberDto | null> {
   assertCan(actor, { newsletter: ["read"] })
-  const row = await repo.findByEmail(getDb(), email.trim().toLowerCase())
+  const db = getDb()
+  const row = await repo.findByEmail(db, email.trim().toLowerCase())
+  await writeAudit(db, actor, {
+    action: "newsletter.looked_up",
+    entityType: "newsletter",
+    entityId: row?.id,
+    diff: { found: row !== null },
+  })
   return row ? toDto(row) : null
 }
 

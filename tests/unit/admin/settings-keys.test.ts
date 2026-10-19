@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 
+import { hasPermission } from "@/lib/auth/permissions"
+import type { Role } from "@/lib/auth/roles"
+
 import {
   EDITABLE_SETTINGS_KEYS,
   SETTINGS_ENTRIES,
@@ -40,14 +43,22 @@ describe("labels (MK parity spec §5.1)", () => {
     ])
   })
 
-  it("newsletter is a Forms key editors may change (D4.3)", () => {
+  it("newsletter is an operational Forms key only owner/admin change (D4.3)", () => {
     expect(SETTINGS_ENTRIES.newsletter).toEqual({
       label: "Newsletter",
       description:
         "Turning on a placement adds the signup form to the public site.",
       group: "Forms",
       read: { settings: ["read"] },
-      update: { settings: ["update"] },
+      update: { settings: ["update"], newsletter: ["delete"] },
     })
+    const may = (roles: Role[]) =>
+      hasPermission(roles, SETTINGS_ENTRIES.newsletter.update)
+    expect([may(["owner"]), may(["admin"])]).toEqual([true, true])
+    expect([may(["editor"]), may(["marketer"]), may(["viewer"])]).toEqual([
+      false,
+      false,
+      false,
+    ])
   })
 })

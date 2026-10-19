@@ -85,7 +85,8 @@ function Lookup({ email }: { email: string }) {
         <Button
           type="button"
           variant="outline"
-          className="self-start"
+          // 44 px on touch, like the rest of the admin's controls.
+          className="self-start pointer-coarse:h-11 pointer-coarse:min-w-11"
           onClick={() => setConfirming(true)}
         >
           Erase from newsletter

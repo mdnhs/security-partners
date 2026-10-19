@@ -440,7 +440,8 @@ describe("lead detail privacy helper: newsletter (D4.3)", () => {
 
   it("says whether the address is also on the newsletter list", async () => {
     onNewsletter = true
-    renderAs(["marketer"], <LeadDetail id={ID} />)
+    // Intake opens the lead; marketer adds newsletter:read (not delete).
+    renderAs(["intake", "marketer"], <LeadDetail id={ID} />)
     expect(
       await screen.findByText("Also on the newsletter list: Yes")
     ).toBeInTheDocument()
@@ -475,9 +476,12 @@ describe("lead detail privacy helper: newsletter (D4.3)", () => {
     onNewsletter = true
     const user = userEvent.setup()
     renderAs(["admin"], <LeadDetail id={ID} />)
-    await user.click(
-      await screen.findByRole("button", { name: "Erase from newsletter" })
-    )
+    const erase = await screen.findByRole("button", {
+      name: "Erase from newsletter",
+    })
+    // A 44 px target on touch.
+    expect(erase).toHaveClass("pointer-coarse:h-11", "pointer-coarse:min-w-11")
+    await user.click(erase)
     const dialog = await screen.findByRole("alertdialog")
     expect(dialog).toHaveTextContent("dinn@example.ie")
     expect(calls.some((c) => c.url.includes("/newsletter/erase"))).toBe(false)

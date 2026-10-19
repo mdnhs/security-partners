@@ -95,14 +95,6 @@ const unsubscribePost = (token: string, form = false) =>
 const confirmPost = (token: string, form = false) =>
   tokenPost("/confirm", token, form)
 
-const actorWith = (roles: Role[]): Actor => ({
-  userId: "00000000-0000-7000-8000-000000000000",
-  roles,
-  ip: null,
-  userAgent: null,
-  impersonatorId: null,
-})
-
 async function patchNewsletter(patch: Partial<NewsletterSettings>) {
   const [row] = await getDb()
     .select()
@@ -653,6 +645,15 @@ describe("admin /api/v1/admin/newsletter", () => {
     })
 
     it("findSubscriberByEmail requires newsletter:read", async () => {
+      // A real user: lookups are audited (audit_log.actor_id → users).
+      const { user } = await signedInUser(["marketer"])
+      const actorWith = (roles: Role[]): Actor => ({
+        userId: user.id,
+        roles,
+        ip: null,
+        userAgent: null,
+        impersonatorId: null,
+      })
       await expect(
         findSubscriberByEmail(actorWith(["editor"]), "a@example.ie")
       ).rejects.toMatchObject({ code: "FORBIDDEN" })
@@ -884,6 +885,49 @@ describe("privacy helper (lead CSV-by-email, D4.3)", () => {
     expect(JSON.stringify(audits[0])).not.toContain("ann@example.ie")
     expect(await lookup("ann@example.ie")).toEqual({ subscriber: null })
   })
+
+  it("audits each lookup with found yes/no, never the address", async () => {
+    const { cookie } = await signedInUser(["marketer"])
+    await getDb()
+      .insert(newsletterSubscribers)
+      .values({ email: "ann@example.ie", status: "confirmed" })
+    for (const email of ["ann@example.ie", "nobody@example.ie"])
+      await adminRequest("/newsletter/lookup", {
+        cookie,
+        method: "POST",
+        json: { email },
+      })
+    const audits = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "newsletter.looked_up"))
+    expect(audits).toHaveLength(2)
+    expect(audits.map((a) => a.diff)).toEqual(
+      expect.arrayContaining([{ found: true }, { found: false }])
+    )
+    expect(JSON.stringify(audits)).not.toMatch(/ann@|nobody@/)
+  })
+
+  it.each(["/newsletter/lookup", "/newsletter/erase"])(
+    "%s sits behind the admin same-origin (CSRF) guard",
+    async (path) => {
+      const { cookie } = await signedInUser(["owner"])
+      await getDb()
+        .insert(newsletterSubscribers)
+        .values({ email: "ann@example.ie", status: "confirmed" })
+      const res = await app.request(`/api/v1/admin${path}`, {
+        method: "POST",
+        headers: {
+          cookie,
+          origin: "https://evil.example",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ email: "ann@example.ie" }),
+      })
+      expect(res.status).toBe(403)
+      expect((await rows()).map((r) => r.email)).toEqual(["ann@example.ie"])
+    }
+  )
 
   it("rejects a malformed address with 422", async () => {
     const { cookie } = await signedInUser(["admin"])

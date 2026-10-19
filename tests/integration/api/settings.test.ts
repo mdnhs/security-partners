@@ -110,8 +110,8 @@ describe("settings API (master 4.5)", () => {
     ).toEqual([3])
   })
 
-  it("newsletter: editors edit it (pages.confirm included); a placement with a blank form never saves or goes live", async () => {
-    const { status, body } = await get(editor, "newsletter")
+  it("newsletter: owner/admin edit it (pages.confirm included); a placement with a blank form never saves or goes live", async () => {
+    const { status, body } = await get(admin, "newsletter")
     expect(status).toBe(200)
     expect(body).toMatchObject({ group: "Forms", canEdit: true })
     const draft = body!.draft as Record<string, unknown> & {
@@ -124,7 +124,7 @@ describe("settings API (master 4.5)", () => {
       "title",
     ])
     const halfFilled = await adminRequest("/settings/newsletter/draft", {
-      cookie: editor,
+      cookie: admin,
       method: "PUT",
       json: { draft: { ...draft, placement: "blog", title: "" }, version: 1 },
     })
@@ -144,13 +144,13 @@ describe("settings API (master 4.5)", () => {
       },
     }
     const saved = await adminRequest("/settings/newsletter/draft", {
-      cookie: editor,
+      cookie: admin,
       method: "PUT",
       json: { draft: { ...copy, placement: "blog" }, version: 1 },
     })
     expect(saved.status).toBe(200)
     const live = await adminRequest("/settings/newsletter/publish", {
-      cookie: editor,
+      cookie: admin,
       method: "POST",
       json: { version: 2 },
     })
@@ -165,6 +165,35 @@ describe("settings API (master 4.5)", () => {
     })
     expect((await get(viewer, "newsletter")).status).toBe(200)
     expect((await get(viewer, "newsletter")).body?.canEdit).toBe(false)
+  })
+
+  it("newsletter is operational (placement, retention): editors and marketers cannot change it", async () => {
+    const { body } = await get(editor, "newsletter")
+    expect(body?.canEdit).toBe(false)
+    const draft = { ...(body!.draft as object), placement: "blog" }
+    for (const cookie of [editor, marketer]) {
+      const put = await adminRequest("/settings/newsletter/draft", {
+        cookie,
+        method: "PUT",
+        json: { draft, version: 1 },
+      })
+      expect(put.status).toBe(403)
+      const publish = await adminRequest("/settings/newsletter/publish", {
+        cookie,
+        method: "POST",
+        json: { version: 1 },
+      })
+      expect(publish.status).toBe(403)
+    }
+    for (const cookie of [admin, owner]) {
+      const current = (await get(cookie, "newsletter")).body!
+      const put = await adminRequest("/settings/newsletter/draft", {
+        cookie,
+        method: "PUT",
+        json: { draft: current.draft, version: current.version },
+      })
+      expect(put.status).toBe(200)
+    }
   })
 
   it("validates with the key's schema and rejects stale versions", async () => {

@@ -25,10 +25,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
+import {
+  exportPermission,
+  type NewsletterExportStatus,
+} from "@/lib/newsletter/export"
+import { cn } from "@/lib/utils"
 import type { Paginated } from "@/lib/schemas/api/list"
 import type {
   NewsletterStatus,
@@ -48,12 +53,15 @@ const TAB_LABELS: Record<Tab, string> = {
   unsubscribed: "Unsubscribed",
   all: "All",
 }
-/** Empty-tab titles (Confirmed is the unfiltered default). */
-const TAB_EMPTY: Record<Exclude<Tab, "confirmed">, string> = {
+/** What an empty tab says. */
+const TAB_EMPTY: Record<Tab, string> = {
+  confirmed: "Nobody has confirmed yet",
   pending: "Nobody is waiting to confirm",
   unsubscribed: "Nobody has unsubscribed",
   all: "No subscribers yet",
 }
+/** 44 px on touch: these sit in phone cards, where they are tapped. */
+const TOUCH_TARGET = "pointer-coarse:h-11 pointer-coarse:min-w-11"
 
 const parseTab = (value: string | null): Tab =>
   TABS.includes(value as Tab) ? (value as Tab) : "confirmed"
@@ -127,6 +135,7 @@ function columnsWith(
                 type="button"
                 variant="ghost"
                 size="sm"
+                className={TOUCH_TARGET}
                 aria-label={`Delete ${row.original.email}`}
                 onClick={() => onDelete(row.original)}
               >
@@ -139,7 +148,7 @@ function columnsWith(
   ]) as unknown as DataTableColumns<Row>
 }
 
-function exportHref(status: "all" | "confirmed"): string {
+function exportHref(status: NewsletterExportStatus): string {
   return `/api/v1/admin/newsletter/export.csv?status=${status}`
 }
 
@@ -166,9 +175,15 @@ export function NewsletterView({
     setSeenTab(urlTab)
     if (urlTab !== tab) setTab(urlTab)
   }
+  // The last subscriber asked about stays while the dialog animates closed.
   const [removing, setRemoving] = useState<SubscriberDto | null>(null)
-  const canExport = usePermission({ newsletter: ["export"] })
-  const canExportAll = usePermission({ newsletter: ["export", "delete"] })
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const askDelete = (row: SubscriberDto) => {
+    setRemoving(row)
+    setConfirmOpen(true)
+  }
+  const canExport = usePermission(exportPermission("confirmed"))
+  const canExportAll = usePermission(exportPermission("all"))
   const canDelete = usePermission({ newsletter: ["delete"] })
 
   const changeTab = (next: Tab) => {
@@ -184,13 +199,22 @@ export function NewsletterView({
 
   const status = tab === "all" ? undefined : tab
   const placementOff = placement === null || placement === "off"
-  const emptyDescription = placementOff
-    ? "The signup form is not on the website. Turn on a placement in Site settings › Newsletter."
-    : "People who sign up on the website appear here."
+  const placementHint =
+    "The signup form is not on the website. Turn on a placement in Site settings › Newsletter."
+  const emptyDescription: Record<Tab, string> = {
+    confirmed: placementOff
+      ? placementHint
+      : "People appear here once they confirm their address.",
+    pending: "Sign-ups waiting for the person to click the confirmation link.",
+    unsubscribed: "People who used the unsubscribe link.",
+    all: placementOff
+      ? placementHint
+      : "People who sign up on the website appear here.",
+  }
 
   // Stable between renders (TanStack Table v9); only the delete column varies.
   const columns = useMemo(
-    () => columnsWith(canDelete ? setRemoving : null),
+    () => columnsWith(canDelete ? askDelete : null),
     [canDelete]
   )
 
@@ -214,71 +238,79 @@ export function NewsletterView({
       <Tabs
         value={tab}
         onValueChange={(value) => changeTab(parseTab(String(value)))}
-        className="mb-4"
+        className="gap-4"
       >
-        <TabsList aria-label="Subscriber status">
+        {/* Four labels can outgrow a 320 px phone: scroll, never the page. */}
+        <TabsList
+          aria-label="Subscriber status"
+          className="max-w-full justify-start overflow-x-auto"
+        >
           {TABS.map((value) => (
             <TabsTrigger key={value} value={value}>
               {TAB_LABELS[value]}
             </TabsTrigger>
           ))}
         </TabsList>
+        {/* One panel, the active tab's: the list it filters. */}
+        <TabsContent value={tab}>
+          <DataTable<Row>
+            syncUrl
+            label="Subscribers"
+            queryKey={["newsletter", { status }]}
+            filterKey={tab}
+            filteredEmpty={TAB_EMPTY[tab]}
+            filteredEmptyDescription={emptyDescription[tab]}
+            pageSize={PAGE_SIZE}
+            searchDebounceMs={300}
+            searchPlaceholder="Search email addresses"
+            fetchPage={async (p) =>
+              (await unwrap(
+                api.newsletter.$get({
+                  query: {
+                    page: String(p.page),
+                    pageSize: String(p.pageSize),
+                    q: p.q,
+                    status,
+                  },
+                })
+              )) as Paginated<Row>
+            }
+            columns={columns}
+            renderCard={(row) => (
+              <div className="rounded-card flex flex-col gap-2 bg-card p-4">
+                <span className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 font-semibold break-all">
+                    {row.email}
+                  </span>
+                  <SubscriberStatus status={row.status} />
+                </span>
+                <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <code className="font-mono">{row.sourcePath}</code>
+                  <Subscribed row={row} />
+                </span>
+                {canDelete ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn("self-start", TOUCH_TARGET)}
+                    aria-label={`Delete ${row.email}`}
+                    onClick={() => askDelete(row)}
+                  >
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
+            )}
+            empty={TAB_EMPTY[tab]}
+            emptyDescription={emptyDescription[tab]}
+          />
+        </TabsContent>
       </Tabs>
-      <DataTable<Row>
-        syncUrl
-        label="Subscribers"
-        queryKey={["newsletter", { status }]}
-        filterKey={tab === "confirmed" ? "" : tab}
-        filteredEmpty={tab === "confirmed" ? undefined : TAB_EMPTY[tab]}
-        filteredEmptyDescription={tab === "all" ? emptyDescription : undefined}
-        pageSize={PAGE_SIZE}
-        searchDebounceMs={300}
-        searchPlaceholder="Search email addresses"
-        fetchPage={async (p) =>
-          (await unwrap(
-            api.newsletter.$get({
-              query: {
-                page: String(p.page),
-                pageSize: String(p.pageSize),
-                q: p.q,
-                status,
-              },
-            })
-          )) as Paginated<Row>
-        }
-        columns={columns}
-        renderCard={(row) => (
-          <div className="rounded-card flex flex-col gap-2 bg-card p-4">
-            <span className="flex items-start justify-between gap-2">
-              <span className="min-w-0 font-semibold break-all">
-                {row.email}
-              </span>
-              <SubscriberStatus status={row.status} />
-            </span>
-            <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <code className="font-mono">{row.sourcePath}</code>
-              <Subscribed row={row} />
-            </span>
-            {canDelete ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="self-start"
-                aria-label={`Delete ${row.email}`}
-                onClick={() => setRemoving(row)}
-              >
-                Delete
-              </Button>
-            ) : null}
-          </div>
-        )}
-        empty="No subscribers yet"
-        emptyDescription={emptyDescription}
-      />
       <DeleteSubscriberDialog
         subscriber={removing}
-        onClose={() => setRemoving(null)}
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
       />
     </>
   )
@@ -286,9 +318,11 @@ export function NewsletterView({
 
 function DeleteSubscriberDialog({
   subscriber,
+  open,
   onClose,
 }: {
   subscriber: SubscriberDto | null
+  open: boolean
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -307,7 +341,7 @@ function DeleteSubscriberDialog({
   })
   return (
     <AlertDialog
-      open={subscriber !== null}
+      open={open && subscriber !== null}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
