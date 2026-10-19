@@ -18,8 +18,10 @@
 @source not "../../../docs";
 @source not "../../(site)";
 @source not "../../../templates";
-@source not "../../../components/{about,blog,contact,home,services,consent,motion,seo}";
-@source not "../../../components/{preview-bar,site-extras,site-locale,theme-provider}.tsx";
+@source not
+  "../../../components/{about,blog,contact,home,services,consent,motion,seo}";
+@source not
+  "../../../components/{preview-bar,site-extras,site-locale,theme-provider}.tsx";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -316,4 +318,16 @@ html[data-admin] [data-slot="editor-bar"]::before {
         var(--sidebar) var(--r)
       )
       right bottom / var(--r) var(--r) no-repeat;
+}
+
+/*
+ * Colour picker (react-colorful, components/admin/appearance/colour-field.tsx):
+ * its own focus cue is a slight scale of the pointer; a keyboard user gets
+ * the admin's ring as well (WCAG 2.4.7).
+ */
+html[data-admin]
+  .react-colorful__interactive:focus-visible
+  .react-colorful__pointer {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }

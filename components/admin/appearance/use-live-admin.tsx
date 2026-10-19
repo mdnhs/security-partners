@@ -28,10 +28,19 @@ export function applyLive(
 // While mounted with a config, the draft is the admin itself: inline on
 // <html>, which beats the published <style id="theme-tokens">. Unmounting or
 // passing null hands back to the published theme.
-export function useLiveAdmin(admin: AdminThemeConfig | null): void {
+// The admin's mode as drawn now (next-themes, honouring a forced theme);
+// `resolved` stays undefined until next-themes has read the stored choice.
+export function useAdminMode(): {
+  mode: "light" | "dark"
+  resolved: string | undefined
+} {
   const { resolvedTheme, forcedTheme } = useTheme()
   const resolved = forcedTheme ?? resolvedTheme
-  const mode = resolved === "dark" ? "dark" : "light"
+  return { mode: resolved === "dark" ? "dark" : "light", resolved }
+}
+
+export function useLiveAdmin(admin: AdminThemeConfig | null): void {
+  const { mode, resolved } = useAdminMode()
   useEffect(() => {
     // Wait for next-themes to resolve, so a dark user never sees light tokens.
     if (!admin || resolved === undefined) return

@@ -48,8 +48,22 @@ export function ColourField({
   const hex = current ? toHex(current) : ""
   const [typed, setTyped] = useState<string | null>(null)
   const [error, setError] = useState(false)
+  // A new value from outside (a preset, Fix all, a reload) replaces whatever
+  // was typed, valid or not, so the input never shows stale text.
+  const shown = `${value ?? ""}|${fallback ?? ""}`
+  const [lastShown, setLastShown] = useState(shown)
+  if (shown !== lastShown) {
+    setLastShown(shown)
+    setTyped(null)
+    setError(false)
+  }
+  const revert = () => {
+    setTyped(null)
+    setError(false)
+  }
 
   const readoutId = `${id}-readout`
+  const errorId = `${id}-error`
   const descriptionId = `${id}-description`
 
   const commit = () => {
@@ -109,9 +123,12 @@ export function ColourField({
           value={typed ?? hex}
           disabled={disabled}
           aria-invalid={error || undefined}
-          aria-describedby={
-            description ? `${readoutId} ${descriptionId}` : readoutId
-          }
+          aria-describedby={[
+            error ? errorId : readoutId,
+            description ? descriptionId : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           spellCheck={false}
           autoComplete="off"
           placeholder="#rrggbb"
@@ -125,6 +142,11 @@ export function ColourField({
             if (event.key === "Enter") {
               event.preventDefault()
               commit()
+            } else if (event.key === "Escape" && typed !== null) {
+              // Back to the stored colour; a dialog around it stays open.
+              event.preventDefault()
+              event.stopPropagation()
+              revert()
             }
           }}
         />
@@ -158,19 +180,19 @@ export function ColourField({
           </Button>
         ) : null}
       </div>
+      {/* Not live: it changes on every picker step and preset pick. */}
+      {error ? null : (
+        <p id={readoutId} className="truncate text-xs text-muted-foreground">
+          {current ? `${formatOklch(current)} · ${hex}` : "Not set"}
+        </p>
+      )}
+      {/* Always present, so the error is announced when it appears. */}
       <p
-        id={readoutId}
-        aria-live="polite"
-        className={cn(
-          "truncate text-xs",
-          error ? "text-danger" : "text-muted-foreground"
-        )}
+        id={errorId}
+        role="status"
+        className={cn("text-danger text-xs", !error && "sr-only")}
       >
-        {error
-          ? COLOUR_INVALID
-          : current
-            ? `${formatOklch(current)} · ${hex}`
-            : "Not set"}
+        {error ? COLOUR_INVALID : ""}
       </p>
     </div>
   )

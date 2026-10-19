@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 
+import { useAdminMode } from "./use-live-admin"
+
 const CHARTS = [
   "bg-chart-1",
   "bg-chart-2",
@@ -22,8 +24,12 @@ const CHARTS = [
 ]
 
 // Sample admin controls drawn with the live tokens (see useLiveAdmin), which
-// follow the admin's resolved mode; `mode` names it for the reader.
-export function AdminPreview({ mode }: { mode: "light" | "dark" }) {
+// follow the admin's resolved mode. The caption names that same mode; a
+// caller may pass it (the Appearance page passes useAdminMode's), and
+// without one it is read here, so caption and colours cannot drift apart.
+export function AdminPreview({ mode: given }: { mode?: "light" | "dark" }) {
+  const resolved = useAdminMode().mode
+  const mode = given ?? resolved
   return (
     <Card role="group" aria-label="Admin preview" data-mode={mode}>
       <CardHeader>

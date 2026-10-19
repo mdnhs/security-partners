@@ -1,9 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useRef, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   describeIssue,
   fixAll,
@@ -50,6 +58,10 @@ export function ContrastPanel({
     scope === "site" ? r.scope === "site" : r.scope !== "site"
   )
   const failing = rows.filter((r) => r.rating === "fail").length
+  const heading = useRef<HTMLHeadingElement>(null)
+  // The button just used unmounts (the row passes) or turns disabled
+  // (nothing fails): focus moves to the heading, never to <body>.
+  const settle = () => heading.current?.focus()
 
   return (
     <section
@@ -57,9 +69,22 @@ export function ContrastPanel({
       className="flex flex-col gap-3 rounded-xl border bg-card p-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id={`contrast-${scope}`} className="text-base font-semibold">
-          Contrast
-        </h2>
+        <div className="flex flex-col gap-0.5">
+          <h2
+            ref={heading}
+            id={`contrast-${scope}`}
+            tabIndex={-1}
+            className="text-base font-semibold outline-none"
+          >
+            Contrast
+          </h2>
+          {/* Polite and always present: a fix announces the new count. */}
+          <p role="status" className="text-sm text-muted-foreground">
+            {failing
+              ? `${failing} of ${rows.length} pairs fail`
+              : "All pairs pass"}
+          </p>
+        </div>
         {disabled ? null : (
           <Button
             type="button"
@@ -74,75 +99,95 @@ export function ContrastPanel({
                   ? { ...config, site: fixed.site }
                   : { ...config, admin: fixed.admin }
               )
+              settle()
             }}
           >
             Fix all
           </Button>
         )}
       </div>
-      <table className="w-full text-sm">
-        <thead className="sr-only">
-          <tr>
-            <th scope="col">Pair</th>
-            <th scope="col">Ratio</th>
-            <th scope="col">Rating</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
+      <Table>
+        <TableHeader className="sr-only">
+          <TableRow>
+            <TableHead scope="col">Pair</TableHead>
+            <TableHead scope="col">Ratio</TableHead>
+            <TableHead scope="col">Rating</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => {
             const failed = row.rating === "fail"
             const key = rowKey(row)
             return (
-              <tr key={key} className="align-top">
-                <th scope="row" className="py-2 pr-3 text-left font-normal">
-                  {MODE[row.scope]}
-                  {tokenLabel(row.scope, row.text)} on{" "}
-                  {tokenLabel(row.scope, row.surface)}
-                  {failed ? (
-                    <div className="text-danger mt-1 flex flex-wrap items-center gap-2">
-                      <p>{describeIssue(row)}</p>
-                      {disabled ? null : stuck.includes(key) ? (
-                        <span className="text-muted-foreground">
-                          Pick a different colour
-                        </span>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="pointer-coarse:h-11"
-                          onClick={() => {
-                            const next = fixIssue(config, row)
-                            if (next) onFix(next)
-                            else
-                              setStuck({
-                                at: snapshot,
-                                keys: [...stuck, key],
-                              })
-                          }}
-                        >
-                          Fix automatically
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </th>
-                <td className="py-2 pr-3 text-right whitespace-nowrap tabular-nums">
-                  {formatRatio(row.ratio)}
-                </td>
-                <td className="py-2 text-right">
-                  <Badge
-                    variant={failed ? "destructive" : "secondary"}
-                    className={cn(!failed && "bg-success-soft text-success")}
+              <Fragment key={key}>
+                <TableRow
+                  className={cn(
+                    "align-top hover:bg-transparent",
+                    failed && "border-b-0"
+                  )}
+                >
+                  {/* Only the pair: a row header is repeated for every cell. */}
+                  <th
+                    scope="row"
+                    className="py-2 pr-3 text-left font-normal whitespace-normal"
                   >
-                    {BADGE[row.rating]}
-                  </Badge>
-                </td>
-              </tr>
+                    {MODE[row.scope]}
+                    {tokenLabel(row.scope, row.text)} on{" "}
+                    {tokenLabel(row.scope, row.surface)}
+                  </th>
+                  <TableCell className="px-0 py-2 pr-3 text-right tabular-nums">
+                    {formatRatio(row.ratio)}
+                  </TableCell>
+                  <TableCell className="px-0 py-2 text-right">
+                    <Badge
+                      variant={failed ? "destructive" : "secondary"}
+                      className={cn(!failed && "bg-success-soft text-success")}
+                    >
+                      {BADGE[row.rating]}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+                {failed ? (
+                  <TableRow data-issue={key} className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={3}
+                      className="px-0 pt-0 pb-2 whitespace-normal"
+                    >
+                      <div className="text-danger flex flex-wrap items-center gap-2">
+                        <p>{describeIssue(row)}</p>
+                        {disabled ? null : stuck.includes(key) ? (
+                          <span className="text-muted-foreground">
+                            Pick a different colour
+                          </span>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="pointer-coarse:h-11"
+                            onClick={() => {
+                              const next = fixIssue(config, row)
+                              if (next) onFix(next)
+                              else
+                                setStuck({
+                                  at: snapshot,
+                                  keys: [...stuck, key],
+                                })
+                              settle()
+                            }}
+                          >
+                            Fix automatically
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </Fragment>
             )
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </section>
   )
 }
