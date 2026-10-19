@@ -8,6 +8,7 @@ import "../globals.css"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { PreviewBar } from "@/components/preview-bar"
 import { SiteExtras } from "@/components/site-extras"
+import { SiteThemeStyle } from "@/components/site-theme-style"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { publicOrigin } from "@/server/lib/site-origin"
@@ -67,6 +68,10 @@ export default function RootLayout({
         />
       </head>
       <body>
+        {/* Published brand overrides (Appearance); nothing by default. */}
+        <Suspense fallback={null}>
+          <SiteThemeStyle />
+        </Suspense>
         <SmoothScroll />
         <ThemeProvider>{children}</ThemeProvider>
         {/* Draft-mode only (admins); renders nothing for visitors. */}

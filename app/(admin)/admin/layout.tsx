@@ -1,7 +1,9 @@
 import type { Metadata } from "next"
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google"
+import { Suspense } from "react"
 
 import "./admin.css"
+import { AdminThemeStyle } from "@/components/admin/theme/admin-theme-style"
 import { AdminThemeProvider } from "@/components/admin/theme-provider"
 import { cn } from "@/lib/utils"
 
@@ -51,7 +53,14 @@ export default function AdminRootLayout({
       )}
     >
       <body className="min-h-svh bg-background text-foreground">
-        <AdminThemeProvider>{children}</AdminThemeProvider>
+        <AdminThemeProvider>
+          {/* Published theme (Appearance): default mode + token overrides.
+              Inside the provider: DefaultMode calls next-themes' setTheme. */}
+          <Suspense fallback={null}>
+            <AdminThemeStyle />
+          </Suspense>
+          {children}
+        </AdminThemeProvider>
       </body>
     </html>
   )
