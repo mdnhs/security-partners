@@ -39,6 +39,8 @@ export async function generateMetadata({
 }
 
 export default function BuilderPage({ params }: PageProps<"/p/[slug]">) {
+  // The page's single top-level wrapper: swapped for SiteThemed (C3,
+  // components/site-themed.tsx) at integration.
   return (
     <Suspense fallback={null}>
       <Builder params={params} />
