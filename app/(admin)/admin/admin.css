@@ -18,10 +18,10 @@
 @source not "../../../docs";
 @source not "../../(site)";
 @source not "../../../templates";
-@source not
-  "../../../components/{about,blog,contact,home,services,consent,motion,seo}";
-@source not
-  "../../../components/{preview-bar,site-extras,site-locale,theme-provider}.tsx";
+/* prettier-ignore */
+@source not "../../../components/{about,blog,contact,home,services,consent,motion,seo}";
+/* prettier-ignore */
+@source not "../../../components/{preview-bar,site-extras,site-locale,theme-provider}.tsx";
 
 @custom-variant dark (&:is(.dark *));
 
