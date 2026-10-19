@@ -71,18 +71,26 @@ export function useThemeAutosave({
     [accept]
   )
 
-  const { flush } = autosave
-  /** Saves pending edits, then `call(version)`; the answer becomes the draft. */
+  const { flush, currentConflict } = autosave
+  /**
+   * Saves pending edits, then `call(version)`; the answer becomes the draft.
+   * A flush that hits a 409 throws that same error: `isAutosaveConflict`
+   * tells the caller the conflict dialog already handles it.
+   */
   const run = useCallback(
     async (call: (version: number) => Promise<ThemeDto>) => {
       if (!(await flush()))
-        throw autosave.conflict ?? new Error("Save your changes first.")
+        throw currentConflict() ?? new Error("Save your changes first.")
       const dto = await call(versionRef.current)
       replace(dto)
       return dto
     },
-    [flush, autosave.conflict, replace]
+    [flush, currentConflict, replace]
   )
+
+  /** True for the 409 our own autosave hit (the dialog shows it). */
+  const isAutosaveConflict = (error: unknown) =>
+    error != null && error === currentConflict()
 
   /** Their record (a 409's `current`) becomes the base; mine is saved over it. */
   const overwrite = useCallback(
@@ -112,6 +120,8 @@ export function useThemeAutosave({
     conflictDto,
     flush,
     run,
+    isAutosaveConflict,
+    currentConflict,
     replace,
     overwrite,
     resolveConflict: autosave.resolveConflict,

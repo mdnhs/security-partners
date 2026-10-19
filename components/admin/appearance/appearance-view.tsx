@@ -198,6 +198,9 @@ function Editor({
       setServerErrors([])
       return dto
     } catch (error) {
+      // Our own pending edits hit a 409 on the way: the conflict dialog
+      // shows it, so no second message here.
+      if (theme.isAutosaveConflict(error)) return null
       if (error instanceof ApiError && error.isConflict) {
         const current = error.current as ThemeDto | undefined
         if (current && current !== theme.conflictDto) {
@@ -265,7 +268,17 @@ function Editor({
     // saved: a window opened after an await is a blocked popup.
     const tab = window.open("", "_blank")
     if (tab) tab.opener = null
-    await theme.flush()
+    if (!(await theme.flush())) {
+      // Unsaved edits (a conflict or an invalid draft): the preview would
+      // show the last saved draft, not what is on screen.
+      tab?.close()
+      // A conflict opens its dialog; anything else needs a message.
+      if (!theme.currentConflict())
+        toast.error("Save your changes first", {
+          description: "The preview shows the saved draft only.",
+        })
+      return
+    }
     if (tab) tab.location.href = PREVIEW_HREF
     else window.open(PREVIEW_HREF, "_blank", "noopener")
   }
@@ -363,26 +376,27 @@ function Editor({
         }
       />
 
-      {blocked ? (
-        <div
-          role="status"
-          className="bg-danger-soft text-danger flex flex-col gap-1 rounded-xl p-4 text-sm"
-        >
-          <p className="font-semibold">{PUBLISH_BLOCKED}</p>
-          {serverErrors.length ? (
-            <ul className="list-disc pl-5">
-              {serverErrors.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>
-              {describeIssue(issues[0]!)}
-              {issues.length > 1 ? ` (and ${issues.length - 1} more)` : ""}
-            </p>
-          )}
-        </div>
-      ) : null}
+      {/* Always mounted (display: contents adds no flex gap when empty): a
+          live region inserted already filled is not announced reliably. */}
+      <div role="status" aria-label="Publish checks" className="contents">
+        {blocked ? (
+          <div className="bg-danger-soft text-danger flex flex-col gap-1 rounded-xl p-4 text-sm">
+            <p className="font-semibold">{PUBLISH_BLOCKED}</p>
+            {serverErrors.length ? (
+              <ul className="list-disc pl-5">
+                {serverErrors.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>
+                {describeIssue(issues[0]!)}
+                {issues.length > 1 ? ` (and ${issues.length - 1} more)` : ""}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
 
       <Tabs value={tab} onValueChange={(next) => setTab(String(next))}>
         <TabsList>

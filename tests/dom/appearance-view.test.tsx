@@ -6,6 +6,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/appearance",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }))
+const { toastMock } = vi.hoisted(() => ({
+  toastMock: { success: vi.fn(), error: vi.fn() },
+}))
+vi.mock("sonner", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("sonner")>()),
+  toast: toastMock,
+}))
 
 import { AppearanceView } from "@/components/admin/appearance/appearance-view"
 import { makeQueryClient } from "@/components/admin/providers"
@@ -73,6 +80,8 @@ function serve(initial: ThemeDto) {
 
 beforeEach(() => {
   calls = []
+  toastMock.error.mockClear()
+  toastMock.success.mockClear()
   localStorage.clear()
   vi.stubGlobal(
     "fetch",
@@ -109,7 +118,7 @@ afterEach(() => {
   localStorage.clear()
 })
 
-function renderAs(roles: Role[]) {
+function renderAs(roles: Role[], autosaveDelay = 10) {
   return render(
     <AdminThemeProvider>
       <AdminShell
@@ -126,7 +135,7 @@ function renderAs(roles: Role[]) {
           impersonatedBy: null,
         }}
       >
-        <AppearanceView autosaveDelay={10} />
+        <AppearanceView autosaveDelay={autosaveDelay} />
       </AdminShell>
     </AdminThemeProvider>
   )
@@ -185,10 +194,91 @@ describe("Appearance screen (C5)", () => {
     })
     serve(dto(failing))
     renderAs(["owner"])
-    expect(
-      await screen.findByText("Publishing is blocked until every pair passes.")
-    ).toBeInTheDocument()
+    const banner = await screen.findByText(
+      "Publishing is blocked until every pair passes."
+    )
+    expect(screen.getByRole("status", { name: "Publish checks" })).toContain(
+      banner
+    )
     expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled()
+  })
+
+  it("keeps the publish-checks live region mounted while empty (review C5 m5)", async () => {
+    serve(dto(DEFAULT_THEME))
+    renderAs(["owner"])
+    await screen.findByRole("heading", { level: 1, name: "Appearance" })
+    // A live region inserted already filled is often not announced.
+    expect(
+      screen.getByRole("status", { name: "Publish checks" })
+    ).toBeEmptyDOMElement()
+  })
+
+  /** Every draft save answers 409 with their version. */
+  function serveConflict() {
+    const theirs = dto(ThemeConfig.parse({ admin: { preset: "plum" } }), {
+      version: 5,
+    })
+    serve(dto(DEFAULT_THEME))
+    const base = respond
+    respond = (call) =>
+      call.method === "PUT"
+        ? json(
+            {
+              error: {
+                code: "CONFLICT",
+                message: "Changed by someone else",
+                current: theirs,
+              },
+            },
+            409
+          )
+        : base(call)
+  }
+
+  it("an action whose flush hits a 409 shows only the conflict dialog (review C5 m2)", async () => {
+    serveConflict()
+    const user = userEvent.setup()
+    // No autosave before the action: its own flush meets the 409.
+    renderAs(["owner"], 60_000)
+    await user.click(await screen.findByRole("tab", { name: "Admin" }))
+    await user.click(screen.getByRole("button", { name: /Graphite/ }))
+    await user.click(screen.getByRole("button", { name: "Discard draft" }))
+    const confirm = await screen.findByRole("alertdialog")
+    await user.click(within(confirm).getByRole("button", { name: /Discard/ }))
+    await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    expect(calls.some((c) => c.path.endsWith("/discard"))).toBe(false)
+    // Let the rejected action settle: it must not add a toast.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(toastMock.error).not.toHaveBeenCalled()
+  })
+
+  it("Preview on site does not open a stale preview when the save fails (review C5 m3)", async () => {
+    serveConflict()
+    const tab = {
+      opener: {} as unknown,
+      close: vi.fn(),
+      location: { href: "" },
+    }
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as never)
+    try {
+      const user = userEvent.setup()
+      renderAs(["owner"], 60_000)
+      await user.click(await screen.findByRole("tab", { name: "Admin" }))
+      await user.click(screen.getByRole("button", { name: /Graphite/ }))
+      await user.click(screen.getByRole("button", { name: "Preview on site" }))
+      await screen.findByRole("alertdialog", {
+        name: "Someone else changed this",
+      })
+      await waitFor(() => expect(tab.close).toHaveBeenCalled())
+      expect(tab.location.href).toBe("")
+      expect(open).toHaveBeenCalledTimes(1)
+      // The conflict dialog is the message.
+      expect(toastMock.error).not.toHaveBeenCalled()
+    } finally {
+      open.mockRestore()
+    }
   })
 
   it("shows the server's reasons when publish is refused (422, re-review n3)", async () => {

@@ -193,8 +193,14 @@ export async function resetThemeDraft(
     // (saveDraft re-validates the whole draft either way).
     const kept = (current.draft ?? {}) as Partial<ThemeConfigValue>
     return {
-      site: scope === "admin" ? kept.site! : presetSiteTheme(preset),
-      admin: scope === "site" ? kept.admin! : AdminTheme.parse({ preset }),
+      site:
+        scope === "admin"
+          ? (kept.site ?? DEFAULT_THEME.site)
+          : presetSiteTheme(preset),
+      admin:
+        scope === "site"
+          ? (kept.admin ?? DEFAULT_THEME.admin)
+          : AdminTheme.parse({ preset }),
     }
   })
 }

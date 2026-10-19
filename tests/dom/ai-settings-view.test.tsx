@@ -202,6 +202,20 @@ describe("AiSettingsView (MK parity C7)", () => {
         "Not available while you view the admin as someone else."
       )
     ).toBeInTheDocument()
+
+    // C7 re-review minor: pinned, not only shown. Pressing the switch asks
+    // for no acknowledgement, and a save never carries the enquiry setting.
+    const user = userEvent.setup()
+    await user.click(share)
+    expect(screen.queryByRole("checkbox", { name: /I confirm/ })).toBeNull()
+    const longest = screen.getByRole("spinbutton", { name: /Longest answer/ })
+    await user.clear(longest)
+    await user.type(longest, "2048")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(puts()).toHaveLength(1))
+    const body = puts()[0] as { values: Record<string, unknown> }
+    expect(body.values).toMatchObject({ maxOutputTokens: 2048 })
+    expect(body.values).not.toHaveProperty("shareEnquiryDetails")
   })
 
   it("List models says “Save first” while the provider is unsaved, and asks nothing", async () => {

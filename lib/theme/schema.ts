@@ -2,7 +2,7 @@
 import * as z from "zod"
 
 import { formatOklch, parseColor } from "./color"
-import { deepFreeze } from "./freeze"
+import { deepFreeze, type DeepReadonly } from "./freeze"
 import { PRESET_IDS } from "./presets"
 import { SP_ADMIN_RADIUS } from "./sp-admin"
 import { SITE_TOKENS } from "./tokens"
@@ -52,4 +52,6 @@ export type SiteThemeConfig = ThemeConfigValue["site"]
 export type AdminThemeConfig = ThemeConfigValue["admin"]
 
 // Frozen: shared by every caller (see freeze.ts).
-export const DEFAULT_THEME: ThemeConfigValue = deepFreeze(ThemeConfig.parse({}))
+export const DEFAULT_THEME: DeepReadonly<ThemeConfigValue> = deepFreeze(
+  ThemeConfig.parse({})
+)

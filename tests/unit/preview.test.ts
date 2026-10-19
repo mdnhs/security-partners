@@ -29,7 +29,9 @@ import {
   isPreviewing,
 } from "@/server/modules/preview/guard"
 import { REQUEST_PATH_HEADER } from "@/lib/request-path"
-import { safeReturnPath } from "@/server/modules/preview/service"
+import { hasPermission, ROLE_GRANTS } from "@/lib/auth/permissions"
+import { ROLES } from "@/lib/auth/roles"
+import { canPreview, safeReturnPath } from "@/server/modules/preview/service"
 import {
   PREVIEW_COOKIE,
   PREVIEW_TTL_SECONDS,
@@ -189,5 +191,31 @@ describe("safeReturnPath", () => {
     [undefined, "/"],
   ])("%s → %s", (referer, expected) => {
     expect(safeReturnPath(referer, origin)).toBe(expected)
+  })
+})
+
+describe("canPreview (unlocks every draft site-wide)", () => {
+  // canPreview also accepts appearance:read (C5). Draft mode is site-wide,
+  // so that clause is only safe while every appearance reader can already
+  // preview page drafts. A role with appearance alone must be a deliberate
+  // choice: change canPreview (or this pin) when one is added.
+  it.each(ROLES)(
+    "%s: appearance:read implies page:read (no widening)",
+    (role) => {
+      if (hasPermission([role], { appearance: ["read"] })) {
+        expect(hasPermission([role], { page: ["read"] })).toBe(true)
+      }
+    }
+  )
+
+  it("matches the role matrix", () => {
+    const previewers = ROLES.filter((role) => canPreview([role]))
+    expect(previewers).toEqual(
+      ROLES.filter((role) =>
+        (["page", "service", "article", "settings"] as const).some(
+          (r) => ROLE_GRANTS[role][r]?.includes("read" as never) ?? false
+        )
+      )
+    )
   })
 })

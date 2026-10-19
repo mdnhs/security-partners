@@ -47,6 +47,7 @@ const SCREENS: { path: string; permission: PermissionRequest }[] = [
   { path: "/admin/activity", permission: { audit: ["read"] } },
   { path: "/admin/marketing/code", permission: { customCode: ["read"] } },
   { path: "/admin/design", permission: { customCode: ["update"] } },
+  { path: "/admin/appearance", permission: { appearance: ["read"] } },
 ]
 
 for (const role of ROLES) {

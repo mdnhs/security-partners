@@ -19,6 +19,7 @@ import {
   useLiveAdmin,
 } from "@/components/admin/appearance/use-live-admin"
 import { AdminThemeProvider } from "@/components/admin/theme-provider"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { checkTheme } from "@/lib/theme/checks"
 import type { PresetId } from "@/lib/theme/presets"
 import {
@@ -203,6 +204,45 @@ describe("ColourField", () => {
     await user.type(input, "{Escape}")
     expect(input).toHaveValue("#2751a3")
     expect(input).not.toHaveAttribute("aria-invalid")
+  })
+
+  it("Escape with typed text reverts without closing a dialog (review C5 m8)", async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    function Harness() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            onOpenChange(next)
+            setOpen(next)
+          }}
+        >
+          <DialogContent>
+            <DialogTitle>Edit colour</DialogTitle>
+            <ColourField
+              id="brand"
+              label="Brand"
+              value="#2751a3"
+              onChange={() => undefined}
+            />
+          </DialogContent>
+        </Dialog>
+      )
+    }
+    render(<Harness />)
+    const dialog = await screen.findByRole("dialog", { name: "Edit colour" })
+    const input = within(dialog).getByRole("textbox", { name: "Brand" })
+    await user.clear(input)
+    await user.type(input, "zzz")
+    await user.keyboard("{Escape}")
+    expect(input).toHaveValue("#2751a3")
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole("dialog", { name: "Edit colour" })).toBeVisible()
+    // Nothing typed any more: Escape is the dialog's again.
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
   it("emits canonical oklch from the picker (review C4 m5)", async () => {

@@ -959,10 +959,14 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("heading", { name: "Brand images" })
       ).toBeVisible()
-      await expect(page.getByText("Nothing published yet.")).toBeVisible()
+      // History depends on what earlier e2e runs published (sp_e2e with a
+      // reused server): wait for it to load, then mask it.
+      const history = page.getByRole("region", { name: "History" })
+      await expect(history).toBeVisible()
+      await expect(history.getByText("Loading…")).toHaveCount(0)
       await visibleImagesLoaded(page)
       await expect(page).toHaveScreenshot(shot("appearance"), {
-        mask: await masks(page),
+        mask: [...(await masks(page)), history],
       })
     })
 

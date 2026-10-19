@@ -13,6 +13,7 @@ const { flags } = vi.hoisted(() => ({
     previewFails: false,
     publishedFails: false,
     hold: undefined as Promise<void> | undefined,
+    previewHold: undefined as Promise<void> | undefined,
   },
 }))
 vi.mock("next/cache", () => ({
@@ -26,6 +27,9 @@ vi.mock("next/server", async (importOriginal) => ({
 }))
 vi.mock("@/server/modules/preview/guard", () => ({
   isPreviewing: async () => {
+    // getPreviewableSiteTheme reads the published theme through its own
+    // binding (not this module mock), so the site read is held here.
+    await flags.previewHold
     if (flags.previewFails) throw new Error("preview check failed")
     return flags.preview
   },
@@ -78,6 +82,7 @@ beforeEach(async () => {
   flags.previewFails = false
   flags.publishedFails = false
   flags.hold = undefined
+  flags.previewHold = undefined
 })
 
 async function saveDraft(
@@ -116,6 +121,47 @@ async function streamHtml(node: React.ReactNode): Promise<string> {
   const stream = await renderToReadableStream(node)
   await stream.allReady
   return new Response(stream).text()
+}
+
+/**
+ * Streams `themed` after a shell while the theme read is held (the caller
+ * sets the hold): React may stream the content early, but only into a
+ * hidden segment, and the boundary is not revealed (no $RC) until the read
+ * inside it completes.
+ */
+async function expectContentHeld(themed: React.ReactNode): Promise<void> {
+  let shell = ""
+  const sink = new Writable({
+    write(chunk: Buffer, _enc, done) {
+      shell += chunk.toString()
+      done()
+    },
+  })
+  const { abort } = await new Promise<{ abort: () => void }>((resolve) => {
+    const r = renderToPipeableStream(
+      <html>
+        <body>
+          <p>Shell</p>
+          {themed}
+        </body>
+      </html>,
+      { onShellReady: () => resolve(r) }
+    )
+    r.pipe(sink)
+  })
+  await new Promise((r) => setTimeout(r, 50))
+  try {
+    expect(shell).toContain("<p>Shell</p>")
+    const hidden = shell.indexOf("<div hidden")
+    const content = shell.indexOf('id="content"')
+    if (content > -1) {
+      expect(hidden).toBeGreaterThan(-1)
+      expect(content).toBeGreaterThan(hidden)
+    }
+    expect(shell).not.toMatch(/\$RC\(/)
+  } finally {
+    abort()
+  }
 }
 
 describe("SiteThemeStyle", () => {
@@ -204,44 +250,14 @@ describe("AdminThemed (one boundary for theme + content)", () => {
 
   it("the content waits for the theme read (one boundary)", async () => {
     let release = () => {}
-    const pending = new Promise<void>((resolve) => (release = resolve))
     // A theme read that never settles: nothing of the content may render.
-    flags.hold = pending
-    let shell = ""
-    const sink = new Writable({
-      write(chunk: Buffer, _enc, done) {
-        shell += chunk.toString()
-        done()
-      },
-    })
-    const { abort } = await new Promise<{ abort: () => void }>((resolve) => {
-      const r = renderToPipeableStream(
-        <html>
-          <body>
-            <p>Shell</p>
-            <AdminThemed>
-              <p id="content">Content</p>
-            </AdminThemed>
-          </body>
-        </html>,
-        { onShellReady: () => resolve(r) }
-      )
-      r.pipe(sink)
-    })
-    await new Promise((r) => setTimeout(r, 50))
-    // The shell has flushed. React may stream the content early, but only
-    // into a hidden segment: the boundary is not revealed (no $RC) until the
-    // theme read inside it completes.
-    expect(shell).toContain("<p>Shell</p>")
-    const hidden = shell.indexOf("<div hidden")
-    const content = shell.indexOf('id="content"')
-    if (content > -1) {
-      expect(hidden).toBeGreaterThan(-1)
-      expect(content).toBeGreaterThan(hidden)
-    }
-    expect(shell).not.toMatch(/\$RC\(/)
+    flags.hold = new Promise<void>((resolve) => (release = resolve))
+    await expectContentHeld(
+      <AdminThemed>
+        <p id="content">Content</p>
+      </AdminThemed>
+    )
     release()
-    abort()
   })
 
   it("default theme: the content streams with no style", async () => {
@@ -266,6 +282,19 @@ describe("SiteThemed (a page's content + the brand overrides)", () => {
     const style = html.indexOf('<style id="site-theme">')
     expect(style).toBeGreaterThan(-1)
     expect(html.indexOf('<main id="content">')).toBeGreaterThan(style)
+  })
+
+  it("the page content waits for the theme read (one boundary)", async () => {
+    let release = () => {}
+    // The site read starts with the preview check: hold that and the
+    // content must stay unrevealed.
+    flags.previewHold = new Promise<void>((resolve) => (release = resolve))
+    await expectContentHeld(
+      <SiteThemed>
+        <p id="content">Content</p>
+      </SiteThemed>
+    )
+    release()
   })
 
   it("default theme: the page content alone", async () => {

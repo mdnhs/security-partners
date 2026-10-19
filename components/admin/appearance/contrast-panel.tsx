@@ -74,7 +74,7 @@ export function ContrastPanel({
             ref={heading}
             id={`contrast-${scope}`}
             tabIndex={-1}
-            className="text-base font-semibold outline-none"
+            className="rounded-sm text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Contrast
           </h2>
