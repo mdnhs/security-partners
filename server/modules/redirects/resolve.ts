@@ -5,7 +5,6 @@ import { SLUG_PATTERN } from "@/lib/schemas/common"
 import { FILE_EXTENSION } from "@/lib/seo/redirects"
 import { getDb } from "@/server/db/client"
 import { pgErrorCode } from "@/server/lib/pg-errors"
-import { isPublishedBuilderSlug } from "@/server/modules/builder-pages/repo"
 import { PAGE_PATHS } from "@/templates/registry"
 
 import {
@@ -133,7 +132,7 @@ export async function resolvePublicPath(
     }
     if (builder) {
       const slug = builder[1]
-      if (isBuilderSlug(slug) && (await isPublishedBuilderSlug(db, slug)))
+      if (isBuilderSlug(slug) && (await isPublishedSlug(db, "builder", slug)))
         return PASS
     }
     const redirect = await findRedirectByFrom(db, pathname)

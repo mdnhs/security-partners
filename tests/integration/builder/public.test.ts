@@ -132,6 +132,25 @@ describe("resolvePublicPath: /p/<slug> (D5.3)", () => {
     })
   })
 
+  it("a page republished at a redirected address serves again (live beats redirect)", async () => {
+    const { cookie } = await signedInUser(["editor"])
+    const first = await insertPage("comeback")
+    const res = await adminRequest(
+      `/builder-pages/${first.id}?redirectHome=true`,
+      { cookie, method: "DELETE" }
+    )
+    expect(res.status).toBe(200)
+    expect(await resolvePublicPath("/p/comeback", live)).toMatchObject({
+      kind: "redirect",
+      to: "/",
+    })
+    // The /p/comeback → / row stays; a new live page at the slug wins.
+    await insertPage("comeback")
+    expect(await resolvePublicPath("/p/comeback", live)).toEqual({
+      kind: "pass",
+    })
+  })
+
   it("/p/old after a slug change is a 301 to /p/new", async () => {
     const { cookie } = await signedInUser(["editor"])
     const row = await insertPage("old")

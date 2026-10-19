@@ -5,9 +5,7 @@ const repo = vi.hoisted(() => ({
   incrementRedirectHits: vi.fn(),
   isPublishedSlug: vi.fn(),
 }))
-const builder = vi.hoisted(() => ({ isPublishedBuilderSlug: vi.fn() }))
 vi.mock("@/server/modules/redirects/repo", () => repo)
-vi.mock("@/server/modules/builder-pages/repo", () => builder)
 vi.mock("@/server/db/client", () => ({ getDb: vi.fn(() => ({})) }))
 
 import { resolvePublicPath } from "@/server/modules/redirects/resolve"
@@ -17,7 +15,7 @@ const live = { draft: false }
 beforeEach(() => {
   vi.clearAllMocks()
   repo.findRedirectByFrom.mockResolvedValue(null)
-  builder.isPublishedBuilderSlug.mockResolvedValue(false)
+  repo.isPublishedSlug.mockResolvedValue(false)
 })
 
 describe("resolvePublicPath: /p/<slug> (proxy cost)", () => {
@@ -25,7 +23,7 @@ describe("resolvePublicPath: /p/<slug> (proxy cost)", () => {
     expect(await resolvePublicPath("/p/anything", { draft: true })).toEqual({
       kind: "pass",
     })
-    expect(builder.isPublishedBuilderSlug).not.toHaveBeenCalled()
+    expect(repo.isPublishedSlug).not.toHaveBeenCalled()
     expect(repo.findRedirectByFrom).not.toHaveBeenCalled()
   })
 
@@ -34,11 +32,11 @@ describe("resolvePublicPath: /p/<slug> (proxy cost)", () => {
       expect(await resolvePublicPath(path, live), path).toEqual({
         kind: "missing",
       })
-    expect(builder.isPublishedBuilderSlug).not.toHaveBeenCalled()
+    expect(repo.isPublishedSlug).not.toHaveBeenCalled()
   })
 
   it("published → pass with one query; unpublished → redirect lookup → missing", async () => {
-    builder.isPublishedBuilderSlug.mockResolvedValueOnce(true)
+    repo.isPublishedSlug.mockResolvedValueOnce(true)
     expect(await resolvePublicPath("/p/landing", live)).toEqual({
       kind: "pass",
     })
@@ -49,8 +47,20 @@ describe("resolvePublicPath: /p/<slug> (proxy cost)", () => {
     expect(repo.findRedirectByFrom).toHaveBeenCalledWith({}, "/p/landing")
   })
 
+  it("a live page beats a stored redirect from its own address", async () => {
+    repo.isPublishedSlug.mockResolvedValueOnce(true)
+    repo.findRedirectByFrom.mockResolvedValue({
+      id: "r1",
+      toPath: "/",
+      code: 301,
+    })
+    expect(await resolvePublicPath("/p/back", live)).toEqual({ kind: "pass" })
+    expect(repo.isPublishedSlug).toHaveBeenCalledWith({}, "builder", "back")
+    expect(repo.findRedirectByFrom).not.toHaveBeenCalled()
+  })
+
   it("deeper paths under /p/ are not builder pages (catch-all 404 via pass)", async () => {
     expect(await resolvePublicPath("/p/a/b", live)).toEqual({ kind: "pass" })
-    expect(builder.isPublishedBuilderSlug).not.toHaveBeenCalled()
+    expect(repo.isPublishedSlug).not.toHaveBeenCalled()
   })
 })

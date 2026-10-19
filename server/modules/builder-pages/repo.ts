@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, eq, getTableColumns, isNotNull, sql } from "drizzle-orm"
+import { and, asc, eq, getTableColumns, sql } from "drizzle-orm"
 
 import type { DraftDocument } from "@/blocks/document"
 import type { DbOrTx } from "@/server/db/client"
@@ -129,18 +129,6 @@ export async function findBuilderPageBySlug(db: DbOrTx, slug: string) {
     .from(builderPages)
     .where(eq(builderPages.slug, slug))
   return row ?? null
-}
-
-export async function isPublishedBuilderSlug(
-  db: DbOrTx,
-  slug: string
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: builderPages.id })
-    .from(builderPages)
-    .where(and(eq(builderPages.slug, slug), isNotNull(builderPages.published)))
-    .limit(1)
-  return rows.length > 0
 }
 
 /** True when a published builder page shows a (not hidden) newsletter block. */

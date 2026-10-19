@@ -30,6 +30,8 @@ vi.mock("next/headers", async (importOriginal) => {
   }
 })
 
+import { cacheTag } from "next/cache"
+
 import type { BuilderDocument } from "@/blocks/document"
 import type { Role } from "@/lib/auth/roles"
 import { getDb } from "@/server/db/client"
@@ -103,5 +105,14 @@ describe("builder drafts in preview need page:read (D5.3 review minor 1)", () =>
 
   it("draft mode without a preview session shows no draft", async () => {
     expect(await getBuilderPageForRequest("draft-only")).toBeNull()
+  })
+
+  it("unknown, unpublished and malformed slugs never reach the cached read (M9)", async () => {
+    vi.mocked(cacheTag).mockClear()
+    for (const slug of ["nope", "draft-only", "Bad", "admin"])
+      expect(await getBuilderPageForRequest(slug), slug).toBeNull()
+    expect(cacheTag).not.toHaveBeenCalled()
+    expect(await getBuilderPageForRequest("live")).not.toBeNull()
+    expect(cacheTag).toHaveBeenCalledWith("builder-pages", "builder-page:live")
   })
 })

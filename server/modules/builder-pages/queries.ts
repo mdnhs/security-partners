@@ -9,6 +9,7 @@ import type { Seo } from "@/lib/schemas/common"
 import { getDb } from "@/server/db/client"
 import { tag } from "@/server/lib/cache-tags"
 import { previewerCan } from "@/server/modules/preview/guard"
+import { isPublishedSlug } from "@/server/modules/redirects/repo"
 
 import * as repo from "./repo"
 
@@ -60,19 +61,22 @@ export async function getPublishedBuilderPage(
 /**
  * What /p/<slug> shows this request: the draft only to a previewer holding
  * page:read (an author previewing an article sees the published page, or
- * nothing), else the published page. Malformed slugs never reach the cache.
+ * nothing), else the published page. Malformed, unknown and unpublished
+ * slugs never reach the cache (re-review D5.2 M9): the 'use cache' entry
+ * lives "max", so arbitrary /p/<junk> probes must not mint entries.
  */
 export async function getBuilderPageForRequest(
   slug: string
 ): Promise<PublishedBuilderPage | null> {
   if (!isBuilderSlug(slug)) return null
   const draft = await previewerCan({ page: ["read"] })
+  if (!draft && !(await isPublishedBuilderSlug(slug))) return null
   return getPublishedBuilderPage(slug, draft)
 }
 
-/** For proxy.ts: is /p/<slug> live? A plain repo read (not cached). */
+/** Is /p/<slug> live? A plain read (not cached), shared with proxy.ts. */
 export function isPublishedBuilderSlug(slug: string): Promise<boolean> {
-  return repo.isPublishedBuilderSlug(getDb(), slug)
+  return isPublishedSlug(getDb(), "builder", slug)
 }
 
 /** A published builder page shows a newsletter block (D4 newsletterAcceptsSignups). */
