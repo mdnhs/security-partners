@@ -63,8 +63,8 @@ export async function publicGate(
     headers.delete(REQUEST_PATH_HEADER)
     return NextResponse.next({ request: { headers } })
   }
-  // Documents render with blocking metadata (in <head>); RSC requests keep
-  // streaming metadata (lib/seo/blocking-metadata.ts). Every page learns its
+  // Documents render with blocking metadata (in <head>; not under next dev);
+  // RSC requests keep streaming metadata (lib/seo/blocking-metadata.ts). Every page learns its
   // own path (lib/request-path.ts).
   const headers = blockingMetadataHeaders(request.headers)
   const { pathname, search } = request.nextUrl

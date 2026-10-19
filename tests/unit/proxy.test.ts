@@ -324,6 +324,35 @@ describe("proxy.ts (blocking metadata for public documents only)", () => {
     expect(renderedUa(res)).toBeNull()
   })
 
+  // `next dev` validates every document render for a static shell, reusing
+  // that render. Blocking metadata (dynamic: it reads the DB after
+  // connection()) sits in <head>, so the marked render has an empty shell and
+  // dev logs `Invariant: Route "/" did not produce a static shell`. Dev keeps
+  // streaming metadata; production (next start, E2E, Lighthouse) is marked.
+  describe("under next dev", () => {
+    beforeEach(() => {
+      vi.stubEnv("NODE_ENV", "development")
+      return () => vi.unstubAllEnvs()
+    })
+
+    it("does not mark document requests", async () => {
+      const res = await run("/", { headers: { "user-agent": CHROME } })
+      expect(renderedUa(res)).toBe(CHROME)
+      expect(HTML_LIMITED_BOTS.test(renderedUa(res) ?? "")).toBe(false)
+    })
+
+    it("still strips a client-sent mark from documents", async () => {
+      const res = await run("/about", {
+        headers: { "user-agent": `${CHROME} ${BLOCKING_METADATA_MARK}` },
+      })
+      expect(renderedUa(res)).toBe(CHROME)
+    })
+
+    it("a request without a user agent stays without one", async () => {
+      expect(renderedUa(await run("/"))).toBeNull()
+    })
+  })
+
   it("only the mark makes metadata blocking (htmlLimitedBots)", () => {
     expect(HTML_LIMITED_BOTS.test(CHROME)).toBe(false)
     expect(HTML_LIMITED_BOTS.test("Googlebot/2.1")).toBe(false)

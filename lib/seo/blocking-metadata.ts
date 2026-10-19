@@ -17,18 +17,35 @@ export const BLOCKING_METADATA_MARK = "sp-blocking-metadata"
 export const HTML_LIMITED_BOTS = new RegExp(BLOCKING_METADATA_MARK)
 
 /**
- * The request headers a public page request is rendered with: a document
- * request gets the mark; an RSC request (client navigation or prefetch,
- * header `RSC: 1`) never carries it, so a client cannot opt its RSC
- * requests into bot rendering by sending the mark itself.
+ * Whether document requests are marked. Not under `next dev`: dev validates
+ * every document render for a static shell by reusing that render, and with
+ * blocking metadata the dynamic generateMetadata (it reads the DB after
+ * connection(), so `next build` needs no DB) sits in <head> ahead of all
+ * content. The render then has an empty shell whose only dynamic hole is
+ * metadata, which Next 16.3 reports as `Invariant: Route "/" did not produce
+ * a static shell and Next.js was unable to determine a reason`. Production
+ * (`next start`: no shell validation; E2E, Lighthouse) is always marked.
  */
-export function blockingMetadataHeaders(headers: Headers): Headers {
+export function marksDocuments(nodeEnv = process.env.NODE_ENV): boolean {
+  return nodeEnv !== "development"
+}
+
+/**
+ * The request headers a public page request is rendered with: a document
+ * request gets the mark (outside `next dev`); an RSC request (client
+ * navigation or prefetch, header `RSC: 1`) never carries it, so a client
+ * cannot opt its RSC requests into bot rendering by sending the mark itself.
+ */
+export function blockingMetadataHeaders(
+  headers: Headers,
+  mark = marksDocuments()
+): Headers {
   const out = new Headers(headers)
   const ua = (headers.get("user-agent") ?? "")
     .replaceAll(BLOCKING_METADATA_MARK, "")
     .replace(/\s+/g, " ")
     .trim()
-  if (headers.get("rsc") === "1") {
+  if (headers.get("rsc") === "1" || !mark) {
     if (ua) out.set("user-agent", ua)
     else out.delete("user-agent")
   } else {
