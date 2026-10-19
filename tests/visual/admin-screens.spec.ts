@@ -1308,37 +1308,36 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
-    for (const tab of ["details", "notes", "activity"] as const)
-      test(`admin lead ${tab} ${colorScheme}`, async ({ page }) => {
-        await pinLeads(page)
-        await signIn(page)
-        await page.goto(`/admin/leads/${LEAD_ID}?tab=${tab}`)
-        await expect(
-          page.getByRole("heading", { level: 1, name: "Siobhán Byrne" })
-        ).toBeVisible()
-        await expect(
-          page
-            .getByRole("tablist", { name: "Lead sections" })
-            .getByRole("tab", { selected: true })
-        ).toContainText(tab, { ignoreCase: true })
-        // Only waits for the assignee list to load (its option text), so
-        // the shot never catches the select half-filled; the pinned lead
-        // itself is unassigned.
-        if (tab === "details")
-          await expect(page.getByLabel("Assigned to")).toContainText(
-            "Vera Visual"
-          )
-        await page.evaluate(() => document.fonts.ready)
-        await expect(page).toHaveScreenshot(shot(`lead-${tab}`), {
-          mask: await masks(page),
-        })
+    // D3.2: one lead is a drawer over the inbox (sections, no tabs). New
+    // baseline: lead-drawer replaces lead-details/notes/activity.
+    test(`admin lead drawer ${colorScheme}`, async ({ page }) => {
+      await pinLeads(page)
+      await signIn(page)
+      await page.goto(`/admin/leads?lead=${LEAD_ID}`)
+      const drawer = page.getByRole("dialog", { name: "Siobhán Byrne" })
+      await expect(
+        drawer.getByRole("heading", { name: "Siobhán Byrne" })
+      ).toBeVisible()
+      // Only waits for the assignee list to load (its option text), so
+      // the shot never catches the select half-filled; the pinned lead
+      // itself is unassigned.
+      await expect(drawer.getByLabel("Assigned to")).toContainText(
+        "Vera Visual"
+      )
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(shot("lead-drawer"), {
+        mask: await masks(page),
       })
+    })
 
     test(`admin lead delete dialog ${colorScheme}`, async ({ page }) => {
       await pinLeads(page)
       await signIn(page)
-      await page.goto(`/admin/leads/${LEAD_ID}`)
-      await page.getByRole("button", { name: "Delete", exact: true }).click()
+      await page.goto(`/admin/leads?lead=${LEAD_ID}`)
+      await page
+        .getByRole("dialog", { name: "Siobhán Byrne" })
+        .getByRole("button", { name: "Delete", exact: true })
+        .click()
       await expect(
         page.getByRole("alertdialog", { name: "Delete this lead?" })
       ).toBeVisible()

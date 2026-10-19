@@ -173,17 +173,15 @@ describe("leads screen: Inbox/Spam tabs, view toggle, drawer (D3.2)", () => {
     renderAs()
     await screen.findByRole("table", { name: "Leads" })
     const toggle = screen.getByRole("group", { name: "View" })
-    expect(within(toggle).getByRole("button", { name: "Table" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    )
+    expect(
+      within(toggle).getByRole("button", { name: "Table" })
+    ).toHaveAttribute("aria-pressed", "true")
     await user.click(within(toggle).getByRole("button", { name: "Board" }))
     expect(window.localStorage.getItem("sp-leads-view")).toBe("board")
     expect(window.location.search).toBe("?view=board")
-    expect(within(toggle).getByRole("button", { name: "Board" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    )
+    expect(
+      within(toggle).getByRole("button", { name: "Board" })
+    ).toHaveAttribute("aria-pressed", "true")
   })
 
   it("a row click opens the drawer with the lead name heading", async () => {
@@ -225,7 +223,9 @@ describe("leads screen: Inbox/Spam tabs, view toggle, drawer (D3.2)", () => {
     const user = userEvent.setup()
     renderAs()
     const table = await screen.findByRole("table", { name: "Leads" })
-    await user.click(await within(table).findByRole("link", { name: "Dinn Rí" }))
+    await user.click(
+      await within(table).findByRole("link", { name: "Dinn Rí" })
+    )
     await screen.findByRole("dialog", { name: "Dinn Rí" })
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())

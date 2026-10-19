@@ -225,7 +225,10 @@ test("the detail URL lands on the drawer, and Back closes it (D3.2)", async ({
   await expect(
     page.getByRole("dialog", { name }).getByRole("heading", { name })
   ).toBeVisible()
-  await page.getByRole("dialog", { name }).getByRole("button", { name: "Close" }).click()
+  await page
+    .getByRole("dialog", { name })
+    .getByRole("button", { name: "Close" })
+    .click()
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page).toHaveURL("/admin/leads")
 

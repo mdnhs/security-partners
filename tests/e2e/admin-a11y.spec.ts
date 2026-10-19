@@ -394,19 +394,22 @@ for (const colorScheme of ["light", "dark"] as const) {
     })
 
     test(`leads in ${colorScheme}`, async ({ page }) => {
-      // Inbox and one lead's tabs (Phase 7), pinned; the assignee list is real.
+      // Inbox, Spam and one lead's drawer (D3.2), pinned; the assignee list
+      // is real.
       await pinLeads(page)
       await signIn(page, E2E_ADMIN)
       const failures = await auditEach(page, [
         "/admin/leads",
         "/admin/leads?status=all&assignee=none",
-        `/admin/leads/${LEAD_ID}`,
-        `/admin/leads/${LEAD_ID}?tab=notes`,
-        `/admin/leads/${LEAD_ID}?tab=activity`,
+        "/admin/leads?folder=spam",
+        `/admin/leads?lead=${LEAD_ID}`,
         "/admin/leads/not-a-lead", // not found (404)
       ])
-      await page.goto(`/admin/leads/${LEAD_ID}`)
-      await page.getByRole("button", { name: "Delete", exact: true }).click()
+      await page.goto(`/admin/leads/${LEAD_ID}`) // redirects to the drawer
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Delete", exact: true })
+        .click()
       await expect(
         page.getByRole("alertdialog", { name: "Delete this lead?" })
       ).toBeVisible()
