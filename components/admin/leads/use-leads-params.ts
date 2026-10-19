@@ -1,7 +1,7 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import {
   LIST_PAGE,
@@ -49,7 +49,17 @@ const DOC =
 /** The unsaved-changes scope of a lead drawer's note. */
 export const leadGuardScope = (id: string) => `lead:${id}`
 
-/** At most this many entries are stepped over when a drawer closes. */
+/**
+ * At most this many entries are stepped over when a drawer closes.
+ *
+ * Known limits (D3.3 re-review N1/N2, accepted):
+ * - A reload on a note's guard entry (the browser's own prompt already
+ *   asked), then close: the entry is replaced, and Back later reaches the
+ *   old document's `?lead=` entry, a full load that opens the drawer.
+ * - More than this many stacked drawer/guard entries (repeated Forward →
+ *   edit → re-arm) end in a replace, leaving lower `?lead=` entries that
+ *   reopen on Back. The bound keeps the close from looping.
+ */
 const MAX_CLOSE_STEPS = 4
 
 const historyState = (): Record<string, unknown> =>
@@ -213,6 +223,17 @@ export function useLeadsParams(): [
   useEffect(() => {
     stampEntry()
   }, [url])
+  // A close still stepping back when the screen goes away stops listening
+  // (it must not rewrite another page's URL; D3.3 re-review N3).
+  const closeListener = useRef<(() => void) | null>(null)
+  useEffect(
+    () => () => {
+      if (closeListener.current)
+        window.removeEventListener("popstate", closeListener.current)
+      closeListener.current = null
+    },
+    []
+  )
 
   /**
    * Closes lead `id`'s drawer by stepping back over the entries this
@@ -242,6 +263,7 @@ export function useLeadsParams(): [
         return
       }
       window.removeEventListener("popstate", onPopState)
+      closeListener.current = null
       const final = mergeListSearch(
         window.location.search,
         parseLeadsParams(window.location.search).lead === id
@@ -253,6 +275,9 @@ export function useLeadsParams(): [
       setSearch(final)
       replaceListSearch(final)
     }
+    if (closeListener.current)
+      window.removeEventListener("popstate", closeListener.current)
+    closeListener.current = onPopState
     window.addEventListener("popstate", onPopState)
     window.history.back()
   }

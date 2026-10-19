@@ -214,10 +214,13 @@ export function LeadDetailBody({
   id,
   onMissing,
   onDeleted,
+  discardNote = 0,
 }: {
   id: string
   onMissing?: () => void
   onDeleted?: () => void
+  /** Changes when the drawer closes: a typed note is discarded then. */
+  discardNote?: number
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -225,6 +228,11 @@ export function LeadDetailBody({
   const canDelete = usePermission({ lead: ["delete"] })
   const canExport = usePermission({ lead: ["export"] })
   const [note, setNote] = useState("")
+  const [seenDiscard, setSeenDiscard] = useState(discardNote)
+  if (seenDiscard !== discardNote) {
+    setSeenDiscard(discardNote)
+    setNote("")
+  }
   const [confirmDelete, setConfirmDelete] = useState(false)
   const uid = useId()
   const statusId = `${uid}-status`

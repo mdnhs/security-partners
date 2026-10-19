@@ -209,15 +209,21 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     if (dirty) leavingRef.current = false
   }, [dirty])
 
-  // The guard entry: pushed on the first unsaved edit and kept while the
-  // person stays on it (autosave flips dirty every few seconds; consuming
-  // and re-pushing it each time would churn the router). An edit made on
-  // any other entry (a drawer opened since, Forward onto an old entry)
-  // arms again there: a guard sitting below or above it would never ask
-  // (D3.2 review I1, D3.3 review m2/m3).
+  // The guard entry: pushed on the first unsaved edit and kept for the
+  // page's visit (autosave flips dirty every few seconds; consuming and
+  // re-pushing it each time would churn the router; Back from a later
+  // ?tab= step stays silent). A scoped surface (a drawer) is different: an
+  // edit made on any entry other than its guard's own (a drawer opened
+  // since, Forward onto an old entry) arms again there, because a guard
+  // below or above it would never ask (D3.2 review I1, D3.3 m2/m3, R1).
   useEffect(() => {
     if (!dirty) return
-    if (!isOwnGuardEntry(window.history.state, guard.current)) arm(scope)
+    if (
+      scope === undefined
+        ? guard.current === null
+        : !isOwnGuardEntry(window.history.state, guard.current)
+    )
+      arm(scope)
   }, [dirty, scope, arm])
 
   useEffect(() => {

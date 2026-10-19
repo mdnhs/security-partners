@@ -53,6 +53,18 @@ export function LeadDrawer({
   const [lastId, setLastId] = useState<string | null>(shownId)
   if (shownId !== null && shownId !== lastId) setLastId(shownId)
   const bodyId = shownId ?? lastId
+  // Each opening gets a fresh body (key), and a close discards a typed note
+  // at once (the close was confirmed, or nothing was typed): reopening
+  // inside the closing animation never brings back text the guard no
+  // longer protects (D3.3 re-review R2). Adjusted during render.
+  const [shown, setShown] = useState(shownId !== null)
+  const [opens, setOpens] = useState(0)
+  const [closes, setCloses] = useState(0)
+  if (shown !== (shownId !== null)) {
+    setShown(shownId !== null)
+    if (shownId !== null) setOpens(opens + 1)
+    else setCloses(closes + 1)
+  }
   const confirmLeave = useConfirmLeave()
 
   const close = () => {
@@ -87,8 +99,9 @@ export function LeadDrawer({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {bodyId ? (
             <LeadDetailBody
-              key={bodyId}
+              key={`${bodyId}:${opens}`}
               id={bodyId}
+              discardNote={closes}
               onMissing={onMissing}
               onDeleted={() => {
                 if (id !== null) onClose()

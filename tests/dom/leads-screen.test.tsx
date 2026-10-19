@@ -1,7 +1,15 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useEffect, useState } from "react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest"
 
 const push = vi.fn()
 const replace = vi.fn()
@@ -36,6 +44,7 @@ import {
   UnsavedChangesProvider,
   UnsavedGuard,
 } from "@/components/admin/editor/unsaved-guard"
+import { LeadDrawer } from "@/components/admin/leads/lead-drawer"
 import { LeadsScreen } from "@/components/admin/leads/leads-screen"
 import {
   type LeadsParams,
@@ -153,9 +162,26 @@ afterEach(() => {
 })
 
 function renderAs(roles: Role[] = ["intake"]) {
+  shellClient.current = makeQueryClient()
   render(
+    <Shell roles={roles}>
+      <LeadsScreen />
+      <Probe />
+    </Shell>
+  )
+}
+
+const shellClient = { current: makeQueryClient() }
+function Shell({
+  roles = ["intake"],
+  children,
+}: {
+  roles?: Role[]
+  children: React.ReactNode
+}) {
+  return (
     <AdminShell
-      queryClient={makeQueryClient()}
+      queryClient={shellClient.current}
       site={{ url: "http://localhost:3000", env: "development" }}
       session={{
         user: {
@@ -169,8 +195,7 @@ function renderAs(roles: Role[] = ["intake"]) {
         impersonatedBy: null,
       }}
     >
-      <LeadsScreen />
-      <Probe />
+      {children}
     </AdminShell>
   )
 }
@@ -667,6 +692,118 @@ describe("leads drawer and the browser's Back/Forward (D3.2 review I1, I2)", () 
     expect(
       await screen.findByRole("alertdialog", { name: "Leave without saving?" })
     ).toBeInTheDocument()
+  })
+
+  it("a ?tab= editor without a scope keeps one guard: no extra entry, no false prompt (re-review R1)", async () => {
+    function Editor() {
+      const [dirty, setDirty] = useState(false)
+      return (
+        <>
+          <UnsavedGuard when={dirty} />
+          <button type="button" onClick={() => setDirty((d) => !d)}>
+            Toggle edit
+          </button>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    window.history.pushState(null, "", "/admin/services/x?tab=a")
+    render(
+      <UnsavedChangesProvider>
+        <Editor />
+      </UnsavedChangesProvider>
+    )
+    await user.click(screen.getByRole("button", { name: "Toggle edit" }))
+    await user.click(screen.getByRole("button", { name: "Toggle edit" }))
+    // Switch tab (useTabParam pushes an entry), then edit again.
+    window.history.pushState(null, "", "/admin/services/x?tab=b")
+    const length = window.history.length
+    await user.click(screen.getByRole("button", { name: "Toggle edit" }))
+    await settle()
+    expect(window.history.length).toBe(length)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?tab=a"))
+    await settle()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("a note discarded on close is gone when the lead is reopened at once (re-review R2)", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const first = await openFromRow(user)
+    await user.type(
+      await within(first).findByLabelText("Add a note"),
+      "Discard me"
+    )
+    await user.click(within(first).getByRole("button", { name: "Close" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "Leave without saving?",
+        })
+      ).getByRole("button", { name: "Leave page" })
+    )
+    // Reopened inside the closing animation.
+    const table = screen.getByRole("table", { name: "Leads" })
+    await user.click(within(table).getByRole("link", { name: "Dinn Rí" }))
+    const again = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+    expect(await within(again).findByLabelText("Add a note")).toHaveValue("")
+    expect(screen.queryByDisplayValue("Discard me")).toBeNull()
+
+    // A new note is guarded honestly: reload and Back both ask.
+    await user.type(within(again).getByLabelText("Add a note"), "Keep me")
+    await settle()
+    const unload = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+  })
+
+  it("closed and reopened before the closing animation ends: a fresh body, no stale note (re-review R2)", async () => {
+    shellClient.current = makeQueryClient()
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <Shell>
+        <LeadDrawer id={ID} onClose={onClose} />
+      </Shell>
+    )
+    const drawer = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.type(
+      await within(drawer).findByLabelText("Add a note"),
+      "Discard me"
+    )
+    // Closed, then opened again before the exit animation can end (an exit
+    // animation that never finishes; jsdom has none of its own).
+    const proto = Element.prototype as unknown as {
+      getAnimations?: () => { finished: Promise<unknown> }[]
+    }
+    proto.getAnimations = () => [{ finished: new Promise(() => {}) }]
+    onTestFinished(() => {
+      delete proto.getAnimations
+    })
+    act(() =>
+      rerender(
+        <Shell>
+          <LeadDrawer id={null} onClose={onClose} />
+        </Shell>
+      )
+    )
+    act(() =>
+      rerender(
+        <Shell>
+          <LeadDrawer id={ID} onClose={onClose} />
+        </Shell>
+      )
+    )
+    const again = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    expect(await within(again).findByLabelText("Add a note")).toHaveValue("")
+    expect(screen.queryByDisplayValue("Discard me")).toBeNull()
   })
 
   it("opened by URL: note, close, Back does not open it again (review m1)", async () => {
