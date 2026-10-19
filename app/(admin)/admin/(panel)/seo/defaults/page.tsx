@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
+import { CrawlPreview } from "@/components/admin/seo/crawl-preview"
 import { GrowthSettingsEditor } from "@/components/admin/seo/growth-settings-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { requirePermission } from "@/server/auth/session"
@@ -18,5 +19,7 @@ export default function SeoDefaultsPage() {
 async function Editor() {
   await requirePermission(GROWTH_SETTINGS["seo.defaults"].read)
   // Inside the SEO route tabs: no back link (the Overview tab is beside it).
-  return <GrowthSettingsEditor settingsKey="seo.defaults" />
+  return (
+    <GrowthSettingsEditor settingsKey="seo.defaults" aside={<CrawlPreview />} />
+  )
 }

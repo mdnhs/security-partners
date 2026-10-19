@@ -211,4 +211,41 @@ describe("public page metadata (spec §10)", () => {
     const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
     expect(meta.icons).toEqual({ icon: "/api/v1/media/file/uploads/icon.png" })
   })
+
+  it("siteMetadata (seeded): no robots and no verification keys", () => {
+    const meta = siteMetadata(s, "https://www.securitypartnersltd.com")
+    expect(Object.keys(meta).sort()).toEqual([
+      "description",
+      "icons",
+      "metadataBase",
+    ])
+  })
+
+  it("siteMetadata: site-wide noindex → robots index:false, follow:false", () => {
+    const custom = structuredClone(s)
+    custom.settings["seo.defaults"].robots = "noindex"
+    const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
+    expect(meta.robots).toEqual({ index: false, follow: false })
+    // Pages keep their own metadata (the root robots is inherited).
+    expect(pageMetadata(custom, "home").robots).toBeUndefined()
+  })
+
+  it("siteMetadata: verification tokens only when non-empty", () => {
+    const custom = structuredClone(s)
+    custom.settings["seo.defaults"].verification = { google: "g-123", bing: "" }
+    expect(
+      siteMetadata(custom, "https://www.securitypartnersltd.com").verification
+    ).toEqual({ google: "g-123" })
+    custom.settings["seo.defaults"].verification = { google: "", bing: "B_9" }
+    expect(
+      siteMetadata(custom, "https://www.securitypartnersltd.com").verification
+    ).toEqual({ other: { "msvalidate.01": "B_9" } })
+    custom.settings["seo.defaults"].verification = {
+      google: "g-123",
+      bing: "B_9",
+    }
+    expect(
+      siteMetadata(custom, "https://www.securitypartnersltd.com").verification
+    ).toEqual({ google: "g-123", other: { "msvalidate.01": "B_9" } })
+  })
 })

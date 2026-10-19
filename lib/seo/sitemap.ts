@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next"
 
+import type { RobotsMode } from "@/lib/schemas/settings/seo-defaults"
+
 import { absoluteUrl } from "./urls"
 
 export type SitemapSource = {
@@ -32,8 +34,16 @@ export function buildSitemap(
 
 export const ROBOTS_DISALLOW = ["/admin", "/api"] as const
 
-/** Uploaded media is served under /api/v1/media/file/ and stays crawlable. */
-export function buildRobots(origin: string): MetadataRoute.Robots {
+/**
+ * Uploaded media is served under /api/v1/media/file/ and stays crawlable.
+ * Site-wide noindex (seo.defaults.robots) disallows everything and drops
+ * the sitemap line.
+ */
+export function buildRobots(
+  origin: string,
+  mode: RobotsMode = "index"
+): MetadataRoute.Robots {
+  if (mode === "noindex") return { rules: [{ userAgent: "*", disallow: "/" }] }
   return {
     rules: [
       {

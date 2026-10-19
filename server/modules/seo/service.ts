@@ -163,9 +163,12 @@ const FIX_BASE: Record<SeoKind, string> = {
 const fixHref = (kind: SeoKind, id: string) =>
   `${FIX_BASE[kind]}/${encodeURIComponent(id)}?tab=seo`
 
-/** The site robots mode (seo.defaults.robots, D1.6); absent = index. */
-const siteNoindex = (defaults: SeoDefaultsSettings) =>
-  (defaults as { robots?: unknown }).robots === "noindex"
+/**
+ * The site robots mode (seo.defaults.robots). The row is read unparsed, so
+ * a value from before migration 0013 (no robots key) counts as index.
+ */
+const siteNoindex = (defaults: SeoDefaultsSettings | undefined) =>
+  defaults?.robots === "noindex"
 
 // Records whose rich text could not be read, already logged (bounded by the
 // number of records; one line per record per server process).

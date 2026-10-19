@@ -184,6 +184,91 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
     expect((await history(owner, "integrations.smtp")).status).toBe(404)
   })
 
+  it("seo.defaults: a title pattern without {title} → 422 on save and on publish", async () => {
+    const dto = (await (
+      await get(owner, "seo.defaults")
+    ).json()) as GrowthSettingsDto
+    const draft = {
+      ...(dto.draft as Record<string, unknown>),
+      titleTemplate: "Security Partners Ltd.",
+    }
+    const saved = await adminRequest("/marketing/seo.defaults/draft", {
+      cookie: owner,
+      method: "PUT",
+      json: { draft, version: dto.version },
+    })
+    expect(saved.status).toBe(422)
+    expect(
+      (
+        (await saved.json()) as {
+          error: { fieldErrors: Record<string, string[]> }
+        }
+      ).error.fieldErrors
+    ).toEqual({ titleTemplate: ["Include {title} where the page name goes"] })
+
+    // A draft stored before the rule (or written around the API) cannot go live.
+    await getDb()
+      .update(settings)
+      .set({ draft })
+      .where(eq(settings.key, "seo.defaults"))
+    const published = await adminRequest("/marketing/seo.defaults/publish", {
+      cookie: owner,
+      method: "POST",
+      json: { version: dto.version },
+    })
+    expect(published.status).toBe(422)
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "seo.defaults"))
+    expect(
+      (row.published as { titleTemplate: string }).titleTemplate
+    ).toContain("{title}")
+  })
+
+  it("seo.defaults: robots mode and verification tokens publish; HTML in a token → 422", async () => {
+    const res = await saveAndPublish(owner, "seo.defaults", (d) => ({
+      ...d,
+      robots: "noindex",
+      verification: { google: "abc_DEF-123", bing: "" },
+    }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      published: {
+        robots: "noindex",
+        verification: { google: "abc_DEF-123", bing: "" },
+      },
+    })
+    expect(revalidateTag).toHaveBeenCalledWith("settings:seo.defaults", {
+      expire: 0,
+    })
+
+    const dto = (await (
+      await get(owner, "seo.defaults")
+    ).json()) as GrowthSettingsDto
+    const bad = await adminRequest("/marketing/seo.defaults/draft", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        draft: {
+          ...(dto.draft as object),
+          verification: { google: '"><script>x</script>', bing: "" },
+        },
+        version: dto.version,
+      },
+    })
+    expect(bad.status).toBe(422)
+    expect(
+      Object.keys(
+        (
+          (await bad.json()) as {
+            error: { fieldErrors: Record<string, string[]> }
+          }
+        ).error.fieldErrors
+      )
+    ).toEqual(["verification.google"])
+  })
+
   it("authorises before validating the body (403/404, never 422)", async () => {
     const send = (cookie: string, path: string, json: unknown) =>
       adminRequest(`/marketing/${path}`, { cookie, method: "PUT", json })

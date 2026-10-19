@@ -161,14 +161,34 @@ export const DEFAULT_FAVICON = "/favicon.ico"
  * become absolute on the production origin) and the default description,
  * which the 404 page (no metadata of its own) inherits. The browser tab
  * icon is settings.site.favicon, else the bundled public/favicon.ico.
+ * Site-wide noindex adds a root robots tag (pages inherit it); search
+ * console tokens are emitted only when set (seeded: neither key).
  */
 export function siteMetadata(s: SiteSources, origin: string): Metadata {
+  const defaults = s.settings["seo.defaults"]
+  const verification = siteVerification(defaults.verification)
   return {
     metadataBase: new URL(origin),
-    description: interpolate(
-      s.settings["seo.defaults"].description,
-      placeholders(s)
-    ),
+    description: interpolate(defaults.description, placeholders(s)),
     icons: { icon: s.settings.site.favicon?.url ?? DEFAULT_FAVICON },
+    ...(defaults.robots === "noindex"
+      ? { robots: { index: false, follow: false } }
+      : {}),
+    ...(verification ? { verification } : {}),
+  }
+}
+
+/** google-site-verification and Bing's msvalidate.01; null when both are empty. */
+function siteVerification({
+  google,
+  bing,
+}: {
+  google: string
+  bing: string
+}): Metadata["verification"] | null {
+  if (!google && !bing) return null
+  return {
+    ...(google ? { google } : {}),
+    ...(bing ? { other: { "msvalidate.01": bing } } : {}),
   }
 }
