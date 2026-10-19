@@ -10,6 +10,15 @@ import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import type { PageListItem } from "@/lib/schemas/api/content"
 
@@ -75,50 +84,50 @@ export function PagesList() {
         data-slot="table-card"
         className="rounded-card hidden overflow-x-auto bg-card sm:block"
       >
-        <table className="w-full text-sm">
-          <caption className="sr-only">Pages</caption>
-          <thead className="border-b text-left text-muted-foreground">
-            <tr>
-              <th scope="col" className="h-12 px-4 font-medium">
+        <Table>
+          <TableCaption className="sr-only">Pages</TableCaption>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead scope="col" className="text-muted-foreground">
                 Title
-              </th>
-              <th scope="col" className="h-12 px-4 font-medium">
+              </TableHead>
+              <TableHead scope="col" className="text-muted-foreground">
                 Address
-              </th>
-              <th scope="col" className="h-12 px-4 font-medium">
+              </TableHead>
+              <TableHead scope="col" className="text-muted-foreground">
                 Status
-              </th>
-              <th scope="col" className="h-12 px-4 font-medium">
+              </TableHead>
+              <TableHead scope="col" className="text-muted-foreground">
                 Updated
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {items.map((page) => (
-              <tr key={page.key} className="hover:bg-muted/40">
-                <td className="px-4 py-3">
+              <TableRow key={page.key} className="hover:bg-muted/40">
+                <TableCell className="whitespace-normal">
                   <Link
                     href={`/admin/pages/${page.key}`}
                     className="font-semibold underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     {page.label}
                   </Link>
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="whitespace-normal">
                   <code className="font-mono text-xs text-muted-foreground">
                     {page.path}
                   </code>
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="whitespace-normal">
                   <ContentStatusPills record={stateOf(page)} />
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">
+                </TableCell>
+                <TableCell className="whitespace-normal text-muted-foreground">
                   <Updated page={page} now={now} />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <ul aria-label="Pages" className="flex flex-col gap-3 sm:hidden">
         {items.map((page) => (

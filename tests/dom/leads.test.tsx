@@ -20,6 +20,8 @@ import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { Role } from "@/lib/auth/roles"
 import type { LeadDto } from "@/lib/schemas/api/leads"
 
+import { pickOption } from "./select-helper"
+
 const ID = "0190a6e0-0000-7000-8000-0000000000aa"
 const GONE = "0190a6e0-0000-7000-8000-0000000000bb"
 const lead: LeadDto = {
@@ -198,8 +200,8 @@ describe("leads inbox (master 7.4)", () => {
     expect(link).toHaveAttribute("href", `/admin/leads/${ID}`)
     expect(within(table).getByText("New")).toBeInTheDocument()
     expect(within(table).getByText("Unassigned")).toBeInTheDocument()
-    expect(screen.getByLabelText("Status")).toHaveValue("new")
-    expect(screen.getByLabelText("Assignee")).toHaveValue("none")
+    expect(screen.getByLabelText("Status")).toHaveTextContent("New")
+    expect(screen.getByLabelText("Assignee")).toHaveTextContent("Unassigned")
     expect(
       calls.some(
         (c) => c.url.includes("status=new") && c.url.includes("assignee=none")
@@ -213,7 +215,7 @@ describe("leads inbox (master 7.4)", () => {
       "/api/v1/admin/leads/export.csv?status=new&assignee=none"
     )
 
-    await user.selectOptions(screen.getByLabelText("Status"), "spam")
+    await pickOption(user, screen.getByLabelText("Status"), "Spam")
     await waitFor(() =>
       expect(calls.some((c) => c.url.includes("status=spam"))).toBe(true)
     )
@@ -222,7 +224,7 @@ describe("leads inbox (master 7.4)", () => {
       "/admin/leads?status=spam&assignee=none",
       { scroll: false }
     )
-    await user.selectOptions(screen.getByLabelText("Assignee"), "")
+    await pickOption(user, screen.getByLabelText("Assignee"), "Anyone")
     expect(replace).toHaveBeenLastCalledWith("/admin/leads?status=spam", {
       scroll: false,
     })
@@ -255,19 +257,22 @@ describe("leads inbox (master 7.4)", () => {
   })
 
   it("keeps an unknown assignee filter as “Someone else”", async () => {
+    const user = userEvent.setup()
     search = `assignee=${GONE}`
     renderAs(["intake"], <LeadsScreen />)
     await screen.findByRole("table", { name: "Leads" })
-    const select = screen.getByLabelText("Assignee")
-    await waitFor(() =>
-      expect(
-        within(select).getByRole("option", { name: "Ian Intake" })
-      ).toBeInTheDocument()
-    )
-    expect(select).toHaveValue(GONE)
+    const select = screen.getByRole("combobox", { name: "Assignee" })
+    expect(select).toHaveTextContent("Someone else")
+    await user.click(select)
+    const listbox = await screen.findByRole("listbox")
     expect(
-      within(select).getByRole("option", { name: "Someone else" })
-    ).toHaveProperty("selected", true)
+      await within(listbox).findByRole("option", { name: "Ian Intake" })
+    ).toBeInTheDocument()
+    expect(
+      within(listbox).getByRole("option", { name: "Someone else" })
+    ).toHaveAttribute("aria-selected", "true")
+    await user.keyboard("{Escape}")
+    expect(select).toHaveTextContent("Someone else")
     expect(calls.some((c) => c.url.includes(`assignee=${GONE}`))).toBe(true)
   })
 
@@ -290,7 +295,7 @@ describe("leads inbox (master 7.4)", () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/Line one/)).toHaveClass("whitespace-pre-wrap")
 
-    await user.selectOptions(screen.getByLabelText("Lead status"), "contacted")
+    await pickOption(user, screen.getByLabelText("Lead status"), "Contacted")
     await waitFor(() =>
       expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
         status: "contacted",
@@ -337,10 +342,10 @@ describe("leads inbox (master 7.4)", () => {
     const select = await screen.findByLabelText("Lead status")
     const card = screen.getByRole("region", { name: "Handling" })
     select.focus()
-    await user.selectOptions(select, "contacted")
-    await user.selectOptions(select, "qualified")
+    await pickOption(user, select, "Contacted")
+    await pickOption(user, select, "Qualified")
     // Both choices show at once; the first save is still waiting.
-    expect(select).toHaveValue("qualified")
+    expect(select).toHaveTextContent("Qualified")
     expect(select).toBeEnabled()
     expect(select).toHaveFocus()
     expect(card).toHaveAttribute("aria-busy", "true")
@@ -354,7 +359,7 @@ describe("leads inbox (master 7.4)", () => {
     )
     await waitFor(() => expect(card).not.toHaveAttribute("aria-busy"))
     // The older reply never overwrote the newer choice.
-    expect(select).toHaveValue("qualified")
+    expect(select).toHaveTextContent("Qualified")
     expect(select).toHaveFocus()
   })
 
@@ -363,10 +368,10 @@ describe("leads inbox (master 7.4)", () => {
     const user = userEvent.setup()
     renderAs(["intake"], <LeadDetail id={ID} />)
     const select = await screen.findByLabelText("Lead status")
-    await user.selectOptions(select, "won")
+    await pickOption(user, select, "Won")
     expect(await screen.findByText("Not saved")).toBeInTheDocument()
     expect(screen.getByText("Someone else saved")).toBeInTheDocument()
-    await waitFor(() => expect(select).toHaveValue("new"))
+    await waitFor(() => expect(select).toHaveTextContent("New"))
   })
 
   it("the sidebar's Leads item shows the server's new-leads count", () => {
@@ -473,8 +478,8 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
     search = "status=open"
     window.history.replaceState(null, "", "/admin/leads?status=open&q=Dinn")
     renderAs(["intake"], <LeadsScreen />)
-    expect(await screen.findByLabelText("Status")).toHaveValue("open")
-    await user.selectOptions(screen.getByLabelText("Status"), "spam")
+    expect(await screen.findByLabelText("Status")).toHaveTextContent("Open")
+    await pickOption(user, screen.getByLabelText("Status"), "Spam")
     // The search stays; the page resets.
     expect(replace).toHaveBeenLastCalledWith(
       "/admin/leads?status=spam&q=Dinn",
@@ -485,7 +490,7 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
     search = "status=contacted"
     await user.type(screen.getByRole("searchbox"), "x")
     await waitFor(() =>
-      expect(screen.getByLabelText("Status")).toHaveValue("contacted")
+      expect(screen.getByLabelText("Status")).toHaveTextContent("Contacted")
     )
     search = ""
   })

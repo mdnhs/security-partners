@@ -11,6 +11,15 @@ import {
 } from "recharts"
 
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 import { formatNumber, peakIndex } from "./format"
@@ -130,25 +139,31 @@ export function PillBarChart({
           </div>
         ) : null}
       </div>
-      <table className="sr-only">
-        <caption>{ariaLabel}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{rowHeader}</th>
-            <th scope="col">{labels.current}</th>
-            {compare ? <th scope="col">{labels.previous}</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((datum) => (
-            <tr key={datum.key}>
-              <th scope="row">{datum.label}</th>
-              <td>{formatNumber(datum.current)}</td>
-              {compare ? <td>{formatNumber(datum.previous ?? 0)}</td> : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="sr-only">
+        <Table>
+          <TableCaption>{ariaLabel}</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">{rowHeader}</TableHead>
+              <TableHead scope="col">{labels.current}</TableHead>
+              {compare ? (
+                <TableHead scope="col">{labels.previous}</TableHead>
+              ) : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((datum) => (
+              <TableRow key={datum.key}>
+                <TableHead scope="row">{datum.label}</TableHead>
+                <TableCell>{formatNumber(datum.current)}</TableCell>
+                {compare ? (
+                  <TableCell>{formatNumber(datum.previous ?? 0)}</TableCell>
+                ) : null}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       {legend ? (
         // Last child of the figure: a figcaption must be first or last.
         <figcaption className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">

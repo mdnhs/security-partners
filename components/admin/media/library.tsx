@@ -21,6 +21,15 @@ import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
@@ -326,43 +335,46 @@ export function MediaLibrary() {
               </ul>
             ) : (
               <div className="rounded-card overflow-x-auto bg-card">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">Files</caption>
-                  <thead className="border-b text-left text-muted-foreground">
-                    <tr>
-                      <th scope="col" className="h-12 w-16 px-4 font-medium">
-                        <span className="sr-only">Preview</span>
-                      </th>
-                      <th scope="col" className="h-12 px-4 font-medium">
-                        Name
-                      </th>
-                      <th scope="col" className="h-12 px-4 font-medium">
-                        Type
-                      </th>
-                      <th scope="col" className="h-12 px-4 font-medium">
-                        Size
-                      </th>
-                      <th
+                <Table>
+                  <TableCaption className="sr-only">Files</TableCaption>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead
                         scope="col"
-                        className="hidden h-12 px-4 font-medium sm:table-cell"
+                        className="w-16 text-muted-foreground"
+                      >
+                        <span className="sr-only">Preview</span>
+                      </TableHead>
+                      <TableHead scope="col" className="text-muted-foreground">
+                        Name
+                      </TableHead>
+                      <TableHead scope="col" className="text-muted-foreground">
+                        Type
+                      </TableHead>
+                      <TableHead scope="col" className="text-muted-foreground">
+                        Size
+                      </TableHead>
+                      <TableHead
+                        scope="col"
+                        className="hidden text-muted-foreground sm:table-cell"
                       >
                         Dimensions
-                      </th>
-                      <th
+                      </TableHead>
+                      <TableHead
                         scope="col"
-                        className="hidden h-12 px-4 font-medium sm:table-cell"
+                        className="hidden text-muted-foreground sm:table-cell"
                       >
                         Added
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {items.map((item) => (
-                      <tr key={item.id} className="hover:bg-muted/40">
-                        <td className="px-4 py-2">
+                      <TableRow key={item.id} className="hover:bg-muted/40">
+                        <TableCell className="py-2">
                           <Thumb item={item} className="size-10" sizes="40px" />
-                        </td>
-                        <td className="px-4 py-2">
+                        </TableCell>
+                        <TableCell className="py-2 whitespace-normal">
                           <button
                             type="button"
                             onClick={() => setSelected(item.id)}
@@ -370,25 +382,25 @@ export function MediaLibrary() {
                           >
                             {mediaName(item)}
                           </button>
-                        </td>
-                        <td className="px-4 py-2 text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="py-2 whitespace-normal text-muted-foreground">
                           {typeLabel(item.mime)}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-muted-foreground tabular-nums">
+                        </TableCell>
+                        <TableCell className="py-2 text-muted-foreground tabular-nums">
                           {formatBytes(item.size)}
-                        </td>
-                        <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell">
+                        </TableCell>
+                        <TableCell className="hidden py-2 text-muted-foreground tabular-nums sm:table-cell">
                           {item.width && item.height
                             ? `${item.width} × ${item.height}`
                             : "—"}
-                        </td>
-                        <td className="hidden px-4 py-2 text-muted-foreground sm:table-cell">
+                        </TableCell>
+                        <TableCell className="hidden py-2 whitespace-normal text-muted-foreground sm:table-cell">
                           <RelativeTime iso={item.createdAt} />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>

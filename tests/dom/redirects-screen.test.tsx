@@ -16,6 +16,8 @@ import { AdminSessionProvider } from "@/components/admin/session-provider"
 import type { Role } from "@/lib/auth/roles"
 import type { RedirectDto } from "@/lib/schemas/api/redirects"
 
+import { pickOption } from "./select-helper"
+
 const ROW: RedirectDto = {
   id: "00000000-0000-7000-8000-0000000000aa",
   fromPath: "/old-alarms",
@@ -172,7 +174,11 @@ describe("Redirects screen (master 8.2)", () => {
     const dialog = screen.getByRole("dialog", { name: "Add redirect" })
     await user.type(within(dialog).getByLabelText("Old address"), "/promo")
     await user.type(within(dialog).getByLabelText("New address"), "/contact")
-    await user.selectOptions(within(dialog).getByLabelText("Type"), "302")
+    await pickOption(
+      user,
+      within(dialog).getByLabelText("Type"),
+      "Temporary (302) — it will come back"
+    )
     await user.click(
       within(dialog).getByRole("button", { name: "Add redirect" })
     )

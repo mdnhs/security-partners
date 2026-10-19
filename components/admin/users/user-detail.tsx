@@ -24,6 +24,7 @@ import { useListHref } from "@/components/admin/data-table/list-url"
 import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
+import { OptionSelect } from "@/components/admin/option-select"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import {
   FORM_ACTION,
@@ -516,21 +517,13 @@ function AccessSection({ user, isSelf }: { user: UserItem; isSelf: boolean }) {
             />
           </FieldShell>
           <FieldShell id="ban-duration" label="Duration">
-            <select
+            <OptionSelect
               id="ban-duration"
               value={days}
-              onChange={(event) => setDays(event.target.value)}
-              className={cn(
-                ADMIN_CONTROL,
-                "w-48 border border-input outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              )}
-            >
-              {BAN_DURATIONS.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
+              onChange={setDays}
+              options={BAN_DURATIONS}
+              className="w-48"
+            />
           </FieldShell>
           <Button
             type="button"

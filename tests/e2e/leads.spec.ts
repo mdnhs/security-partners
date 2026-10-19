@@ -86,9 +86,13 @@ test("public enquiry → lead in the intake inbox, worked by the intake user", a
   await page.getByRole("link", { name }).first().click()
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible()
 
-  await page.getByLabel("Lead status").selectOption("contacted")
+  // shadcn Select (MK parity A5): open the combobox, pick the option.
+  await page.getByRole("combobox", { name: "Lead status" }).click()
+  await page.getByRole("option", { name: "Contacted" }).click()
   // No success toast (final review M8): the select and badge show it.
-  await expect(page.getByLabel("Lead status")).toHaveValue("contacted")
+  await expect(page.getByRole("combobox", { name: "Lead status" })).toHaveText(
+    "Contacted"
+  )
   await page.getByRole("tab", { name: /Notes/ }).click()
   await page.getByLabel("Add a note").fill("Called, sending a quote")
   await page.getByRole("button", { name: "Add note" }).click()

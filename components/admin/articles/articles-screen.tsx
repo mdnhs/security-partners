@@ -204,28 +204,28 @@ export function ArticlesScreen() {
               label="Category"
               value={category}
               onChange={(value) => setParams({ category: value })}
-            >
-              <option value="">All categories</option>
-              {(options.data?.categories ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </FilterSelect>
+              options={[
+                { value: "", label: "All categories" },
+                ...(options.data?.categories ?? []).map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                })),
+              ]}
+            />
             <FilterSelect
               id="articles-author"
               label="Byline"
               value={author}
               onChange={(value) => setParams({ author: value })}
-            >
-              <option value="">Anyone</option>
-              <option value="me">Me</option>
-              {(options.data?.authors ?? []).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </FilterSelect>
+              options={[
+                { value: "", label: "Anyone" },
+                { value: "me", label: "Me" },
+                ...(options.data?.authors ?? []).map((a) => ({
+                  value: a.id,
+                  label: a.name,
+                })),
+              ]}
+            />
           </>
         }
         fetchPage={async (params) =>

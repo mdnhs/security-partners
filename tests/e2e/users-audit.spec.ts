@@ -124,7 +124,8 @@ test("owner bans the invitee for 7 days, then unbans them", async ({
   await openInvitee(page)
   await tab(page, "Access").click()
   await page.getByRole("textbox", { name: /Reason/ }).fill("Left the company")
-  await page.getByLabel("Duration").selectOption("7")
+  await page.getByRole("combobox", { name: "Duration" }).click()
+  await page.getByRole("option", { name: "7 days" }).click()
   await page.getByRole("button", { name: "Ban user" }).click()
   const confirm = page.getByRole("alertdialog", {
     name: `Ban ${invitee.name}?`,

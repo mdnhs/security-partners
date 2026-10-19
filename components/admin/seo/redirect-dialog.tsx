@@ -5,6 +5,7 @@ import { type FormEvent, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { useGuardedClose } from "@/components/admin/editor/discard-changes"
+import { OptionSelect } from "@/components/admin/option-select"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +49,11 @@ function FieldRow({
     </div>
   )
 }
+
+const REDIRECT_CODES = [
+  { value: "301", label: "Permanent (301) — the page moved for good" },
+  { value: "302", label: "Temporary (302) — it will come back" },
+]
 
 const describedBy = (id: string, error: string | undefined) =>
   error ? `${id}-hint ${id}-error` : `${id}-hint`
@@ -166,19 +172,13 @@ export function RedirectDialog({
           </FieldRow>
           <div className="flex flex-col gap-2">
             <Label htmlFor="redirect-code">Type</Label>
-            <select
+            <OptionSelect
               id="redirect-code"
-              value={code}
-              onChange={(e) =>
-                setCode(Number(e.target.value) === 302 ? 302 : 301)
-              }
-              className="h-11 rounded-xl border bg-card px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <option value={301}>
-                Permanent (301) — the page moved for good
-              </option>
-              <option value={302}>Temporary (302) — it will come back</option>
-            </select>
+              value={String(code)}
+              onChange={(value) => setCode(Number(value) === 302 ? 302 : 301)}
+              options={REDIRECT_CODES}
+              className="rounded-xl bg-card shadow-none data-[size=default]:h-11"
+            />
           </div>
           <DialogFooter>
             <Button
