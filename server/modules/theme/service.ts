@@ -61,6 +61,10 @@ function asVersioned(row: SettingsEditRow | null): Row | null {
 
 /** The editor's view: an unparseable stored value shows as the default (logged). */
 function toDto(row: Row): ThemeDto {
+  // A null published value means "never published"; a null draft is a
+  // damaged row (JSON null fits the jsonb NOT NULL column), so it is logged.
+  if (row.draft === null)
+    console.warn("[theme] stored theme invalid; using default", "draft is null")
   const draft = readThemeOrDefault(row.draft)
   return {
     draft,
@@ -184,11 +188,15 @@ export async function resetThemeDraft(
 ): Promise<ThemeDto> {
   assertCan(actor, { appearance: ["update"] })
   const { preset, scope } = input
-  return replaceDraft(actor, input.version, "appearance.reset", (current) => ({
-    site: scope === "admin" ? current.draft.site : presetSiteTheme(preset),
-    admin:
-      scope === "site" ? current.draft.admin : AdminTheme.parse({ preset }),
-  }))
+  return replaceDraft(actor, input.version, "appearance.reset", (current) => {
+    // A JSON null draft keeps nothing: the kept scope takes its default
+    // (saveDraft re-validates the whole draft either way).
+    const kept = (current.draft ?? {}) as Partial<ThemeConfigValue>
+    return {
+      site: scope === "admin" ? kept.site! : presetSiteTheme(preset),
+      admin: scope === "site" ? kept.admin! : AdminTheme.parse({ preset }),
+    }
+  })
 }
 
 export async function restoreTheme(

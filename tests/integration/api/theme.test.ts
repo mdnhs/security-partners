@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { revalidateTag } = vi.hoisted(() => ({ revalidateTag: vi.fn() }))
@@ -192,6 +192,89 @@ describe("appearance API (theme draft/publish)", () => {
     expect(row!.published).toEqual(before.published)
     expect(row!.version).toBe(before.version)
     expect(await countRevisions("settings", "theme")).toBe(1)
+  })
+
+  it("a corrupt live theme: discard → 422, nothing written (re-review n2)", async () => {
+    await getDb()
+      .update(settings)
+      .set({ published: { site: { brand: "var(--a)" } } })
+      .where(eq(settings.key, "theme"))
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const dto = await getTheme(owner)
+      const res = await post(owner, "/discard", { version: dto.version })
+      expect(res.status).toBe(422)
+      const [row] = await getDb()
+        .select()
+        .from(settings)
+        .where(eq(settings.key, "theme"))
+      expect(row!.version).toBe(dto.version)
+      expect(row!.draft).toEqual(DEFAULT_THEME)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("reset keeps the other scope raw: a corrupt kept scope → 422 (re-review n2)", async () => {
+    await getDb()
+      .update(settings)
+      .set({ draft: { ...DEFAULT_THEME, admin: { primary: "red;}body{" } } })
+      .where(eq(settings.key, "theme"))
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const { version } = await getTheme(owner)
+      const res = await post(owner, "/reset", {
+        version,
+        preset: "evergreen",
+        scope: "site",
+      })
+      expect(res.status).toBe(422)
+      // Resetting the corrupt scope itself recovers.
+      const ok = await post(owner, "/reset", {
+        version,
+        preset: "evergreen",
+        scope: "admin",
+      })
+      expect(ok.status).toBe(200)
+      expect(((await ok.json()) as ThemeDto).draft.admin.preset).toBe(
+        "evergreen"
+      )
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("a JSON null draft: GET warns, a scoped reset is not a 500 (re-review n1)", async () => {
+    await getDb()
+      .update(settings)
+      // jsonb NOT NULL allows the JSON literal null (SQL NULL ≠ JSON null).
+      .set({ draft: sql`'null'::jsonb` })
+      .where(eq(settings.key, "theme"))
+    const raw = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "theme"))
+    expect(raw[0]!.draft).toBeNull()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const dto = await getTheme(owner)
+      expect(dto.draft).toEqual(DEFAULT_THEME)
+      expect(warn).toHaveBeenCalledWith(
+        "[theme] stored theme invalid; using default",
+        expect.anything()
+      )
+      const res = await post(owner, "/reset", {
+        version: dto.version,
+        preset: "ocean",
+        scope: "site",
+      })
+      expect(res.status).toBe(200)
+      const next = (await res.json()) as ThemeDto
+      expect(next.draft.site.preset).toBe("ocean")
+      expect(next.draft.admin).toEqual(DEFAULT_THEME.admin)
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it("rejects a colour injection", async () => {

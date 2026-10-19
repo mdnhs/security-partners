@@ -72,6 +72,7 @@ describe("nav registry (MK IA, spec §5.1)", () => {
       "leads",
       "seo",
       "marketing",
+      "appearance",
       "settings",
       "users",
       "activity",
@@ -189,6 +190,41 @@ describe("nav registry (MK IA, spec §5.1)", () => {
           expect(allowed as readonly string[]).toContain(action)
       }
     }
+  })
+
+  it("Appearance sits in General before Site settings (MK, C5)", () => {
+    const appearance = NAV_ITEMS.find((i) => i.id === "appearance")!
+    expect(appearance).toMatchObject({
+      group: "general",
+      label: "Appearance",
+      href: "/admin/appearance",
+      permission: { appearance: ["read"] },
+      match: "prefix",
+      keywords: ["theme", "colours", "colors", "brand", "logo"],
+    })
+    expect(appearance.children).toBeUndefined()
+    expect(appearance.dock).toBeUndefined()
+    expect(permissionFor("/admin/appearance")).toEqual({
+      appearance: ["read"],
+    })
+    const general = visibleNav(["owner"]).find((g) => g.group === "general")!
+    expect(general.items.map((i) => i.id).slice(0, 2)).toEqual([
+      "appearance",
+      "settings",
+    ])
+    // Every appearance reader sees it; author and intake do not.
+    for (const role of [
+      "owner",
+      "admin",
+      "editor",
+      "marketer",
+      "viewer",
+    ] as const)
+      expect(reachableLinks([role]).map((l) => l.id)).toContain("appearance")
+    for (const role of ["author", "intake"] as const)
+      expect(reachableLinks([role]).map((l) => l.id)).not.toContain(
+        "appearance"
+      )
   })
 
   it("AI assistant child has ⌘K keywords", () => {
