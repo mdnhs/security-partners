@@ -135,6 +135,11 @@ export function track(
     // too, so send one only when the direct GA4 tag is there to receive it
     // (a GTM-only setup would otherwise see every event twice).
     if (win.__spGa4Id && win.gtag) {
+      // gtag keeps the config's page_location for automatic hits (scroll,
+      // outbound click, user_engagement): move it along on each SPA page
+      // change so they report the current page (review D2.4 N1).
+      if (event.event === "page_view_virtual")
+        win.gtag("set", { page_location: cleanPageLocation(win) })
       const { event: name, ...params } = event
       win.gtag("event", name, {
         ...params,

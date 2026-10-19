@@ -30,7 +30,13 @@ export function routeMatches(pattern: string, pathname: string): boolean {
   return trimSlash(pattern) === path
 }
 
-/** The snippets to load on `pathname` in `placement` ([] when switched off). */
+/**
+ * The snippets to load on `pathname` in `placement` ([] when switched off).
+ *
+ * Not used at run time: the page ships `placementSnippets` and the browser
+ * loader (`SNIPPET_RULES_JS`) matches the path itself. This stays as the
+ * reference the loader is tested against (re-review D2.3 item 4).
+ */
 export function runnableSnippets(
   cfg: CustomCodeSettings,
   pathname: string,

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { growthEditorMeta } from "@/components/admin/seo/growth-meta"
+
 import {
   convertLegacyCustomCode,
   placementSnippets,
@@ -348,5 +350,21 @@ describe("customCodeSettings schema", () => {
     expect(
       issuePaths(settings({ snippets: [snippet({ routes: ["/", "/blog*"] })] }))
     ).toEqual(["snippets.0.routes.1"])
+  })
+})
+
+describe("Pages help (re-review D2.3 open items 1, 2)", () => {
+  const help = growthEditorMeta.customCode.fields["snippets[].routes"]?.help
+
+  it("says every snippet's code and pages reach the browser on all pages", () => {
+    expect(help).toContain(
+      "Every snippet's code and pages are sent to the browser on all pages; only where it runs is limited."
+    )
+  })
+
+  it("says a started snippet stays until a full page load", () => {
+    expect(help).toContain(
+      "Once started, it stays for the rest of the visit (until a full page load)."
+    )
   })
 })

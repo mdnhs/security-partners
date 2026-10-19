@@ -44,7 +44,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -108,7 +108,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -162,7 +162,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -231,7 +231,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -285,7 +285,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -339,7 +339,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -393,7 +393,7 @@
                   {
                     "type": "TEMPLATE",
                     "key": "parameterValue",
-                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                    "value": "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -592,6 +592,16 @@
           { "type": "INTEGER", "key": "dataLayerVersion", "value": "2" },
           { "type": "BOOLEAN", "key": "setDefaultValue", "value": "false" },
           { "type": "TEMPLATE", "key": "name", "value": "test_id" }
+        ]
+      },
+      {
+        "accountId": "0",
+        "containerId": "0",
+        "variableId": "207",
+        "name": "Page Protocol",
+        "type": "u",
+        "parameter": [
+          { "type": "TEMPLATE", "key": "component", "value": "PROTOCOL" }
         ]
       }
     ],

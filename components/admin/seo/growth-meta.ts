@@ -204,7 +204,7 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
       "snippets[].routes": {
         label: "Pages",
         itemName: "Page",
-        help: 'Leave empty for every page. "/" is the home page only; "/blog/*" is the blog and everything under it.',
+        help: 'Leave empty for every page. "/" is the home page only; "/blog/*" is the blog and everything under it. Every snippet\'s code and pages are sent to the browser on all pages; only where it runs is limited. Once started, it stays for the rest of the visit (until a full page load).',
       },
       "snippets[].routes[]": { label: "Page", placeholder: "/blog/*" },
     },

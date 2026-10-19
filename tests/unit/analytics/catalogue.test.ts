@@ -11,8 +11,11 @@ import {
 
 /** GTM's built-in "Initialization - All Pages" trigger. */
 const INITIALIZATION_ALL_PAGES = "2147479573"
-/** The page URL without query or hash, from GTM's built-in variables. */
-const CLEAN_PAGE_LOCATION = "https://{{Page Hostname}}{{Page Path}}"
+/**
+ * The page URL without query or hash, from GTM variables. The scheme is the
+ * page's own (review D2.4 N4), so http previews and localhost are right too.
+ */
+const CLEAN_PAGE_LOCATION = "{{Page Protocol}}://{{Page Hostname}}{{Page Path}}"
 
 /**
  * MK parity D2.4: the event catalogue (admin page) and the GTM container
@@ -226,6 +229,14 @@ describe("docs/gtm-container.json", () => {
     expect(param(measurement.parameter, "value")?.value).toMatch(/^G-X+$/)
   })
 
+  it("Page Protocol is a URL variable reading the page's protocol (D2.4 N4)", () => {
+    const protocol = variables.find((v) => v.name === "Page Protocol")
+    expect(protocol).toBeDefined()
+    expect(protocol!.type).toBe("u")
+    expect(param(protocol!.parameter, "component")?.value).toBe("PROTOCOL")
+    expect(JSON.stringify(gtm)).not.toContain("https://{{")
+  })
+
   it("has a Data Layer Variable for every param", () => {
     for (const key of new Set(EVENT_CATALOGUE.flatMap((row) => row.params)))
       expect(dlvFor(key), key).toBeDefined()
@@ -257,7 +268,17 @@ describe("no real tag IDs committed (D2.4 minor 5)", () => {
   // GTM-…, G-… (GA4) and AW-… (Ads) IDs; all-X values are the placeholders.
   const TAG_ID = /\b(?:GTM|G|AW)-[A-Z0-9]{4,}\b/g
   const PLACEHOLDER = /^(?:GTM|G|AW)-X+$/
-  const ROOTS = ["app", "components", "lib", "server", "templates", "hooks"]
+  // scripts/ holds the seeds (review D2.4 N5); tests/ and e2e/ are left out
+  // on purpose: their fixtures (GTM-TEST1, G-TEST1) look like real IDs.
+  const ROOTS = [
+    "app",
+    "components",
+    "lib",
+    "server",
+    "templates",
+    "hooks",
+    "scripts",
+  ]
   const CODE = /\.(?:[cm]?[jt]sx?|json|sql|css)$/
 
   function files(dir: string): string[] {
@@ -269,10 +290,24 @@ describe("no real tag IDs committed (D2.4 minor 5)", () => {
       .map((f) => join(dir, f))
   }
 
+  /** Config files at the repo root (next.config.ts, package.json, …). */
+  function rootConfigs(): string[] {
+    return readdirSync(process.cwd(), { withFileTypes: true })
+      .filter((e) => e.isFile() && CODE.test(e.name))
+      .map((e) => e.name)
+  }
+
+  it("scans scripts/ and the root config files too (D2.4 N5)", () => {
+    expect(ROOTS).toContain("scripts")
+    expect(rootConfigs()).toContain("package.json")
+    expect(rootConfigs()).toContain("next.config.ts")
+  })
+
   it("the container and the app code hold placeholders only", () => {
     const found: string[] = []
     for (const file of [
       "docs/gtm-container.json",
+      ...rootConfigs(),
       ...ROOTS.filter((d) => existsSync(join(process.cwd(), d))).flatMap(files),
     ]) {
       const text = readFileSync(join(process.cwd(), file), "utf8")
