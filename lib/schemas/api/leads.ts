@@ -1,9 +1,6 @@
 import { z } from "zod"
 
-import {
-  type Attribution,
-  attributionSubmission,
-} from "@/lib/leads/attribution"
+import type { Attribution } from "@/lib/leads/attribution"
 
 import { listQuery, sortParam } from "./list"
 
@@ -105,8 +102,12 @@ export const leadSubmission = z.object({
   /** Honeypot: hidden from people, filled by bots. Any type is accepted (and fires when non-empty). */
   website: z.unknown().optional(),
   turnstileToken: z.string().max(2048).optional(),
-  /** First touch from sessionStorage (D3.1); oversized → 422, then plain text. */
-  attribution: attributionSubmission.optional(),
+  /**
+   * First touch from sessionStorage (D3.1). Checked by the service with
+   * `submittedAttribution`: an invalid value is dropped, never a 422, so
+   * an enquiry is never lost over attribution.
+   */
+  attribution: z.unknown().optional(),
 })
 export type LeadSubmission = z.output<typeof leadSubmission>
 
