@@ -3,6 +3,13 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import {
+  ADMIN_CONTRAST_PAIRS,
+  ADMIN_TOKEN_NAMES,
+  SP_ADMIN_DARK,
+  SP_ADMIN_LIGHT,
+} from "@/lib/theme/sp-admin"
+
 const css = readFileSync(
   path.join(import.meta.dirname, "../../../app/(admin)/admin/admin.css"),
   "utf8"
@@ -123,10 +130,9 @@ const TEXT_PAIRS: [text: string, surface: string][] = [
 ]
 
 // Chart marks the reader must perceive (WCAG 1.4.11): bars and swatches.
-const NON_TEXT_PAIRS: [mark: string, surface: string][] = [
-  ["chart-2", "card"],
-  ["hatch", "card"],
-]
+// --hatch (the striped comparison series) follows MK's light tint (spec
+// §4.2) and is told apart by its stripes and the legend, not its colour.
+const NON_TEXT_PAIRS: [mark: string, surface: string][] = [["chart-2", "card"]]
 
 describe.each([
   ["light", light],
@@ -142,15 +148,6 @@ describe.each([
 
   it.each(NON_TEXT_PAIRS)("--%s on --%s meets 3:1", (mark, surface) => {
     expect(contrast(tokens[mark], tokens[surface])).toBeGreaterThanOrEqual(3)
-  })
-
-  it("--hatch differs in hue from --chart-2 (comparison vs current)", () => {
-    const greenDominant = (hex: string) => {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-      return g > r && g > b
-    }
-    expect(greenDominant(tokens["chart-2"])).toBe(true)
-    expect(greenDominant(tokens.hatch)).toBe(false)
   })
 
   // WCAG 1.4.11: control edges and the focus ring on every surface.
@@ -223,8 +220,8 @@ describe.each([
 })
 
 describe("admin stylesheet", () => {
-  it("builds on the public entry without redefining it", () => {
-    expect(css).toContain('@import "../../globals.css";')
+  it("is self-contained and scopes every token to html[data-admin]", () => {
+    expect(css).not.toContain("globals.css")
     expect(css).not.toMatch(/(^|\n):root\s*\{/)
     expect(css).not.toMatch(/(^|\n)\.dark\s*\{/)
   })
@@ -249,5 +246,39 @@ describe("admin stylesheet", () => {
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{\s*html\[data-admin\] \*/
     )
+  })
+})
+
+describe("admin palette = SP_ADMIN (spec §4.2)", () => {
+  it("names the 48 MK admin tokens", () => {
+    expect(ADMIN_TOKEN_NAMES).toHaveLength(48)
+    expect(new Set(ADMIN_TOKEN_NAMES).size).toBe(48)
+    expect(Object.keys(SP_ADMIN_LIGHT).sort()).toEqual(
+      [...ADMIN_TOKEN_NAMES].sort()
+    )
+  })
+  it("light block declares every token with the table's value", () => {
+    for (const name of ADMIN_TOKEN_NAMES)
+      expect(light[name], name).toBe(SP_ADMIN_LIGHT[name])
+    expect(light.radius).toBe("0.75rem")
+  })
+  it("dark block equals the dark overrides", () => {
+    const own = declarations("html[data-admin].dark")
+    expect(Object.keys(own).sort()).toEqual(Object.keys(SP_ADMIN_DARK).sort())
+    for (const [name, value] of Object.entries(SP_ADMIN_DARK))
+      expect(dark[name], name).toBe(value)
+  })
+  it("keeps the contrast-tuned destructive and warning (ruling 6)", () => {
+    expect(light.destructive).toBe("#b91c1c")
+    expect(dark.destructive).toBe("#fca5a5")
+    expect(light.warning).toBe("#92400e")
+  })
+  it.each(["light", "dark"] as const)("%s pairs meet their minimum", (mode) => {
+    const t = mode === "light" ? light : dark
+    for (const [text, surface, min] of ADMIN_CONTRAST_PAIRS)
+      expect(
+        contrast(t[text], t[surface]),
+        `${text} on ${surface}`
+      ).toBeGreaterThanOrEqual(min)
   })
 })

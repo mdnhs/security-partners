@@ -22,7 +22,7 @@ export default function AuthLayout({
           className="absolute inset-0 -z-10 opacity-[0.12] mix-blend-overlay"
           style={{ backgroundImage: NOISE }}
         />
-        <div className="absolute -top-32 -left-24 -z-10 size-96 rounded-full bg-brand-green/25 blur-3xl" />
+        <div className="absolute -top-32 -left-24 -z-10 size-96 rounded-full bg-chart-3/25 blur-3xl" />
         <BrandMark tone="inverse" />
         <div className="flex max-w-lg flex-col gap-5">
           <p className="text-[2.5rem] leading-[1.1] font-bold tracking-tight text-balance">

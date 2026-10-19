@@ -1,14 +1,16 @@
 import type { Metadata } from "next"
-import { Geist_Mono, Lato } from "next/font/google"
+import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google"
 
 import "./admin.css"
 import { AdminThemeProvider } from "@/components/admin/theme-provider"
 import { cn } from "@/lib/utils"
 
-const lato = Lato({
+// MK's admin face; admin.css maps --font-sans to it.
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: ["400", "700", "900"],
-  variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jakarta",
+  display: "swap",
 })
 
 const fontMono = Geist_Mono({
@@ -29,8 +31,8 @@ export const metadata: Metadata = {
 
 /**
  * Root layout for /admin (separate from the public site's). admin.css is
- * the admin's Tailwind entry: it imports the public globals.css and adds
- * the admin tokens, all under html[data-admin].
+ * the admin's own Tailwind entry (it does not import the public
+ * globals.css); its tokens are all under html[data-admin].
  */
 export default function AdminRootLayout({
   children,
@@ -44,7 +46,7 @@ export default function AdminRootLayout({
         "antialiased",
         fontMono.variable,
         "font-sans",
-        lato.variable
+        jakarta.variable
       )}
     >
       <body className="min-h-svh bg-background text-foreground">

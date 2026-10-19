@@ -108,6 +108,8 @@ Same token names as MK `lib/theme/tokens.ts` `ADMIN_TOKENS` (48 tokens) plus `--
 | hero-fg / hero-chip / hero-chip-fg / hero-delta | #ffffff / #ffffff / #0d1b36 / #b7e892 | inherit |
 | promo-from / promo-to / promo-fg | #071022 / #13284d / #ffffff | inherit |
 
+> **Change note 2026-10-19 (A1):** the source of truth is `lib/theme/sp-admin.ts`. A1 nudge: dark `card` / `popover` #1a1f28→#1c212a and dark `sidebar` #13171e→#151920 (+0.01 L each, hue and chroma kept) so canvas, panel and card stay ≥ 1.08:1 apart. Dark `success` / `warning` / `danger` (+ `-soft`) do **not** inherit light: the light values are 2.3–3.3:1 as text on the dark card and muted panel (KPI deltas, save pill), so dark keeps SP's existing tuned values #4ade80/#12301c, #fbbf24/#33270c, #f87171/#3a1414. `hatch` keeps the table values (1.6:1 light, 2.6:1 dark on the card); the comparison series is told apart by its stripes and the legend.
+
 **Gate:** `lib/theme/checks.ts` (Phase C) and, earlier, the A1 token test both check `ADMIN_PAIRS` (foreground/background, primary-fg/primary, muted-fg/muted, muted-fg/sidebar, accent-fg/accent, destructive/background and so on) at **≥ 4.5:1**, and borders/rings at **≥ 3:1**. If a listed value fails, the implementer may move **lightness only**, in steps of 0.01 L, and must record the final hex in this table via a dated change note. Hue and chroma stay.
 
 ### 4.3 Typography

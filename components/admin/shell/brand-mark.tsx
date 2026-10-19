@@ -28,7 +28,7 @@ export function BrandMark({
         />
       </span>
       <span data-slot="brand-name" className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-[15px] font-bold tracking-tight">
+        <span className="truncate text-base font-semibold">
           Security Partners
         </span>
         <span
