@@ -61,12 +61,18 @@ describe("TrackingStatus (Marketing › Tracking side panel)", () => {
     render(<TrackingStatus value={OFF} />)
     expect(
       screen.getByText(
-        "Accept analytics in the banner on that tab, then look in GTM Preview, GA4 DebugView or Meta Test Events."
+        "Accept cookies in the banner on that tab, then look in GTM Preview, GA4 DebugView or Meta Test Events."
       )
     ).toBeInTheDocument()
-    await userEvent.click(
-      screen.getByRole("button", { name: "Send test event" })
-    )
+    expect(
+      screen.getByText(
+        "GTM and GA4 need analytics consent; Meta Pixel needs marketing consent."
+      )
+    ).toBeInTheDocument()
+    const button = screen.getByRole("button", { name: "Send test event" })
+    // 44 px target on a coarse pointer (project rule, WCAG 2.5.8 is 24 px).
+    expect(button).toHaveClass("pointer-coarse:min-h-11")
+    await userEvent.click(button)
     expect(open).toHaveBeenCalledTimes(1)
     const [url, target] = open.mock.calls[0]!
     expect(String(url)).toMatch(
@@ -85,6 +91,13 @@ describe("trackingDraft (the editor's unsaved draft)", () => {
     expect(trackingDraft({ ...OFF, metaPixelId: "99" })).toEqual({
       ...OFF,
       metaPixelId: "99",
+    })
+  })
+
+  it("trims IDs the same way it tests them", () => {
+    expect(trackingDraft({ gtmId: "  GTM-AB12  ", ga4Id: "   " })).toEqual({
+      ...OFF,
+      gtmId: "GTM-AB12",
     })
   })
 })

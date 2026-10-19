@@ -26,7 +26,7 @@ const STATUS_LOOK: Record<
 }
 
 const text = (value: unknown) =>
-  typeof value === "string" && value.trim() ? value : null
+  (typeof value === "string" && value.trim()) || null
 
 /**
  * The editor's unsaved draft read loosely (it may be mid-edit and invalid):
@@ -76,13 +76,22 @@ export function TrackingStatus({ value }: { value: TrackingSettings }) {
         })}
       </ul>
       <div className="flex flex-col items-start gap-2">
-        <Button type="button" variant="outline" onClick={sendTestEvent}>
+        <Button
+          type="button"
+          variant="outline"
+          className="pointer-coarse:min-h-11"
+          onClick={sendTestEvent}
+        >
           <Send aria-hidden="true" />
           Send test event
         </Button>
         <p className="text-sm text-muted-foreground">
-          Accept analytics in the banner on that tab, then look in GTM Preview,
+          Accept cookies in the banner on that tab, then look in GTM Preview,
           GA4 DebugView or Meta Test Events.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          GTM and GA4 need analytics consent; Meta Pixel needs marketing
+          consent.
         </p>
         <p className="text-sm text-muted-foreground">
           The test uses the published settings, so publish your changes first.
