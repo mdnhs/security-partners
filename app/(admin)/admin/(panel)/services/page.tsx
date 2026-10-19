@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { ServicesScreen } from "@/components/admin/services/services-screen"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Services" }
 
@@ -15,6 +15,6 @@ export default function ServicesPage() {
 }
 
 async function Screen() {
-  await requirePermission({ service: ["read"] })
+  await requirePage("/admin/services")
   return <ServicesScreen />
 }

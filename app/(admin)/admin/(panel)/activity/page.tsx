@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { AuditScreen } from "@/components/admin/audit/audit-screen"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Activity log" }
 
@@ -15,6 +15,6 @@ export default function ActivityPage() {
 }
 
 async function Screen() {
-  await requirePermission({ audit: ["read"] })
+  await requirePage("/admin/activity")
   return <AuditScreen />
 }

@@ -3,7 +3,7 @@ import { Suspense } from "react"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { PagesList } from "@/components/admin/pages/pages-list"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Pages" }
 
@@ -16,7 +16,7 @@ export default function PagesPage() {
 }
 
 async function Pages() {
-  await requirePermission({ page: ["read"] })
+  await requirePage("/admin/pages")
   return (
     <>
       <PageHeader

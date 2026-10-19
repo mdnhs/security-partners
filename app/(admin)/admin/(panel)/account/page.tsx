@@ -14,7 +14,7 @@ import {
   SectionTabs,
   SectionTabsPanel,
 } from "@/components/admin/section-tabs/section-tabs"
-import { requireSession } from "@/server/auth/session"
+import { requirePage, requireSession } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Account" }
 
@@ -34,7 +34,9 @@ export default function AccountPage() {
 }
 
 async function Account() {
+  await requirePage("/admin/account")
   const { user, session } = await requireSession()
+  // Impersonating: read-only, the account belongs to the impersonated user.
   if (session.impersonatedBy)
     return (
       <>

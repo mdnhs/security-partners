@@ -7,7 +7,7 @@ import {
   isEditableSettingsKey,
   SETTINGS_ENTRIES,
 } from "@/lib/admin/settings-keys"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage, requirePermission } from "@/server/auth/session"
 
 export async function generateMetadata({
   params,
@@ -37,8 +37,10 @@ async function Editor({
   // The registry answers for every /admin/settings/* path by prefix
   // (permissionFor → settings:read), so a page guard alone would let any
   // settings reader through on an unknown key. Only the editable keys are
-  // pages: anything else (including growth keys like customCode) is a 404.
+  // pages: anything else (including growth keys like customCode) is a 404,
+  // and each key keeps its own read permission on top of the section's.
   if (!isEditableSettingsKey(key)) notFound()
+  await requirePage("/admin/settings")
   await requirePermission(SETTINGS_ENTRIES[key].read)
   return <SettingsEditor settingsKey={key} />
 }

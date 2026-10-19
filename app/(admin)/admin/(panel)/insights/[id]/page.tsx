@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { z } from "zod"
 
 import { ArticleEditor } from "@/components/admin/articles/article-editor"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Edit article" }
 
@@ -23,6 +23,6 @@ async function Screen({
 }: Pick<PageProps<"/admin/insights/[id]">, "params">) {
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
-  await requirePermission({ article: ["read"] })
+  await requirePage("/admin/insights")
   return <ArticleEditor id={id} />
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { Showcase } from "@/components/admin/design/showcase"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Design system" }
 
@@ -14,9 +14,9 @@ export default function DesignPage() {
   )
 }
 
-// Owner only (customCode:update; others get the admin forbidden.tsx), and
-// not in the menu: reached by URL. Phase B: requirePage("/admin/design").
+// Owner only (the registry lists customCode:update; others get the admin
+// forbidden.tsx), and not in the menu: reached by URL or ⌘K.
 async function Design() {
-  await requirePermission({ customCode: ["update"] })
+  await requirePage("/admin/design")
   return <Showcase />
 }
