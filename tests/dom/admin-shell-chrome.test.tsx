@@ -1,7 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { toast } from "sonner"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 // MK parity A3: brand chip, the topbar Enquiries link, the identity block
 // on the account trigger and top-centre toasts.
@@ -122,6 +122,13 @@ describe("brand chip", () => {
     const svg = chip!.querySelector("svg")
     expect(svg).toHaveAttribute("aria-hidden", "true")
     expect(container.querySelector("img")).toBeNull()
+    // Letters are paths: no runtime font.
+    expect(svg!.querySelector("text")).toBeNull()
+    expect(
+      [...svg!.querySelectorAll("mask path")].map((p) =>
+        p.getAttribute("data-glyph")
+      )
+    ).toEqual(["S", "P"])
     expect(container).toHaveTextContent("Security Partners")
   })
 })
@@ -140,9 +147,63 @@ describe("toasts", () => {
     const list = document.querySelector("[data-sonner-toaster]")!
     expect(list).toHaveAttribute("data-y-position", "top")
     expect(list).toHaveAttribute("data-x-position", "center")
-    // Desktop 80 px, phone 72 px: below the topbar's icon buttons.
+    // Both offsets follow the header's measured bottom (fallback 96 px).
     const style = (list as HTMLElement).style
-    expect(style.getPropertyValue("--offset-top")).toBe("80px")
-    expect(style.getPropertyValue("--mobile-offset-top")).toBe("72px")
+    expect(style.getPropertyValue("--offset-top")).toBe(
+      "var(--admin-toast-top, 96px)"
+    )
+    expect(style.getPropertyValue("--mobile-offset-top")).toBe(
+      "var(--admin-toast-top, 96px)"
+    )
+  })
+})
+
+describe("toast anchor", () => {
+  const rect = HTMLElement.prototype.getBoundingClientRect
+  afterEach(() => {
+    HTMLElement.prototype.getBoundingClientRect = rect
+  })
+
+  function headerBottom(bottom: number) {
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      return this.dataset.slot === "admin-header"
+        ? ({ bottom } as DOMRect)
+        : rect.call(this)
+    }
+  }
+
+  it("puts toasts 8 px below the header, impersonation banner included", () => {
+    headerBottom(147.5)
+    const { unmount } = render(
+      <AdminShell
+        queryClient={makeQueryClient()}
+        session={{
+          user: {
+            id: "u1",
+            name: "Ann",
+            email: "a@x.ie",
+            title: null,
+            twoFactorEnabled: false,
+          },
+          roles: ["owner"],
+          impersonatedBy: "u0",
+        }}
+      >
+        <p>Body</p>
+      </AdminShell>
+    )
+    const root = document.documentElement.style
+    expect(root.getPropertyValue("--admin-toast-top")).toBe("156px")
+    unmount()
+    expect(root.getPropertyValue("--admin-toast-top")).toBe("")
+  })
+
+  it("keeps at least 8 px under a phone topbar", () => {
+    // 12 px gutter + 72 px topbar.
+    headerBottom(84)
+    renderShell({ roles: ["owner"] })
+    expect(
+      document.documentElement.style.getPropertyValue("--admin-toast-top")
+    ).toBe("92px")
   })
 })

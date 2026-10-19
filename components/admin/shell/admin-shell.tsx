@@ -62,6 +62,7 @@ export function AdminShell({
   notifications?: readonly ShellNotification[]
 }) {
   const mainRef = useMainPanel()
+  const headerRef = useToastAnchor()
   return (
     <AdminSessionProvider value={session}>
       <AdminProviders
@@ -89,6 +90,7 @@ export function AdminShell({
                   the topbar instead of covering it; the sidebar sits beside
                   the column, never underneath (WCAG 2.2 SC 2.4.11). */}
                     <div
+                      ref={headerRef}
                       data-slot="admin-header"
                       className="flex shrink-0 flex-col gap-3"
                     >
@@ -145,6 +147,39 @@ function useMainPanel() {
     const observer = new ResizeObserver(measure)
     observer.observe(main)
     return () => observer.disconnect()
+  }, [])
+  return ref
+}
+
+/** Space between the header's bottom edge and the first toast. */
+const TOAST_GAP = 8
+
+/**
+ * Publishes the header's bottom edge (+ 8 px) as --admin-toast-top on <html>,
+ * where the top-centre toaster reads it (providers.tsx): the impersonation
+ * banner or a wrapped header moves the toasts down with it.
+ */
+function useToastAnchor() {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = ref.current
+    if (!header) return
+    const root = document.documentElement
+    const measure = () =>
+      root.style.setProperty(
+        "--admin-toast-top",
+        `${Math.ceil(header.getBoundingClientRect().bottom) + TOAST_GAP}px`
+      )
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(header)
+    // The gutter changes at breakpoints without resizing the header.
+    window.addEventListener("resize", measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", measure)
+      root.style.removeProperty("--admin-toast-top")
+    }
   }, [])
   return ref
 }
