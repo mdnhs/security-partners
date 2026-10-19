@@ -40,7 +40,7 @@ const AUDIT_FILTER_KEYS = Object.keys(
 
 const DETAILS_BUTTON = "pointer-coarse:h-11 pointer-coarse:px-4"
 
-/** Audit log (spec §8.1): filter by actor, action, record type and Irish dates. */
+/** Activity log (spec §8.1): filter by actor, action, record type and Irish dates. */
 export function AuditScreen() {
   const canListUsers = usePermission({ user: ["read"] })
   // Kept in the URL (?actor=&action=&entityType=&from=&to=), like the
@@ -133,12 +133,12 @@ export function AuditScreen() {
   return (
     <>
       <PageHeader
-        title="Audit log"
+        title="Activity log"
         description="Sign-ins, user changes and content changes, newest first. Times are Irish time."
       />
       <DataTable<Row>
         syncUrl
-        label="Audit log"
+        label="Activity log"
         queryKey={["audit", query]}
         filterKey={filterKey}
         filteredEmpty="Nothing matches these filters"

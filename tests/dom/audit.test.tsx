@@ -106,10 +106,10 @@ function renderScreen(roles: Role[] = ["owner"]) {
   )
 }
 
-describe("audit log (spec §8.1)", () => {
+describe("activity log (spec §8.1)", () => {
   it("lists entries in Irish time with actor, summary and impersonator", async () => {
     renderScreen()
-    const table = await screen.findByRole("table", { name: "Audit log" })
+    const table = await screen.findByRole("table", { name: "Activity log" })
     const invite = within(table).getByRole("row", { name: /user\.invite/ })
     // 09:30 UTC on 1 July = 10:30 in Dublin (IST).
     expect(invite).toHaveTextContent("1 Jul 2026, 10:30")
@@ -123,7 +123,7 @@ describe("audit log (spec §8.1)", () => {
   it("filters by actor (searchable), action, record type and Irish dates", async () => {
     const user = userEvent.setup()
     renderScreen()
-    await screen.findByRole("table", { name: "Audit log" })
+    await screen.findByRole("table", { name: "Activity log" })
     const who = screen.getByRole("combobox", { name: "Who" })
     expect(who).toHaveTextContent("Anyone")
     await user.click(who)
@@ -170,7 +170,7 @@ describe("audit log (spec §8.1)", () => {
     renderScreen(["viewer" as Role])
     // Viewers hold no audit:read either; the screen itself is server-gated,
     // so only the toolbar matters here.
-    await screen.findByRole("table", { name: "Audit log" })
+    await screen.findByRole("table", { name: "Activity log" })
     expect(screen.queryByRole("combobox", { name: "Who" })).toBeNull()
     expect(urlsTo("/api/v1/admin/users")).toHaveLength(0)
   })
@@ -178,7 +178,7 @@ describe("audit log (spec §8.1)", () => {
   it("opens the diff viewer with before/after JSON", async () => {
     const user = userEvent.setup()
     renderScreen()
-    const table = await screen.findByRole("table", { name: "Audit log" })
+    const table = await screen.findByRole("table", { name: "Activity log" })
     await user.click(
       within(table).getByRole("button", { name: /^Details of user\.update/ })
     )

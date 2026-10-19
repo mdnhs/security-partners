@@ -29,7 +29,7 @@ export type DockProps = {
 }
 
 /**
- * Users, Audit log (owners/admins), Account and Log out as icon buttons: a
+ * Users, Activity log (owners/admins), Account and Log out as icon buttons: a
  * row in the website card, a column in the icon rail.
  */
 export function FooterDock({

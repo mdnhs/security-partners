@@ -136,10 +136,3 @@ export function readableSettingsKeys(
     hasPermission(roles, SETTINGS_ENTRIES[key].read)
   )
 }
-
-/** Where /admin/settings lands (it has no overview page of its own). */
-export function firstReadableSettingsKey(
-  roles: readonly string[]
-): EditableSettingsKey | undefined {
-  return readableSettingsKeys(roles)[0]
-}

@@ -3,22 +3,20 @@ import { describe, expect, it } from "vitest"
 import {
   EDITABLE_SETTINGS_KEYS,
   SETTINGS_ENTRIES,
-  firstReadableSettingsKey,
   readableSettingsKeys,
 } from "@/lib/admin/settings-keys"
 
-describe("settings landing (no overview page)", () => {
-  it("lands readers on the first key in tab order", () => {
-    expect(firstReadableSettingsKey(["viewer"])).toBe("site")
+describe("readableSettingsKeys", () => {
+  it("lists the keys readers may open, in tab order", () => {
+    expect(readableSettingsKeys(["viewer"])[0]).toBe("site")
     expect(readableSettingsKeys(["editor"])).toEqual([
       ...EDITABLE_SETTINGS_KEYS,
     ])
   })
 
-  it("has no landing key for roles without settings:read", () => {
+  it("is empty for roles without settings:read", () => {
     expect(readableSettingsKeys(["author"])).toEqual([])
-    expect(firstReadableSettingsKey(["author"])).toBeUndefined()
-    expect(firstReadableSettingsKey([])).toBeUndefined()
+    expect(readableSettingsKeys([])).toEqual([])
   })
 })
 

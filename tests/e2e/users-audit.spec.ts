@@ -253,11 +253,11 @@ test("the audit log filters by action and person and shows the invitation", asyn
   await dockLink(page, "Activity log").click()
   await expect(page).toHaveURL(/\/admin\/activity$/)
   await expect(
-    page.getByRole("heading", { level: 1, name: "Audit log" })
+    page.getByRole("heading", { level: 1, name: "Activity log" })
   ).toBeVisible()
 
   await page.getByLabel("Action", { exact: true }).fill("user.invite")
-  const table = page.getByRole("table", { name: "Audit log" })
+  const table = page.getByRole("table", { name: "Activity log" })
   const row = table
     .getByRole("row", { name: /user\.invite/ })
     .filter({ hasText: E2E_OWNER.name })

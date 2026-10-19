@@ -431,7 +431,7 @@ function DeleteCard({
               {article.live
                 ? `It disappears from /blog and /blog/${article.slug} shows “not found”. `
                 : ""}
-              Its history is kept in the audit log only.
+              Its history is kept in the activity log only.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1347,12 +1347,12 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
-    test(`admin audit log ${colorScheme}`, async ({ page }) => {
+    test(`admin activity log ${colorScheme}`, async ({ page }) => {
       await pinData(page)
       await signIn(page)
       await page.goto("/admin/activity")
       await expect(
-        page.getByRole("heading", { level: 1, name: "Audit log" })
+        page.getByRole("heading", { level: 1, name: "Activity log" })
       ).toBeVisible()
       // Three pinned entries, as table rows or as cards.
       await expect(
