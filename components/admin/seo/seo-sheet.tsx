@@ -69,7 +69,8 @@ export function SeoSheet({
             }
           : old
       )
-      void queryClient.invalidateQueries({ queryKey: SEO_OVERVIEW_KEY })
+      // The overview and the health (title-unique depends on other records).
+      void queryClient.invalidateQueries({ queryKey: ["seo"] })
       toast.success("SEO saved", { description: "The live page uses it now." })
       onClose()
     },

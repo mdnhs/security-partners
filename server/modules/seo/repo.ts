@@ -1,13 +1,31 @@
 import "server-only"
 
-import { and, asc, desc, eq, isNotNull, type SQL, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  like,
+  type SQL,
+  sql,
+} from "drizzle-orm"
 import type { AnyPgColumn } from "drizzle-orm/pg-core"
 
 import type { SeoKind } from "@/lib/schemas/api/seo"
 import type { Seo } from "@/lib/schemas/common"
 import type { OgKind } from "@/lib/seo/urls"
 import type { DbOrTx } from "@/server/db/client"
-import { articles, pages, revisions, services } from "@/server/db/schema"
+import {
+  articles,
+  media,
+  mediaUsages,
+  pages,
+  revisions,
+  services,
+} from "@/server/db/schema"
+import { PAGES, type PageKey } from "@/templates/registry"
 
 /** What the SEO overview needs of one record (no whole content documents). */
 export type SeoRow = {
@@ -84,6 +102,89 @@ export async function listSeoRows(db: DbOrTx): Promise<SeoRow[]> {
     ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
     ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
   ]
+}
+
+/** One jsonb value of the live content, or of the draft when unpublished. */
+const doc = (table: Versioned, ...path: string[]): SQL<unknown> => {
+  const at = `{${path.join(",")}}`
+  return sql<unknown>`case when ${table.published} is null
+    then ${table.draft} #> ${at}::text[]
+    else ${table.published} #> ${at}::text[] end`
+}
+
+/** Pages whose template has a rich-text body (legal pages). */
+const RICH_TEXT_PAGES = (Object.keys(PAGES) as PageKey[]).filter(
+  (key) => PAGES[key] === "legal"
+)
+
+/**
+ * Rich text of each record that has any (live, else draft): legal pages'
+ * body, a service's overview, an article's body (null when it has none).
+ * Records without rich text are not listed (internal-link check passes).
+ */
+export async function listSeoRichText(
+  db: DbOrTx
+): Promise<{ kind: SeoKind; id: string; doc: unknown }[]> {
+  const [pageRows, serviceRows, articleRows] = await Promise.all([
+    db
+      .select({ id: pages.key, doc: doc(pages, "body") })
+      .from(pages)
+      .where(inArray(pages.key, RICH_TEXT_PAGES)),
+    db
+      .select({ id: services.id, doc: doc(services, "detail", "overview") })
+      .from(services),
+    db.select({ id: articles.id, doc: doc(articles, "body") }).from(articles),
+  ])
+  return [
+    ...pageRows.map((row) => ({ kind: "page" as const, ...row })),
+    ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
+    ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
+  ]
+}
+
+/** Width and height of the given media rows (share images). */
+export async function mediaSizes(
+  db: DbOrTx,
+  ids: string[]
+): Promise<Map<string, { width: number | null; height: number | null }>> {
+  if (ids.length === 0) return new Map()
+  const rows = await db
+    .select({ id: media.id, width: media.width, height: media.height })
+    .from(media)
+    .where(inArray(media.id, ids))
+  return new Map(rows.map(({ id, ...size }) => [id, size]))
+}
+
+/**
+ * Images used by pages, services and articles that have no alt text and are
+ * not decorative: one row per (record, image), whatever the field count.
+ */
+export async function listMissingAltUsages(db: DbOrTx): Promise<
+  {
+    entityType: string
+    entityId: string
+    mediaId: string
+    name: string
+  }[]
+> {
+  return db
+    .selectDistinct({
+      entityType: mediaUsages.entityType,
+      entityId: mediaUsages.entityId,
+      mediaId: media.id,
+      name: sql<string>`coalesce(nullif(${media.originalName}, ''), regexp_replace(${media.key}, '^.*/', ''))`,
+    })
+    .from(mediaUsages)
+    .innerJoin(media, eq(media.id, mediaUsages.mediaId))
+    .where(
+      and(
+        inArray(mediaUsages.entityType, ["page", "service", "article"]),
+        like(media.mime, "image/%"),
+        eq(media.alt, ""),
+        eq(media.isDecorative, false)
+      )
+    )
+    .orderBy(asc(media.id))
 }
 
 export async function findSeoRow(

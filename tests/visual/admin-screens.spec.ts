@@ -165,7 +165,7 @@ const SEO_OVERVIEW = {
       },
       issues: [
         {
-          check: "own-description",
+          check: "description",
           message: "Uses the site-wide default description.",
         },
       ],
@@ -259,6 +259,18 @@ async function pinData(page: Page) {
   )
   await page.route("**/api/v1/admin/seo/overview", (route) =>
     route.fulfill({ json: SEO_OVERVIEW })
+  )
+  // Dashboard Content health (D1.2): the same 11 of 12 as the overview.
+  await page.route("**/api/v1/admin/seo/health", (route) =>
+    route.fulfill({
+      json: {
+        score: 92,
+        ...SEO_OVERVIEW.checks,
+        entities: [],
+        issues: [],
+        alt: { images: 0, described: 0, decorative: 0, missing: 0 },
+      },
+    })
   )
 }
 

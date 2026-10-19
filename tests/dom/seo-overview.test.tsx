@@ -42,7 +42,7 @@ const OVERVIEW: SeoOverviewDto = {
     entry({
       issues: [
         {
-          check: "own-description",
+          check: "description",
           message: "Uses the site-wide default description.",
         },
       ],

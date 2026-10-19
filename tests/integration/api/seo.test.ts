@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 }))
 
 import type { SeoEntry, SeoOverviewDto } from "@/lib/schemas/api/seo"
+import { SEO_CHECK_COUNT } from "@/lib/seo/checks"
 import { getDb } from "@/server/db/client"
 import {
   auditLog,
@@ -75,8 +76,8 @@ describe("SEO API (master 8.1)", () => {
     const live = dto.entries.filter((e) => e.published)
     const issues = live.reduce((n, e) => n + e.issues.length, 0)
     expect(dto.checks).toEqual({
-      passed: live.length * 4 - issues,
-      total: live.length * 4,
+      passed: live.length * SEO_CHECK_COUNT - issues,
+      total: live.length * SEO_CHECK_COUNT,
     })
   })
 
@@ -123,7 +124,9 @@ describe("SEO API (master 8.1)", () => {
         "Fast alarm response across Laois, Offaly and Kildare, day and night.",
       noindex: false,
     })
-    expect(entry.issues.map((i) => i.check)).not.toContain("own-description")
+    expect(entry.issues.map((i) => i.message)).not.toContain(
+      "Uses the site-wide default description"
+    )
     expect((await service("alarm-responses")).version).toBe(s.version)
     expect(revalidateTag).toHaveBeenCalledWith("service:alarm-responses", {
       expire: 0,

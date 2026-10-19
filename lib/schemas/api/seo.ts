@@ -1,9 +1,10 @@
 import { z } from "zod"
 
 import type { Seo } from "@/lib/schemas/common"
-import type { SeoIssue } from "@/lib/seo/checks"
+import type { CheckResult, SeoCheckId } from "@/lib/seo/checks"
 
-export type { SeoIssue }
+/** A failed check of one record (SEO overview entries). */
+export type SeoIssue = { check: SeoCheckId; message: string }
 
 export const SEO_KINDS = ["page", "service", "article"] as const
 export type SeoKind = (typeof SEO_KINDS)[number]
@@ -38,4 +39,41 @@ export type SeoEntry = {
 export type SeoOverviewDto = {
   entries: SeoEntry[]
   checks: { passed: number; total: number }
+}
+
+/** One failed check with where to fix it (spec §7.1 fixHref). */
+export type SeoIssueDto = {
+  kind: "page" | "service" | "article" | "builder" | "media"
+  /** Page key, row id or media id. */
+  id: string
+  title: string
+  /** Public path; null for media. */
+  path: string | null
+  check: SeoCheckId
+  message: string
+  fixHref: string
+}
+
+/** GET /seo/health: score over the published records' checks, issues, alt-text coverage. */
+export type SeoHealthDto = {
+  /** round(passed / total * 100); 100 when nothing is published. */
+  score: number
+  passed: number
+  total: number
+  entities: {
+    kind: SeoIssueDto["kind"]
+    id: string
+    title: string
+    path: string | null
+    published: boolean
+    results: CheckResult[]
+  }[]
+  /** Published records' failures, then images missing alt text (once each). */
+  issues: SeoIssueDto[]
+  alt: {
+    images: number
+    described: number
+    decorative: number
+    missing: number
+  }
 }
