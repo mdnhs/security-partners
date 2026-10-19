@@ -2,9 +2,13 @@
 // The admin palette (spec 2026-10-19-mk-parity §4.2): MK's token structure
 // and near-grey neutrals, Security Partners' green, mint and navy. The
 // single source for app/(admin)/admin/admin.css (a unit test keeps them
-// equal) and, in Phase C, the "security-partners" preset.
+// equal) and the theme engine's "security-partners" base (lib/theme/admin.ts
+// parses it into ADMIN_DEFAULT).
 
-/** MK `lib/theme/tokens.ts` ADMIN_TOKENS, in the same order. */
+/**
+ * MK `lib/theme/tokens.ts` ADMIN_TOKENS, in the same order. The one list:
+ * `lib/theme/tokens.ts` re-exports it as `ADMIN_TOKENS`.
+ */
 export const ADMIN_TOKEN_NAMES = [
   "background",
   "foreground",
