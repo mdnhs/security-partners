@@ -37,6 +37,8 @@ export function weeklyBuckets(
       key: start,
       label: DAY_MONTH.format(new Date(`${start}T00:00:00Z`)),
       current: days.reduce((sum, day) => sum + day.count, 0),
+      // One series until the week-vs-week data lands (D3.5).
+      previous: null,
     })
   }
   return weeks

@@ -298,7 +298,7 @@ describe("dashboard (JW layout)", () => {
     expect(within(feed).queryByRole("alert")).not.toBeInTheDocument()
   })
 
-  it("the quiet chart hides its overlay from assistive tech and says so in text", async () => {
+  it("the quiet chart says so in text inside the labelled figure", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -317,12 +317,27 @@ describe("dashboard (JW layout)", () => {
     const card = await screen.findByRole("region", {
       name: "Enquiries, last 90 days",
     })
+    // The overlay is real text inside the labelled figure, not decoration.
+    const overlay = within(card).getByText("No enquiries yet")
+    expect(overlay.closest("[aria-hidden]")).toBeNull()
+    expect(overlay.closest("figure")).toHaveAccessibleName(
+      "Enquiries, last 90 days"
+    )
+  })
+
+  it("every KPI links its chip to the screen it counts", async () => {
+    renderDashboard(["owner"])
+    const cards = await screen.findAllByRole("article")
     expect(
-      within(card).getByText("No enquiries yet").closest("[aria-hidden]")
-    ).not.toBeNull()
-    expect(
-      within(card).getByText("No enquiries in the last 90 days.")
-    ).toHaveClass("sr-only")
+      cards.map(
+        (card) => within(card).getByRole("link").getAttribute("href") ?? ""
+      )
+    ).toEqual([
+      "/admin/leads",
+      "/admin/leads",
+      "/admin/pages",
+      "/admin/articles?status=in_review",
+    ])
   })
 
   it("omits parts the API returned as null and keeps Next up when empty", async () => {

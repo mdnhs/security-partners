@@ -18,7 +18,12 @@ import { KpiCard } from "@/components/admin/kit/kpi-card"
 import { PillBarChart } from "@/components/admin/kit/pill-bar-chart"
 import { CardSkeleton, KpiRowSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
-import { PageHeader } from "@/components/admin/page-header"
+import {
+  LINK_SECONDARY,
+  PageHeader,
+  PRIMARY_ACTION,
+  SECONDARY_ACTION,
+} from "@/components/admin/page-header"
 
 describe("admin kit", () => {
   it("PageHeader: one h1, description, actions and breadcrumbs", () => {
@@ -97,17 +102,20 @@ describe("admin kit", () => {
   })
 
   it("PillBarChart: hidden SVG, numbers in a table; one series without a comparison", () => {
-    render(
+    const { container } = render(
       <PillBarChart
-        title="Enquiries by week"
+        ariaLabel="Enquiries by week"
         rowHeader="Week"
-        currentLabel="Enquiries"
+        legend={{ current: "Enquiries", previous: "Previous" }}
         data={[
-          { key: "a", label: "6 Oct", current: 2 },
-          { key: "b", label: "13 Oct", current: 5 },
+          { key: "a", label: "6 Oct", current: 2, previous: null },
+          { key: "b", label: "13 Oct", current: 5, previous: null },
         ]}
       />
     )
+    expect(
+      screen.getByRole("figure", { name: "Enquiries by week" })
+    ).toBeInTheDocument()
     const table = screen.getByRole("table", { name: "Enquiries by week" })
     expect(
       within(table)
@@ -117,17 +125,16 @@ describe("admin kit", () => {
     expect(
       within(table).getByRole("rowheader", { name: "13 Oct" })
     ).toBeInTheDocument()
-    expect(
-      screen.getByText("Enquiries", { selector: "figcaption span" })
-    ).toBeInTheDocument()
+    // No comparison data: no hatched legend swatch or bars.
+    expect(screen.queryByText("Previous")).toBeNull()
+    expect(container.querySelector("[data-series=previous]")).toBeNull()
   })
 
   it("PillBarChart: two series with a hatched comparison legend", () => {
     render(
       <PillBarChart
-        title="Enquiries this week"
-        currentLabel="This week"
-        previousLabel="Last week"
+        ariaLabel="Enquiries this week"
+        legend={{ current: "This week", previous: "Last week" }}
         data={[{ key: "mon", label: "Mon", current: 1, previous: 3 }]}
       />
     )
@@ -137,6 +144,102 @@ describe("admin kit", () => {
         .getAllByRole("columnheader")
         .map((c) => c.textContent)
     ).toEqual(["Day", "This week", "Last week"])
+    // Not colour alone: the hatched swatch sits beside its text label.
+    const swatch = document.querySelector("[data-series=previous]")
+    expect(swatch).toHaveClass("bg-hatch")
+    expect(swatch?.parentElement).toHaveTextContent("Last week")
+  })
+
+  it("every KpiCard links its chip", () => {
+    render(<KpiCard label="Open enquiries" value="4" href="/admin/leads" />)
+    const chip = screen.getByRole("link", { name: "Open Open enquiries" })
+    expect(chip).toHaveAttribute("href", "/admin/leads")
+    // 40 px chip, hit area grown past 44 px by the ::after overlay.
+    expect(chip).toHaveClass(
+      "size-10",
+      "rounded-full",
+      "border",
+      "relative",
+      "after:absolute",
+      "after:-inset-1",
+      "pointer-coarse:after:-inset-[2px]"
+    )
+  })
+
+  it("KpiCard without an href (bad data) renders chip-less instead of crashing", () => {
+    render(
+      <KpiCard label="Pages" value="12" href={undefined as unknown as string} />
+    )
+    expect(screen.getByRole("article")).toHaveTextContent("12")
+    expect(screen.queryByRole("link")).toBeNull()
+  })
+
+  it("PillBarChart draws current and hatched previous with a legend and an sr table", () => {
+    render(
+      <PillBarChart
+        ariaLabel="Enquiries this week"
+        legend={{ current: "This week", previous: "Last week" }}
+        data={[{ key: "mon", label: "Mon", current: 2, previous: 1 }]}
+      />
+    )
+    // The legend (the sr table's column header repeats the same text).
+    expect(
+      screen.getByText("This week", { selector: "figcaption span" })
+    ).toBeInTheDocument()
+    expect(screen.getByRole("table")).toHaveTextContent(/Mon.*2.*1/)
+    expect(document.querySelectorAll("[data-series=previous]")).toHaveLength(1)
+  })
+
+  it("PillBarChart shows the empty overlay when all zero", () => {
+    const { rerender } = render(
+      <PillBarChart
+        ariaLabel="x"
+        emptyText="No enquiries yet"
+        data={[{ key: "mon", label: "Mon", current: 0, previous: 0 }]}
+      />
+    )
+    expect(screen.getByText("No enquiries yet")).toBeInTheDocument()
+    rerender(
+      <PillBarChart
+        ariaLabel="x"
+        emptyText="No enquiries yet"
+        data={[{ key: "mon", label: "Mon", current: 0, previous: 2 }]}
+      />
+    )
+    expect(screen.queryByText("No enquiries yet")).toBeNull()
+  })
+
+  it("PageHeader renders breadcrumbs with the current page", () => {
+    render(
+      <PageHeader
+        title="Jane Doe"
+        breadcrumbs={[
+          { label: "Leads", href: "/admin/leads" },
+          { label: "Jane Doe" },
+        ]}
+      />
+    )
+    const nav = screen.getByRole("navigation", { name: "Breadcrumb" })
+    expect(within(nav).getByRole("link", { name: "Leads" })).toHaveAttribute(
+      "href",
+      "/admin/leads"
+    )
+    expect(within(nav).getByText("Jane Doe")).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+  })
+
+  it("PageHeader action classes: SECONDARY is the outlined twin of PRIMARY", () => {
+    expect(PRIMARY_ACTION).toBe(
+      "h-12 gap-2 rounded-xl px-5 text-[15px] font-semibold"
+    )
+    for (const cls of PRIMARY_ACTION.split(" "))
+      expect(SECONDARY_ACTION.split(" ")).toContain(cls)
+    // Outline variant, primary border and text (MK).
+    expect(LINK_SECONDARY.split(" ")).toEqual(
+      expect.arrayContaining(["border-primary", "text-primary"])
+    )
   })
 
   it("ActivityFeed lists entries with relative times, or an empty state", () => {
@@ -178,13 +281,24 @@ describe("admin kit", () => {
 
   it("KpiCard heading is h3 by default and h2 on request", () => {
     const { rerender } = render(
-      <KpiCard label="Pages" value="12" caption="published" />
+      <KpiCard
+        label="Pages"
+        value="12"
+        caption="published"
+        href="/admin/pages"
+      />
     )
     expect(
       screen.getByRole("heading", { level: 3, name: "Pages" })
     ).toBeInTheDocument()
     rerender(
-      <KpiCard label="Pages" value="12" caption="published" headingLevel={2} />
+      <KpiCard
+        label="Pages"
+        value="12"
+        caption="published"
+        href="/admin/pages"
+        headingLevel={2}
+      />
     )
     expect(
       screen.getByRole("heading", { level: 2, name: "Pages" })
@@ -194,9 +308,8 @@ describe("admin kit", () => {
   it("PillBarChart hides the SVG container and formats table numbers", () => {
     const { container } = render(
       <PillBarChart
-        title="Views"
-        currentLabel="This week"
-        previousLabel="Last week"
+        ariaLabel="Views"
+        legend={{ current: "This week", previous: "Last week" }}
         data={[{ key: "mon", label: "Mon", current: 12345, previous: 2000 }]}
       />
     )
