@@ -15,6 +15,7 @@ import {
   copyFromTemplate,
   copySlug,
   copyTitle,
+  sliceUnits,
 } from "@/templates/builder/from-template"
 import { PAGE_KEYS, type PageData } from "@/templates/registry"
 
@@ -300,5 +301,52 @@ describe("caps follow the block schemas (review D5.5 M2/M3)", () => {
       "Some copy is longer than its block allows and is shortened.",
       "Some lists have more items than their block shows: the extra items are left out.",
     ])
+  })
+})
+
+describe("cuts never split a surrogate pair (re-review 2 N2)", () => {
+  const lone = (text: string) =>
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(
+      text
+    )
+
+  it("sliceUnits backs off one unit rather than end on a high surrogate", () => {
+    expect(sliceUnits("ab😀cd", 3)).toBe("ab")
+    expect(sliceUnits("ab😀cd", 4)).toBe("ab😀")
+    expect(sliceUnits("abc", 10)).toBe("abc")
+  })
+
+  it("an oversized legal paragraph of emoji is cut on character boundaries", () => {
+    const data = structuredClone(
+      fixture.pages.privacy.data
+    ) as PageData<"privacy">
+    data.body = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "😀".repeat(RICH_TEXT_MAX_CHARS) + "x" },
+          ],
+        },
+      ],
+    } as PageData<"privacy">["body"]
+    const { doc } = copyFromTemplate("privacy", data)
+    const json = JSON.stringify(doc)
+    expect(lone(json)).toBe(false)
+    expect(validateDocument(doc).ok).toBe(true)
+  })
+
+  it("copy cut to a block cap keeps whole characters", () => {
+    const data = structuredClone(fixture.pages.about.data) as PageData<"about">
+    // A title cap of 80 lands in the middle of the 40th emoji pair + 1.
+    data.hero.title = "a" + "😀".repeat(100)
+    const title = (
+      blocksFromTemplate("about", data).blocks[0].data as {
+        title: string
+      }
+    ).title
+    expect(lone(title)).toBe(false)
+    expect(title.length).toBeLessThanOrEqual(80)
   })
 })

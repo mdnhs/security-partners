@@ -254,8 +254,9 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
   /** Their document (restore, conflict reload, discard) replaces mine. */
   const replaceDoc = useCallback(
     (dto: BuilderPageDto) => {
+      // An older result than what was saved since never goes on screen.
+      if (!autosave.accept(dto)) return
       const read = readDraft(dto.draft)
-      autosave.accept(dto)
       syncRecord(dto)
       setBlockErrors({})
       if (!read.ok) {
@@ -357,7 +358,7 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
       // Pending edits are about to be thrown away: not sent first (M8).
       return autosave.exclusive(
         (version) => putBuilderDraft(id, published, version),
-        { discardPending: true }
+        { discardPending: true, replaces: true }
       )
     },
     onSuccess: (dto) => {
@@ -716,13 +717,15 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
         canRestore={canEdit}
         onRestore={async (revision) => {
           try {
-            const dto = await autosave.exclusive((version) =>
-              unwrap(
-                api["builder-pages"][":id"].restore.$post({
-                  param: { id },
-                  json: { revisionId: revision.id, version },
-                })
-              )
+            const dto = await autosave.exclusive(
+              (version) =>
+                unwrap(
+                  api["builder-pages"][":id"].restore.$post({
+                    param: { id },
+                    json: { revisionId: revision.id, version },
+                  })
+                ),
+              { replaces: true }
             )
             replaceDoc(dto)
             toast.success(`Version ${revision.version} restored into the draft`)

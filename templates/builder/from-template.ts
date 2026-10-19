@@ -67,10 +67,22 @@ let cutCopy = false
 let cutLists = false
 let cutText = false
 
+/**
+ * At most `max` UTF-16 units (zod's and the server's measure), never ending
+ * on half of a surrogate pair: a lone surrogate is refused by jsonb.
+ */
+export function sliceUnits(value: string, max: number): string {
+  if (value.length <= max) return value
+  let end = Math.max(0, max)
+  const last = value.charCodeAt(end - 1)
+  if (end > 0 && last >= 0xd800 && last <= 0xdbff) end -= 1
+  return value.slice(0, end)
+}
+
 const clip = (value: string, max: number) => {
   if (value.length <= max) return value
   cutCopy = true
-  return value.slice(0, max)
+  return sliceUnits(value, max)
 }
 const take = <T>(list: T[], max: number): T[] => {
   if (list.length > max) cutLists = true
@@ -126,10 +138,13 @@ function shortenNode(node: RichNode, size: (node: RichNode) => number) {
     )
     if (!longest || longest.text.length <= 1) break
     const over = size(copy) - RICH_TEXT_MAX_CHARS
-    longest.text = longest.text.slice(
-      0,
+    const next = sliceUnits(
+      longest.text,
       Math.max(1, longest.text.length - over - 1)
     )
+    // One astral character left: it cannot be cut further without a split.
+    if (next.length === 0 || next.length === longest.text.length) break
+    longest.text = next
   }
   if (size(copy) <= RICH_TEXT_MAX_CHARS) return copy
   const plain = textLeaves(node)
@@ -139,10 +154,10 @@ function shortenNode(node: RichNode, size: (node: RichNode) => number) {
     type: "paragraph",
     content: [{ type: "text", text: text || " " }],
   })
-  let text = plain.slice(0, RICH_TEXT_MAX_CHARS)
+  let text = sliceUnits(plain, RICH_TEXT_MAX_CHARS)
   while (text.length > 1 && size(paragraph(text)) > RICH_TEXT_MAX_CHARS)
-    text = text.slice(
-      0,
+    text = sliceUnits(
+      text,
       text.length - (size(paragraph(text)) - RICH_TEXT_MAX_CHARS) - 1
     )
   return paragraph(text)

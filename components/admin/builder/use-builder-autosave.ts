@@ -66,12 +66,19 @@ export function useBuilderAutosave(input: {
    * copy. `keepMine` only says the caller keeps its own document (Overwrite),
    * so the next flush sends mine on their version whenever the two differ.
    */
-  accept(dto: BuilderPageDto, options?: { keepMine?: boolean }): void
+  /** False when `dto` is older than what was saved since (ignored). */
+  accept(dto: BuilderPageDto, options?: { keepMine?: boolean }): boolean
   exclusive(
     request: (version: number) => Promise<BuilderPageDto>,
     options?: {
       /** Discard: pending edits are about to be replaced, do not send them. */
       discardPending?: boolean
+      /**
+       * Discard / Restore: the result replaces the editor's document, so a
+       * flush waiting on this request must not send the old one. Publish
+       * and meta keep mine: edits made meanwhile are still sent.
+       */
+      replaces?: boolean
     }
   ): Promise<BuilderPageDto>
   /** The version the next request must carry. */
@@ -208,7 +215,7 @@ export function useBuilderAutosave(input: {
   const exclusive = useCallback(
     async (
       request: (version: number) => Promise<BuilderPageDto>,
-      options?: { discardPending?: boolean }
+      options?: { discardPending?: boolean; replaces?: boolean }
     ) => {
       if (options?.discardPending) {
         // Wait for a save in flight (its version), but send nothing new:
@@ -228,15 +235,17 @@ export function useBuilderAutosave(input: {
         const dto = await request(version.current)
         // Before the hold is released: a flush waiting on it (⌘S, retry,
         // a debounce that fired, a hidden tab) then finds nothing to send.
-        // The result is what the server holds: the saved copy, the document
-        // a waiting flush sees (so it sends nothing stale), and a version
-        // that never goes backwards (review D5.5 R1).
+        // The result is what the server holds: the saved copy and a
+        // version that never goes backwards (review D5.5 R1). Only a result
+        // that replaces the document is also what a waiting flush sees, so
+        // it sends nothing stale; otherwise my edits made meanwhile still
+        // differ from the saved copy and are sent (re-review 2 M1).
         if (dto.version >= version.current) {
           version.current = dto.version
           const read = readDraft(dto.draft)
           const saved = read.ok ? read.doc : (dto.draft as DraftDocumentValue)
           markSaved(saved)
-          latest.current = saved
+          if (options?.replaces) latest.current = saved
         }
         return dto
       } catch (err) {
@@ -268,10 +277,11 @@ export function useBuilderAutosave(input: {
       // Always the server's copy: with keepMine the caller's document now
       // differs from it, so the next flush really sends (review D5.5 I1).
       // A result older than what was saved since is ignored (R1).
-      if (dto.version < version.current) return
+      if (dto.version < version.current) return false
       version.current = dto.version
       const read = readDraft(dto.draft)
       markSaved(read.ok ? read.doc : (dto.draft as DraftDocumentValue))
+      return true
     },
     []
   )

@@ -252,7 +252,12 @@ describe("useBuilderAutosave", () => {
     const { result, rerender } = setup(save)
     rerender({ doc: docWith("about-to-go") })
     const request = vi.fn(async (v: number) => dto(v + 1, docWith("a")))
-    await act(() => result.current.exclusive(request, { discardPending: true }))
+    await act(() =>
+      result.current.exclusive(request, {
+        discardPending: true,
+        replaces: true,
+      })
+    )
     expect(save).not.toHaveBeenCalled()
     expect(request).toHaveBeenCalledWith(3)
   })
@@ -278,7 +283,10 @@ describe("useBuilderAutosave", () => {
       expect(result.current.state).toBe("error")
       const { request, done } = slowRequest()
       const discarding = act(() =>
-        result.current.exclusive(request, { discardPending: true })
+        result.current.exclusive(request, {
+          discardPending: true,
+          replaces: true,
+        })
       )
       await tick(BUILDER_RETRY_MS + 100)
       await act(async () => done(dto(4, published)))
@@ -297,7 +305,10 @@ describe("useBuilderAutosave", () => {
       rerender({ doc: docWith("edits") })
       const { request, done } = slowRequest()
       const discarding = act(() =>
-        result.current.exclusive(request, { discardPending: true })
+        result.current.exclusive(request, {
+          discardPending: true,
+          replaces: true,
+        })
       )
       await tick(0)
       // ⌘S while the discard request runs: it waits for the hold…
@@ -322,7 +333,10 @@ describe("useBuilderAutosave", () => {
       await tick(BUILDER_AUTOSAVE_MS - 1)
       const { request, done } = slowRequest()
       const discarding = act(() =>
-        result.current.exclusive(request, { discardPending: true })
+        result.current.exclusive(request, {
+          discardPending: true,
+          replaces: true,
+        })
       )
       await tick(BUILDER_AUTOSAVE_MS)
       await act(async () => done(dto(4, published)))
@@ -333,6 +347,114 @@ describe("useBuilderAutosave", () => {
       await tick(BUILDER_AUTOSAVE_MS * 2)
       expect(save).not.toHaveBeenCalled()
       expect(result.current.state).toBe("saved")
+    })
+
+    it("edits made while a title/address PATCH runs are still sent by a hidden-tab flush (re-review 2 M1)", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result, rerender } = setup(save)
+      const { request, done } = slowRequest()
+      // The PATCH (meta) does not replace the document.
+      // Not inside act(): an open async act would hold back the effects
+      // of the rerender below (latest.current) until it settles.
+      let patching!: Promise<BuilderPageDto>
+      act(() => {
+        patching = result.current.exclusive(request)
+      })
+      await tick(0)
+      rerender({ doc: docWith("edited during the patch") })
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "hidden",
+      })
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"))
+      })
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      })
+      // One act scope: no render (and no effect resetting latest.current)
+      // happens before the waiting flush resumes, as in a real browser where
+      // it resumes in a microtask before React's next render.
+      await act(async () => {
+        done(dto(4, docWith("a")))
+        await patching
+        for (let i = 0; i < 5; i++) await Promise.resolve()
+      })
+      expect(save).toHaveBeenCalledWith(docWith("edited during the patch"), 4, {
+        keepalive: true,
+      })
+    })
+
+    it("a Publish queued behind a PATCH saves the edits made meanwhile first", async () => {
+      const order: string[] = []
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) => {
+        order.push(`save@${v}`)
+        return dto(v + 1)
+      })
+      const { result, rerender } = setup(save)
+      const { request, done } = slowRequest()
+      // Not inside act(): an open async act would hold back the effects
+      // of the rerender below (latest.current) until it settles.
+      let patching!: Promise<BuilderPageDto>
+      act(() => {
+        patching = result.current.exclusive(request)
+      })
+      await tick(0)
+      rerender({ doc: docWith("edited") })
+      let publishing: Promise<BuilderPageDto> | undefined
+      act(() => {
+        publishing = result.current.exclusive(async (v) => {
+          order.push(`publish@${v}`)
+          return dto(v + 1, docWith("edited"))
+        })
+      })
+      await act(async () => {
+        done(dto(4, docWith("a")))
+        await patching
+        await publishing
+      })
+      expect(order).toEqual(["save@4", "publish@5"])
+      expect(save).toHaveBeenCalledWith(docWith("edited"), 4)
+    })
+
+    it("a Restore result is what a waiting flush sees: the old document is not sent", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result, rerender } = setup(save)
+      const { request, done } = slowRequest()
+      const restoring = act(() =>
+        result.current.exclusive(request, { replaces: true })
+      )
+      await tick(0)
+      rerender({ doc: docWith("old") })
+      let flushed: Promise<boolean> | undefined
+      act(() => {
+        flushed = result.current.flush()
+      })
+      await act(async () => done(dto(4, docWith("restored"))))
+      await restoring
+      expect(await act(() => flushed!)).toBe(true)
+      expect(save).not.toHaveBeenCalled()
+    })
+
+    it("accept reports whether it applied the result", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result } = setup(save)
+      let applied: boolean | undefined
+      act(() => {
+        applied = result.current.accept(dto(2))
+      })
+      expect(applied).toBe(false)
+      act(() => {
+        applied = result.current.accept(dto(5))
+      })
+      expect(applied).toBe(true)
     })
 
     it("accepting an older result never rolls the version back", async () => {
