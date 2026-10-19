@@ -76,7 +76,7 @@ export function AssistantPanel({
   const [shareScreen, setShareScreen] = useState(true)
   const composer = useRef<HTMLTextAreaElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
-  const scroller = useRef<HTMLDivElement>(null)
+  const scroller = useRef<HTMLElement>(null)
   // Focus on close: the field a suggestion went into, else the button.
   const returnFocus = useRef<HTMLElement | null>(null)
   const readOnly = status.readOnly
@@ -93,16 +93,43 @@ export function AssistantPanel({
     if (el) el.scrollTop = el.scrollHeight
   }, [chat.messages, chat.error])
 
-  const send = () => {
-    const message = draft.trim()
-    if (!message || chat.busy || readOnly) return
+  /**
+   * The screen for the next request, unless the chip was dismissed; that
+   * request uses it up and the chip comes back.
+   */
+  const takeContext = () => {
     const context = sharedScreen
       ? chatContextFrom(assistant.snapshot(), assistant.field)
       : undefined
-    void chat.send(message, context)
-    setDraft("")
     setShareScreen(true)
+    return context
   }
+
+  const send = () => {
+    const message = draft.trim()
+    if (!message || chat.busy || readOnly) return
+    void chat.send(message, takeContext())
+    setDraft("")
+  }
+
+  const regenerate = () => {
+    if (chat.busy || readOnly) return
+    void chat.regenerate(takeContext())
+  }
+
+  const edit = (messageId: string, text: string) => {
+    if (chat.busy || readOnly) return
+    void chat.edit(messageId, text, takeContext())
+  }
+
+  // One short line for screen readers instead of every streamed piece.
+  const summary = chat.busy
+    ? "The assistant is writing…"
+    : chat.outcome === "answered"
+      ? "The assistant has answered."
+      : chat.outcome === "stopped"
+        ? "Stopped. The answer so far is kept."
+        : ""
 
   const insert = (reply: string) => {
     const field = assistant.field
@@ -215,13 +242,12 @@ export function AssistantPanel({
           </div>
         </SheetHeader>
 
-        <div
+        <section
           ref={scroller}
-          role="log"
-          aria-live="polite"
-          // Announce a reply once it is complete, not every streamed piece.
-          aria-busy={chat.busy}
+          // Not a live region: streamed pieces would flood screen readers.
+          // The status line below announces a summary instead.
           aria-label="Conversation"
+          aria-busy={chat.busy}
           className="min-h-0 flex-1 overflow-y-auto"
         >
           <div className="flex flex-col gap-5 px-4 py-5 sm:px-6">
@@ -260,10 +286,16 @@ export function AssistantPanel({
                   !readOnly && assistant.field ? assistant.field.label : null
                 }
                 onInsert={insert}
+                canAct={!chat.busy && !readOnly}
+                onRegenerate={regenerate}
+                onEdit={edit}
               />
             )}
           </div>
-        </div>
+        </section>
+        <p role="status" aria-live="polite" className="sr-only">
+          {summary}
+        </p>
         {/* Outside the log: announced once as an alert, not again by the log. */}
         {chat.error ? (
           <p
@@ -431,7 +463,7 @@ function Composer({
                 variant="ghost"
                 size="icon-xs"
                 className="rounded-full pointer-coarse:size-11"
-                aria-label={`Don't send ${screenTitle} with the next message`}
+                aria-label="Don't send this screen"
                 onClick={onDismissScreen}
               >
                 <X />

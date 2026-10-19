@@ -344,7 +344,7 @@ describe("AssistantPanel (master 9.2: context of the current record; Insert)", (
     const dialog = await openPanel(user)
     await user.click(
       within(dialog).getByRole("button", {
-        name: "Don't send Home page with the next message",
+        name: "Don't send this screen",
       })
     )
     expect(within(dialog).queryByText(/Using:/)).toBeNull()
@@ -642,19 +642,25 @@ describe("Insert respects the field (fix round 1)", () => {
 })
 
 describe("Panel accessibility and keyboard (fix round 1)", () => {
-  it("marks the log busy while a reply streams; the error is outside the log", async () => {
+  it("marks the conversation busy while a reply streams; the error is outside it", async () => {
     const signals: AbortSignal[] = []
     routes["POST /api/v1/admin/ai/chat"] = hangingAnswer(signals)
     const user = userEvent.setup()
     renderAssistant(ON, { editor: false })
     const dialog = await openPanel(user)
-    const log = within(dialog).getByRole("log", { name: "Conversation" })
+    // Not a live region (C9): a status line announces a summary instead.
+    const log = within(dialog).getByRole("region", { name: "Conversation" })
+    expect(log).not.toHaveAttribute("aria-live")
     expect(log).toHaveAttribute("aria-busy", "false")
     await sendMessage(user, dialog, "Hi")
     await within(dialog).findByText("Partial answer")
     expect(log).toHaveAttribute("aria-busy", "true")
+    expect(within(dialog).getByRole("status")).toHaveTextContent(
+      "The assistant is writing…"
+    )
     await user.click(within(dialog).getByRole("button", { name: "Stop" }))
     await waitFor(() => expect(log).toHaveAttribute("aria-busy", "false"))
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Stopped.")
 
     routes["POST /api/v1/admin/ai/chat"] = () =>
       json({ error: { code: "RATE_LIMITED", message: "Wait a bit." } }, 429)

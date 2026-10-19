@@ -132,6 +132,59 @@ export async function insertMessage(
   return created as MessageRow
 }
 
+/**
+ * Regenerate: deletes the conversation's last message only if it is an
+ * assistant reply. The caller checks ownership first.
+ */
+export async function dropLastReply(
+  db: DbOrTx,
+  conversationId: string
+): Promise<boolean> {
+  const [last] = await db
+    .select({ id: aiMessages.id, role: aiMessages.role })
+    .from(aiMessages)
+    .where(eq(aiMessages.conversationId, conversationId))
+    .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
+    .limit(1)
+  if (last?.role !== "assistant") return false
+  await db.delete(aiMessages).where(eq(aiMessages.id, last.id))
+  return true
+}
+
+/**
+ * Edit: deletes the message and every later one (created at or after it),
+ * then stores the new text as a user message. "missing" when the id is
+ * not in this conversation, "not-user" for a reply. The caller checks
+ * ownership of the conversation first.
+ */
+export async function replaceFrom(
+  db: DbOrTx,
+  conversationId: string,
+  messageId: string,
+  newText: string
+): Promise<"missing" | "not-user" | MessageRow> {
+  const [from] = await db
+    .select({ role: aiMessages.role, createdAt: aiMessages.createdAt })
+    .from(aiMessages)
+    .where(
+      and(
+        eq(aiMessages.id, messageId),
+        eq(aiMessages.conversationId, conversationId)
+      )
+    )
+  if (!from) return "missing"
+  if (from.role !== "user") return "not-user"
+  await db
+    .delete(aiMessages)
+    .where(
+      and(
+        eq(aiMessages.conversationId, conversationId),
+        gte(aiMessages.createdAt, from.createdAt)
+      )
+    )
+  return insertMessage(db, { conversationId, role: "user", content: newText })
+}
+
 /** Every user/assistant message of a conversation, oldest first. */
 export async function listMessageRows(
   db: DbOrTx,

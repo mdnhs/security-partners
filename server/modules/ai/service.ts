@@ -51,6 +51,7 @@ import { screenContextFor } from "./screen-context"
 import {
   type ConversationRow,
   deleteConversationRow,
+  dropLastReply,
   findConversation,
   findUserName,
   insertConversation,
@@ -59,6 +60,7 @@ import {
   listMessageRows,
   type MessageRow,
   recentMessageRows,
+  replaceFrom,
   touchConversation,
 } from "./repo"
 import { buildTools } from "./tools"
@@ -341,42 +343,63 @@ export async function chat(
   const sharing = config.shareEnquiryDetails.enabled
   // A lead screen's record is rebuilt here, never taken from the browser.
   const screenContext = await screenContextFor(actor, config, input.context)
-  const { conversationId, history } = await getDb().transaction(async (tx) => {
-    // Atomic upsert: its row lock serialises a burst until this commits; a
-    // rejected or failed request rolls its count back.
-    const limit = await consumeRateLimit(
-      aiRateLimitKey(actor.userId),
-      AI_RATE_LIMIT,
-      tx
-    )
-    if (!limit.allowed)
-      throw new AppError(
-        "RATE_LIMITED",
-        "You have sent a lot of messages. Wait a few minutes, then try again."
+  const { conversationId, userMessageId, history } = await getDb().transaction(
+    async (tx) => {
+      // Atomic upsert: its row lock serialises a burst until this commits; a
+      // rejected or failed request rolls its count back.
+      const limit = await consumeRateLimit(
+        aiRateLimitKey(actor.userId),
+        AI_RATE_LIMIT,
+        tx
       )
-    let id = input.conversationId
-    if (id) {
-      if (!(await findConversation(tx, id, actor.userId)))
-        throw notFound("Conversation")
-      await touchConversation(tx, id)
-    } else {
-      const created = await insertConversation(tx, {
-        userId: actor.userId,
-        title: conversationTitle(input.message),
-        context: conversationContext(input.context),
-      })
-      id = created.id
+      if (!limit.allowed)
+        throw new AppError(
+          "RATE_LIMITED",
+          "You have sent a lot of messages. Wait a few minutes, then try again."
+        )
+      let id = input.conversationId
+      // Ownership first: another user's conversation reads as missing.
+      if (id) {
+        if (!(await findConversation(tx, id, actor.userId)))
+          throw notFound("Conversation")
+        await touchConversation(tx, id)
+      }
+      if (input.regenerate) {
+        // Answer the last question again (a stopped or failed turn has no
+        // saved reply: nothing is dropped then).
+        await dropLastReply(tx, id!)
+      } else if (input.editMessageId) {
+        const replaced = await replaceFrom(
+          tx,
+          id!,
+          input.editMessageId,
+          input.message!
+        )
+        if (replaced === "missing") throw notFound("Message")
+        if (replaced === "not-user")
+          throw invalid("Only your own messages can be edited", "editMessageId")
+      } else {
+        if (!id) {
+          const created = await insertConversation(tx, {
+            userId: actor.userId,
+            title: conversationTitle(input.message!),
+            context: conversationContext(input.context),
+          })
+          id = created.id
+        }
+        await insertMessage(tx, {
+          conversationId: id,
+          role: "user",
+          content: input.message!,
+        })
+      }
+      const history = await recentMessageRows(tx, id!, AI_HISTORY_LIMIT)
+      const question = history.at(-1)
+      if (question?.role !== "user")
+        throw new AppError("CONFLICT", "There is no question to answer yet.")
+      return { conversationId: id!, userMessageId: question.id, history }
     }
-    await insertMessage(tx, {
-      conversationId: id,
-      role: "user",
-      content: input.message,
-    })
-    return {
-      conversationId: id,
-      history: await recentMessageRows(tx, id, AI_HISTORY_LIMIT),
-    }
-  })
+  )
   // The model must see a user message first.
   while (history[0]?.role === "assistant") history.shift()
 
@@ -450,7 +473,7 @@ export async function chat(
           open = false // the client went away
         }
       }
-      send({ type: "start", conversationId })
+      send({ type: "start", conversationId, userMessageId })
       let answer = ""
       let failed = false
       // Enquiry details reached the model in this turn (switch on only).

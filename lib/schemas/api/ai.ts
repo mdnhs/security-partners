@@ -50,16 +50,41 @@ export const chatContext = z.object({
 })
 export type ChatContext = z.output<typeof chatContext>
 
-/** POST /ai/chat. No conversationId = a new conversation. */
-export const chatInput = z.object({
-  conversationId: z.uuid().optional(),
-  message: z
-    .string()
-    .trim()
-    .min(1, "Write a message")
-    .max(AI_MAX_MESSAGE_CHARS, `At most ${AI_MAX_MESSAGE_CHARS} characters`),
-  context: chatContext.optional(),
-})
+/**
+ * POST /ai/chat. No conversationId = a new conversation. Two variations
+ * (MK parity C9): `regenerate` answers the last question again (no
+ * message), and `editMessageId` replaces one of the user's own messages
+ * and everything after it.
+ */
+export const chatInput = z
+  .object({
+    conversationId: z.uuid().optional(),
+    message: z
+      .string()
+      .trim()
+      .min(1, "Write a message")
+      .max(AI_MAX_MESSAGE_CHARS, `At most ${AI_MAX_MESSAGE_CHARS} characters`)
+      .optional(),
+    regenerate: z.literal(true).optional(),
+    editMessageId: z.uuid().optional(),
+    context: chatContext.optional(),
+  })
+  .superRefine((value, ctx) => {
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: "custom", path: [path], message })
+    if (value.regenerate) {
+      if (!value.conversationId)
+        issue("conversationId", "Choose a conversation to regenerate")
+      if (value.message !== undefined)
+        issue("message", "Regenerate takes no message")
+      if (value.editMessageId)
+        issue("editMessageId", "Edit or regenerate, not both")
+      return
+    }
+    if (value.message === undefined) issue("message", "Write a message")
+    if (value.editMessageId && !value.conversationId)
+      issue("conversationId", "Choose a conversation to edit")
+  })
 export type ChatInput = z.output<typeof chatInput>
 
 /** GET /ai/conversations (newest first). */

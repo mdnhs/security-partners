@@ -269,7 +269,11 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     expect(res.headers.get("cache-control")).toBe("no-store")
     const list = await events(res)
     const conversationId = startedId(list)
-    expect(list[0]).toEqual({ type: "start", conversationId })
+    expect(list[0]).toEqual({
+      type: "start",
+      conversationId,
+      userMessageId: expect.any(String),
+    })
     expect(list.flatMap((e) => (e.type === "text" ? [e.text] : []))).toEqual([
       "Hello ",
       "world",
@@ -382,6 +386,118 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     expect(removed.status).toBe(200)
     expect(await removed.json()).toEqual({ ok: true })
     expect(await messagesOf(conversationId)).toEqual([])
+  })
+
+  it("regenerate removes exactly one assistant row and answers again", async () => {
+    await configureAi()
+    const first = await events(await chat(editor.cookie, { message: "One" }))
+    const conversationId = startedId(first)
+    expect(first[0]).toEqual({
+      type: "start",
+      conversationId,
+      userMessageId: expect.any(String),
+    })
+    vi.mocked(createLanguageModel).mockImplementation(() => replying("Again"))
+    const again = await events(
+      await chat(editor.cookie, { conversationId, regenerate: true })
+    )
+    expect(again.at(-1)).toEqual({
+      type: "done",
+      messageId: expect.any(String),
+    })
+    // The same question is answered (no new user row).
+    expect((again[0] as { userMessageId: string }).userMessageId).toBe(
+      (first[0] as { userMessageId: string }).userMessageId
+    )
+    expect(await messagesOf(conversationId)).toEqual([
+      { role: "user", content: "One" },
+      { role: "assistant", content: "Again" },
+    ])
+    expect(
+      modelOf(1)
+        .doStreamCalls[0].prompt.slice(1)
+        .map((m) => m.role)
+    ).toEqual(["user"])
+  })
+
+  it("regenerating someone else's conversation returns 404", async () => {
+    await configureAi()
+    const first = await events(await chat(editor.cookie, { message: "One" }))
+    const conversationId = startedId(first)
+    const res = await chat(owner.cookie, { conversationId, regenerate: true })
+    expect(res.status).toBe(404)
+    expect(await messagesOf(conversationId)).toHaveLength(2)
+    // Edit of their message too.
+    const [userRow] = await getDb()
+      .select({ id: aiMessages.id })
+      .from(aiMessages)
+      .where(eq(aiMessages.conversationId, conversationId))
+      .orderBy(aiMessages.createdAt)
+    const edit = await chat(owner.cookie, {
+      conversationId,
+      message: "Hijack",
+      editMessageId: userRow.id,
+    })
+    expect(edit.status).toBe(404)
+    expect(await messagesOf(conversationId)).toHaveLength(2)
+  })
+
+  it("edit replaces a user message and everything after it", async () => {
+    await configureAi()
+    const first = await events(await chat(editor.cookie, { message: "One" }))
+    const conversationId = startedId(first)
+    const oneId = (first[0] as { userMessageId: string }).userMessageId
+    await events(await chat(editor.cookie, { conversationId, message: "Two" }))
+    vi.mocked(createLanguageModel).mockImplementation(() => replying("Uno!"))
+    const edited = await events(
+      await chat(editor.cookie, {
+        conversationId,
+        message: "Uno",
+        editMessageId: oneId,
+      })
+    )
+    expect(edited.at(-1)).toMatchObject({ type: "done" })
+    expect(await messagesOf(conversationId)).toEqual([
+      { role: "user", content: "Uno" },
+      { role: "assistant", content: "Uno!" },
+    ])
+  })
+
+  it("editMessageId of an assistant message returns 422; unknown id 404", async () => {
+    await configureAi()
+    const first = await events(await chat(editor.cookie, { message: "One" }))
+    const conversationId = startedId(first)
+    const replyId = (first.at(-1) as { messageId: string }).messageId
+    const res = await chat(editor.cookie, {
+      conversationId,
+      message: "x",
+      editMessageId: replyId,
+    })
+    expect(res.status).toBe(422)
+    const missing = await chat(editor.cookie, {
+      conversationId,
+      message: "x",
+      editMessageId: "00000000-0000-4000-8000-000000000000",
+    })
+    expect(missing.status).toBe(404)
+    expect(await messagesOf(conversationId)).toHaveLength(2)
+  })
+
+  it("validates regenerate and edit shapes (422)", async () => {
+    await configureAi()
+    const id = "00000000-0000-4000-8000-000000000000"
+    for (const body of [
+      { regenerate: true },
+      { conversationId: id, regenerate: true, message: "x" },
+      { conversationId: id, regenerate: true, editMessageId: id },
+      { editMessageId: id, message: "x" },
+      { conversationId: id, editMessageId: id },
+      { conversationId: id },
+    ])
+      expect(
+        (await chat(editor.cookie, body)).status,
+        JSON.stringify(body)
+      ).toBe(422)
   })
 
   it("lists the newest conversation first", async () => {
