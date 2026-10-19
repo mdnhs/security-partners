@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { EVENT_CATALOGUE } from "@/lib/analytics/events"
+import { EVENT_CATALOGUE, GTM_SETUP_STEPS } from "@/lib/analytics/events"
 
 const COLUMNS = ["Event", "Fires when", "Params", "GA4", "Meta"] as const
 
@@ -72,6 +72,11 @@ export function EventsView() {
           <code className="font-mono">docs/gtm-container.json</code> (ask your
           developer for the file).
         </p>
+        <ul className="-mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
+          {GTM_SETUP_STEPS.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ul>
       </DashboardCard>
     </div>
   )

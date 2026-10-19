@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import type { AnalyticsWindow } from "@/lib/analytics/events"
 import {
@@ -9,6 +9,9 @@ import {
 } from "@/lib/analytics/loaders"
 
 const IDS = { gtmId: "GTM-TEST1", ga4Id: "G-TEST1", metaPixelId: "1234567890" }
+
+const PAGE_LOCATION = () =>
+  `${window.location.origin}${window.location.pathname}`
 
 const srcs = () =>
   [...document.querySelectorAll("script[data-sp-src]")].map(
@@ -22,6 +25,7 @@ beforeEach(() => {
   delete win.gtag
   delete win.fbq
   delete win._fbq
+  delete win.__spGa4Id
 })
 
 describe("startTracking (after consent)", () => {
@@ -133,7 +137,11 @@ describe("tracking test event (sp_tracking_test)", () => {
     const config = win
       .dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
       .find((args) => args[0] === "config")
-    expect(config).toEqual(["config", "G-TEST1", { debug_mode: true }])
+    expect(config).toEqual([
+      "config",
+      "G-TEST1",
+      { page_location: PAGE_LOCATION(), debug_mode: true },
+    ])
   })
 
   it("without analytics consent nothing is pushed", () => {
@@ -176,6 +184,47 @@ describe("tracking test event (sp_tracking_test)", () => {
     const config = win
       .dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
       .find((args) => args[0] === "config")
-    expect(config).toEqual(["config", "G-TEST1"])
+    expect(config).toEqual([
+      "config",
+      "G-TEST1",
+      { page_location: PAGE_LOCATION() },
+    ])
+  })
+})
+
+describe("GA4 page_location (D2.4 minor 3)", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"))
+
+  it("the config's page_location drops the query and hash", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/newsletter/confirm?token=secret&email=a%40b.ie#x"
+    )
+    const win = window as AnalyticsWindow
+    startTracking(
+      { ...IDS, gtmId: null },
+      { analytics: true, marketing: false },
+      { win, doc: document }
+    )
+    const config = win
+      .dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
+      .find((args) => args[0] === "config")
+    expect(config).toEqual([
+      "config",
+      "G-TEST1",
+      { page_location: `${window.location.origin}/newsletter/confirm` },
+    ])
+    expect(win.__spGa4Id).toBe("G-TEST1")
+  })
+
+  it("no direct GA4 tag: no __spGa4Id, so track() sends no gtag events", () => {
+    const win = window as AnalyticsWindow
+    startTracking(
+      { ...IDS, ga4Id: null },
+      { analytics: true, marketing: false },
+      { win, doc: document }
+    )
+    expect(win.__spGa4Id).toBeUndefined()
   })
 })

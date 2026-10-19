@@ -79,6 +79,17 @@ export const EVENT_CATALOGUE: readonly {
   // with its trigger, GA4 tag and `method` variable in docs/gtm-container.json.
 ]
 
+/**
+ * Setup steps for docs/gtm-container.json, shown under the Event catalogue
+ * table; the container's `description` carries the same sentences
+ * (tests/unit/analytics/catalogue.test.ts checks both). Without the first,
+ * GA4 counts every page change twice; without the second, every event.
+ */
+export const GTM_SETUP_STEPS = [
+  "In GA4 › Admin › Data streams › your web stream › Enhanced measurement › Page views › Show advanced settings, turn off 'Page changes based on browser history events': the container sends page changes itself.",
+  "Send GA4 through the container or through the Google Analytics 4 switch on the Tracking page, not both.",
+] as const
+
 export type Fbq = ((...args: unknown[]) => void) & {
   callMethod?: (...args: unknown[]) => void
   queue: unknown[][]
@@ -94,10 +105,20 @@ export type AnalyticsWindow = Window & {
   _fbq?: Fbq
   /** Set by ConsentProvider; undefined when tracking is off (no banner). */
   __spConsent?: ConsentChoice | null
+  /** Set by startTracking once the direct GA4 tag (gtag.js) is configured. */
+  __spGa4Id?: string
 }
 
 const browserWindow = () =>
   typeof window === "undefined" ? undefined : (window as AnalyticsWindow)
+
+/**
+ * The page URL for GA4 without query or hash: gtag would otherwise attach
+ * the full `location.href` (which may carry `?token=` or `?email=`).
+ */
+export function cleanPageLocation(win: Pick<Window, "location">): string {
+  return `${win.location.origin}${win.location.pathname}`
+}
 
 /** Sends one event if the visitor consented; false when nothing was sent. */
 export function track(
@@ -108,9 +129,18 @@ export function track(
   if (!win || !consent) return false
   let sent = false
   if (consent.analytics) {
+    // GTM reads the plain object (Custom Event triggers).
     ;(win.dataLayer ??= []).push({ ...event })
-    const { event: name, ...params } = event
-    win.gtag?.("event", name, params)
+    // gtag commands share the dataLayer, and GTM processes them as events
+    // too, so send one only when the direct GA4 tag is there to receive it
+    // (a GTM-only setup would otherwise see every event twice).
+    if (win.__spGa4Id && win.gtag) {
+      const { event: name, ...params } = event
+      win.gtag("event", name, {
+        ...params,
+        page_location: cleanPageLocation(win),
+      })
+    }
     sent = true
   }
   if (consent.marketing && event.event === "lead_submitted" && win.fbq) {

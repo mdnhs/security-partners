@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import { EventsView } from "@/components/admin/marketing/events-view"
-import { EVENT_CATALOGUE } from "@/lib/analytics/events"
+import { EVENT_CATALOGUE, GTM_SETUP_STEPS } from "@/lib/analytics/events"
 
 describe("EventsView (Marketing › Event catalogue, D2.4)", () => {
   it("a table with one row per catalogue event", () => {
@@ -47,5 +47,14 @@ describe("EventsView (Marketing › Event catalogue, D2.4)", () => {
             "To set up Google Tag Manager, import docs/gtm-container.json (ask your developer for the file)."
       )
     ).toBeInTheDocument()
+  })
+
+  it("tells the owner to turn off GA4's history page views (no double count)", () => {
+    render(<EventsView />)
+    expect(GTM_SETUP_STEPS[0]).toContain(
+      "turn off 'Page changes based on browser history events'"
+    )
+    for (const step of GTM_SETUP_STEPS)
+      expect(screen.getByText(step)).toBeInTheDocument()
   })
 })

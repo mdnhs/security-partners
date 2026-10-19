@@ -7,7 +7,7 @@
     "containerId": "0",
     "containerVersionId": "0",
     "name": "Security Partners events",
-    "description": "One Custom Event trigger and one GA4 Event tag per event in Marketing > Event catalogue. Set the GA4 Measurement ID variable before publishing.",
+    "description": "A Google tag on every page, plus one Custom Event trigger and one GA4 Event tag per event in Marketing > Event catalogue. Set the GA4 Measurement ID variable before publishing. In GA4 › Admin › Data streams › your web stream › Enhanced measurement › Page views › Show advanced settings, turn off 'Page changes based on browser history events': the container sends page changes itself. Send GA4 through the container or through the Google Analytics 4 switch on the Tracking page, not both.",
     "container": {
       "path": "accounts/0/containers/0",
       "accountId": "0",
@@ -17,6 +17,43 @@
       "usageContext": ["WEB"]
     },
     "tag": [
+      {
+        "accountId": "0",
+        "containerId": "0",
+        "tagId": "100",
+        "name": "Google tag - GA4",
+        "type": "googtag",
+        "parameter": [
+          {
+            "type": "TEMPLATE",
+            "key": "tagId",
+            "value": "{{GA4 Measurement ID}}"
+          },
+          {
+            "type": "LIST",
+            "key": "configSettingsTable",
+            "list": [
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "firingTriggerId": ["2147479573"],
+        "tagFiringOption": "ONCE_PER_EVENT"
+      },
       {
         "accountId": "0",
         "containerId": "0",
@@ -59,6 +96,21 @@
                     "value": "{{DLV - page_title}}"
                   }
                 ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                  }
+                ]
               }
             ]
           },
@@ -96,6 +148,21 @@
                     "type": "TEMPLATE",
                     "key": "parameterValue",
                     "value": "{{DLV - source_page}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -152,6 +219,21 @@
                     "value": "{{DLV - link_url}}"
                   }
                 ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                  }
+                ]
               }
             ]
           },
@@ -189,6 +271,21 @@
                     "type": "TEMPLATE",
                     "key": "parameterValue",
                     "value": "{{DLV - link_url}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -230,6 +327,21 @@
                     "value": "{{DLV - link_url}}"
                   }
                 ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
+                  }
+                ]
               }
             ]
           },
@@ -267,6 +379,21 @@
                     "type": "TEMPLATE",
                     "key": "parameterValue",
                     "value": "{{DLV - test_id}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "page_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "https://{{Page Hostname}}{{Page Path}}"
                   }
                 ]
               }
@@ -469,7 +596,24 @@
       }
     ],
     "builtInVariable": [
-      { "accountId": "0", "containerId": "0", "type": "EVENT", "name": "Event" }
+      {
+        "accountId": "0",
+        "containerId": "0",
+        "type": "EVENT",
+        "name": "Event"
+      },
+      {
+        "accountId": "0",
+        "containerId": "0",
+        "type": "PAGE_HOSTNAME",
+        "name": "Page Hostname"
+      },
+      {
+        "accountId": "0",
+        "containerId": "0",
+        "type": "PAGE_PATH",
+        "name": "Page Path"
+      }
     ]
   }
 }

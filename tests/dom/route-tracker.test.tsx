@@ -7,7 +7,7 @@ import type { AnalyticsWindow } from "@/lib/analytics/events"
 const nav = vi.hoisted(() => ({ pathname: "/" }))
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }))
 
-import { RouteTracker } from "@/components/consent/route-tracker"
+import { RouteTracker, TITLE_WAIT_MS } from "@/components/consent/route-tracker"
 
 const win = window as AnalyticsWindow
 
@@ -68,6 +68,7 @@ describe("RouteTracker (SPA page views, D2.4)", () => {
     )
     expect(pageViews()).toEqual([])
     nav.pathname = "/about"
+    document.title = "About"
     view.rerender(
       <StrictMode>
         <RouteTracker />
@@ -76,15 +77,67 @@ describe("RouteTracker (SPA page views, D2.4)", () => {
     expect(pageViews()).toHaveLength(1)
   })
 
+  it("waits for the new <title> when it streams in after the path", async () => {
+    const view = render(<RouteTracker />)
+    nav.pathname = "/about"
+    view.rerender(<RouteTracker />)
+    // Still the previous page's title: nothing yet.
+    expect(pageViews()).toEqual([])
+    document.title = "About"
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pageViews()).toEqual([
+      { event: "page_view_virtual", page_path: "/about", page_title: "About" },
+    ])
+  })
+
+  it("a page with the same title is still counted after TITLE_WAIT_MS", () => {
+    vi.useFakeTimers()
+    try {
+      const view = render(<RouteTracker />)
+      nav.pathname = "/services/cctv"
+      view.rerender(<RouteTracker />)
+      vi.advanceTimersByTime(TITLE_WAIT_MS - 1)
+      expect(pageViews()).toEqual([])
+      vi.advanceTimersByTime(1)
+      expect(pageViews()).toEqual([
+        {
+          event: "page_view_virtual",
+          page_path: "/services/cctv",
+          page_title: "Home",
+        },
+      ])
+      view.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("leaving before the title arrives sends nothing stale", () => {
+    vi.useFakeTimers()
+    try {
+      const view = render(<RouteTracker />)
+      nav.pathname = "/about"
+      view.rerender(<RouteTracker />)
+      view.unmount()
+      vi.advanceTimersByTime(TITLE_WAIT_MS * 2)
+      expect(pageViews()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("without consent nothing is pushed", () => {
     for (const consent of [undefined, null]) {
       win.__spConsent = consent
       nav.pathname = "/"
+      document.title = "Home"
       const view = render(<RouteTracker />)
       nav.pathname = "/contact"
+      document.title = "Contact"
       view.rerender(<RouteTracker />)
       view.unmount()
     }
+    expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2)
     expect(win.dataLayer).toEqual([])
   })
 
@@ -92,7 +145,9 @@ describe("RouteTracker (SPA page views, D2.4)", () => {
     win.__spConsent = { analytics: false, marketing: true }
     const view = render(<RouteTracker />)
     nav.pathname = "/contact"
+    document.title = "Contact"
     view.rerender(<RouteTracker />)
+    expect(window.requestAnimationFrame).toHaveBeenCalled()
     expect(win.dataLayer).toEqual([])
   })
 })

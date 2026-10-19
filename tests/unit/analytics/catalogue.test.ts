@@ -1,9 +1,18 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { ANALYTICS_EVENTS, EVENT_CATALOGUE } from "@/lib/analytics/events"
+import {
+  ANALYTICS_EVENTS,
+  EVENT_CATALOGUE,
+  GTM_SETUP_STEPS,
+} from "@/lib/analytics/events"
+
+/** GTM's built-in "Initialization - All Pages" trigger. */
+const INITIALIZATION_ALL_PAGES = "2147479573"
+/** The page URL without query or hash, from GTM's built-in variables. */
+const CLEAN_PAGE_LOCATION = "https://{{Page Hostname}}{{Page Path}}"
 
 /**
  * MK parity D2.4: the event catalogue (admin page) and the GTM container
@@ -155,7 +164,9 @@ describe("docs/gtm-container.json", () => {
   })
 
   it("has a GA4 Event tag per row, fired by its trigger, sending its params", () => {
-    expect(tags).toHaveLength(EVENT_CATALOGUE.length)
+    expect(tags.filter((t) => t.type === "gaawe")).toHaveLength(
+      EVENT_CATALOGUE.length
+    )
     for (const row of EVENT_CATALOGUE) {
       const trigger = triggerFor(row.event)!
       const tag = tags.find((t) =>
@@ -173,10 +184,46 @@ describe("docs/gtm-container.json", () => {
         param(entry.map, "parameter")?.value,
         param(entry.map, "parameterValue")?.value,
       ])
-      expect(sent).toEqual(
-        row.params.map((key) => [key, `{{${dlvFor(key)?.name}}}`])
-      )
+      expect(sent).toEqual([
+        ...row.params.map((key) => [key, `{{${dlvFor(key)?.name}}}`]),
+        // GA4 would otherwise attach the full URL, query string included.
+        ["page_location", CLEAN_PAGE_LOCATION],
+      ])
     }
+  })
+
+  it("has one Google tag (GA4 config) on Initialization - All Pages, without the query", () => {
+    const google = tags.filter((t) => t.type === "googtag")
+    expect(google).toHaveLength(1)
+    const tag = google[0]!
+    expect(tag.firingTriggerId).toEqual([INITIALIZATION_ALL_PAGES])
+    expect(param(tag.parameter, "tagId")?.value).toBe("{{GA4 Measurement ID}}")
+    const settings = (
+      param(tag.parameter, "configSettingsTable")?.list ?? []
+    ).map((entry) => [
+      param(entry.map, "parameter")?.value,
+      param(entry.map, "parameterValue")?.value,
+    ])
+    expect(settings).toEqual([["page_location", CLEAN_PAGE_LOCATION]])
+  })
+
+  it("the description carries the setup steps shown on the events page", () => {
+    const description = (
+      gtm.containerVersion as unknown as { description: string }
+    ).description
+    expect(GTM_SETUP_STEPS[0]).toContain(
+      "turn off 'Page changes based on browser history events'"
+    )
+    for (const step of GTM_SETUP_STEPS) expect(description).toContain(step)
+  })
+
+  it("ships placeholder IDs only", () => {
+    const { container } = gtm.containerVersion as unknown as {
+      container: { publicId: string }
+    }
+    expect(container.publicId).toBe("GTM-XXXXXXX")
+    const measurement = variables.find((v) => v.name === "GA4 Measurement ID")!
+    expect(param(measurement.parameter, "value")?.value).toMatch(/^G-X+$/)
   })
 
   it("has a Data Layer Variable for every param", () => {
@@ -196,5 +243,50 @@ describe("docs/gtm-container.json", () => {
     ])
     const refs = JSON.stringify(gtm).match(/\{\{[^}]+\}\}/g) ?? []
     for (const ref of refs) expect(names, ref).toContain(ref.slice(2, -2))
+    const triggerIds = new Set([
+      ...triggers.map((t) => t.triggerId),
+      INITIALIZATION_ALL_PAGES,
+    ])
+    for (const tag of tags)
+      for (const id of tag.firingTriggerId)
+        expect(triggerIds, tag.name).toContain(id)
+  })
+})
+
+describe("no real tag IDs committed (D2.4 minor 5)", () => {
+  // GTM-…, G-… (GA4) and AW-… (Ads) IDs; all-X values are the placeholders.
+  const TAG_ID = /\b(?:GTM|G|AW)-[A-Z0-9]{4,}\b/g
+  const PLACEHOLDER = /^(?:GTM|G|AW)-X+$/
+  const ROOTS = ["app", "components", "lib", "server", "templates", "hooks"]
+  const CODE = /\.(?:[cm]?[jt]sx?|json|sql|css)$/
+
+  function files(dir: string): string[] {
+    return readdirSync(join(process.cwd(), dir), {
+      recursive: true,
+      encoding: "utf8",
+    })
+      .filter((f) => CODE.test(f))
+      .map((f) => join(dir, f))
+  }
+
+  it("the container and the app code hold placeholders only", () => {
+    const found: string[] = []
+    for (const file of [
+      "docs/gtm-container.json",
+      ...ROOTS.filter((d) => existsSync(join(process.cwd(), d))).flatMap(files),
+    ]) {
+      const text = readFileSync(join(process.cwd(), file), "utf8")
+      for (const id of text.match(TAG_ID) ?? [])
+        if (!PLACEHOLDER.test(id)) found.push(`${file}: ${id}`)
+    }
+    expect(found).toEqual([])
+  })
+
+  it("the pattern would catch a real-looking ID", () => {
+    expect("GTM-K7Q2ZP4 G-1A2B3C4D5E".match(TAG_ID)).toEqual([
+      "GTM-K7Q2ZP4",
+      "G-1A2B3C4D5E",
+    ])
+    expect(PLACEHOLDER.test("GTM-XXXXXXX")).toBe(true)
   })
 })
