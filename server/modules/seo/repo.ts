@@ -201,8 +201,8 @@ export async function updateSeoColumn(
 }
 
 export type SitemapRow = {
-  kind: "page" | "service" | "article"
-  /** Page key or slug. */
+  kind: "page" | "service" | "article" | "builder"
+  /** Page key or slug (a builder page's slug: /p/<slug>). */
   key: string
   seo: Seo
   publishedAt: Date | null
@@ -216,9 +216,9 @@ const lastPublish = (entityType: string, entityId: SQL) =>
     revisions.createdAt
   )
 
-/** Published pages, services and articles for the sitemap (never drafts). */
+/** Published pages, services, articles and builder pages for the sitemap (never drafts). */
 export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
-  const [pageRows, serviceRows, articleRows] = await Promise.all([
+  const [pageRows, serviceRows, articleRows, builderRows] = await Promise.all([
     db
       .select({
         key: pages.key,
@@ -249,11 +249,22 @@ export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
       .from(articles)
       .where(isNotNull(articles.published))
       .orderBy(desc(articles.publishedAt), asc(articles.slug)),
+    db
+      .select({
+        key: builderPages.slug,
+        seo: builderPages.seo,
+        publishedAt: builderPages.publishedAt,
+        lastPublish: lastPublish("builder-page", sql`${builderPages.id}::text`),
+      })
+      .from(builderPages)
+      .where(isNotNull(builderPages.published))
+      .orderBy(asc(builderPages.slug)),
   ])
   return [
     ...pageRows.map((row) => ({ kind: "page" as const, ...row })),
     ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
     ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
+    ...builderRows.map((row) => ({ kind: "builder" as const, ...row })),
   ]
 }
 
@@ -278,6 +289,14 @@ export async function findPublishedName(
     if (id === "home") return null
     const title = (row.published as { hero?: { title?: unknown } }).hero?.title
     return typeof title === "string" ? title : null
+  }
+  if (kind === "builder") {
+    // By id (uuid, checked by isOgSubjectId): the card survives slug changes.
+    const [row] = await db
+      .select({ title: builderPages.title })
+      .from(builderPages)
+      .where(and(eq(builderPages.id, id), isNotNull(builderPages.published)))
+    return row ? row.title : undefined
   }
   if (kind === "service") {
     const [row] = await db

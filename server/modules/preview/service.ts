@@ -3,12 +3,14 @@ import "server-only"
 import { z } from "zod"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
+import { builderPath } from "@/lib/schemas/api/builder-pages"
 import { PREVIEW_ENTITIES, type PreviewEntity } from "@/lib/schemas/api/preview"
 import { isSettingsKey } from "@/lib/schemas/settings"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { forbidden, notFound } from "@/server/lib/errors"
 import { findArticleForEdit } from "@/server/modules/articles/repo"
+import { findBuilderPageForEdit } from "@/server/modules/builder-pages/repo"
 import { findServiceById } from "@/server/modules/services/repo"
 import { isPageKey, PAGE_PATHS } from "@/templates/registry"
 
@@ -17,6 +19,7 @@ const READ: Record<PreviewEntity, PermissionRequest> = {
   service: { service: ["read"] },
   article: { article: ["read"] },
   settings: { settings: ["read"] },
+  "builder-page": { page: ["read"] },
 }
 
 /** May preview drafts at all: read permission on some previewable entity. */
@@ -56,6 +59,15 @@ export async function previewPath(
     case "settings":
       if (!isSettingsKey(id)) throw notFound("Settings")
       return "/"
+    case "builder-page": {
+      // builder_pages.id is a uuid column: check before the query (404, not 500).
+      const page = z.uuid().safeParse(id).success
+        ? await findBuilderPageForEdit(getDb(), id)
+        : null
+      if (!page) throw notFound("Page")
+      // Draft mode shows the draft, also of a never-published page.
+      return builderPath(page.slug)
+    }
   }
 }
 

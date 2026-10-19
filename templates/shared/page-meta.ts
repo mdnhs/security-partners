@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 
 import { interpolate } from "@/lib/interpolate"
 import type { MediaView } from "@/lib/media"
+import { builderPath } from "@/lib/schemas/api/builder-pages"
 import { effectiveSeo, filled } from "@/lib/seo/effective"
 import { OG_IMAGE_SIZE, type OgKind, ogImagePath } from "@/lib/seo/urls"
 import { PAGE_PATHS, type PageKey } from "@/templates/registry"
@@ -18,7 +19,7 @@ type SiteSeo = SiteSources["pages"]["home"]["seo"]
 
 type Subject = {
   kind: OgKind
-  /** Page key or slug: the generated card's address (/og/<kind>/<id>). */
+  /** Page key, slug or builder page id: the generated card's address (/og/<kind>/<id>). */
   id: string
   path: string
   seo: SiteSeo
@@ -142,6 +143,31 @@ export function articleMetadata(s: SiteSources, slug: string): Metadata {
       tags: article.content.tags,
       author: article.author?.name ?? null,
     },
+  })
+}
+
+/**
+ * A builder page at /p/<slug>: its SEO fields, else the page title in the
+ * title template and the first hero's description. The generated card is
+ * addressed by id (/og/builder/<id>), so it survives slug changes.
+ */
+export function builderPageMetadata(
+  s: SiteSources,
+  page: {
+    id: string
+    slug: string
+    title: string
+    seo: SiteSeo
+    firstHeroDescription: string | null
+  }
+): Metadata {
+  return metadataFor(s, {
+    kind: "builder",
+    id: page.id,
+    path: builderPath(page.slug),
+    seo: page.seo,
+    name: page.title,
+    fallbackDescription: page.firstHeroDescription,
   })
 }
 

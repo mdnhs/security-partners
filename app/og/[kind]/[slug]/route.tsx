@@ -6,6 +6,7 @@ import { isOgSubjectId } from "@/server/modules/seo/queries"
 import { renderOgCard } from "./card"
 
 // GET /og/:kind/:id → the generated share card (1200×630 PNG) or 404.
+// :id is a page key, a service/article slug or a builder page's uuid.
 // Rendering is cached (card.tsx); ids are validated before any lookup.
 
 const notFound = () => new Response("Not found", { status: 404 })
