@@ -24,6 +24,24 @@ const ROW: RedirectDto = {
   toPath: "/services/alarm-responses",
   code: 301,
   hits: 1234,
+  lastHitAt: null,
+  isActive: true,
+  note: "",
+  source: "manual",
+  createdAt: "2026-10-01T09:00:00.000Z",
+  updatedAt: "2026-10-01T09:00:00.000Z",
+}
+
+const AUTO_ROW: RedirectDto = {
+  id: "00000000-0000-7000-8000-0000000000bb",
+  fromPath: "/services/coming-soon",
+  toPath: "/services",
+  code: 308,
+  hits: 3,
+  lastHitAt: "2026-10-01T08:00:00.000Z",
+  isActive: false,
+  note: "Old brochure link",
+  source: "auto",
   createdAt: "2026-10-01T09:00:00.000Z",
   updatedAt: "2026-10-01T09:00:00.000Z",
 }
@@ -39,7 +57,24 @@ const fetchMock = vi.fn(
     const url = new URL(String(input), "http://localhost")
     const method = init?.method ?? "GET"
     if (method === "GET" && url.pathname === "/api/v1/admin/redirects")
-      return json(200, { items: [ROW], page: 1, pageSize: 20, total: 1 })
+      return json(200, {
+        items: [ROW, AUTO_ROW],
+        page: 1,
+        pageSize: 20,
+        total: 2,
+      })
+    if (method === "PATCH") {
+      const body = JSON.parse(String(init!.body)) as Partial<RedirectDto>
+      if (url.pathname.endsWith(AUTO_ROW.id) && body.isActive === true)
+        return json(422, {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "That address is a live page now",
+            fieldErrors: { isActive: ["That address is a live page now"] },
+          },
+        })
+      return json(200, { ...ROW, ...body })
+    }
     if (method === "POST" && url.pathname === "/api/v1/admin/redirects") {
       const body = JSON.parse(String(init!.body)) as { toPath: string }
       if (body.toPath === "/old-alarms")
@@ -179,6 +214,7 @@ describe("Redirects screen (master 8.2)", () => {
       within(dialog).getByLabelText("Type"),
       "Temporary (302) — it will come back"
     )
+    await user.type(within(dialog).getByLabelText("Note"), "  Spring flyer ")
     await user.click(
       within(dialog).getByRole("button", { name: "Add redirect" })
     )
@@ -192,7 +228,82 @@ describe("Redirects screen (master 8.2)", () => {
       fromPath: "/promo",
       toPath: "/contact",
       code: 302,
+      note: "Spring flyer",
     })
+  })
+
+  it("lists last hit, On/Off, the Automatic badge and the note (D1.7)", async () => {
+    renderAs(["marketer"])
+    const table = await screen.findByRole("table", { name: "Redirects" })
+    const [, manual, auto] = within(table).getAllByRole("row")
+    expect(within(manual).getByText("Never")).toBeInTheDocument()
+    expect(within(manual).getByText("On")).toBeInTheDocument()
+    expect(within(manual).queryByText("Automatic")).toBeNull()
+    expect(within(auto).getByText("Off")).toBeInTheDocument()
+    expect(within(auto).getByText("Automatic")).toBeInTheDocument()
+    expect(within(auto).getByText("Old brochure link")).toBeInTheDocument()
+    expect(within(auto).getByText("Permanent (308)")).toBeInTheDocument()
+    expect(
+      auto.querySelector(`time[datetime="${AUTO_ROW.lastHitAt}"]`)
+    ).not.toBeNull()
+    expect(
+      within(table).getByRole("columnheader", { name: /Last hit/ })
+    ).toBeInTheDocument()
+  })
+
+  it("Turn off patches isActive; turning on a live address shows the reason", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    const table = await screen.findByRole("table", { name: "Redirects" })
+    await user.click(
+      within(table).getByRole("button", {
+        name: "Turn off redirect from /old-alarms",
+      })
+    )
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(
+        ([, init]) => init?.method === "PATCH"
+      )!
+      expect(String(patch[0])).toContain(`/redirects/${ROW.id}`)
+      expect(JSON.parse(String(patch[1]!.body))).toEqual({ isActive: false })
+    })
+    await user.click(
+      within(table).getByRole("button", {
+        name: "Turn on redirect from /services/coming-soon",
+      })
+    )
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Not turned on", {
+        description: "That address is a live page now",
+      })
+    )
+  })
+
+  it("the type select offers 301, 302, 307 and 308 with help", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(
+      await screen.findByRole("button", { name: "Add redirect" })
+    )
+    const dialog = screen.getByRole("dialog", { name: "Add redirect" })
+    const type = within(dialog).getByLabelText("Type")
+    expect(type).toHaveAccessibleDescription(/307 and 308/)
+    await user.click(type)
+    const options = (await screen.findAllByRole("option")).map((o) =>
+      o.textContent?.trim()
+    )
+    expect(options).toEqual([
+      "Permanent (301) — the page moved for good",
+      "Temporary (302) — it will come back",
+      "Temporary, keep method (307) — for forms and APIs",
+      "Permanent, keep method (308) — for forms and APIs",
+    ])
+  })
+
+  it("viewers get no Turn on/off", async () => {
+    renderAs(["viewer"])
+    await screen.findByRole("table", { name: "Redirects" })
+    expect(screen.queryByRole("button", { name: /^Turn (on|off)/ })).toBeNull()
   })
 
   it("delete asks first, then deletes", async () => {

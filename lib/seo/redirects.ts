@@ -5,6 +5,16 @@ import { isSafeHref } from "@/lib/href"
 /** Longest allowed chain from a redirect to its final address. */
 export const MAX_REDIRECT_HOPS = 5
 
+/** 301/308 permanent, 302/307 temporary; 307/308 keep the request method. */
+export const REDIRECT_CODES = [301, 302, 307, 308] as const
+export type RedirectCode = (typeof REDIRECT_CODES)[number]
+
+/** A stored code as RedirectCode (the column check allows only these). */
+export const redirectCode = (code: number): RedirectCode =>
+  (REDIRECT_CODES as readonly number[]).includes(code)
+    ? (code as RedirectCode)
+    : 301
+
 const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
 /** A path ending in a file extension (static files; never a page or redirect source). */

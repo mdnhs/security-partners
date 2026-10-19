@@ -1,7 +1,11 @@
 import "server-only"
 
 import { SLUG_PATTERN } from "@/lib/schemas/common"
-import { FILE_EXTENSION } from "@/lib/seo/redirects"
+import {
+  FILE_EXTENSION,
+  type RedirectCode,
+  redirectCode,
+} from "@/lib/seo/redirects"
 import { getDb } from "@/server/db/client"
 import { pgErrorCode } from "@/server/lib/pg-errors"
 import { PAGE_PATHS } from "@/templates/registry"
@@ -24,8 +28,11 @@ export type PublicPathOutcome =
   | {
       kind: "redirect"
       to: string
-      code: 301 | 302
-      /** Counts the hit; proxy.ts runs it after responding (waitUntil). Never rejects. */
+      code: RedirectCode
+      /**
+       * Counts the hit and stamps last_hit_at; proxy.ts runs it after
+       * responding (waitUntil), coalesced per redirect. Never rejects.
+       */
       recordHit: () => Promise<void>
     }
 
@@ -130,7 +137,7 @@ export async function resolvePublicPath(
       return {
         kind: "redirect",
         to: redirect.toPath,
-        code: redirect.code === 302 ? 302 : 301,
+        code: redirectCode(redirect.code),
         recordHit: () => countHit(redirect.id),
       }
     return detail ? MISSING : PASS

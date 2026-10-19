@@ -85,6 +85,13 @@
       "when": 1792441347140,
       "tag": "0011_seo_defaults_robots",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792442099535,
+      "tag": "0012_redirects_admin",
+      "breakpoints": true
     }
   ]
 }

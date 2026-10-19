@@ -19,7 +19,13 @@ import { containsPattern } from "@/server/db/like"
 import { articles, redirects, services } from "@/server/db/schema"
 
 export type RedirectRow = typeof redirects.$inferSelect
-type RedirectValues = { fromPath: string; toPath: string; code: number }
+type RedirectValues = {
+  fromPath: string
+  toPath: string
+  code: number
+  note: string
+  isActive: boolean
+}
 
 export async function listRedirectRows(
   db: DbOrTx,
@@ -62,7 +68,7 @@ export async function findRedirectById(db: DbOrTx, id: string) {
   return row ?? null
 }
 
-/** proxy.ts: the redirect for one exact path, if any. */
+/** proxy.ts: the active redirect for one exact path, if any (Off ones never resolve). */
 export async function findRedirectByFrom(db: DbOrTx, fromPath: string) {
   const [row] = await db
     .select({
@@ -71,11 +77,15 @@ export async function findRedirectByFrom(db: DbOrTx, fromPath: string) {
       code: redirects.code,
     })
     .from(redirects)
-    .where(eq(redirects.fromPath, fromPath))
+    .where(and(eq(redirects.fromPath, fromPath), eq(redirects.isActive, true)))
   return row ?? null
 }
 
-/** Every from_path → to_path (loop detection; the table stays small). */
+/**
+ * Every from_path → to_path (loop detection; the table stays small). Off
+ * redirects count too, so turning one back on can never close a loop or
+ * exceed the hop limit, and moves re-point them like the others.
+ */
 export async function listRedirectEdges(
   db: DbOrTx
 ): Promise<Map<string, string>> {
@@ -111,7 +121,10 @@ export async function deleteRedirectRow(db: DbOrTx, id: string) {
   return row ?? null
 }
 
-/** `by` more hits (coalesced in resolve.ts); updatedAt keeps meaning "last edited". */
+/**
+ * `by` more hits (coalesced in resolve.ts) and last_hit_at = now();
+ * updatedAt keeps meaning "last edited". Nothing about the visitor is stored.
+ */
 export async function incrementRedirectHits(
   db: DbOrTx,
   id: string,
@@ -121,6 +134,7 @@ export async function incrementRedirectHits(
     .update(redirects)
     .set({
       hits: sql`${redirects.hits} + ${by}`,
+      lastHitAt: sql`now()`,
       updatedAt: sql`${redirects.updatedAt}`,
     })
     .where(eq(redirects.id, id))
@@ -176,12 +190,20 @@ export async function moveRedirects(
           .where(inArray(redirects.fromPath, [...repoint]))
           .returning({ fromPath: redirects.fromPath })
       : []
+  // An Off leftover at the old address (allowed while it was a live page)
+  // is taken over: it becomes this automatic, active 301; its note stays.
   await db
     .insert(redirects)
-    .values({ fromPath: from, toPath: to, code: 301 })
+    .values({ fromPath: from, toPath: to, code: 301, source: "auto" })
     .onConflictDoUpdate({
       target: redirects.fromPath,
-      set: { toPath: to, code: 301, updatedAt: new Date() },
+      set: {
+        toPath: to,
+        code: 301,
+        source: "auto",
+        isActive: true,
+        updatedAt: new Date(),
+      },
     })
   return {
     deleted: deleted.map((r) => r.fromPath),

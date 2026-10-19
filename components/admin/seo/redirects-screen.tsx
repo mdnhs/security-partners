@@ -28,11 +28,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import type { Paginated } from "@/lib/schemas/api/list"
-import type { RedirectDto } from "@/lib/schemas/api/redirects"
+import type { RedirectCode, RedirectDto } from "@/lib/schemas/api/redirects"
 
 import { RedirectDialog } from "./redirect-dialog"
 
@@ -45,14 +46,65 @@ type Actions = {
   canDelete: boolean
   onEdit: (row: RedirectDto) => void
   onDelete: (row: RedirectDto) => void
+  onToggle: (row: RedirectDto) => void
+  /** Id of the redirect whose On/Off change is in flight. */
+  toggling: string | null
 }
 const ActionsContext = createContext<Actions | null>(null)
 
-function TypePill({ code }: { code: 301 | 302 }) {
+const PERMANENT = new Set<RedirectCode>([301, 308])
+
+function TypePill({ code }: { code: RedirectCode }) {
+  const permanent = PERMANENT.has(code)
   return (
-    <StatusPill tone={code === 301 ? "success" : "info"}>
-      {code === 301 ? "Permanent (301)" : "Temporary (302)"}
+    <StatusPill tone={permanent ? "success" : "info"}>
+      {permanent ? `Permanent (${code})` : `Temporary (${code})`}
     </StatusPill>
+  )
+}
+
+/** On/Off as text (never colour alone). */
+function ActivePill({ active }: { active: boolean }) {
+  return (
+    <StatusPill tone={active ? "success" : "neutral"}>
+      {active ? "On" : "Off"}
+    </StatusPill>
+  )
+}
+
+function AutomaticBadge({ source }: { source: RedirectDto["source"] }) {
+  if (source !== "auto") return null
+  return (
+    <Badge
+      variant="outline"
+      title="Added when a published page was renamed or deleted"
+    >
+      Automatic
+    </Badge>
+  )
+}
+
+function LastHit({ iso }: { iso: string | null }) {
+  return (
+    <span className="text-muted-foreground">
+      {iso ? <RelativeTime iso={iso} /> : "Never"}
+    </span>
+  )
+}
+
+function FromCell({ row }: { row: RedirectDto }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <code className="font-mono text-xs">{row.fromPath}</code>
+        <AutomaticBadge source={row.source} />
+      </div>
+      {row.note ? (
+        <span className="text-xs break-words text-muted-foreground">
+          {row.note}
+        </span>
+      ) : null}
+    </div>
   )
 }
 
@@ -61,6 +113,19 @@ function RowActions({ row }: { row: RedirectDto }) {
   if (!actions.canUpdate && !actions.canDelete) return null
   return (
     <div className="flex justify-end gap-2">
+      {actions.canUpdate ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="pointer-coarse:h-11"
+          aria-label={`${row.isActive ? "Turn off" : "Turn on"} redirect from ${row.fromPath}`}
+          disabled={actions.toggling === row.id}
+          onClick={() => actions.onToggle(row)}
+        >
+          {row.isActive ? "Turn off" : "Turn on"}
+        </Button>
+      ) : null}
       {actions.canUpdate ? (
         <Button
           type="button"
@@ -92,9 +157,7 @@ function RowActions({ row }: { row: RedirectDto }) {
 const columns = ch.columns([
   ch.accessor("fromPath", {
     header: "From",
-    cell: (info) => (
-      <code className="font-mono text-xs">{info.getValue()}</code>
-    ),
+    cell: ({ row }) => <FromCell row={row.original} />,
   }),
   ch.accessor("toPath", {
     header: "To",
@@ -110,11 +173,22 @@ const columns = ch.columns([
     enableSorting: false,
     cell: (info) => <TypePill code={info.getValue()} />,
   }),
+  ch.accessor("isActive", {
+    header: "Status",
+    enableSorting: false,
+    cell: (info) => <ActivePill active={info.getValue()} />,
+  }),
   ch.accessor("hits", {
     header: "Hits",
     cell: (info) => (
       <span className="tabular-nums">{formatNumber(info.getValue())}</span>
     ),
+  }),
+  ch.accessor("lastHitAt", {
+    header: "Last hit",
+    enableSorting: false,
+    // "Now" is the list's fetch time (DataTable's NowProvider).
+    cell: (info) => <LastHit iso={info.getValue()} />,
   }),
   ch.accessor("updatedAt", {
     header: "Updated",
@@ -153,6 +227,25 @@ export function RedirectsScreen() {
     onError: (error) =>
       toast.error("Not deleted", { description: errorMessage(error) }),
   })
+  const toggle = useMutation({
+    mutationFn: (row: RedirectDto) =>
+      unwrap(
+        api.redirects[":id"].$patch({
+          param: { id: row.id },
+          json: { isActive: !row.isActive },
+        })
+      ),
+    onSuccess: (_, row) => {
+      toast.success(
+        `Redirect from ${row.fromPath} turned ${row.isActive ? "off" : "on"}`
+      )
+      refresh()
+    },
+    onError: (error, row) =>
+      toast.error(row.isActive ? "Not turned off" : "Not turned on", {
+        description: errorMessage(error),
+      }),
+  })
   const addButton = (className: string) =>
     canCreate ? (
       <Button className={className} onClick={() => setEditing("new")}>
@@ -168,6 +261,8 @@ export function RedirectsScreen() {
         canDelete,
         onEdit: setEditing,
         onDelete: setDeleting,
+        onToggle: (row) => toggle.mutate(row),
+        toggling: toggle.isPending ? (toggle.variables?.id ?? null) : null,
       }}
     >
       <div className="flex flex-col gap-6">
@@ -197,14 +292,18 @@ export function RedirectsScreen() {
           searchPlaceholder="Search addresses"
           renderCard={(row) => (
             <div className="rounded-card flex flex-col gap-2 bg-card p-4">
-              <code className="font-mono text-xs">{row.fromPath}</code>
+              <FromCell row={row} />
               <code className="font-mono text-xs break-all text-muted-foreground">
                 → {row.toPath}
               </code>
               <div className="flex flex-wrap items-center gap-2 text-sm">
+                <ActivePill active={row.isActive} />
                 <TypePill code={row.code} />
                 <span className="tabular-nums">
                   {formatNumber(row.hits)} hits
+                </span>
+                <span className="text-muted-foreground">
+                  Last hit <LastHit iso={row.lastHitAt} />
                 </span>
               </div>
               <RowActions row={row} />

@@ -159,12 +159,15 @@ describe("content schema migration (0003_content)", () => {
     await db.insert(media).values({ ...row, driver: "disk" })
   })
 
-  it("only allows 301/302 redirects", async () => {
+  it("only allows 301/302/307/308 redirects (widened in D1.7)", async () => {
     const db = getDb()
     await db.insert(redirects).values({ fromPath: "/a", toPath: "/b" })
+    await db
+      .insert(redirects)
+      .values({ fromPath: "/e", toPath: "/f", code: 307 })
     expect(
       await pgCode(
-        db.insert(redirects).values({ fromPath: "/c", toPath: "/d", code: 307 })
+        db.insert(redirects).values({ fromPath: "/c", toPath: "/d", code: 303 })
       )
     ).toBe("23514")
   })

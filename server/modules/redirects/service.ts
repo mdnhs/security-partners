@@ -2,11 +2,12 @@ import "server-only"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { Paginated } from "@/lib/schemas/api/list"
-import type {
-  RedirectDto,
-  RedirectInput,
-  RedirectListQuery,
-  RedirectPatch,
+import {
+  redirectCode,
+  type RedirectDto,
+  type RedirectInput,
+  type RedirectListQuery,
+  type RedirectPatch,
 } from "@/lib/schemas/api/redirects"
 import { checkRedirectChain, redirectTargetPath } from "@/lib/seo/redirects"
 import { type DbOrTx, getDb } from "@/server/db/client"
@@ -55,8 +56,12 @@ function toDto(row: RedirectRow): RedirectDto {
     id: row.id,
     fromPath: row.fromPath,
     toPath: row.toPath,
-    code: row.code === 302 ? 302 : 301,
+    code: redirectCode(row.code),
     hits: row.hits,
+    lastHitAt: row.lastHitAt?.toISOString() ?? null,
+    isActive: row.isActive,
+    note: row.note,
+    source: row.source,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -82,22 +87,40 @@ async function siteOrigin(db: DbOrTx): Promise<string | null> {
  * hold %-escapes of unreserved characters (fromPathProblem), so the raw
  * path is the one compared with page paths and slugs.
  */
-async function assertFromIsFree(db: DbOrTx, fromPath: string) {
-  if (STATIC_PATHS.has(fromPath))
-    throw invalid("fromPath", "This address is a live page of the site")
+async function isLivePage(db: DbOrTx, fromPath: string): Promise<boolean> {
+  if (STATIC_PATHS.has(fromPath)) return true
   const detail = DETAIL.exec(fromPath)
-  if (
-    detail &&
+  return (
+    detail !== null &&
     (await isPublishedSlug(
       db,
       detail[1] === "services" ? "service" : "article",
       detail[2]
     ))
   )
+}
+
+async function assertFromIsFree(db: DbOrTx, fromPath: string) {
+  if (STATIC_PATHS.has(fromPath))
+    throw invalid("fromPath", "This address is a live page of the site")
+  if (await isLivePage(db, fromPath))
     throw invalid(
       "fromPath",
       "This address is a live page. Rename or unpublish it first."
     )
+}
+
+/**
+ * Turning a redirect on runs the create-time live-page check: its address
+ * may have become a page while it was Off (the page wins in proxy.ts).
+ */
+async function assertCanTurnOn(db: DbOrTx, fromPath: string) {
+  if (await isLivePage(db, fromPath)) {
+    const message = "That address is a live page now"
+    throw new AppError("VALIDATION_FAILED", message, {
+      fieldErrors: { isActive: [message] },
+    })
+  }
 }
 
 function assertChain(
@@ -186,9 +209,12 @@ export async function updateRedirect(
         fromPath: patch.fromPath ?? existing.fromPath,
         toPath: patch.toPath ?? existing.toPath,
         code: patch.code ?? existing.code,
+        note: patch.note ?? existing.note,
+        isActive: patch.isActive ?? existing.isActive,
       }
       if (next.fromPath !== existing.fromPath)
         await assertFromIsFree(tx, next.fromPath)
+      else if (patch.isActive === true) await assertCanTurnOn(tx, next.fromPath)
       const edges = await listRedirectEdges(tx)
       edges.delete(existing.fromPath)
       assertChain(edges, next.fromPath, next.toPath, await siteOrigin(tx))
@@ -203,6 +229,8 @@ export async function updateRedirect(
             fromPath: existing.fromPath,
             toPath: existing.toPath,
             code: existing.code,
+            note: existing.note,
+            isActive: existing.isActive,
           },
           to: next,
         },

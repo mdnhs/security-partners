@@ -60,6 +60,51 @@ test("owner adds a redirect in SEO › Redirects; the old address 301s", async (
   ).toHaveCount(0)
 })
 
+test("a redirect turned off stops answering; on again, it 308s (D1.7)", async ({
+  page,
+}) => {
+  await signIn(page, E2E_OWNER.email)
+  const created = await page.request.post("/api/v1/admin/redirects", {
+    headers: { origin: BASE_URL },
+    data: {
+      fromPath: "/e2e-toggle",
+      toPath: "/contact",
+      code: 308,
+      note: "e2e toggle",
+    },
+  })
+  expect(created.status()).toBe(201)
+  const { id } = (await created.json()) as { id: string }
+  try {
+    await page.goto("/admin/seo/redirects?q=e2e-toggle")
+    const table = page.getByRole("table", { name: "Redirects" })
+    await expect(table).toContainText("e2e toggle")
+    await expect(table).toContainText("Never")
+    await page
+      .getByRole("button", { name: "Turn off redirect from /e2e-toggle" })
+      .click()
+    await expect(
+      page.getByRole("button", { name: "Turn on redirect from /e2e-toggle" })
+    ).toBeVisible()
+    const off = await page.request.get("/e2e-toggle", { maxRedirects: 0 })
+    expect(off.status()).toBe(404)
+
+    await page
+      .getByRole("button", { name: "Turn on redirect from /e2e-toggle" })
+      .click()
+    await expect(
+      page.getByRole("button", { name: "Turn off redirect from /e2e-toggle" })
+    ).toBeVisible()
+    const on = await page.request.get("/e2e-toggle", { maxRedirects: 0 })
+    expect(on.status()).toBe(308)
+    expect(absolute(on.headers().location)).toBe(`${BASE_URL}/contact`)
+  } finally {
+    await page.request.delete(`/api/v1/admin/redirects/${id}`, {
+      headers: { origin: BASE_URL },
+    })
+  }
+})
+
 test("SEO overview: the sheet saves a page's description", async ({ page }) => {
   await signIn(page, E2E_OWNER.email)
   // All: Terms may pass every check (Needs work would hide it).
