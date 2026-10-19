@@ -280,7 +280,7 @@ test("the audit log filters by action and person and shows the invitation", asyn
 
   await page.getByLabel("Action", { exact: true }).fill("user.invite")
   await row.getByRole("button", { name: /^Details of user\.invite/ }).click()
-  const sheet = page.getByRole("dialog", { name: "Audit entry" })
+  const sheet = page.getByRole("dialog", { name: "Activity entry" })
   await expect(sheet.getByLabel("Details", { exact: true })).toContainText(
     invitee.email
   )

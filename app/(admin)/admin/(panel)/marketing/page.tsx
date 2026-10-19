@@ -19,6 +19,10 @@ export default function MarketingPage() {
 async function Editor() {
   await requirePermission(GROWTH_SETTINGS.tracking.read)
   return (
-    <GrowthSettingsEditor settingsKey="tracking" aside={<TrackingNotice />} />
+    <GrowthSettingsEditor
+      settingsKey="tracking"
+      description="Tag IDs and switches. Nothing loads until a visitor consents. Changes stay in a draft until you publish."
+      aside={<TrackingNotice />}
+    />
   )
 }

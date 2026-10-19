@@ -134,7 +134,7 @@ export function AuditScreen() {
     <>
       <PageHeader
         title="Activity log"
-        description="Sign-ins, user changes and content changes, newest first. Times are Irish time."
+        description="Who changed what, and when. Times are Irish time."
       />
       <DataTable<Row>
         syncUrl

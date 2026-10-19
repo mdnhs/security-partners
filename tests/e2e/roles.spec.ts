@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test"
 
-import { dockItems, menuSections } from "@/components/admin/shell/nav"
+import { dockLinks, visibleNav } from "@/lib/admin/nav"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { ROLES } from "@/lib/auth/roles"
 
@@ -51,9 +51,7 @@ for (const role of ROLES) {
     test.setTimeout(60_000)
     await signIn(page, `${role}@demo.local`)
 
-    const menu = menuSections([role]).flatMap((s) =>
-      s.items.map((i) => i.label)
-    )
+    const menu = visibleNav([role]).flatMap((s) => s.items.map((i) => i.label))
     // exact: "Admin" would also match the footer dock ("Administration").
     const nav = page.getByRole("navigation", { name: "Admin", exact: true })
     await expect(nav.getByRole("link")).toHaveCount(menu.length)
@@ -62,7 +60,10 @@ for (const role of ROLES) {
         nav.getByRole("link", { name: new RegExp(`^${escape(label)}`) })
       ).toBeVisible()
     const dock = page.getByRole("navigation", { name: "Administration" })
-    const docked = dockItems([role]).map((item) => item.label)
+    // Account holds Help's place in the dock until /admin/help (B7).
+    const docked = dockLinks([role]).map((link) =>
+      link.id === "help" ? "Account" : link.label
+    )
     await expect(dock.getByRole("link")).toHaveCount(docked.length)
     for (const label of docked)
       await expect(

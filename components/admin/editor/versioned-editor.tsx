@@ -47,6 +47,8 @@ export function issuesToFieldErrors(
 
 export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
   title: string
+  /** One line of page copy under the title (see EditorLayout). */
+  description?: ReactNode
   /** Omit inside route tabs (Settings): the tab rail is the way back. */
   backHref?: string
   backLabel?: string
@@ -423,6 +425,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         backHref={props.backHref}
         backLabel={props.backLabel}
         title={props.title}
+        description={props.description}
         path={props.path}
         status={
           props.status

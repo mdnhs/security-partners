@@ -21,7 +21,7 @@ async function Media() {
     <>
       <PageHeader
         title="Media"
-        description="Images and documents used on the site. Uploads are kept on the server disk, or in Cloudflare R2 once it is set up."
+        description="Images and PDFs used across the site."
       />
       <MediaLibrary />
     </>

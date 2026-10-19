@@ -182,7 +182,7 @@ describe("activity log (spec §8.1)", () => {
     await user.click(
       within(table).getByRole("button", { name: /^Details of user\.update/ })
     )
-    const sheet = await screen.findByRole("dialog", { name: "Audit entry" })
+    const sheet = await screen.findByRole("dialog", { name: "Activity entry" })
     expect(within(sheet).getByLabelText("Before")).toHaveTextContent(
       '"name": "Edith"'
     )
@@ -194,12 +194,14 @@ describe("activity log (spec §8.1)", () => {
 
     await user.keyboard("{Escape}")
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Audit entry" })).toBeNull()
+      expect(
+        screen.queryByRole("dialog", { name: "Activity entry" })
+      ).toBeNull()
     )
     await user.click(
       within(table).getByRole("button", { name: /^Details of user\.invite/ })
     )
-    const invite = await screen.findByRole("dialog", { name: "Audit entry" })
+    const invite = await screen.findByRole("dialog", { name: "Activity entry" })
     expect(within(invite).getByLabelText("Details")).toHaveTextContent(
       '"email": "edith@example.test"'
     )

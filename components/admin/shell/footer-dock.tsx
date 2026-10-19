@@ -1,6 +1,6 @@
 "use client"
 
-import { LogOut } from "lucide-react"
+import { LogOut, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import type { ReactElement } from "react"
 
@@ -10,9 +10,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import type { NavLink } from "@/lib/admin/nav"
 import { cn } from "@/lib/utils"
 
-import { isActiveItem, type NavItem } from "./nav"
+/** A dock link always has its icon (the dock shows no labels). */
+export type DockLink = NavLink & { icon: LucideIcon }
+
+/** The page is this link's or below it (a user's detail under Users). */
+const isCurrent = (href: string, pathname: string) =>
+  pathname === href || pathname.startsWith(`${href}/`)
 
 // "card" sits on the website card's navy gradient, "rail" on the sidebar.
 const DOCK_BUTTON = {
@@ -21,7 +27,7 @@ const DOCK_BUTTON = {
 }
 
 export type DockProps = {
-  links: readonly NavItem[]
+  links: readonly DockLink[]
   pathname: string
   onNavigate: () => void
   onSignOut: () => void
@@ -55,7 +61,7 @@ export function FooterDock({
       >
         {links.map((link) => {
           const Icon = link.icon
-          const active = isActiveItem(link, pathname)
+          const active = isCurrent(link.href, pathname)
           return (
             <li key={link.href}>
               <DockTip label={link.label}>

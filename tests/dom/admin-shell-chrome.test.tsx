@@ -22,7 +22,7 @@ vi.mock("@/lib/auth-client", () => ({
 import { AdminProviders, makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import { BrandMark } from "@/components/admin/shell/brand-mark"
-import type { NavBadges } from "@/components/admin/shell/nav"
+import type { NavBadges } from "@/lib/admin/nav"
 import type { Role } from "@/lib/auth/roles"
 
 function renderShell({

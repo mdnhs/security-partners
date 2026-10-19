@@ -14,6 +14,9 @@ import {
   BLOCKING_METADATA_MARK,
   HTML_LIMITED_BOTS,
 } from "@/lib/seo/blocking-metadata"
+import { firstVisibleChild } from "@/lib/admin/nav"
+import { hasPermission } from "@/lib/auth/permissions"
+import { ROLES } from "@/lib/auth/roles"
 import { REQUEST_PATH_HEADER } from "@/lib/request-path"
 import { config, proxy } from "@/proxy"
 
@@ -144,6 +147,13 @@ describe("proxy.ts (optimistic /admin gate)", () => {
     const location = new URL(res.headers.get("location") ?? "")
     expect(location.pathname).toBe("/admin/settings/site")
     expect(location.search).toBe("")
+    // The proxy has no roles: its target must be every settings reader's
+    // first rail child (the registry, as the page's own redirect uses).
+    for (const role of ROLES)
+      if (hasPermission([role], { settings: ["read"] }))
+        expect(firstVisibleChild("settings", [role])?.href).toBe(
+          location.pathname
+        )
     expect(res.headers.get("x-robots-tag")).toBe("noindex")
     // Only the exact path; keys and a signed-out visit are left alone.
     expect(

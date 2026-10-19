@@ -692,7 +692,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/insights")
       await expect(
-        page.getByRole("heading", { level: 1, name: "Articles" })
+        page.getByRole("heading", { level: 1, name: "Insights" })
       ).toBeVisible()
       await expect(
         page
@@ -935,7 +935,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/settings/site")
       await expect(
-        page.getByRole("navigation", { name: "Settings" })
+        page.getByRole("navigation", { name: "Site settings" })
       ).toBeVisible()
       await editorReady(page, "Identity")
       await expect(page).toHaveScreenshot(shot("settings-site"), {
@@ -1295,7 +1295,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/leads")
       await expect(
-        page.getByRole("heading", { level: 1, name: "Leads" })
+        page.getByRole("heading", { level: 1, name: "Enquiries" })
       ).toBeVisible()
       // A table from 640 px, cards below: find the links in either.
       await expect(
@@ -1365,7 +1365,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page
         .getByRole("button", { name: /^Details of settings\.draft_saved/ })
         .click()
-      const sheet = page.getByRole("dialog", { name: "Audit entry" })
+      const sheet = page.getByRole("dialog", { name: "Activity entry" })
       await expect(sheet.getByLabel("After", { exact: true })).toContainText(
         "01 234 9999"
       )

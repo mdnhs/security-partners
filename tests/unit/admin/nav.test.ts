@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  CURRENT_ROUTES,
-  dockItems,
-  findNavItem,
-  isActiveItem,
-  menuSections,
-  navDestinations,
-} from "@/components/admin/shell/nav"
-import {
   activeItem,
   dockLinks,
   firstVisibleChild,
@@ -207,122 +199,6 @@ describe("registry items (ported from the JW nav tests)", () => {
     )
     expect(activeItem("/admin/users-archive", ["owner"])).toBeNull()
     expect(activeItem("/admin/insights/0192", ["author"])!.id).toBe("insights")
-  })
-})
-
-describe("shell adapters (B1 → B4 bridge, current routes)", () => {
-  const labels = (roles: Role[]) =>
-    menuSections(roles).map((s) => [s.label, s.items.map((i) => i.label)])
-
-  it("the sidebar shows the registry's groups and labels", () => {
-    for (const role of ROLES) expect(labels([role])).toEqual(menu([role]))
-  })
-
-  it("links point at pages that exist today", () => {
-    const owner = menuSections(["owner"]).flatMap((s) => s.items)
-    const href = (id: string) => owner.find((i) => i.id === id)!.href
-    expect(href("insights")).toBe("/admin/insights")
-    expect(href("collections")).toBe("/admin/collections/team")
-    expect(href("marketing")).toBe("/admin/marketing")
-    expect(href("settings")).toBe("/admin/settings/site")
-    const destinations = navDestinations(["owner"]).map((d) => d.href)
-    for (const target of Object.values(CURRENT_ROUTES))
-      expect(destinations).toContain(target)
-    for (const moved of Object.keys(CURRENT_ROUTES))
-      if (!Object.values(CURRENT_ROUTES).includes(moved))
-        expect(destinations).not.toContain(moved)
-    expect(destinations).not.toContain("/admin/help")
-    expect(new Set(destinations).size).toBe(destinations.length)
-  })
-
-  it("dock keeps Account until /admin/help exists", () => {
-    expect(dockItems(["owner"]).map((i) => [i.label, i.href])).toEqual([
-      ["Users & roles", "/admin/users"],
-      ["Activity log", "/admin/activity"],
-      ["Account", "/admin/account"],
-    ])
-    for (const role of [
-      "editor",
-      "viewer",
-      "marketer",
-      "author",
-      "intake",
-    ] as const)
-      expect(dockItems([role]).map((i) => i.label)).toEqual(["Account"])
-  })
-
-  it("⌘K destinations follow reachableLinks, permission-filtered", () => {
-    for (const role of ROLES)
-      expect(navDestinations([role]).map((d) => d.label)).toEqual(
-        reachableLinks([role])
-          .filter((l) => l.id !== "help")
-          .map((l) => l.label)
-      )
-    expect(navDestinations(["marketer"]).map((d) => d.label)).not.toContain(
-      "Custom code"
-    )
-    expect(
-      navDestinations(["editor"]).find((d) => d.label === "Team")
-    ).toMatchObject({ href: "/admin/collections/team", parent: "Collections" })
-  })
-
-  it("findNavItem finds Collections by id at current routes", () => {
-    expect(
-      findNavItem(["editor"], "collections")!.children!.map((c) => c.href)
-    ).toEqual([
-      "/admin/collections/team",
-      "/admin/collections/clients",
-      "/admin/collections/group-companies",
-    ])
-    expect(findNavItem(["author"], "collections")).toBeUndefined()
-  })
-
-  it("isActiveItem marks a section active on any sub-page", () => {
-    const owner = menuSections(["owner"]).flatMap((s) => s.items)
-    const find = (id: string) => owner.find((i) => i.id === id)!
-    expect(
-      isActiveItem(find("collections"), "/admin/collections/clients")
-    ).toBe(true)
-    expect(isActiveItem(find("insights"), "/admin/insights/categories")).toBe(
-      true
-    )
-    expect(isActiveItem(find("collections"), "/admin/services")).toBe(false)
-    expect(isActiveItem(find("dashboard"), "/admin")).toBe(true)
-    expect(isActiveItem(find("dashboard"), "/admin/pages")).toBe(false)
-    expect(isActiveItem(find("seo"), "/admin/seo/redirects")).toBe(true)
-    // B3 pages live at their registry hrefs.
-    expect(isActiveItem(find("marketing"), "/admin/marketing")).toBe(true)
-    expect(isActiveItem(find("marketing"), "/admin/marketing/code")).toBe(true)
-    expect(isActiveItem(find("settings"), "/admin/settings/ai-assistant")).toBe(
-      true
-    )
-    expect(isActiveItem(dockItems(["owner"])[1]!, "/admin/activity")).toBe(true)
-    const users = dockItems(["owner"])[0]!
-    expect(isActiveItem(users, "/admin/users/0190f0e0")).toBe(true)
-    expect(isActiveItem(users, "/admin/users-archive")).toBe(false)
-  })
-})
-
-describe("isActiveItem also answers for the unmapped registry hrefs", () => {
-  it("a section shown at a current route is active on its registry path", () => {
-    // Every remaining CURRENT_ROUTES entry: the item (or its child) is mapped
-    // to the page's current address, yet a pathname at the registry href
-    // (e.g. reached through a redirect or a server link) still highlights it.
-    const owner = menuSections(["owner"]).flatMap((s) => s.items)
-    for (const registryHref of Object.keys(CURRENT_ROUTES)) {
-      const section = NAV_ITEMS.find(
-        (i) =>
-          i.href === registryHref ||
-          i.children?.some((c) => c.href === registryHref)
-      )!
-      const shown = owner.find((i) => i.id === section.id)!
-      expect(isActiveItem(shown, registryHref)).toBe(true)
-    }
-    const insights = owner.find((i) => i.id === "insights")!
-    expect(isActiveItem(insights, "/admin/insights/0192")).toBe(true)
-    expect(isActiveItem(insights, "/admin/services")).toBe(false)
-    const dashboard = owner.find((i) => i.id === "dashboard")!
-    expect(isActiveItem(dashboard, "/admin/pages")).toBe(false)
   })
 })
 

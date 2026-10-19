@@ -1,6 +1,6 @@
 import "server-only"
 
-import type { NavBadges } from "@/components/admin/shell/nav"
+import type { NavBadges } from "@/lib/admin/nav"
 import { hasPermission } from "@/lib/auth/permissions"
 import type { AiStatusDto } from "@/lib/schemas/api/ai"
 import type { ShellNotification } from "@/lib/schemas/api/dashboard"

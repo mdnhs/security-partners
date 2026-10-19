@@ -57,7 +57,7 @@ export function SeoOverview({ origin }: { origin: string }) {
       <PageHeader
         stacked={onCard}
         title="SEO"
-        description="How search engines and social networks see each page. Changes apply to the live site as soon as you save."
+        description="How search engines see the site."
       />
       {query.isPending ? (
         <>

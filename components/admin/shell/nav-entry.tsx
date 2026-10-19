@@ -8,7 +8,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import type { NavItem } from "./nav"
+import type { NavItem } from "@/lib/admin/nav"
 
 /** "120" → "99+": the pill stays one width. */
 export function formatBadge(count: number): string {

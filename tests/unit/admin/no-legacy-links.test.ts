@@ -28,10 +28,12 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const fromRedirects = ADMIN_LEGACY_REDIRECTS.map((r) =>
   r.source.split("/:")[0]!.replace(/^\/admin\//, "")
 )
+// A quote, or a Markdown link's `(`, opens the path; then a quote, `)`, `/`
+// or `?` ends the old segment.
 const OLD = new RegExp(
-  `["'\`]/admin/(?:${[...new Set([...SPEC_OLD, ...fromRedirects])]
+  `["'\`(]/admin/(?:${[...new Set([...SPEC_OLD, ...fromRedirects])]
     .map(escape)
-    .join("|")})(?:["'\`/?])`
+    .join("|")})(?:["'\`/?)])`
 )
 
 /** Where the old paths are meant to appear: the redirects and their tests. */
@@ -43,8 +45,14 @@ const ALLOWED = new Set([
 ])
 
 it("no source file links an old admin path", () => {
-  const files = globSync("{app,components,lib,server,tests}/**/*.{ts,tsx}")
+  const files = [
+    ...globSync("{app,components,lib,server,tests,emails}/**/*.{ts,tsx}"),
+    ...globSync("{app,components}/**/*.{md,mdx}"),
+    "proxy.ts",
+  ]
   expect(files.length).toBeGreaterThan(100)
+  expect(files).toContain("proxy.ts")
+  expect(files.some((f) => f.startsWith("emails/"))).toBe(true)
   const hits = files
     .filter((f) => !ALLOWED.has(f))
     .filter((f) => OLD.test(readFileSync(f, "utf8")))
@@ -62,6 +70,7 @@ it("the pattern catches the old forms and spares the new ones", () => {
   expect(OLD.test(`"/admin/team?edit=1"`)).toBe(true)
   expect(OLD.test(`"/admin/clients"`)).toBe(true)
   expect(OLD.test(`"/admin/group-companies"`)).toBe(true)
+  expect(OLD.test("[log](/admin/audit)")).toBe(true)
   expect(OLD.test(`"/admin/insights/categories"`)).toBe(false)
   expect(OLD.test(`"/admin/collections/team"`)).toBe(false)
   expect(OLD.test(`"/api/v1/admin/articles"`)).toBe(false)

@@ -16,7 +16,6 @@ vi.mock("next/navigation", () => ({
 import { CollectionScreen } from "@/components/admin/collections/collection-screen"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
-import { SectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { SortableList } from "@/components/admin/sortable-list"
 import { slugify } from "@/components/admin/services/new-service-form"
 import type { Role } from "@/lib/auth/roles"
@@ -72,7 +71,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock)
 })
 
-function renderScreen(roles: Role[] = ["editor"], { inTabs = false } = {}) {
+function renderScreen(roles: Role[] = ["editor"]) {
   const content = <CollectionScreen name="categories" />
   return render(
     <AdminShell
@@ -89,22 +88,7 @@ function renderScreen(roles: Role[] = ["editor"], { inTabs = false } = {}) {
         impersonatedBy: null,
       }}
     >
-      {inTabs ? (
-        <SectionTabs
-          ariaLabel="Collections"
-          items={[
-            {
-              id: "c",
-              label: "Categories",
-              href: "/admin/insights/categories",
-            },
-          ]}
-        >
-          {content}
-        </SectionTabs>
-      ) : (
-        content
-      )}
+      {content}
     </AdminShell>
   )
 }
@@ -169,34 +153,24 @@ describe("collection screen + data table (master 4.6)", () => {
     expect(screen.queryByRole("button", { name: "Change order" })).toBeNull()
   })
 
-  it("outlines the table and cards on a section tab's white card", async () => {
-    renderScreen(["editor"], { inTabs: true })
+  it("beside the Insights rail the page sits on the panel (MK, no tab card)", async () => {
+    renderScreen(["editor"])
     const table = await screen.findByRole("table", { name: "Categories" })
-    // No second white card inside the tab card: a bordered table instead.
-    expect(table.closest('[data-slot="table-card"]')).toHaveClass(
-      "rounded-card",
-      "border"
-    )
+    const rail = screen.getByRole("navigation", { name: "Insights" })
+    expect(
+      within(rail).getByRole("link", { name: "Categories" })
+    ).toHaveAttribute("aria-current", "page")
+    // White cards on the grey panel: no outline, header beside its actions.
+    expect(table.closest('[data-slot="table-card"]')).not.toHaveClass("border")
     const cards = within(
       screen.getByRole("list", { name: "Categories" })
     ).getAllByRole("button")
-    expect(cards[0]).toHaveClass("rounded-card", "border")
-  })
-
-  it("stacks the header actions in one row under the title on a tab card", async () => {
-    renderScreen(["editor"], { inTabs: true })
-    await screen.findByRole("table", { name: "Categories" })
-    const header = screen
-      .getByRole("heading", { name: "Categories", level: 1 })
-      .closest("header")!
-    expect(header).not.toHaveClass("lg:flex-row")
-    const actions = screen.getByRole("button", {
-      name: "Add category",
-    }).parentElement!
-    expect(actions).toHaveClass("flex-wrap", "gap-3")
+    expect(cards[0]).not.toHaveClass("border")
     expect(
-      within(actions).getByRole("button", { name: "Change order" })
-    ).toBeInTheDocument()
+      screen
+        .getByRole("heading", { name: "Categories", level: 1 })
+        .closest("header")
+    ).toHaveClass("lg:flex-row")
   })
 
   it("hides the pager while loading and when the list fails", async () => {

@@ -21,7 +21,7 @@ async function Pages() {
     <>
       <PageHeader
         title="Pages"
-        description="The eight fixed pages of the site. Layout and section order are part of the design; every text, image and link is editable."
+        description="Every page of the site. Changes stay in a draft until you publish."
       />
       <PagesList />
     </>

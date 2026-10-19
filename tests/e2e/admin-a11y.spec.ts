@@ -386,7 +386,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         .first()
         .click()
       await expect(
-        page.getByRole("dialog", { name: "Audit entry" })
+        page.getByRole("dialog", { name: "Activity entry" })
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`/admin/activity + detail sheet → ${violation}`)

@@ -158,8 +158,8 @@ export function ArticlesScreen() {
   return (
     <>
       <PageHeader
-        title="Articles"
-        description="Blog posts. Authors write drafts and submit them for review; editors publish them now or schedule them."
+        title="Insights"
+        description="Articles for the blog. Changes stay in a draft until you publish."
         actions={newArticle}
       />
       <div

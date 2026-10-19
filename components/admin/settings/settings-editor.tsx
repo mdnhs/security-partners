@@ -25,6 +25,7 @@ export function SettingsEditor({
   return (
     <VersionedEditor
       title={entry.label}
+      description="Changes stay in a draft until you publish."
       queryKey={["settings", settingsKey]}
       load={() => unwrap(api.settings[":key"].$get({ param }))}
       saveDraft={(draft, version) =>

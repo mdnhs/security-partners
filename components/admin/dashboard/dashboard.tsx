@@ -238,7 +238,7 @@ function Body({
 }: {
   dto: DashboardDto
   kpis: Kpi[]
-  /** The Team activity card's body; null when the role may not read the audit log. */
+  /** The Team activity card's body; null when the role may not read the activity log. */
   activity: ReactNode
 }) {
   // The Content health gauge (hidden without seo:read) sits beside the feed.

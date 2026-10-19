@@ -23,9 +23,12 @@ export function GrowthSettingsEditor({
   settingsKey,
   backHref,
   backLabel,
+  description,
   aside,
 }: {
   settingsKey: GrowthSettingsKey
+  /** Page copy under the title (MK). */
+  description?: ReactNode
   /** Omit inside the section's route tabs (they already lead back). */
   backHref?: string
   backLabel?: string
@@ -42,6 +45,7 @@ export function GrowthSettingsEditor({
   return (
     <VersionedEditor
       title={entry.label}
+      description={description}
       backHref={backHref}
       backLabel={backLabel}
       queryKey={["marketing", settingsKey]}

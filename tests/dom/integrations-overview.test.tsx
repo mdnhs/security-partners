@@ -18,7 +18,7 @@ import {
   type AdminSession,
   AdminSessionProvider,
 } from "@/components/admin/session-provider"
-import { SettingsTabs } from "@/components/admin/settings/settings-tabs"
+import { SectionRail } from "@/components/admin/shell/section-rail"
 import type { Role } from "@/lib/auth/roles"
 
 const item = (
@@ -112,10 +112,10 @@ describe("Integrations overview", () => {
   })
 })
 
-describe("Settings tabs: Integrations", () => {
+describe("Site settings rail: Integrations", () => {
   it("owners and admins get the Integrations tab (current on its pages)", () => {
-    renderWith(["admin"], <SettingsTabs>content</SettingsTabs>)
-    const nav = screen.getByRole("navigation", { name: "Settings" })
+    renderWith(["admin"], <SectionRail>content</SectionRail>)
+    const nav = screen.getByRole("navigation", { name: "Site settings" })
     const link = within(nav).getByRole("link", { name: "Integrations" })
     expect(link).toHaveAttribute("href", "/admin/settings/integrations")
     expect(link).toHaveAttribute("aria-current", "page")
@@ -125,8 +125,8 @@ describe("Settings tabs: Integrations", () => {
   })
 
   it("editors do not", () => {
-    renderWith(["editor"], <SettingsTabs>content</SettingsTabs>)
-    const nav = screen.getByRole("navigation", { name: "Settings" })
+    renderWith(["editor"], <SectionRail>content</SectionRail>)
+    const nav = screen.getByRole("navigation", { name: "Site settings" })
     expect(within(nav).queryByRole("link", { name: "Integrations" })).toBeNull()
     expect(within(nav).queryByRole("link", { name: "AI assistant" })).toBeNull()
   })

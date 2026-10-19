@@ -1,6 +1,6 @@
 import { SITE_TIME_ZONE } from "@/lib/format"
 
-/** Audit log filters as the screen holds them ("" = not filtered). */
+/** Activity log filters as the screen holds them ("" = not filtered). */
 export type AuditFilters = {
   /** User id. */
   actor: string
