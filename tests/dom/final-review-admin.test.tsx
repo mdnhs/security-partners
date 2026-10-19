@@ -614,7 +614,7 @@ describe("error boundaries (I7)", () => {
 })
 
 describe("toasts (M5, N4)", () => {
-  it("sit bottom left, clear of the sidebar from lg", async () => {
+  it("sit top centre, below the topbar (MK parity A3)", async () => {
     render(
       <AdminProviders cacheKey="toasts" client={makeQueryClient()}>
         <p>Body</p>
@@ -625,8 +625,7 @@ describe("toasts (M5, N4)", () => {
     })
     await screen.findByText("Saved")
     const list = document.querySelector("[data-sonner-toaster]")
-    expect(list).toHaveAttribute("data-y-position", "bottom")
-    expect(list).toHaveAttribute("data-x-position", "left")
-    expect(list).toHaveClass("lg:[--offset-left:calc(20rem+2rem)]!")
+    expect(list).toHaveAttribute("data-y-position", "top")
+    expect(list).toHaveAttribute("data-x-position", "center")
   })
 })

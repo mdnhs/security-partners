@@ -59,14 +59,16 @@ export function AdminProviders({
       <TooltipProvider>
         {children}
         {/*
-         * Bottom left of the content panel (M5, re-review N4): never over the
-         * topbar, the sticky editor bar, a right sheet's footer or the AI
-         * composer; from lg it clears the 20 rem sidebar (+ gutters). Phones
-         * keep sonner's full-width bottom (its own --mobile-offset-*).
+         * Top centre (MK), clear of the topbar's controls: they end at 74 px
+         * (16 px gutter + 72 px panel, 44 px buttons centred), 70 px on phones
+         * (12 px gutter). A sheet's close button ends at 56 px, so it stays
+         * reachable too; bottom bars (sticky editor bar, sheet footers, AI
+         * composer) are never covered.
          */}
         <Toaster
-          position="bottom-left"
-          className="toaster group lg:[--offset-left:calc(20rem+2rem)]!"
+          position="top-center"
+          offset={{ top: 80 }}
+          mobileOffset={{ top: 72 }}
           richColors
           closeButton
         />

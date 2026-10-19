@@ -98,6 +98,7 @@ export function AdminShell({
                       <Topbar
                         assistant={assistant}
                         notifications={notifications}
+                        badges={badges}
                       />
                     </div>
                     <main
