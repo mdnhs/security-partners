@@ -1,8 +1,13 @@
-import { createHash, createHmac, hkdfSync, randomBytes } from "node:crypto"
+import { randomBytes } from "node:crypto"
 
 import { type APIRequestContext, expect, test } from "@playwright/test"
 import { Client } from "pg"
 
+import { hkdfKey } from "@/lib/crypto/hkdf"
+import {
+  confirmTokenHash,
+  formatUnsubscribeToken,
+} from "@/lib/newsletter/tokens"
 import type { SubscriberDto } from "@/lib/schemas/api/newsletter"
 
 import { E2E_OWNER } from "./admin-accounts"
@@ -10,15 +15,17 @@ import { BASE_URL, E2E_ENV } from "./env"
 import { clientIpFor, E2E_PASSWORD } from "./fixtures"
 
 // D4.2: with placement "blog" published, a visitor subscribes on /blog,
-// confirms, and unsubscribes through the button page; ruling 2 (seeded
+// confirms through the confirm view's button (a POST; the page itself
+// never confirms), and unsubscribes through the button page; ruling 2 (seeded
 // "off") is restored afterwards so the visual suite stays at 0 px.
 //
 // The confirmation email is not read from Mailpit: the E2E server is the
 // production server.js, whose SMTP guard refuses the loopback Mailpit (see
 // leads.spec.ts). Mail delivery is covered by
 // tests/integration/api/newsletter.test.ts. Here the spec plants a known
-// confirm token (only its sha256 is stored) and derives the unsubscribe
-// token the email would carry (HKDF "newsletter" from the E2E secret).
+// confirm token (only its hash is stored) and derives the unsubscribe token
+// the email would carry, with the token helpers the service itself uses
+// (lib/newsletter/tokens, lib/crypto/hkdf), so the formats cannot drift.
 
 test.describe.configure({ mode: "serial" })
 
@@ -32,7 +39,9 @@ type SettingsEntry = {
 }
 
 type PlaywrightRequest = {
-  request: { newContext: (typeof import("@playwright/test"))["request"]["newContext"] }
+  request: {
+    newContext: (typeof import("@playwright/test"))["request"]["newContext"]
+  }
 }
 
 async function ownerApi(
@@ -66,21 +75,14 @@ async function publishPlacement(
   })
   expect(saved.ok()).toBe(true)
   const { version } = (await saved.json()) as SettingsEntry
-  expect((await api.post(`${SETTINGS}/publish`, { data: { version } })).ok()).toBe(
-    true
-  )
+  expect(
+    (await api.post(`${SETTINGS}/publish`, { data: { version } })).ok()
+  ).toBe(true)
 }
 
-/** The unsubscribe token the confirmation email carries (server/modules/newsletter/service.ts). */
-function unsubscribeToken(id: string): string {
-  const key = Buffer.from(
-    hkdfSync("sha256", E2E_ENV.BETTER_AUTH_SECRET, "sp/v1", "newsletter", 32)
-  )
-  const mac = createHmac("sha256", key)
-    .update(`unsubscribe:${id}`)
-    .digest("base64url")
-  return `${id}.${mac.slice(0, 32)}`
-}
+/** The unsubscribe token the confirmation email carries. */
+const unsubscribeToken = (id: string) =>
+  formatUnsubscribeToken(hkdfKey(E2E_ENV.BETTER_AUTH_SECRET, "newsletter"), id)
 
 async function findSubscriber(
   api: APIRequestContext
@@ -96,8 +98,7 @@ async function findSubscriber(
 test.afterAll(async ({ playwright }) => {
   const api = await ownerApi(playwright)
   const subscriber = await findSubscriber(api)
-  if (subscriber)
-    await api.delete(`/api/v1/admin/newsletter/${subscriber.id}`)
+  if (subscriber) await api.delete(`/api/v1/admin/newsletter/${subscriber.id}`)
   await publishPlacement(api, "off")
   await api.dispose()
 })
@@ -137,18 +138,28 @@ test("placement blog → subscribe, confirm, unsubscribe", async ({
   try {
     await db.query(
       "update newsletter_subscribers set token_hash = $1 where email = $2",
-      [createHash("sha256").update(token).digest("hex"), VISITOR]
+      [confirmTokenHash(token), VISITOR]
     )
   } finally {
     await db.end()
   }
-  await page.goto(`/api/v1/public/newsletter/confirm?token=${token}`)
+  // The mail's link opens the confirm view; loading it changes nothing.
+  const view = await page.goto(`/newsletter/confirm?token=${token}`)
+  expect(view?.headers()["cache-control"]).toContain("no-store")
+  expect(view?.headers()["referrer-policy"]).toBe("no-referrer")
+  expect(view?.headers()["x-robots-tag"]).toContain("noindex")
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Confirm your subscription" })
+  ).toBeVisible()
+  expect((await findSubscriber(api))?.status).toBe("pending")
+  await page.getByRole("button", { name: "Confirm subscription" }).click()
   await expect(page).toHaveURL(/\/newsletter\/confirmed$/)
   await expect(
     page.getByRole("heading", { level: 1, name: "You're subscribed" })
   ).toBeVisible()
-  // Single use: the same link is now invalid.
-  await page.goto(`/api/v1/public/newsletter/confirm?token=${token}`)
+  // Single use: posting the same token again lands on invalid.
+  await page.goto(`/newsletter/confirm?token=${token}`)
+  await page.getByRole("button", { name: "Confirm subscription" }).click()
   await expect(page).toHaveURL(/\/newsletter\/invalid$/)
 
   const confirmed = await findSubscriber(api)

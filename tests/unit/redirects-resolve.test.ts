@@ -39,6 +39,7 @@ describe("resolvePublicPath (proxy.ts)", () => {
 
   it("newsletter state pages pass without a query; other /newsletter paths are missing", async () => {
     for (const path of [
+      "/newsletter/confirm",
       "/newsletter/confirmed",
       "/newsletter/invalid",
       "/newsletter/unsubscribe",

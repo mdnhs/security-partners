@@ -75,7 +75,9 @@ describe("NewsletterForm", () => {
   it("201: posts the address, swaps the form for role=status and tracks the sign-up", async () => {
     render(<NewsletterForm id="newsletter" copy={copy} />)
     await subscribe()
-    expect(await screen.findByRole("status")).toHaveTextContent(copy.success)
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(copy.success)
+    )
     expect(screen.queryByRole("textbox", { name: "Email address" })).toBeNull()
     expect(posts()).toHaveLength(1)
     const [, init] = posts()[0]
@@ -130,39 +132,103 @@ describe("NewsletterForm", () => {
     await waitFor(() => expect(button).toBeDisabled())
     expect(button).toHaveAttribute("aria-busy", "true")
     release(new Response("{}", { status: 201 }))
-    expect(await screen.findByRole("status")).toHaveTextContent(copy.success)
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(copy.success)
+    )
+  })
+
+  it("a polite status region is mounted (empty) before any submit", () => {
+    render(<NewsletterForm id="newsletter" copy={copy} />)
+    const region = screen.getByRole("status")
+    expect(region).toHaveAttribute("aria-live", "polite")
+    expect(region).toHaveTextContent("")
+  })
+
+  it("success: the same region gets the text and receives focus (focus never drops to body)", async () => {
+    render(<NewsletterForm id="newsletter" copy={copy} />)
+    const region = screen.getByRole("status")
+    await subscribe()
+    await waitFor(() => expect(region).toHaveTextContent(copy.success))
+    expect(screen.getByRole("status")).toBe(region)
+    expect(document.activeElement).toBe(region)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it("aria-invalid only when the address was rejected (400/422)", async () => {
+    reply = status(429)
+    render(<NewsletterForm id="newsletter" copy={copy} />)
+    const input = screen.getByRole("textbox", { name: "Email address" })
+    const user = await subscribe()
+    await screen.findByRole("alert")
+    expect(input).not.toHaveAttribute("aria-invalid")
+    expect(input).toHaveAttribute("aria-describedby", "newsletter-error")
+    reply = status(500)
+    await user.click(screen.getByRole("button", { name: "Subscribe" }))
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(copy.errors.generic)
+    )
+    expect(input).not.toHaveAttribute("aria-invalid")
+    reply = status(422)
+    await user.click(screen.getByRole("button", { name: "Subscribe" }))
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(copy.errors.email)
+    )
+    expect(input).toHaveAttribute("aria-invalid", "true")
+  })
+
+  it("a repeated identical error is a fresh alert node (re-announced)", async () => {
+    reply = status(500)
+    render(<NewsletterForm id="newsletter" copy={copy} />)
+    const user = await subscribe()
+    const first = await screen.findByRole("alert")
+    await user.click(screen.getByRole("button", { name: "Subscribe" }))
+    await waitFor(() => expect(posts()).toHaveLength(2))
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(copy.errors.generic)
+    )
+    expect(screen.getByRole("alert")).not.toBe(first)
   })
 })
 
 describe("NewsletterStateBody", () => {
-  it("unsubscribe: a POST form to the API with the token hidden and the button", () => {
-    const { container } = render(
-      <NewsletterStateBody
-        state="unsubscribe"
-        body="Press the button below."
-        button="Unsubscribe"
-        token="abc.def"
-      />
-    )
-    const form = container.querySelector("form")!
-    expect(form).toHaveAttribute("method", "post")
-    expect(form).toHaveAttribute(
-      "action",
-      "/api/v1/public/newsletter/unsubscribe"
-    )
-    const hidden = container.querySelector<HTMLInputElement>(
-      'input[type="hidden"][name="token"]'
-    )!
-    expect(hidden.value).toBe("abc.def")
-    expect(
-      screen.getByRole("button", { name: "Unsubscribe" })
-    ).toHaveAttribute("type", "submit")
-    expect(screen.getByText("Press the button below.")).toBeInTheDocument()
-  })
+  for (const [label, action] of [
+    ["Confirm subscription", "/api/v1/public/newsletter/confirm"],
+    ["Unsubscribe", "/api/v1/public/newsletter/unsubscribe"],
+  ] as const)
+    it(`${label}: a plain POST form to ${action} with the token hidden; never auto-submits`, () => {
+      const submit = vi.spyOn(HTMLFormElement.prototype, "submit")
+      const requestSubmit = vi.spyOn(HTMLFormElement.prototype, "requestSubmit")
+      const { container } = render(
+        <NewsletterStateBody
+          body="Press the button below."
+          button={label}
+          action={action}
+          token="abc.def"
+        />
+      )
+      const form = container.querySelector("form")!
+      expect(form).toHaveAttribute("method", "post")
+      expect(form).toHaveAttribute("action", action)
+      const hidden = container.querySelector<HTMLInputElement>(
+        'input[type="hidden"][name="token"]'
+      )!
+      expect(hidden.value).toBe("abc.def")
+      const button = screen.getByRole("button", { name: label })
+      expect(button).toHaveAttribute("type", "submit")
+      // A link scanner that renders the page must not confirm anyone: no
+      // script, no autofocus, nothing submits without a person's click.
+      expect(button).not.toHaveFocus()
+      expect(container.querySelector("script, [autofocus]")).toBeNull()
+      expect(submit).not.toHaveBeenCalled()
+      expect(requestSubmit).not.toHaveBeenCalled()
+      expect(screen.getByText("Press the button below.")).toBeInTheDocument()
+      submit.mockRestore()
+      requestSubmit.mockRestore()
+    })
 
-  it("other states: the body text only, no form", () => {
+  it("no action: the body text only, no form", () => {
     const { container } = render(
-      <NewsletterStateBody state="confirmed" body="Thanks for confirming." />
+      <NewsletterStateBody body="Thanks for confirming." action={null} />
     )
     expect(screen.getByText("Thanks for confirming.")).toBeInTheDocument()
     expect(container.querySelector("form")).toBeNull()

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Container, Eyebrow } from "@/components/home/section"
 import { useTurnstile } from "@/components/home/use-turnstile"
@@ -14,7 +14,8 @@ type Phase =
   | { kind: "idle" }
   | { kind: "sending" }
   | { kind: "done" }
-  | { kind: "error"; message: string }
+  /** `invalid`: the server rejected the address (400/422), not a transient failure. */
+  | { kind: "error"; message: string; invalid: boolean }
 
 const inputClass =
   "h-[54px] w-full rounded-xl border border-brand-line bg-white px-[18px] text-[15px] text-brand-navy outline-none placeholder:text-brand-placeholder focus-visible:border-brand-blue focus-visible:ring-3 focus-visible:ring-brand-blue/20"
@@ -35,11 +36,19 @@ export function NewsletterForm({
   // State lags a tick behind; the ref blocks a double submit.
   const inFlight = useRef(false)
   const turnstileSlot = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLParagraphElement>(null)
   const turnstile = useTurnstile(turnstileSlot)
   const titleId = `${id}-title`
   const emailId = `${id}-email`
   const errorId = `${id}-error`
   const sending = phase.kind === "sending"
+  const done = phase.kind === "done"
+
+  // The form (and its focused button) is swapped out on success: move focus
+  // to the status message so keyboard and screen-reader users keep their place.
+  useEffect(() => {
+    if (done) statusRef.current?.focus()
+  }, [done])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -65,17 +74,19 @@ export function NewsletterForm({
         setPhase({ kind: "done" })
         return
       }
+      const invalid = res.status === 400 || res.status === 422
       setPhase({
         kind: "error",
+        invalid,
         message:
           res.status === 429
             ? copy.errors.rateLimited
-            : res.status === 400 || res.status === 422
+            : invalid
               ? copy.errors.email
               : copy.errors.generic,
       })
     } catch {
-      setPhase({ kind: "error", message: copy.errors.generic })
+      setPhase({ kind: "error", invalid: false, message: copy.errors.generic })
     } finally {
       inFlight.current = false
       turnstile.reset()
@@ -103,14 +114,7 @@ export function NewsletterForm({
             </p>
           )}
         </div>
-        {phase.kind === "done" ? (
-          <p
-            role="status"
-            className="text-[17px] leading-normal font-bold text-brand-green-dark"
-          >
-            {copy.success}
-          </p>
-        ) : (
+        {!done && (
           <form
             onSubmit={handleSubmit}
             onFocus={() => void turnstile.prepare()}
@@ -130,7 +134,9 @@ export function NewsletterForm({
                 required
                 autoComplete="email"
                 placeholder={copy.placeholder}
-                aria-invalid={phase.kind === "error" || undefined}
+                aria-invalid={
+                  (phase.kind === "error" && phase.invalid) || undefined
+                }
                 aria-describedby={phase.kind === "error" ? errorId : undefined}
                 className={cn(inputClass, "sm:flex-1")}
               />
@@ -171,6 +177,21 @@ export function NewsletterForm({
             )}
           </form>
         )}
+        {/* Mounted from the first render so the success text is announced
+            (a live region inserted with its text often is not). */}
+        <p
+          ref={statusRef}
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+          className={
+            done
+              ? "text-[17px] leading-normal font-bold text-brand-green-dark outline-none"
+              : "sr-only"
+          }
+        >
+          {done ? copy.success : ""}
+        </p>
         <div ref={turnstileSlot} className="absolute h-0 w-0 overflow-hidden" />
       </Container>
     </section>

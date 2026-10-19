@@ -10,7 +10,8 @@ export type PageHeroProps = {
   trail?: { label: string; href: string }[]
   crumb: string
   title: string
-  description: string
+  /** Omitted (undefined) renders no paragraph; every content page passes one. */
+  description?: string
   wideDescription?: boolean
   /** Breadcrumb "Home" label and the nav's aria-label (settings.microcopy). */
   homeLabel: string
@@ -85,15 +86,17 @@ export function PageHero({
           >
             {title}
           </h1>
-          <p
-            data-hero-item
-            className={cn(
-              "text-lg leading-[1.6] text-white/85 md:text-[19px]",
-              wideDescription ? "max-w-[760px]" : "max-w-[640px]"
-            )}
-          >
-            {description}
-          </p>
+          {description !== undefined && (
+            <p
+              data-hero-item
+              className={cn(
+                "text-lg leading-[1.6] text-white/85 md:text-[19px]",
+                wideDescription ? "max-w-[760px]" : "max-w-[640px]"
+              )}
+            >
+              {description}
+            </p>
+          )}
         </div>
       </Container>
     </section>

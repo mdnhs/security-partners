@@ -1,11 +1,6 @@
 import "server-only"
 
-import {
-  createHash,
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto"
+import { randomBytes, timingSafeEqual } from "node:crypto"
 
 import { after } from "next/server"
 import { createElement } from "react"
@@ -13,6 +8,12 @@ import { createElement } from "react"
 import { NewsletterConfirmation } from "@/emails/newsletter-confirmation"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { CSV_BOM, toCsv } from "@/lib/csv"
+import {
+  confirmTokenHash,
+  formatUnsubscribeToken,
+  newsletterMac,
+  UNSUBSCRIBE_MAC_LENGTH,
+} from "@/lib/newsletter/tokens"
 import type { Paginated } from "@/lib/schemas/api/list"
 import {
   SUBSCRIBER_CSV_HEADER,
@@ -48,6 +49,16 @@ export const CONFIRM_TTL_MS = 7 * 86_400_000
  * stays valid.
  */
 export const RESEND_COOLDOWN_MS = 3_600_000
+/**
+ * On top of the cooldown: at most 3 confirmation mails per address per
+ * 24 h. Counted only when a mail is actually sent; over the cap the signup
+ * answers the same 201, sends nothing and keeps the last link valid.
+ */
+export const RESEND_DAILY_CAP = {
+  bucket: "newsletter-resend",
+  max: 3,
+  windowMs: 86_400_000,
+} as const
 /** Per IP on the token endpoints (confirm, unsubscribe): only DB-load hygiene. */
 export const NEWSLETTER_TOKEN_LIMIT = {
   bucket: "newsletter-token",
@@ -55,25 +66,20 @@ export const NEWSLETTER_TOKEN_LIMIT = {
   windowMs: 600_000,
 } as const
 const TOKEN_MAX_LENGTH = 200
-const UNSUBSCRIBE_MAC_LENGTH = 32
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DEFAULT_SUBJECT = "Confirm your subscription"
 /** Public confirm view; renders a button that POSTs `{ token }` to the API. */
 export const CONFIRM_VIEW_PATH = "/newsletter/confirm"
 
-const sha256 = (value: string) =>
-  createHash("sha256").update(value).digest("hex")
 const errorName = (err: unknown) =>
   err instanceof Error ? err.name : "unknown error"
 /** HMAC with the HKDF "newsletter" key; `kind` separates the uses of the key. */
 const mac = (kind: "unsubscribe" | "email", value: string) =>
-  createHmac("sha256", deriveKey("newsletter"))
-    .update(`${kind}:${value}`)
-    .digest("base64url")
+  newsletterMac(deriveKey("newsletter"), kind, value)
 
 /** `<id>.<HMAC-SHA256(deriveKey("newsletter"), id) base64url[:32]>` — never expires. */
 export function unsubscribeToken(id: string): string {
-  return `${id}.${mac("unsubscribe", id).slice(0, UNSUBSCRIBE_MAC_LENGTH)}`
+  return formatUnsubscribeToken(deriveKey("newsletter"), id)
 }
 
 /** The subscriber id when the token's MAC is valid (constant-time compare), else null. */
@@ -132,6 +138,9 @@ function defer(task: () => Promise<void>): void {
   }
 }
 
+/** Rolls the signup transaction back: the address hit RESEND_DAILY_CAP. */
+class DailyCapReached extends Error {}
+
 /** Per-address 429; carries the window's Retry-After for the route. */
 export class NewsletterRateLimitedError extends AppError {
   readonly retryAfterSeconds: number
@@ -179,14 +188,31 @@ export async function subscribe(
     return { ok: true }
   }
   const token = randomBytes(32).toString("base64url")
-  const row = await repo.upsertPending(db, input.email, {
-    ...meta,
-    ipHash: ctx.ip ? hashIp(ctx.ip) : null,
-    tokenHash: sha256(token),
-    tokenExpiresAt: new Date(now.getTime() + CONFIRM_TTL_MS),
-    now,
-    resendAfter: new Date(now.getTime() - RESEND_COOLDOWN_MS),
-  })
+  // One transaction: over the daily cap the upsert (new token) rolls back
+  // with the cap hit, so the last link stays valid and nothing is counted.
+  const row = await db
+    .transaction(async (tx) => {
+      const upserted = await repo.upsertPending(tx, input.email, {
+        ...meta,
+        ipHash: ctx.ip ? hashIp(ctx.ip) : null,
+        tokenHash: confirmTokenHash(token),
+        tokenExpiresAt: new Date(now.getTime() + CONFIRM_TTL_MS),
+        now,
+        resendAfter: new Date(now.getTime() - RESEND_COOLDOWN_MS),
+      })
+      if (!upserted) return null
+      const cap = await consumeRateLimit(
+        `${RESEND_DAILY_CAP.bucket}:email:${mac("email", input.email)}`,
+        { ...RESEND_DAILY_CAP, now },
+        tx
+      )
+      if (!cap.allowed) throw new DailyCapReached()
+      return upserted
+    })
+    .catch((err: unknown) => {
+      if (err instanceof DailyCapReached) return null
+      throw err
+    })
   if (row) defer(() => sendConfirmation(row.id, input.email, token, settings))
   return { ok: true }
 }
@@ -230,7 +256,7 @@ export async function confirm(
   now: Date = new Date()
 ): Promise<boolean> {
   if (!token || token.length > TOKEN_MAX_LENGTH) return false
-  return repo.confirmByTokenHash(getDb(), sha256(token), now)
+  return repo.confirmByTokenHash(getDb(), confirmTokenHash(token), now)
 }
 
 /** Always resolves the same way: a forged or unknown token looks like a real one. */

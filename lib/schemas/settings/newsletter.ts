@@ -9,6 +9,17 @@ const statePage = z.object({
   body: z.string().max(400),
 })
 
+/**
+ * Seeded copy of the confirm view (server/db/seed/fixtures/settings.ts and
+ * migration 0010 use the same text). Settings saved before the view existed
+ * have no pages.confirm; parsing fills it in instead of failing.
+ */
+export const DEFAULT_CONFIRM_PAGE = {
+  title: "Confirm your subscription",
+  body: "Press the button below to confirm that you would like to receive our newsletter.",
+  button: "Confirm subscription",
+}
+
 /** Fields that must be filled before the form can go live. */
 const REQUIRED_WHEN_LIVE = [
   ["title"],
@@ -41,7 +52,9 @@ export const newsletterSettings = z
     }),
     pages: z.object({
       /** The view the confirmation mail links to: its button POSTs the token. */
-      confirm: statePage.extend({ button: z.string().max(40) }),
+      confirm: statePage
+        .extend({ button: z.string().max(40) })
+        .default(() => ({ ...DEFAULT_CONFIRM_PAGE })),
       confirmed: statePage,
       invalid: statePage,
       unsubscribe: statePage.extend({ button: z.string().max(40) }),

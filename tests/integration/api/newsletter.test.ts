@@ -44,6 +44,7 @@ import {
   purgeStalePending,
   readUnsubscribeToken,
   RESEND_COOLDOWN_MS,
+  RESEND_DAILY_CAP,
   unsubscribeToken,
 } from "@/server/modules/newsletter/service"
 
@@ -266,6 +267,43 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
     expect(sent()).toHaveLength(2)
     const [rotated] = await rows()
     expect(rotated.tokenHash).not.toBe(first.tokenHash)
+  })
+
+  it("mails one address at most 3 times per 24 h, cooldown or not", async () => {
+    const t0 = Date.now()
+    const at = (ms: number) =>
+      vi.useFakeTimers({ now: t0 + ms, toFake: ["Date"] })
+    const step = RESEND_COOLDOWN_MS + 60_000
+    for (let i = 0; i < 3; i++) {
+      at(i * step)
+      expect((await subscribe({ email: "cap@example.ie" })).status).toBe(201)
+      await drain()
+    }
+    expect(sent()).toHaveLength(3)
+    const [third] = await rows()
+
+    // Past the cooldown but over the daily cap: same 201, no mail, and the
+    // last link keeps working (the token is not rotated).
+    at(3 * step)
+    const capped = await subscribe({ email: "cap@example.ie" })
+    expect(capped.status).toBe(201)
+    expect(await capped.json()).toEqual({ ok: true })
+    await drain()
+    expect(sent()).toHaveLength(3)
+    const [kept] = await rows()
+    expect(kept.tokenHash).toBe(third.tokenHash)
+    expect(kept.updatedAt).toEqual(third.updatedAt)
+
+    // Another address is not affected by this one's cap.
+    expect((await subscribe({ email: "other@example.ie" })).status).toBe(201)
+    await drain()
+    expect(sent().at(-1)?.to).toBe("other@example.ie")
+
+    // A day after the first mail the address can be mailed again.
+    at(RESEND_DAILY_CAP.windowMs + 60_000)
+    expect((await subscribe({ email: "cap@example.ie" })).status).toBe(201)
+    await drain()
+    expect(sent().filter((m) => m.to === "cap@example.ie")).toHaveLength(4)
   })
 
   it("expires confirm tokens after 7 days (row stays pending)", async () => {

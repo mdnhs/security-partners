@@ -75,6 +75,16 @@ describe("settings schemas (spec §5.4 + shared sections ruling)", () => {
     ).toBe(false)
   })
 
+  it("newsletter saved before pages.confirm existed parses with the seeded confirm copy", () => {
+    const { confirm, ...pages } = fixture.newsletter.pages
+    const parsed = settingsSchemas.newsletter.safeParse({
+      ...fixture.newsletter,
+      pages,
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.pages.confirm).toEqual(confirm)
+  })
+
   it("seeds the newsletter off, and refuses to go live half-filled", () => {
     expect(fixture.newsletter.placement).toBe("off")
     const blank = {

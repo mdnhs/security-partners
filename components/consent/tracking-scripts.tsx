@@ -8,6 +8,7 @@ import {
   track,
 } from "@/lib/analytics/events"
 import { startTracking, type TrackingIds } from "@/lib/analytics/loaders"
+import { carriesNewsletterToken } from "@/lib/newsletter/placement"
 
 import { useConsent } from "./consent-provider"
 
@@ -17,6 +18,9 @@ export function TrackingScripts({ ids }: { ids: TrackingIds }) {
   const { gtmId, ga4Id, metaPixelId } = ids
   useEffect(() => {
     if (choice === "pending" || choice === null) return
+    // Page views report the full URL: a newsletter token must not reach a
+    // tag. The button POST lands on a token-free page, which loads them.
+    if (carriesNewsletterToken(window.location)) return
     startTracking({ gtmId, ga4Id, metaPixelId }, choice, {
       win: window as AnalyticsWindow,
       doc: document,
