@@ -46,6 +46,18 @@ describe(
       expect(errors).toHaveLength(1)
     })
 
+    it("flags server imports from blocks/ (page-builder registry)", async () => {
+      expect(
+        await boundaryErrors(aliasImport, "blocks/registry.ts")
+      ).toHaveLength(1)
+      expect(
+        await syntaxErrors(
+          'export const load = () => import("../server/env")\n',
+          "blocks/fixture.ts"
+        )
+      ).toHaveLength(1)
+    })
+
     it("allows lib/ to import lib/ and look-alike names", async () => {
       expect(
         await boundaryErrors(
