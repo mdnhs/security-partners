@@ -14,8 +14,10 @@ import { ROLES, type Role } from "@/lib/auth/roles"
 const EXPECTED: Record<Role, string[]> = {
   owner: [
     "page:read",
+    "page:create",
     "page:update",
     "page:publish",
+    "page:delete",
     "service:read",
     "service:create",
     "service:update",
@@ -68,8 +70,10 @@ const EXPECTED: Record<Role, string[]> = {
   ],
   admin: [
     "page:read",
+    "page:create",
     "page:update",
     "page:publish",
+    "page:delete",
     "service:read",
     "service:create",
     "service:update",
@@ -119,8 +123,10 @@ const EXPECTED: Record<Role, string[]> = {
   ],
   editor: [
     "page:read",
+    "page:create",
     "page:update",
     "page:publish",
+    "page:delete",
     "service:read",
     "service:create",
     "service:update",
@@ -196,9 +202,23 @@ const req = (resource: Resource, action: string) =>
   ({ [resource]: [action] }) as PermissionRequest
 
 describe("permission matrix (spec §6.1): every role × resource × action", () => {
-  it("covers 16 resources and 52 actions", () => {
+  it("covers 16 resources and 54 actions", () => {
     expect(Object.keys(statements)).toHaveLength(16)
-    expect(ALL_PAIRS).toHaveLength(52)
+    expect(ALL_PAIRS).toHaveLength(54)
+  })
+
+  it("page:create/delete (builder pages, D5.2) go to owner, admin, editor only", () => {
+    const holders = (action: string) =>
+      ROLES.filter((role) => hasPermission([role], req("page", action)))
+    expect(holders("create")).toEqual(["owner", "admin", "editor"])
+    expect(holders("delete")).toEqual(["owner", "admin", "editor"])
+    expect(holders("read")).toEqual([
+      "owner",
+      "admin",
+      "editor",
+      "marketer",
+      "viewer",
+    ])
   })
 
   for (const role of ROLES) {

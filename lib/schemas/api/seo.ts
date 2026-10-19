@@ -5,10 +5,10 @@ import type { SeoIssue } from "@/lib/seo/checks"
 
 export type { SeoIssue }
 
-export const SEO_KINDS = ["page", "service", "article"] as const
+export const SEO_KINDS = ["page", "service", "article", "builder"] as const
 export type SeoKind = (typeof SEO_KINDS)[number]
 
-/** Page id = page key; service/article id = row id (uuid). */
+/** Page id = page key; service/article/builder (/p/<slug>) id = row id (uuid). */
 export const seoEntryParam = z.object({
   kind: z.enum(SEO_KINDS),
   id: z.string().min(1).max(100),

@@ -5,6 +5,7 @@ import { z } from "zod"
 import { PAGE_LABELS } from "@/lib/admin/page-labels"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { contactPlaceholders, type Placeholders } from "@/lib/interpolate"
+import { BUILDER_ENTITY, builderPath } from "@/lib/schemas/api/builder-pages"
 import type { SeoEntry, SeoKind, SeoOverviewDto } from "@/lib/schemas/api/seo"
 import { type Seo, seo as seoSchema } from "@/lib/schemas/common"
 import type { ContactSettings } from "@/lib/schemas/settings/contact"
@@ -39,7 +40,11 @@ const LABEL: Record<SeoKind, string> = {
   page: "Page",
   service: "Service",
   article: "Article",
+  builder: "Page",
 }
+
+/** media_usages / audit entity type of a kind (builder pages: "builder-page"). */
+const entityOf = (kind: SeoKind) => (kind === "builder" ? BUILDER_ENTITY : kind)
 
 function assertCan(actor: Actor, req: PermissionRequest) {
   if (!hasPermission(actor.roles, req)) throw forbidden()
@@ -60,6 +65,13 @@ function describeRow(row: SeoRow) {
     }
   }
   const title = row.title ?? row.slug ?? row.id
+  if (row.kind === "builder")
+    return {
+      name: title,
+      path: builderPath(row.slug ?? ""),
+      titleName: title,
+      fallbackDescription: row.description,
+    }
   return {
     name: title,
     path: `/${row.kind === "service" ? "services" : "blog"}/${row.slug}`,
@@ -168,6 +180,7 @@ const changedFields = (before: Seo, after: Seo) =>
 function tagsFor(kind: SeoKind, id: string, slug: string | null): string[] {
   if (kind === "page") return [tag.page(id)]
   if (kind === "service") return [tag.services, tag.service(slug!)]
+  if (kind === "builder") return [tag.builderPages, tag.builderPage(slug!)]
   return [tag.articles, tag.article(slug!)]
 }
 
@@ -196,15 +209,20 @@ export async function updateSeo(
     if (!current) throw notFound(LABEL[kind])
     await updateSeoColumn(tx, kind, id, seo)
     try {
-      await syncMediaUsages(tx, kind, id, current.draft, current.published, {
-        seo,
-      })
+      await syncMediaUsages(
+        tx,
+        entityOf(kind),
+        id,
+        current.draft,
+        current.published,
+        { seo }
+      )
     } catch (err) {
       throw withoutSeoPrefix(err)
     }
     await writeAudit(tx, actor, {
-      action: `${kind}.seo_updated`,
-      entityType: kind,
+      action: `${entityOf(kind)}.seo_updated`,
+      entityType: entityOf(kind),
       entityId: id,
       diff: { fields: changedFields(current.seo, seo) },
     })

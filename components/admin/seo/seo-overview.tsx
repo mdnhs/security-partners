@@ -22,6 +22,7 @@ const GROUPS: { kind: SeoKind; title: string }[] = [
   { kind: "page", title: "Pages" },
   { kind: "service", title: "Services" },
   { kind: "article", title: "Articles" },
+  { kind: "builder", title: "Custom pages" },
 ]
 
 const keyOf = (entry: Pick<SeoEntry, "kind" | "id">) =>

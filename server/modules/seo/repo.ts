@@ -7,7 +7,13 @@ import type { SeoKind } from "@/lib/schemas/api/seo"
 import type { Seo } from "@/lib/schemas/common"
 import type { OgKind } from "@/lib/seo/urls"
 import type { DbOrTx } from "@/server/db/client"
-import { articles, pages, revisions, services } from "@/server/db/schema"
+import {
+  articles,
+  builderPages,
+  pages,
+  revisions,
+  services,
+} from "@/server/db/schema"
 
 /** What the SEO overview needs of one record (no whole content documents). */
 export type SeoRow = {
@@ -56,6 +62,16 @@ const articleColumns = {
   description: field(articles, "excerpt"),
 }
 
+const builderColumns = {
+  id: builderPages.id,
+  slug: builderPages.slug,
+  seo: builderPages.seo,
+  published: sql<boolean>`${builderPages.published} is not null`,
+  title: builderPages.title,
+  /** The page hero's intro (a hero.page block is always first). */
+  description: field(builderPages, "blocks", "0", "data", "description"),
+}
+
 const page = (row: Omit<SeoRow, "kind" | "slug" | "description">): SeoRow => ({
   kind: "page",
   slug: null,
@@ -63,9 +79,9 @@ const page = (row: Omit<SeoRow, "kind" | "slug" | "description">): SeoRow => ({
   ...row,
 })
 
-/** Every page, service and article (published or not) for the SEO overview. */
+/** Every page, service, article and builder page (published or not) for the SEO overview. */
 export async function listSeoRows(db: DbOrTx): Promise<SeoRow[]> {
-  const [pageRows, serviceRows, articleRows] = await Promise.all([
+  const [pageRows, serviceRows, articleRows, builderRows] = await Promise.all([
     db.select(pageColumns).from(pages).orderBy(asc(pages.key)),
     db
       .select(serviceColumns)
@@ -78,11 +94,16 @@ export async function listSeoRows(db: DbOrTx): Promise<SeoRow[]> {
         sql`${articles.publishedAt} desc nulls last`,
         asc(articles.slug)
       ),
+    db
+      .select(builderColumns)
+      .from(builderPages)
+      .orderBy(asc(builderPages.title), asc(builderPages.slug)),
   ])
   return [
     ...pageRows.map(page),
     ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
     ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
+    ...builderRows.map((row) => ({ kind: "builder" as const, ...row })),
   ]
 }
 
@@ -103,6 +124,13 @@ export async function findSeoRow(
       .select(serviceColumns)
       .from(services)
       .where(eq(services.id, id))
+    return row ? { kind, ...row } : null
+  }
+  if (kind === "builder") {
+    const [row] = await db
+      .select(builderColumns)
+      .from(builderPages)
+      .where(eq(builderPages.id, id))
     return row ? { kind, ...row } : null
   }
   const [row] = await db
@@ -141,7 +169,8 @@ export async function lockSeoMediaRow(
       .for("update")
     return row ? { slug: null, ...row } : null
   }
-  const table = kind === "service" ? services : articles
+  const table =
+    kind === "service" ? services : kind === "builder" ? builderPages : articles
   const [row] = await db
     .select({
       slug: table.slug,
@@ -166,6 +195,8 @@ export async function updateSeoColumn(
     await db.update(pages).set({ seo }).where(eq(pages.key, id))
   else if (kind === "service")
     await db.update(services).set({ seo }).where(eq(services.id, id))
+  else if (kind === "builder")
+    await db.update(builderPages).set({ seo }).where(eq(builderPages.id, id))
   else await db.update(articles).set({ seo }).where(eq(articles.id, id))
 }
 

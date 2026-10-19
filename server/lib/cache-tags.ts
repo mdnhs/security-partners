@@ -18,6 +18,8 @@ export const tag = {
   settings: (key: SettingsKey) => `settings:${key}`,
   redirects: "redirects",
   media: (id: string) => `media:${id}`,
+  builderPages: "builder-pages",
+  builderPage: (slug: string) => `builder-page:${slug}`,
 } as const
 
 /**

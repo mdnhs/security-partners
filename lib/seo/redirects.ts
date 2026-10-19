@@ -41,6 +41,8 @@ export function fromPathProblem(path: string): string | null {
   if (!decodes(path) || FORBIDDEN_ESCAPE.test(path))
     return "Type letters, numbers, / and - . _ ~ as themselves, not as %-escapes"
   const lower = path.toLowerCase()
+  // Builder pages live at /p/<slug>; "/p" itself is no page of its own.
+  if (lower === "/p") return "This address belongs to the site itself"
   if (
     lower.startsWith("/_") ||
     RESERVED.some(
