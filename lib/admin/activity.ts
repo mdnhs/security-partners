@@ -58,6 +58,18 @@ const FIXED: Record<string, ActivitySummary> = {
   "article.meta_changed": {
     text: "changed an article's address, category or byline",
   },
+  // Appearance (server/modules/theme): the theme settings row.
+  "appearance.update": {
+    text: "saved a draft of the theme",
+    status: { label: "Draft", tone: "neutral" },
+  },
+  "appearance.publish": {
+    text: "published the theme",
+    status: { label: "Published", tone: "success" },
+  },
+  "appearance.restore": { text: "restored a version of the theme" },
+  "appearance.discard": { text: "discarded the theme draft" },
+  "appearance.reset": { text: "reset the theme draft to a preset" },
 }
 
 const SINGULAR: Record<string, string> = {

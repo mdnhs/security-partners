@@ -45,6 +45,8 @@ export type VersionedPatch<T> = {
   updatedBy: string
 }
 
+export type VersionedAuditEvent = "draft_saved" | "published" | "restored"
+
 /** Storage adapter for one versioned entity type (implemented in its module). */
 export type VersionedStore<
   T,
@@ -78,6 +80,11 @@ export type VersionedStore<
     next: T,
     action: "draft" | "publish" | "restore"
   ): void
+  /**
+   * Audit action for a write, written in the same transaction. Default:
+   * "<entityType>.<event>" (the theme audits as "appearance.*").
+   */
+  auditAction?(event: VersionedAuditEvent): string
   /** Cache tags to expire when this record is published. */
   tags(record: R): string[]
   /** Wire shape sent back with a 409 (the current state, Review Focus 2). */
@@ -106,6 +113,11 @@ export function versionedDto<T>(row: VersionedRecord<T>): VersionedDto<T> {
         : null,
   }
 }
+
+const auditActionOf = <T, R extends VersionedRecord<T>>(
+  store: VersionedStore<T, R>,
+  event: VersionedAuditEvent
+): string => store.auditAction?.(event) ?? `${store.entityType}.${event}`
 
 const mediaValuesOf = <T, R extends VersionedRecord<T>>(
   store: VersionedStore<T, R>,
@@ -184,7 +196,7 @@ export async function saveDraft<T, R extends VersionedRecord<T>>(
       ...mediaValuesOf(store, updated)
     )
     await writeCoalescedAudit(tx, actor, {
-      action: `${store.entityType}.draft_saved`,
+      action: auditActionOf(store, "draft_saved"),
       entityType: store.entityType,
       entityId: id,
       diff: { version: updated.version },
@@ -260,7 +272,7 @@ function publishInTx<T, R extends VersionedRecord<T>>(
       ...mediaValuesOf(store, updated)
     )
     await writeAudit(tx, actor, {
-      action: `${store.entityType}.published`,
+      action: auditActionOf(store, "published"),
       entityType: store.entityType,
       entityId: id,
       diff: { version: updated.version },
@@ -307,7 +319,7 @@ export async function restoreRevision<T, R extends VersionedRecord<T>>(
       ...mediaValuesOf(store, updated)
     )
     await writeAudit(tx, actor, {
-      action: `${store.entityType}.restored`,
+      action: auditActionOf(store, "restored"),
       entityType: store.entityType,
       entityId: id,
       diff: { revisionId: revision.id, fromVersion: revision.version },

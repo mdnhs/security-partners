@@ -50,6 +50,24 @@ describe("describeActivity", () => {
       undefined,
       undefined,
     ],
+    [
+      row("appearance.publish", "settings", "theme"),
+      "published the theme",
+      "Published",
+      "success",
+    ],
+    [
+      row("appearance.update", "settings", "theme"),
+      "saved a draft of the theme",
+      "Draft",
+      "neutral",
+    ],
+    [
+      row("appearance.reset", "settings", "theme"),
+      "reset the theme draft to a preset",
+      undefined,
+      undefined,
+    ],
     [row("auth.sign_in"), "signed in", "Signed in", "success"],
     [
       row("auth.password_change"),
