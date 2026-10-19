@@ -7,6 +7,7 @@ export const ANALYTICS_EVENTS = [
   "cta_click",
   "phone_click",
   "email_click",
+  "newsletter_sign_up",
 ] as const
 
 export type AnalyticsEvent =
@@ -14,6 +15,14 @@ export type AnalyticsEvent =
   | { event: "cta_click"; link_text: string; link_url: string }
   | { event: "phone_click"; link_url: string }
   | { event: "email_click"; link_url: string }
+  /** Newsletter signup accepted (GA4 sign_up; Meta CompleteRegistration). */
+  | { event: "newsletter_sign_up"; method: string }
+
+/** Meta standard event per analytics event (marketing consent only). */
+const META_EVENTS: Partial<Record<AnalyticsEvent["event"], string>> = {
+  lead_submitted: "Lead",
+  newsletter_sign_up: "CompleteRegistration",
+}
 
 export type Fbq = ((...args: unknown[]) => void) & {
   callMethod?: (...args: unknown[]) => void
@@ -49,8 +58,9 @@ export function track(
     win.gtag?.("event", name, params)
     sent = true
   }
-  if (consent.marketing && event.event === "lead_submitted" && win.fbq) {
-    win.fbq("track", "Lead")
+  const metaEvent = META_EVENTS[event.event]
+  if (consent.marketing && metaEvent && win.fbq) {
+    win.fbq("track", metaEvent)
     sent = true
   }
   return sent
