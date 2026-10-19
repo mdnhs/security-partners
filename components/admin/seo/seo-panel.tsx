@@ -41,6 +41,8 @@ export type SeoPanelProps = {
   defaultDescription?: string
   /** The site default share image (SEO › Defaults) used without an own one. */
   defaultImageId?: string | null
+  /** The site robots mode is noindex (SEO › Defaults): fails "indexable". */
+  siteNoindex?: boolean
 }
 
 /** The checks the panel can evaluate locally while typing. */
@@ -103,6 +105,7 @@ export function SeoPanel({
   onDirtyChange,
   defaultDescription,
   defaultImageId,
+  siteNoindex = false,
 }: SeoPanelProps) {
   const [draft, setDraft] = useState<Seo>(value)
   const [errors, setErrors] = useState<Record<string, string[]>>({})
@@ -150,7 +153,7 @@ export function SeoPanel({
     imagesMissingAlt: 0,
     hasH1: true,
     noindex: draft.noindex === true,
-    siteNoindex: false,
+    siteNoindex,
     internalLinks: null,
   }).filter((r) => LOCAL_CHECKS.includes(r.id))
 

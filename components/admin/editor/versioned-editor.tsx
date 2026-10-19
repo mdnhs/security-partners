@@ -429,15 +429,29 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
   // SEO tab so they show. The form's section tabs usually move to the
   // errored section first (then ?tab= is no longer "seo" and this is a no-op).
   const { select: selectEditorTab } = seoTab
+  const contentRef = useRef<HTMLDivElement>(null)
+  const focusInvalid = useRef(false)
   useEffect(() => {
     if (!fieldErrors || Object.keys(fieldErrors).length === 0) return
-    if (new URLSearchParams(window.location.search).get("tab") === SEO_TAB)
+    if (new URLSearchParams(window.location.search).get("tab") === SEO_TAB) {
+      focusInvalid.current = true
       selectEditorTab("content", { replace: true })
+    }
     // Once per new set of errors.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldErrors])
+  // A form without section tabs (no FormTabs to do it): once Content shows,
+  // focus its first invalid field.
+  useEffect(() => {
+    if (!focusInvalid.current || seoTab.active) return
+    focusInvalid.current = false
+    const root = contentRef.current
+    if (!root || root.contains(document.activeElement)) return
+    root.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  })
   const form = (
     <div
+      ref={contentRef}
       onKeyDownCapture={markTouched}
       onPointerDownCapture={markTouched}
       onInputCapture={markTouched}

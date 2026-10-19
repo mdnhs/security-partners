@@ -312,10 +312,15 @@ function guardedLinkTarget(
   if (anchor.hasAttribute("download")) return null
   // In-page links (e.g. an editor's SEO tab link: ?tab=seo on the same
   // path) switch state without leaving: never a leave prompt, and never the
-  // "confirmed leave" that would mute beforeunload.
-  if (anchor.hasAttribute(IN_PAGE_LINK)) return null
+  // "confirmed leave" that would mute beforeunload. Only on the current
+  // path: misused on a link to another page, it still asks.
   const url = new URL(anchor.href, window.location.href)
   if (url.origin !== window.location.origin) return null
+  if (
+    anchor.hasAttribute(IN_PAGE_LINK) &&
+    url.pathname === window.location.pathname
+  )
+    return null
   // API routes (CSV exports, files) never unload the page.
   if (url.pathname.startsWith("/api/")) return null
   if (url.pathname === window.location.pathname && url.hash) return null

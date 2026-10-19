@@ -114,6 +114,13 @@ function Dirty({ initial = true }: { initial?: boolean }) {
       <a href="/api/v1/admin/leads/export.csv" onClick={onNav}>
         Export
       </a>
+      {/* In-page links: only honoured on the current path. */}
+      <a href="?tab=seo" data-in-page="" onClick={onNav}>
+        Same page
+      </a>
+      <a href="/admin/insights?tab=seo" data-in-page="" onClick={onNav}>
+        Other page
+      </a>
       <button type="button" onClick={() => setDirty(false)}>
         Mark saved
       </button>
@@ -192,6 +199,20 @@ describe("shell unsaved-changes registry (I2/I3)", () => {
     await user.click(screen.getByRole("link", { name: "Services" }))
     expect(onNav).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("data-in-page skips the prompt only for the current path (re-review D1.4 item 4)", async () => {
+    const user = userEvent.setup()
+    renderGuarded()
+    await user.click(screen.getByRole("link", { name: "Same page" }))
+    expect(onNav).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    // Misused on a link to another page: still asks.
+    await user.click(screen.getByRole("link", { name: "Other page" }))
+    await user.click(
+      within(await leaveDialog()).getByRole("button", { name: "Keep editing" })
+    )
+    expect(onNav).toHaveBeenCalledTimes(1)
   })
 
   it("lets programmatic leaves (sign-out) ask too", async () => {

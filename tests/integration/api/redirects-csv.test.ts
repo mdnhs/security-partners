@@ -30,7 +30,12 @@ beforeEach(async () => {
   editor = (await signedInUser(["editor"])).cookie
 })
 
-type ImportResult = { rows: ImportRow[]; created: number; updated: number }
+type ImportResult = {
+  rows: ImportRow[]
+  created: number
+  updated: number
+  unchanged: number
+}
 type ErrorBody = {
   error: { code: string; message: string; current?: { rows: ImportRow[] } }
 }
@@ -160,7 +165,12 @@ describe("redirects CSV import (D1.8)", () => {
     expect(rows.every((r) => r.isActive)).toBe(true)
     const audits = await auditActions("redirect.imported")
     expect(audits).toHaveLength(1)
-    expect(audits[0].diff).toEqual({ created: 2, updated: 1, rows: 3 })
+    expect(audits[0].diff).toEqual({
+      created: 2,
+      updated: 1,
+      unchanged: 0,
+      rows: 3,
+    })
     expect(revalidateTag).toHaveBeenCalled()
   })
 
@@ -233,6 +243,126 @@ describe("redirects CSV import (D1.8)", () => {
     expect(res.status).toBe(413)
   })
 
+  it("an imported note is trimmed after the formula unguard (review D1.8 #1)", async () => {
+    const csv = 'from,to,note\r\n/tab,/,"\'\tx "\r\n/cr,/,"\'\r y"\r\n'
+    const preview = (await (
+      await importCsv(csv, "preview")
+    ).json()) as ImportResult
+    expect(preview.rows.map((r) => r.note)).toEqual(["x", "y"])
+  })
+
+  it("a control character (NUL) in a note is a row error, not a 500 (review D1.8 #2)", async () => {
+    const csv = "from,to,note\r\n/nul,/,a\u0000b\r\n"
+    const preview = (await (
+      await importCsv(csv, "preview")
+    ).json()) as ImportResult
+    expect(preview.rows[0]).toMatchObject({ status: "error" })
+    expect(preview.rows[0].message).toMatch(/control character/)
+    expect((await importCsv(csv, "commit")).status).toBe(422)
+    // Manual create refuses it the same way.
+    const res = await adminRequest("/redirects", {
+      cookie: marketer,
+      method: "POST",
+      json: { fromPath: "/nul", toPath: "/", code: 301, note: "a\u0000b" },
+    })
+    expect(res.status).toBe(422)
+    expect(await allRedirects()).toHaveLength(0)
+  })
+
+  it("unchanged rows keep their source and Updated time; Off rows stay Off (review D1.8 #4/#8)", async () => {
+    const auto = await create({ fromPath: "/same", toPath: "/about" })
+    await getDb()
+      .update(redirects)
+      .set({ source: "auto", isActive: false })
+      .where(eq(redirects.id, auto.id))
+    await create({ fromPath: "/off", toPath: "/about" })
+    await getDb()
+      .update(redirects)
+      .set({ isActive: false })
+      .where(eq(redirects.fromPath, "/off"))
+    const before = await allRedirects()
+    const csv = "from,to,code,note\r\n/same,/about,301,\r\n/off,/contact,,\r\n"
+    const res = await importCsv(csv, "commit")
+    expect(res.status).toBe(200)
+    const result = (await res.json()) as ImportResult & { unchanged: number }
+    expect(result).toMatchObject({ created: 0, updated: 1, unchanged: 1 })
+    expect(result.rows.map((r) => r.status)).toEqual(["unchanged", "update"])
+    const after = await allRedirects()
+    const same = after.find((r) => r.fromPath === "/same")!
+    expect(same).toEqual(before.find((r) => r.fromPath === "/same"))
+    expect(same.source).toBe("auto")
+    const off = after.find((r) => r.fromPath === "/off")!
+    expect(off).toMatchObject({
+      toPath: "/contact",
+      source: "import",
+      isActive: false,
+    })
+  })
+
+  it("honours the active column: yes/no, empty keeps, turning on checks live pages (review D1.8 #5)", async () => {
+    await create({ fromPath: "/was-on", toPath: "/about" })
+    // An Off redirect at an address that is a live page now.
+    await getDb().insert(redirects).values({
+      fromPath: "/services/alarm-responses",
+      toPath: "/about",
+      isActive: false,
+    })
+    const csv = [
+      "from,to,code,active",
+      "/was-on,/about,,no", // update: turned off
+      "/new-off,/about,,NO", // create, Off
+      "/new-on,/about,,", // create, On (default)
+      "/services/alarm-responses,/about,,yes", // turn on a live page
+      "/bad-active,/about,,maybe", // not yes/no
+    ].join("\r\n")
+    const preview = (await (
+      await importCsv(csv, "preview")
+    ).json()) as ImportResult
+    expect(preview.rows.map((r) => r.status)).toEqual([
+      "update",
+      "create",
+      "create",
+      "error",
+      "error",
+    ])
+    expect(preview.rows[3].message).toMatch(/live page/)
+    expect(preview.rows[4].message).toMatch(/yes or no/)
+
+    const wasOn = (await allRedirects()).find((r) => r.fromPath === "/was-on")!
+    const ok = await importCsv(
+      csv.split("\r\n").slice(0, 4).join("\r\n"),
+      "commit"
+    )
+    expect(ok.status).toBe(200)
+    const rows = new Map((await allRedirects()).map((r) => [r.fromPath, r]))
+    expect(rows.get("/was-on")?.isActive).toBe(false)
+    // Only On/Off changed: not an edit, Updated stays (as a manual toggle).
+    expect(rows.get("/was-on")?.updatedAt).toEqual(wasOn.updatedAt)
+    expect(rows.get("/new-off")?.isActive).toBe(false)
+    expect(rows.get("/new-on")?.isActive).toBe(true)
+  })
+
+  it("open-redirect targets are refused with the reason (review D1.8 #8)", async () => {
+    const csv = "from,to\r\n/open,//evil.example\r\n/js,javascript:alert(1)\r\n"
+    const preview = (await (
+      await importCsv(csv, "preview")
+    ).json()) as ImportResult
+    for (const row of preview.rows) {
+      expect(row.status).toBe("error")
+      expect(row.message).toBeTruthy()
+    }
+    const manual = await adminRequest("/redirects", {
+      cookie: marketer,
+      method: "POST",
+      json: { fromPath: "/open", toPath: "//evil.example", code: 301 },
+    })
+    const body = (await manual.json()) as {
+      error: { fieldErrors: { toPath: string[] } }
+    }
+    // The same message as a manual create.
+    expect(preview.rows[0].message).toBe(body.error.fieldErrors.toPath[0])
+  })
+
   it("only roles that may create and update redirects can import", async () => {
     const csv = "from,to\r\n/x,/\r\n"
     expect((await importCsv(csv, "preview", viewer)).status).toBe(403)
@@ -242,7 +372,7 @@ describe("redirects CSV import (D1.8)", () => {
 })
 
 describe("redirects CSV export (D1.8)", () => {
-  it("round-trips export → import as updates", async () => {
+  it("round-trips export → import (untouched rows are unchanged)", async () => {
     await create({ fromPath: "/a", toPath: "/about", note: "=SUM(1)" })
     await create({
       fromPath: "/b",
@@ -293,12 +423,15 @@ describe("redirects CSV export (D1.8)", () => {
     expect(imported.status).toBe(200)
     expect((await imported.json()) as ImportResult).toMatchObject({
       created: 0,
-      updated: 2,
+      updated: 0,
+      unchanged: 2,
     })
     const rows = await allRedirects()
-    expect(rows.map((r) => [r.fromPath, r.toPath, r.code, r.note])).toEqual([
-      ["/a", "/about", 301, "=SUM(1)"],
-      ["/b", "https://example.org/x", 308, '-minus, "quoted"'],
+    expect(
+      rows.map((r) => [r.fromPath, r.toPath, r.code, r.note, r.source])
+    ).toEqual([
+      ["/a", "/about", 301, "=SUM(1)", "manual"],
+      ["/b", "https://example.org/x", 308, '-minus, "quoted"', "manual"],
     ])
     const exported = await auditActions("redirect.exported")
     expect(exported.map((a) => a.diff)).toEqual([{ count: 2 }])

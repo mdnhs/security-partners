@@ -128,6 +128,7 @@ export function EditorSeoTab({
           kind === "page" ? entry.fallback.description : undefined
         }
         defaultImageId={query.data?.defaults?.ogImageId ?? null}
+        siteNoindex={query.data?.defaults?.siteNoindex ?? false}
         value={entry.seo}
         canEdit={canEdit}
         onSave={async (next) => {

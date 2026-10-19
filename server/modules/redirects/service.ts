@@ -15,6 +15,7 @@ import {
 import {
   checkRedirectChain,
   fromPathProblem,
+  noteProblem,
   REDIRECT_CODES,
   redirectTargetPath,
   toPathProblem,
@@ -34,6 +35,7 @@ import {
   insertRedirect,
   isPublishedSlug,
   listAllRedirectRows,
+  listPublishedSlugs,
   listRedirectEdges,
   listRedirectRows,
   lockRedirects,
@@ -313,14 +315,26 @@ export type ImportRow = {
   /** 301 when the cell is empty, or when it is invalid (see message). */
   code: RedirectCode
   note: string
-  status: "create" | "update" | "error"
+  /**
+   * create / update an existing redirect / unchanged (the redirect already
+   * says exactly this: nothing is written, its source and Updated stay).
+   */
+  status: "create" | "update" | "unchanged" | "error"
   message?: string
+}
+
+export type ImportResult = {
+  rows: ImportRow[]
+  created: number
+  updated: number
+  unchanged: number
 }
 
 type ImportPlan = {
   rows: ImportRow[]
-  creates: ImportRow[]
-  updates: ImportRow[]
+  creates: (ImportRow & { isActive: boolean })[]
+  updates: (ImportRow & { isActive: boolean; edited: boolean })[]
+  unchanged: number
   errors: number
 }
 
@@ -378,7 +392,7 @@ function readImportFile(
   })
   if (!columns.has("from") || !columns.has("to"))
     throw fileError(
-      "The first line must name the columns from and to (code and note are optional)."
+      "The first line must name the columns from and to (code, active and note are optional)."
     )
   if (parsed.rows.length === 0)
     throw fileError(
@@ -395,27 +409,76 @@ function readImportFile(
 
 const CODE_TEXT = /^\d{3}$/
 
+/** The `active` cell: yes/no (also true/false, 1/0); empty → undefined. */
+function activeCell(text: string): boolean | undefined | "invalid" {
+  const value = text.trim().toLowerCase()
+  if (value === "") return undefined
+  if (value === "yes" || value === "true" || value === "1") return true
+  if (value === "no" || value === "false" || value === "0") return false
+  return "invalid"
+}
+
+/**
+ * The live service/article pages among the file's source addresses: one
+ * query per kind (not one per row while the redirect lock is held).
+ */
+async function liveDetailPaths(
+  db: DbOrTx,
+  froms: readonly string[]
+): Promise<Set<string>> {
+  const slugs = { service: [] as string[], article: [] as string[] }
+  for (const from of froms) {
+    const detail = DETAIL.exec(from)
+    if (detail)
+      slugs[detail[1] === "services" ? "service" : "article"].push(detail[2])
+  }
+  const [services, articles] = await Promise.all([
+    listPublishedSlugs(db, "service", slugs.service),
+    listPublishedSlugs(db, "article", slugs.article),
+  ])
+  return new Set([
+    ...[...services].map((s) => `/services/${s}`),
+    ...[...articles].map((s) => `/blog/${s}`),
+  ])
+}
+
 /**
  * Validates every row with the manual-create rules, in file order:
- * fromPathProblem, toPathProblem, code, note length, a `from` already
- * used earlier in the file, the live-page check for new addresses, and
+ * fromPathProblem, toPathProblem, code, note (length, control
+ * characters), active (yes/no), a `from` already used earlier in the file,
+ * the live-page check for new addresses and for Off ones turned on, and
  * checkRedirectChain over the existing redirects plus earlier valid rows.
- * Existing `from` → update (keeps its On/Off), else create.
+ * Existing `from` → update (an empty `active` keeps its On/Off), or
+ * unchanged when it already says exactly this; else create (On unless
+ * `active` says no).
  */
 async function planImport(db: DbOrTx, csv: string): Promise<ImportPlan> {
   const file = readImportFile(csv)
-  const existing = new Set(
-    (await listAllRedirectRows(db)).map((r) => r.fromPath)
+  const existing = new Map(
+    (await listAllRedirectRows(db)).map((r) => [r.fromPath, r])
   )
   const edges = await listRedirectEdges(db)
   const origin = await siteOrigin(db)
+  const live = await liveDetailPaths(
+    db,
+    file.map(({ cell }) => cell("from").trim())
+  )
+  const isLive = (from: string) => STATIC_PATHS.has(from) || live.has(from)
   const seen = new Map<string, number>()
-  const plan: ImportPlan = { rows: [], creates: [], updates: [], errors: 0 }
+  const plan: ImportPlan = {
+    rows: [],
+    creates: [],
+    updates: [],
+    unchanged: 0,
+    errors: 0,
+  }
   for (const { line, cell } of file) {
     const from = cell("from").trim()
     const to = cell("to").trim()
     const codeText = cell("code").trim()
-    const note = unguardCell(cell("note").trim())
+    // Trimmed again after the unguard: "'\tx" is "x", as a manual note.
+    const note = unguardCell(cell("note").trim()).trim()
+    const active = activeCell(cell("active"))
     const code = codeText === "" ? 301 : redirectCode(Number(codeText))
     const fail = (message: string) => {
       plan.rows.push({ line, from, to, code, note, status: "error", message })
@@ -451,9 +514,23 @@ async function planImport(db: DbOrTx, csv: string): Promise<ImportPlan> {
       fail(`Keep the note to ${REDIRECT_NOTE_MAX} characters`)
       continue
     }
-    const update = existing.has(from)
-    if (!update && (await isLivePage(db, from))) {
+    const badNote = noteProblem(note)
+    if (badNote) {
+      fail(badNote)
+      continue
+    }
+    if (active === "invalid") {
+      fail("Use yes or no in the active column (empty keeps it as it is)")
+      continue
+    }
+    const current = existing.get(from)
+    if (!current && isLive(from)) {
       fail("This address is a live page. Rename or unpublish it first.")
+      continue
+    }
+    const isActive = active ?? current?.isActive ?? true
+    if (current && !current.isActive && isActive && isLive(from)) {
+      fail("That address is a live page now: it can't be turned on")
       continue
     }
     const chain = checkRedirectChain(edges, from, to, origin)
@@ -466,47 +543,56 @@ async function planImport(db: DbOrTx, csv: string): Promise<ImportPlan> {
       continue
     }
     edges.set(from, to)
-    const row: ImportRow = {
-      line,
-      from,
-      to,
-      code,
-      note,
-      status: update ? "update" : "create",
+    if (!current) {
+      const row = { line, from, to, code, note, status: "create" as const }
+      plan.rows.push(row)
+      plan.creates.push({ ...row, isActive })
+      continue
     }
+    const edited =
+      current.toPath !== to || current.code !== code || current.note !== note
+    if (!edited && current.isActive === isActive) {
+      plan.rows.push({ line, from, to, code, note, status: "unchanged" })
+      plan.unchanged++
+      continue
+    }
+    const row = { line, from, to, code, note, status: "update" as const }
     plan.rows.push(row)
-    ;(update ? plan.updates : plan.creates).push(row)
+    plan.updates.push({ ...row, isActive, edited })
   }
   return plan
 }
 
-const importedValues = (row: ImportRow) => ({
+const importedValues = (row: ImportRow & { isActive: boolean }) => ({
   fromPath: row.from,
   toPath: row.to,
   code: row.code,
   note: row.note,
+  isActive: row.isActive,
+})
+
+const resultOf = (plan: ImportPlan): ImportResult => ({
+  rows: plan.rows,
+  created: plan.creates.length,
+  updated: plan.updates.length,
+  unchanged: plan.unchanged,
 })
 
 /**
- * CSV import. `preview` reports every row (create / update / error with
- * its message) and writes nothing. `commit` re-validates under the
- * redirect lock and, only when no row has an error, writes them all in one
- * transaction (source 'import') with one audit entry holding counts, not
- * contents; any error row → 422 with every row in `error.current.rows`.
+ * CSV import. `preview` reports every row (create / update / unchanged /
+ * error with its message) and writes nothing. `commit` re-validates under
+ * the redirect lock and, only when no row has an error, writes the creates
+ * and updates in one transaction (source 'import'; unchanged rows are left
+ * alone) with one audit entry holding counts, not contents; any error row
+ * → 422 with every row in `error.current.rows`.
  */
 export async function importRedirects(
   actor: Actor,
   input: { csv: string; mode: "preview" | "commit" }
-): Promise<{ rows: ImportRow[]; created: number; updated: number }> {
+): Promise<ImportResult> {
   assertCan(actor, { redirect: ["create", "update"] })
-  if (input.mode === "preview") {
-    const plan = await planImport(getDb(), input.csv)
-    return {
-      rows: plan.rows,
-      created: plan.creates.length,
-      updated: plan.updates.length,
-    }
-  }
+  if (input.mode === "preview")
+    return resultOf(await planImport(getDb(), input.csv))
   try {
     const plan = await getDb().transaction(async (tx) => {
       await lockRedirects(tx)
@@ -520,7 +606,10 @@ export async function importRedirects(
       await writeImportedRedirects(
         tx,
         planned.creates.map(importedValues),
-        planned.updates.map(importedValues)
+        planned.updates.map((row) => ({
+          ...importedValues(row),
+          edited: row.edited,
+        }))
       )
       await writeAudit(tx, actor, {
         action: "redirect.imported",
@@ -528,17 +617,14 @@ export async function importRedirects(
         diff: {
           created: planned.creates.length,
           updated: planned.updates.length,
+          unchanged: planned.unchanged,
           rows: planned.rows.length,
         },
       })
       return planned
     })
     invalidate(tag.redirects)
-    return {
-      rows: plan.rows,
-      created: plan.creates.length,
-      updated: plan.updates.length,
-    }
+    return resultOf(plan)
   } catch (err) {
     return mapUnique(err)
   }

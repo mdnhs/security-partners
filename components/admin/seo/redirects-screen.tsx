@@ -204,6 +204,10 @@ const columns = ch.columns([
     cell: (info) => <LastHit iso={info.getValue()} />,
   }),
   ch.accessor("updatedAt", {
+    // Last edit of the address, target, type or note (manual, automatic or
+    // imported). Turning a redirect on or off is not an edit and leaves it
+    // as is (the row keeps its place); a manual switch's time is in the
+    // audit log (redirect.updated with isActive), an import's is not.
     header: "Updated",
     // "Now" is the list's fetch time (DataTable's NowProvider).
     cell: (info) => (

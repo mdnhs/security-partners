@@ -24,6 +24,19 @@ export const redirectCode = (code: number): RedirectCode =>
 export const REDIRECT_SOURCES = ["manual", "auto", "import"] as const
 export type RedirectSource = (typeof REDIRECT_SOURCES)[number]
 
+/**
+ * A note may hold TAB and line breaks, never other control characters
+ * (Postgres text refuses NUL; a spreadsheet file can carry any of them).
+ */
+export function noteProblem(note: string): string | null {
+  for (let i = 0; i < note.length; i++) {
+    const c = note.charCodeAt(i)
+    if ((c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || c === 0x7f)
+      return "Remove the control characters from the note"
+  }
+  return null
+}
+
 const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
 /** A path ending in a file extension (static files; never a page or redirect source). */

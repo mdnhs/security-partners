@@ -68,31 +68,68 @@ export async function listAllRedirectRows(db: DbOrTx): Promise<RedirectRow[]> {
   return db.select().from(redirects).orderBy(asc(redirects.fromPath))
 }
 
-type ImportedValues = Omit<RedirectValues, "isActive">
+/** Rows per INSERT / UPDATE statement of an import (parameters stay well under 65k). */
+const IMPORT_CHUNK = 500
 
 /**
- * CSV import (inside the caller's locked transaction): new rows are added
- * active; existing ones get the file's target, code and note and keep
- * their On/Off. Both become source 'import'.
+ * CSV import (inside the caller's locked transaction), one statement per
+ * 500 rows: new rows are inserted; existing ones (matched by from_path)
+ * get the given target, code, note and On/Off. Both become source
+ * 'import'. `edited` false (only On/Off changed) keeps updated_at, as a
+ * manual toggle does.
  */
 export async function writeImportedRedirects(
   db: DbOrTx,
-  creates: readonly ImportedValues[],
-  updates: readonly ImportedValues[]
+  creates: readonly RedirectValues[],
+  updates: readonly (RedirectValues & { edited: boolean })[]
 ): Promise<void> {
-  for (let i = 0; i < creates.length; i += 500)
+  for (let i = 0; i < creates.length; i += IMPORT_CHUNK)
     await db
       .insert(redirects)
       .values(
         creates
-          .slice(i, i + 500)
+          .slice(i, i + IMPORT_CHUNK)
           .map((v) => ({ ...v, source: "import" as const }))
       )
-  for (const v of updates)
-    await db
-      .update(redirects)
-      .set({ toPath: v.toPath, code: v.code, note: v.note, source: "import" })
-      .where(eq(redirects.fromPath, v.fromPath))
+  for (let i = 0; i < updates.length; i += IMPORT_CHUNK) {
+    const values = sql.join(
+      updates
+        .slice(i, i + IMPORT_CHUNK)
+        .map(
+          (v) =>
+            sql`(${v.fromPath}::text, ${v.toPath}::text, ${v.code}::integer, ${v.note}::text, ${v.isActive}::boolean, ${v.edited}::boolean)`
+        ),
+      sql`, `
+    )
+    await db.execute(sql`
+      update ${redirects} set
+        to_path = v.to_path,
+        code = v.code,
+        note = v.note,
+        is_active = v.is_active,
+        source = 'import',
+        updated_at = case when v.edited then now() else ${redirects.updatedAt} end
+      from (values ${values}) as v(from_path, to_path, code, note, is_active, edited)
+      where ${redirects.fromPath} = v.from_path`)
+  }
+}
+
+/**
+ * The slugs among `slugs` that a published service/article uses (their
+ * pages are live): one query per kind for a whole import.
+ */
+export async function listPublishedSlugs(
+  db: DbOrTx,
+  kind: "service" | "article",
+  slugs: readonly string[]
+): Promise<Set<string>> {
+  if (slugs.length === 0) return new Set()
+  const table = kind === "service" ? services : articles
+  const rows = await db
+    .select({ slug: table.slug })
+    .from(table)
+    .where(and(inArray(table.slug, [...slugs]), isNotNull(table.published)))
+  return new Set(rows.map((r) => r.slug))
 }
 
 export async function findRedirectById(db: DbOrTx, id: string) {

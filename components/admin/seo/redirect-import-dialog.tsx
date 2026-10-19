@@ -36,13 +36,25 @@ type ImportRow = {
   to: string
   code: RedirectCode
   note: string
-  status: "create" | "update" | "error"
+  status: "create" | "update" | "unchanged" | "error"
   message?: string
 }
-type Preview = { rows: ImportRow[]; created: number; updated: number }
+type Preview = {
+  rows: ImportRow[]
+  created: number
+  updated: number
+  unchanged?: number
+}
 
 /** The admin API body limit (1 MB); bigger files are refused before upload. */
 const MAX_FILE_BYTES = 1024 * 1024
+
+/**
+ * The request body is JSON: quotes and line breaks in the file grow when
+ * escaped, so a file under 1 MB can still be over the limit once sent.
+ */
+const bodyBytes = (csv: string) =>
+  new TextEncoder().encode(JSON.stringify({ csv, mode: "preview" })).length
 
 const SOFT_DISABLED =
   "aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:active:translate-y-0"
@@ -50,6 +62,7 @@ const SOFT_DISABLED =
 const STATUS_LABEL: Record<ImportRow["status"], string> = {
   create: "New",
   update: "Updates the existing redirect",
+  unchanged: "No change",
   error: "Fix",
 }
 
@@ -57,9 +70,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 
 function Summary({ preview }: { preview: Preview }) {
   const errors = preview.rows.filter((r) => r.status === "error").length
+  const unchanged = preview.unchanged ? ` · ${preview.unchanged} unchanged` : ""
   return (
     <p className="text-sm font-medium">
-      {`${preview.created} new · ${preview.updated} updated · ${errors} to fix`}
+      {`${preview.created} new · ${preview.updated} updated${unchanged} · ${errors} to fix`}
       {errors > 0 ? (
         <span className="block font-normal text-muted-foreground">
           Fix the rows marked Fix in the file and choose it again. Nothing is
@@ -133,14 +147,19 @@ export function RedirectImportDialog({
   const [preview, setPreview] = useState<Preview | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  // The file chosen last: a slower check of an earlier file is ignored.
+  const latest = useRef<string | null>(null)
 
   const check = useMutation({
     mutationFn: (text: string) =>
       unwrap(
         api.redirects.import.$post({ json: { csv: text, mode: "preview" } })
       ),
-    onSuccess: (result) => setPreview(result as Preview),
-    onError: (error) => {
+    onSuccess: (result, text) => {
+      if (text === latest.current) setPreview(result as Preview)
+    },
+    onError: (error, text) => {
+      if (text !== latest.current) return
       setFileError(errorMessage(error))
       fileRef.current?.focus()
     },
@@ -167,6 +186,7 @@ export function RedirectImportDialog({
           rows,
           created: rows.filter((r) => r.status === "create").length,
           updated: rows.filter((r) => r.status === "update").length,
+          unchanged: rows.filter((r) => r.status === "unchanged").length,
         })
       toast.error("Nothing was imported", { description: errorMessage(error) })
     },
@@ -174,6 +194,7 @@ export function RedirectImportDialog({
 
   const choose = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
+    latest.current = null
     setPreview(null)
     setFileError(null)
     setCsv(null)
@@ -183,6 +204,15 @@ export function RedirectImportDialog({
       return
     }
     const text = await file.text()
+    // A newer choice while this file was read: it wins.
+    if (event.target.files?.[0] !== file) return
+    if (bodyBytes(text) > MAX_FILE_BYTES) {
+      setFileError(
+        "This file is over 1 MB once sent (quotes and line breaks count extra). Split it into parts."
+      )
+      return
+    }
+    latest.current = text
     setCsv(text)
     check.mutate(text)
   }
@@ -204,8 +234,9 @@ export function RedirectImportDialog({
           <DialogTitle>Import redirects</DialogTitle>
           <DialogDescription>
             A CSV file with the columns from and to; code (301, 302, 307 or 308,
-            default 301) and note are optional. An address that already has a
-            redirect is updated. Nothing is saved until you import.
+            default 301), active (yes or no) and note are optional. An address
+            that already has a redirect is updated; an empty active keeps it on
+            or off. Nothing is saved until you import.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">

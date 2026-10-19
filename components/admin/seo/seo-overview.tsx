@@ -21,7 +21,7 @@ import { AltTextCard } from "./alt-text-card"
 import { healthParts } from "./health"
 import { type IssueGroup, IssuesList, issuesFilterOf } from "./issues-list"
 import { SEO_HEALTH_KEY, SEO_OVERVIEW_KEY } from "./keys"
-import { SeoSheet, SeoSheetPlaceholder } from "./seo-sheet"
+import { SeoSheet } from "./seo-sheet"
 
 const isRecordKind = (kind: string): kind is SeoKind =>
   (SEO_KINDS as readonly string[]).includes(kind)
@@ -90,18 +90,12 @@ export function SeoOverview({ origin }: { origin: string }) {
           onEdit={(g) => setEditing(keyOf(g))}
         />
       )}
-      {entry ? (
+      {editing ? (
+        // One sheet from loading to loaded (focus returns to Edit SEO);
+        // a failed or unknown record says so in it.
         <SeoSheet
-          key={keyOf(entry)}
           entry={entry}
-          origin={origin}
-          defaults={overview.data?.defaults}
-          onClose={() => setEditing(null)}
-        />
-      ) : editing ? (
-        // Loading, failed or unknown record: say so in the sheet.
-        <SeoSheetPlaceholder
-          state={
+          pending={
             overview.isFetching
               ? "loading"
               : overview.isError
@@ -112,6 +106,8 @@ export function SeoOverview({ origin }: { origin: string }) {
           }
           error={overview.error ? errorMessage(overview.error) : undefined}
           onRetry={() => void overview.refetch()}
+          origin={origin}
+          defaults={overview.data?.defaults}
           onClose={() => setEditing(null)}
         />
       ) : null}

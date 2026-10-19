@@ -26,6 +26,16 @@ describe("parseCsv (RFC 4180, D1.8)", () => {
     expect(parsed.lines).toEqual([2, 4])
   })
 
+  it("accepts a lone-CR file (classic Mac line ends) with true line numbers (review D1.8 #8)", () => {
+    const parsed = parseCsv('from,to\r/a,/b\r\r"/c\rd",/e\r')
+    expect(parsed.header).toEqual(["from", "to"])
+    expect(parsed.rows).toEqual([
+      ["/a", "/b"],
+      ["/c\rd", "/e"],
+    ])
+    expect(parsed.lines).toEqual([2, 4])
+  })
+
   it("skips blank lines but keeps line numbers true", () => {
     const parsed = parseCsv("a,b\r\n\r\n1,2\r\n   \r\n\r\n3,4\r\n\r\n")
     expect(parsed.rows).toEqual([

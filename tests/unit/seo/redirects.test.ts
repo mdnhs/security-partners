@@ -3,10 +3,20 @@ import { describe, expect, it } from "vitest"
 import {
   checkRedirectChain,
   fromPathProblem,
+  noteProblem,
   redirectLocation,
   redirectTargetPath,
   toPathProblem,
 } from "@/lib/seo/redirects"
+
+describe("noteProblem (review D1.8 #2)", () => {
+  it("allows text, TAB and line breaks; refuses NUL and other controls", () => {
+    for (const ok of ["", "Old brochure", "a\tb", "a\r\nb", "Dinn Rí"])
+      expect(noteProblem(ok), JSON.stringify(ok)).toBeNull()
+    for (const bad of ["a\u0000b", "\u0001", "x\u001b[31m", "del\u007f"])
+      expect(noteProblem(bad), JSON.stringify(bad)).toMatch(/control/)
+  })
+})
 
 describe("redirect rules (review fix round 1)", () => {
   it("from: no %-escapes of unreserved characters (aliases)", () => {

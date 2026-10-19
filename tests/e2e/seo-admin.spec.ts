@@ -142,8 +142,15 @@ test("SEO overview: the sheet saves a page's description", async ({ page }) => {
       .getByRole("button", { name: "Edit SEO for Terms of use" })
       .click()
     const again = page.getByRole("dialog", { name: "SEO: Terms of use" })
-    await again.getByRole("textbox", { name: /^Description/ }).fill(before)
-    await again.getByRole("button", { name: "Save SEO" }).click()
+    const field = again.getByRole("textbox", { name: /^Description/ })
+    // Save is disabled while nothing changed (the first save failed before
+    // writing): then there is nothing to restore, just close the sheet.
+    if ((await field.inputValue()) !== before) {
+      await field.fill(before)
+      await again.getByRole("button", { name: "Save SEO" }).click()
+    } else {
+      await page.keyboard.press("Escape")
+    }
     await expect(again).toBeHidden()
   }
 })
@@ -174,6 +181,15 @@ test("SEO overview: alt-text card, Needs work / All, Fix opens the editor's SEO 
     "page"
   )
   await filter.getByRole("link", { name: "Needs work" }).click()
+  await page.waitForURL((url) => !url.searchParams.has("show"))
+  // The filter pushes history entries (review D1.5 M4): Back returns to All.
+  await page.goBack()
+  await page.waitForURL((url) => url.searchParams.get("show") === "all")
+  await expect(filter.getByRole("link", { name: "All" })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await page.goForward()
   await page.waitForURL((url) => !url.searchParams.has("show"))
 
   // The seed has issues (services' images lack alt text, D1.2 report):

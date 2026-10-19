@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import {
   fromPathProblem,
+  noteProblem,
   REDIRECT_CODES,
   REDIRECT_SOURCES,
   type RedirectCode,
@@ -35,7 +36,11 @@ const fields = {
   note: z
     .string()
     .trim()
-    .max(REDIRECT_NOTE_MAX, `Keep the note to ${REDIRECT_NOTE_MAX} characters`),
+    .max(REDIRECT_NOTE_MAX, `Keep the note to ${REDIRECT_NOTE_MAX} characters`)
+    .superRefine((value, ctx) => {
+      const message = noteProblem(value)
+      if (message) ctx.addIssue({ code: "custom", message })
+    }),
   /** Off keeps the redirect listed but stops it resolving. */
   isActive: z.boolean(),
 }
@@ -91,5 +96,10 @@ export type RedirectDto = {
   note: string
   source: RedirectSource
   createdAt: string
+  /**
+   * Last edit of fromPath, toPath, code or note. On/Off switches (manual or
+   * by import) and hits keep it. A manual switch's time is in the audit log
+   * (redirect.updated); an import logs counts only (redirect.imported).
+   */
   updatedAt: string
 }

@@ -173,8 +173,21 @@ beforeEach(() => {
 })
 
 function renderAs(roles: Role[]) {
-  return render(
-    <QueryClientProvider client={makeQueryClient()}>
+  const client = makeQueryClient()
+  const result = render(overviewTree(roles, client))
+  return {
+    ...result,
+    /** Re-render after nav.params changed (the mocked router does not). */
+    update: () => result.rerender(overviewTree(roles, client)),
+  }
+}
+
+function overviewTree(
+  roles: Role[],
+  client: ReturnType<typeof makeQueryClient>
+) {
+  return (
+    <QueryClientProvider client={client}>
       <AdminSessionProvider
         value={{
           user: {
@@ -384,6 +397,66 @@ describe("SEO overview (master 8.1)", () => {
     expect(
       await screen.findByRole("dialog", { name: "SEO: Home" })
     ).toBeInTheDocument()
+  })
+
+  it("after a cold load, closing the sheet returns focus to Edit SEO (re-review D1.5 N1)", async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost")
+      if (url.pathname === "/api/v1/admin/seo/overview") {
+        await gate
+        return json(200, OVERVIEW)
+      }
+      return defaultFetch(input, init)
+    })
+    nav.replace.mockImplementation((href: string) => {
+      nav.params = new URLSearchParams(href.split("?")[1] ?? "")
+    })
+    const user = userEvent.setup()
+    const { update } = renderAs(["editor"])
+    const button = await screen.findByRole("button", {
+      name: "Edit SEO for Home",
+    })
+    await user.click(button)
+    update()
+    const loading = await screen.findByRole("dialog", { name: "SEO settings" })
+    release()
+    const sheet = await screen.findByRole("dialog", { name: "SEO: Home" })
+    // One sheet across loading and loaded: the same popup, so it keeps the
+    // element to return focus to.
+    expect(sheet).toBe(loading)
+    await user.keyboard("{Escape}")
+    update()
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Edit SEO for Home" })
+      ).toHaveFocus()
+    )
+  })
+
+  it("the alt card link and the more-images link are 44 px on coarse pointers (re-review D1.5 N2)", async () => {
+    const images = Array.from({ length: 11 }, (_, i) => ({
+      kind: "media" as const,
+      id: `00000000-0000-7000-8000-0000000002${String(i).padStart(2, "0")}`,
+      title: `pic-${i}.jpg`,
+      path: null,
+      check: "alt-text" as const,
+      message: "1 image(s) missing alt text",
+      fixHref: `/admin/media?missingAlt=true&open=${i}`,
+    }))
+    health = { ...HEALTH, issues: images }
+    renderAs(["editor"])
+    const card = await screen.findByRole("region", { name: "Alt text" })
+    expect(
+      within(card).getByRole("link", { name: "Find images without alt text" })
+    ).toHaveClass("pointer-coarse:h-11")
+    const more = screen.getByText("1 more image without alt text.")
+    const link = within(more.parentElement!).getByRole("link", {
+      name: "Find images without alt text",
+    })
+    expect(link).toHaveClass("pointer-coarse:h-11", "pointer-coarse:min-w-11")
   })
 
   it("a failed sheet load says so in the sheet and Try again reloads", async () => {

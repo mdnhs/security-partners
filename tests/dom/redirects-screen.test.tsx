@@ -85,7 +85,11 @@ const BAD_ROWS = [
 
 /** POST /redirects/import: a file containing "bad" has an error row. */
 let importReplyOverride:
-  ((body: { csv: string; mode: string }) => Response | null) | null = null
+  | ((body: {
+      csv: string
+      mode: string
+    }) => Response | Promise<Response> | null)
+  | null = null
 
 function importReply(body: { csv: string; mode: string }) {
   const override = importReplyOverride?.(body)
@@ -520,6 +524,80 @@ describe("Redirects screen (master 8.2)", () => {
     expect(
       screen.getByRole("dialog", { name: "Import redirects" })
     ).toBeVisible()
+  })
+
+  it("a late preview of an earlier file never replaces the current one (review D1.8 #6)", async () => {
+    const user = userEvent.setup()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    importReplyOverride = (body) =>
+      body.csv.includes("/first")
+        ? gate.then(() => json(200, { rows: BAD_ROWS, created: 1, updated: 0 }))
+        : null
+    renderAs(["marketer"])
+    await user.click(await screen.findByRole("button", { name: "Import CSV" }))
+    const dialog = screen.getByRole("dialog", { name: "Import redirects" })
+    const input = within(dialog).getByLabelText("CSV file")
+    await user.upload(input, csvFile("from,to\n/first,/contact"))
+    await user.upload(input, csvFile("from,to\n/second,/contact"))
+    expect(
+      await within(dialog).findByText(/1 new · 1 updated · 0 to fix/)
+    ).toBeVisible()
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(
+      within(dialog).getByText(/1 new · 1 updated · 0 to fix/)
+    ).toBeVisible()
+    expect(within(dialog).queryByText(/to fix/)).toHaveTextContent("0 to fix")
+    expect(
+      within(dialog).getByRole("button", { name: "Import 2 redirects" })
+    ).toBeVisible()
+  })
+
+  it("a file whose upload would pass the 1 MB body limit is refused with the reason (review D1.8 #6)", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(await screen.findByRole("button", { name: "Import CSV" }))
+    const dialog = screen.getByRole("dialog", { name: "Import redirects" })
+    // 600 KB of quotes: each one is sent as \" (twice the size).
+    await user.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile(`from,to,note\n/a,/,"${'""'.repeat(300_000)}"`)
+    )
+    expect(await within(dialog).findByText(/over 1 MB once sent/)).toBeVisible()
+    expect(
+      fetchMock.mock.calls.filter(([input]) =>
+        String(input).includes("/redirects/import")
+      )
+    ).toHaveLength(0)
+  })
+
+  it("unchanged rows are labelled and counted (review D1.8 #4)", async () => {
+    const user = userEvent.setup()
+    importReplyOverride = () =>
+      json(200, {
+        rows: [{ ...OK_ROWS[1], status: "unchanged" }],
+        created: 0,
+        updated: 0,
+        unchanged: 1,
+      })
+    renderAs(["marketer"])
+    await user.click(await screen.findByRole("button", { name: "Import CSV" }))
+    const dialog = screen.getByRole("dialog", { name: "Import redirects" })
+    await user.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile("from,to\n/old-alarms,/services")
+    )
+    expect(
+      await within(dialog).findByText(
+        /0 new · 0 updated · 1 unchanged · 0 to fix/
+      )
+    ).toBeVisible()
+    expect(within(dialog).getByText("No change")).toBeVisible()
+    // Nothing to write: Import stays unavailable.
+    expect(
+      within(dialog).getByRole("button", { name: "Import" })
+    ).toHaveAttribute("aria-disabled", "true")
   })
 
   it("viewers get no Turn on/off", async () => {

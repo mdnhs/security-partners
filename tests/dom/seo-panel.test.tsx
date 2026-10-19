@@ -117,6 +117,18 @@ describe("SeoPanel (MK D1.4)", () => {
     expect(within(checklist).getAllByRole("listitem")).toHaveLength(4)
   })
 
+  it("the live checklist follows the site robots mode (D1.6 M7)", () => {
+    renderPanel({ siteNoindex: true })
+    const checklist = screen.getByRole("list", { name: "SEO checklist" })
+    expect(
+      within(checklist)
+        .getByText(
+          "The whole site is hidden from search engines (SEO › Defaults)"
+        )
+        .closest("li")
+    ).toHaveAttribute("data-ok", "false")
+  })
+
   it("the search result shows host › segments, the title and description", () => {
     renderPanel()
     const serp = screen.getByRole("figure", { name: "Search result preview" })

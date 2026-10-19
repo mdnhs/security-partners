@@ -188,7 +188,7 @@ function warnUnreadableText(recordKey: string) {
  */
 async function computeHealth(
   db: DbOrTx
-): Promise<{ entries: SeoEntry[]; health: SeoHealthDto }> {
+): Promise<{ entries: SeoEntry[]; health: SeoHealthDto; ctx: Context }> {
   const [rows, ctx, texts, missingAlt, alt] = await Promise.all([
     listSeoRows(db),
     loadContext(db),
@@ -314,6 +314,7 @@ async function computeHealth(
 
   return {
     entries,
+    ctx,
     health: {
       score: total === 0 ? 100 : Math.round((passed / total) * 100),
       passed,
@@ -334,18 +335,16 @@ export async function getSeoHealth(actor: Actor): Promise<SeoHealthDto> {
 /** GET /seo/overview: every record's entry for the SEO sheet, and the check totals. */
 export async function getSeoOverview(actor: Actor): Promise<SeoOverviewDto> {
   assertCan(actor, { seo: ["read"] })
-  const db = getDb()
-  const [{ entries, health }, ctx] = await Promise.all([
-    computeHealth(db),
-    loadContext(db),
-  ])
+  const { entries, health, ctx } = await computeHealth(getDb())
   return {
     entries,
     checks: { passed: health.passed, total: health.total },
-    // For the previews: the title pattern and the site share image.
+    // For the previews and the live checklist: the title pattern, the site
+    // share image and the site robots mode (all public in the page head).
     defaults: {
       titleTemplate: ctx.defaults.titleTemplate,
       ogImageId: ctx.defaults.ogImage?.mediaId ?? null,
+      siteNoindex: siteNoindex(ctx.defaults),
     },
   }
 }
