@@ -101,10 +101,11 @@ describe("settings editor (master 4.5)", () => {
     // No overview tab: /admin/settings redirects to the first key.
     expect(links[0]).toHaveTextContent("Identity")
     expect(links[0]).toHaveAttribute("href", "/admin/settings/site")
-    // 11 settings keys, then AI assistant and Integrations (owner/admin).
-    expect(links).toHaveLength(13)
-    expect(links[11]).toHaveTextContent("AI assistant")
-    expect(links[12]).toHaveTextContent("Integrations")
+    // 12 settings keys, then AI assistant and Integrations (owner/admin).
+    expect(links).toHaveLength(14)
+    expect(links[11]).toHaveTextContent("Newsletter")
+    expect(links[12]).toHaveTextContent("AI assistant")
+    expect(links[13]).toHaveTextContent("Integrations")
     expect(
       within(nav).getByRole("link", { name: "Enquiries" })
     ).toHaveAttribute("aria-current", "page")

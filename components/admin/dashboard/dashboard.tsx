@@ -76,6 +76,13 @@ function kpisFor(dto: DashboardDto, access: ContentAccess): Kpi[] {
       caption: "articles waiting for an editor",
       href: "/admin/insights?status=in_review",
     })
+  if (kpis.subscribers)
+    out.push({
+      label: "Newsletter subscribers",
+      value: formatNumber(kpis.subscribers.confirmed),
+      caption: `${formatNumber(kpis.subscribers.since30d)} new in the last 30 days`,
+      href: "/admin/newsletter",
+    })
   return out
 }
 

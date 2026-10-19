@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils"
 
 import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
+import { NewsletterPrivacy } from "./newsletter-privacy"
 
 const SELECT = "disabled:opacity-60"
 
@@ -381,50 +382,59 @@ export function LeadDetail({ id }: { id: string }) {
                 </p>
               </div>
             </FormCard>
-            <FormCard
-              id="lead-handling"
-              title="Handling"
-              description={
-                canUpdate
-                  ? "Changes save straight away."
-                  : "You can read this lead but not change it."
-              }
-              className="self-start"
-              aria-busy={update.isPending || undefined}
-            >
-              <FieldShell id={statusId} label="Lead status">
-                <OptionSelect
-                  id={statusId}
-                  className={SELECT}
-                  value={data.status}
-                  disabled={!canUpdate}
-                  onChange={(value) => change({ status: value as LeadStatus })}
-                  options={LEAD_STATUSES.map((s) => ({
-                    value: s,
-                    label: LEAD_STATUS_LABELS[s],
-                  }))}
-                />
-              </FieldShell>
-              <FieldShell id={assigneeId} label="Assigned to">
-                <OptionSelect
-                  id={assigneeId}
-                  className={SELECT}
-                  value={data.assignee?.id ?? ""}
-                  disabled={!canUpdate}
-                  onChange={(value) => change({ assigneeId: value || null })}
-                  options={[
-                    { value: "", label: "Unassigned" },
-                    ...(data.assignee && !knownAssignee
-                      ? [{ value: data.assignee.id, label: data.assignee.name }]
-                      : []),
-                    ...(assignees.data ?? []).map((u) => ({
-                      value: u.id,
-                      label: u.name,
-                    })),
-                  ]}
-                />
-              </FieldShell>
-            </FormCard>
+            <div className="flex min-w-0 flex-col gap-6 self-start">
+              <FormCard
+                id="lead-handling"
+                title="Handling"
+                description={
+                  canUpdate
+                    ? "Changes save straight away."
+                    : "You can read this lead but not change it."
+                }
+                aria-busy={update.isPending || undefined}
+              >
+                <FieldShell id={statusId} label="Lead status">
+                  <OptionSelect
+                    id={statusId}
+                    className={SELECT}
+                    value={data.status}
+                    disabled={!canUpdate}
+                    onChange={(value) =>
+                      change({ status: value as LeadStatus })
+                    }
+                    options={LEAD_STATUSES.map((s) => ({
+                      value: s,
+                      label: LEAD_STATUS_LABELS[s],
+                    }))}
+                  />
+                </FieldShell>
+                <FieldShell id={assigneeId} label="Assigned to">
+                  <OptionSelect
+                    id={assigneeId}
+                    className={SELECT}
+                    value={data.assignee?.id ?? ""}
+                    disabled={!canUpdate}
+                    onChange={(value) => change({ assigneeId: value || null })}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...(data.assignee && !knownAssignee
+                        ? [
+                            {
+                              value: data.assignee.id,
+                              label: data.assignee.name,
+                            },
+                          ]
+                        : []),
+                      ...(assignees.data ?? []).map((u) => ({
+                        value: u.id,
+                        label: u.name,
+                      })),
+                    ]}
+                  />
+                </FieldShell>
+              </FormCard>
+              <NewsletterPrivacy email={data.email} />
+            </div>
           </div>
         </SectionTabsPanel>
         <SectionTabsPanel id="notes">

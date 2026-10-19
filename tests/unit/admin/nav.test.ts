@@ -34,6 +34,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
             "Collections",
             "Media",
             "Enquiries",
+            "Newsletter",
           ],
         ],
         ["Growth", ["SEO", "Marketing"]],
@@ -79,7 +80,10 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     [
       "marketer",
       [
-        ["Menu", ["Dashboard", "Pages", "Insights", "Services", "Media"]],
+        [
+          "Menu",
+          ["Dashboard", "Pages", "Insights", "Services", "Media", "Newsletter"],
+        ],
         ["Growth", ["SEO", "Marketing"]],
       ],
     ],

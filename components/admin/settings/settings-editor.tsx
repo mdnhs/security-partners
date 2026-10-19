@@ -22,6 +22,8 @@ export function SettingsEditor({
   // Per-key group permission (leads also needs lead:update), as the API enforces.
   const canEdit = usePermission(entry.update)
   const param = { key: settingsKey }
+  // Operational keys have no page of their own to preview on "/".
+  const previewable = settingsKey !== "leads" && settingsKey !== "newsletter"
   return (
     <VersionedEditor
       title={entry.label}
@@ -48,11 +50,9 @@ export function SettingsEditor({
       meta={settingsEditorMeta[settingsKey]}
       revisions={{ entity: "settings", id: settingsKey }}
       previewHref={
-        settingsKey === "leads"
-          ? undefined
-          : previewHref("settings", settingsKey)
+        previewable ? previewHref("settings", settingsKey) : undefined
       }
-      publicHref={settingsKey === "leads" ? undefined : "/"}
+      publicHref={previewable ? "/" : undefined}
       canEdit={canEdit}
       canPublish={canEdit}
     />

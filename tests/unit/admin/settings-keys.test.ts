@@ -36,6 +36,18 @@ describe("labels (MK parity spec §5.1)", () => {
       "Clients strip",
       "Why choose us",
       "Enquiries",
+      "Newsletter",
     ])
+  })
+
+  it("newsletter is a Forms key editors may change (D4.3)", () => {
+    expect(SETTINGS_ENTRIES.newsletter).toEqual({
+      label: "Newsletter",
+      description:
+        "Turning on a placement adds the signup form to the public site.",
+      group: "Forms",
+      read: { settings: ["read"] },
+      update: { settings: ["update"] },
+    })
   })
 })

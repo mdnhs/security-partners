@@ -4,8 +4,11 @@ import { Hono } from "hono"
 
 import { isoDate } from "@/lib/format"
 import {
+  subscriberEmailBody,
+  type SubscriberErasure,
   subscriberExportQuery,
   subscriberListQuery,
+  type SubscriberLookup,
 } from "@/lib/schemas/api/newsletter"
 import { idParam } from "@/lib/schemas/api/params"
 import type { AppEnv } from "@/server/api/context"
@@ -40,6 +43,32 @@ export const newsletterRoutes = new Hono<AppEnv>()
         "Content-Disposition": `attachment; filename="subscribers-${isoDate(new Date())}.csv"`,
         "Cache-Control": "no-store",
       })
+    }
+  )
+  // Privacy helper on a lead's page: is this address also subscribed?
+  .post(
+    "/lookup",
+    can({ newsletter: ["read"] }),
+    zv("json", subscriberEmailBody),
+    async (c) => {
+      const subscriber = await service.findSubscriberByEmail(
+        actorOf(c),
+        c.req.valid("json").email
+      )
+      return c.json({ subscriber } satisfies SubscriberLookup, 200)
+    }
+  )
+  // GDPR erasure by address (audited per row, never the address itself).
+  .post(
+    "/erase",
+    can({ newsletter: ["delete"] }),
+    zv("json", subscriberEmailBody),
+    async (c) => {
+      const erased = await service.eraseSubscriberByEmail(
+        actorOf(c),
+        c.req.valid("json").email
+      )
+      return c.json({ erased } satisfies SubscriberErasure, 200)
     }
   )
   .delete(

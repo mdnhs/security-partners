@@ -369,14 +369,15 @@ export async function deleteSubscriber(
  * Retention: pending rows older than settings.newsletter.pendingDays,
  * measured from created_at (a row re-pended after an unsubscribe counts from
  * its latest link instead). Confirmed and unsubscribed rows are never purged
- * here.
+ * here. Null while settings.newsletter is unpublished (nothing purged).
+ * Run daily by the purge-newsletter job.
  */
 export async function purgeStalePending(
   now: Date = new Date()
-): Promise<number> {
+): Promise<number | null> {
   const db = getDb()
   const settings = await readPublishedSettings("newsletter", db)
-  if (!settings) return 0
+  if (!settings) return null
   const cutoff = new Date(now.getTime() - settings.pendingDays * 86_400_000)
   return db.transaction(async (tx) => {
     const count = await repo.deletePendingBefore(tx, cutoff, CONFIRM_TTL_MS)

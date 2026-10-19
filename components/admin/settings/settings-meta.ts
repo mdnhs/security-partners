@@ -348,4 +348,109 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       ],
     },
   },
+  newsletter: {
+    fields: {
+      placement: {
+        label: "Show the signup form",
+        help: "Turning on a placement adds the signup form to the public site.",
+        options: [
+          { value: "off", label: "Nowhere (off)" },
+          { value: "blog", label: "On the blog page" },
+          { value: "article", label: "Under each article" },
+        ],
+      },
+      doubleOptIn: {
+        label: "Ask people to confirm by email",
+        help: "Recommended: an address is only added after its owner clicks the link in the confirmation email.",
+        width: "full",
+      },
+      pendingDays: {
+        label: "Delete unconfirmed sign-ups after (days)",
+        help: "Sign-ups nobody confirmed are deleted automatically.",
+      },
+      eyebrow: { label: "Eyebrow" },
+      title: { label: "Heading", width: "full" },
+      subtitle: { label: "Text", widget: "textarea", rows: 2 },
+      emailLabel: { label: "Email field label" },
+      placeholder: { label: "Email field placeholder" },
+      button: { label: "Button text" },
+      success: {
+        label: "Message after signing up",
+        widget: "textarea",
+        rows: 2,
+      },
+      errors: { label: "Error messages" },
+      "errors.email": { label: "Invalid email" },
+      "errors.rateLimited": {
+        label: "Too many attempts",
+        widget: "textarea",
+        rows: 2,
+      },
+      "errors.generic": {
+        label: "Sign-up failed",
+        widget: "textarea",
+        rows: 2,
+      },
+      confirmationEmail: { label: "Confirmation email" },
+      "confirmationEmail.subject": { label: "Subject", width: "full" },
+      "confirmationEmail.body": { label: "Text", widget: "textarea", rows: 4 },
+      pages: { label: "Pages after the email links" },
+      "pages.confirm": {
+        label: "Confirm page",
+        help: "Opened from the confirmation email; its button confirms the subscription.",
+      },
+      "pages.confirm.button": { label: "Button text" },
+      "pages.confirmed": { label: "Confirmed page" },
+      "pages.invalid": {
+        label: "Expired or used link page",
+      },
+      "pages.unsubscribe": {
+        label: "Unsubscribe page",
+        help: "Opened from the unsubscribe link; its button unsubscribes.",
+      },
+      "pages.unsubscribe.button": { label: "Button text" },
+      "pages.unsubscribed": { label: "Unsubscribed page" },
+    },
+    groups: {
+      "": [
+        {
+          title: "Placement",
+          description: "Where the signup form appears on the public site.",
+          fields: ["placement"],
+        },
+        {
+          title: "Sign-up form",
+          description:
+            "Heading, text and messages of the form. The heading, button and success message are required while the form is shown.",
+          fields: [
+            "eyebrow",
+            "title",
+            "subtitle",
+            "emailLabel",
+            "placeholder",
+            "button",
+            "success",
+            "errors",
+          ],
+        },
+        {
+          title: "Confirmation",
+          description:
+            "The email sent to confirm an address. The subject is required while the form is shown.",
+          fields: ["doubleOptIn", "confirmationEmail"],
+        },
+        {
+          title: "Pages",
+          description:
+            "What people see after following a link in the email or unsubscribing.",
+          fields: ["pages"],
+        },
+        {
+          title: "Retention",
+          description: "How long unconfirmed sign-ups are kept.",
+          fields: ["pendingDays"],
+        },
+      ],
+    },
+  },
 }

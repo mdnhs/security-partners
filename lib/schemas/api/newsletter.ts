@@ -40,6 +40,18 @@ export const subscriberExportQuery = z.object({
 })
 export type SubscriberExportQuery = z.infer<typeof subscriberExportQuery>
 
+/**
+ * POST /api/v1/admin/newsletter/lookup and /erase (the lead page's privacy
+ * helper). In the body, not the query, so the address stays out of URLs.
+ */
+export const subscriberEmailBody = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email().max(320)),
+})
+export type SubscriberEmailBody = z.infer<typeof subscriberEmailBody>
+
+export type SubscriberLookup = { subscriber: SubscriberDto | null }
+export type SubscriberErasure = { erased: number }
+
 export type SubscriberDto = {
   id: string
   email: string

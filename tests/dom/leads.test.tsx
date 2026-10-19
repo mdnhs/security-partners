@@ -60,6 +60,8 @@ const lead: LeadDto = {
 let holdPatch: Promise<void> | null = null
 let failPatch = false
 let exportStatus = 200
+/** The newsletter lookup's answer for the lead's address (privacy helper). */
+let onNewsletter = false
 
 const calls: { url: string; method: string; body: unknown }[] = []
 beforeEach(() => {
@@ -68,6 +70,7 @@ beforeEach(() => {
   holdPatch = null
   failPatch = false
   exportStatus = 200
+  onNewsletter = false
   push.mockClear()
   replace.mockClear()
   refresh.mockClear()
@@ -104,6 +107,24 @@ beforeEach(() => {
               },
               exportStatus
             )
+      if (url.includes("/newsletter/lookup"))
+        return reply({
+          subscriber: onNewsletter
+            ? {
+                id: "0190a6e0-0000-7000-8000-0000000000dd",
+                email: body.email,
+                status: "confirmed",
+                sourcePath: "/blog",
+                createdAt: "2026-10-01T09:00:00.000Z",
+                confirmedAt: "2026-10-01T09:00:00.000Z",
+                unsubscribedAt: null,
+              }
+            : null,
+        })
+      if (url.includes("/newsletter/erase")) {
+        onNewsletter = false
+        return reply({ erased: 1 })
+      }
       if (url.includes("/leads/assignees"))
         return reply({
           items: [{ id: "u", name: "Ian Intake", email: "ian@x.test" }],
@@ -410,6 +431,65 @@ describe("leads inbox (master 7.4)", () => {
       expect(calls.some((c) => c.method === "DELETE")).toBe(true)
     )
     await waitFor(() => expect(push).toHaveBeenCalledWith("/admin/leads"))
+  })
+})
+
+describe("lead detail privacy helper: newsletter (D4.3)", () => {
+  const lookups = () =>
+    calls.filter((c) => c.url.includes("/newsletter/lookup"))
+
+  it("says whether the address is also on the newsletter list", async () => {
+    onNewsletter = true
+    renderAs(["marketer"], <LeadDetail id={ID} />)
+    expect(
+      await screen.findByText("Also on the newsletter list: Yes")
+    ).toBeInTheDocument()
+    expect(lookups()[0]).toMatchObject({
+      method: "POST",
+      body: { email: "dinn@example.ie" },
+    })
+    // A marketer may read the list but not erase from it.
+    expect(
+      screen.queryByRole("button", { name: "Erase from newsletter" })
+    ).toBeNull()
+  })
+
+  it("No when absent; nothing at all without newsletter:read", async () => {
+    renderAs(["admin"], <LeadDetail id={ID} />)
+    expect(
+      await screen.findByText("Also on the newsletter list: No")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Erase from newsletter" })
+    ).toBeNull()
+  })
+
+  it("is not shown (nor looked up) for intake", async () => {
+    renderAs(["intake"], <LeadDetail id={ID} />)
+    await screen.findByRole("heading", { name: "Dinn Rí" })
+    expect(screen.queryByText(/Also on the newsletter list/)).toBeNull()
+    expect(lookups()).toEqual([])
+  })
+
+  it("newsletter:delete erases the address after confirming", async () => {
+    onNewsletter = true
+    const user = userEvent.setup()
+    renderAs(["admin"], <LeadDetail id={ID} />)
+    await user.click(
+      await screen.findByRole("button", { name: "Erase from newsletter" })
+    )
+    const dialog = await screen.findByRole("alertdialog")
+    expect(dialog).toHaveTextContent("dinn@example.ie")
+    expect(calls.some((c) => c.url.includes("/newsletter/erase"))).toBe(false)
+    await user.click(within(dialog).getByRole("button", { name: "Erase" }))
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.url.includes("/newsletter/erase"))
+      ).toMatchObject({ method: "POST", body: { email: "dinn@example.ie" } })
+    )
+    expect(
+      await screen.findByText("Also on the newsletter list: No")
+    ).toBeInTheDocument()
   })
 })
 

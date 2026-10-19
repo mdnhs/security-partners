@@ -55,6 +55,7 @@ describe("settings API (master 4.5)", () => {
       "sections.clients",
       "sections.whyChooseUs",
       "leads",
+      "newsletter",
     ])
     expect(items.find((i) => i.key === "contact")).toMatchObject({
       group: "General",
@@ -107,6 +108,63 @@ describe("settings API (master 4.5)", () => {
         (r) => r.version
       )
     ).toEqual([3])
+  })
+
+  it("newsletter: editors edit it (pages.confirm included); a placement with a blank form never saves or goes live", async () => {
+    const { status, body } = await get(editor, "newsletter")
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ group: "Forms", canEdit: true })
+    const draft = body!.draft as Record<string, unknown> & {
+      pages: { confirm: { title: string; body: string; button: string } }
+    }
+    expect(draft.placement).toBe("off")
+    expect(Object.keys(draft.pages.confirm).sort()).toEqual([
+      "body",
+      "button",
+      "title",
+    ])
+    const halfFilled = await adminRequest("/settings/newsletter/draft", {
+      cookie: editor,
+      method: "PUT",
+      json: { draft: { ...draft, placement: "blog", title: "" }, version: 1 },
+    })
+    expect(halfFilled.status).toBe(422)
+    expect(
+      Object.keys(
+        ((await halfFilled.json()) as { error: { fieldErrors: object } }).error
+          .fieldErrors
+      )
+    ).toEqual(["title"])
+
+    const copy = {
+      ...draft,
+      pages: {
+        ...draft.pages,
+        confirm: { ...draft.pages.confirm, button: "Yes, sign me up" },
+      },
+    }
+    const saved = await adminRequest("/settings/newsletter/draft", {
+      cookie: editor,
+      method: "PUT",
+      json: { draft: { ...copy, placement: "blog" }, version: 1 },
+    })
+    expect(saved.status).toBe(200)
+    const live = await adminRequest("/settings/newsletter/publish", {
+      cookie: editor,
+      method: "POST",
+      json: { version: 2 },
+    })
+    expect(live.status).toBe(200)
+    const dto = (await live.json()) as SettingsDto
+    expect(dto.published).toMatchObject({
+      placement: "blog",
+      pages: { confirm: { button: "Yes, sign me up" } },
+    })
+    expect(revalidateTag).toHaveBeenCalledWith("settings:newsletter", {
+      expire: 0,
+    })
+    expect((await get(viewer, "newsletter")).status).toBe(200)
+    expect((await get(viewer, "newsletter")).body?.canEdit).toBe(false)
   })
 
   it("validates with the key's schema and rejects stale versions", async () => {

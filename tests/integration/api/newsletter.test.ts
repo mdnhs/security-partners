@@ -31,12 +31,15 @@ const drain = async () => {
 
 import type { Role } from "@/lib/auth/roles"
 import { ROLES } from "@/lib/auth/roles"
+import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import type { NewsletterSettings } from "@/lib/schemas/settings/newsletter"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
 import { auditLog, newsletterSubscribers, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import type { Actor } from "@/server/lib/actor"
+import { RECURRING_JOBS } from "@/server/lib/jobs"
+import { purgeNewsletterJob } from "@/server/lib/jobs/purge-newsletter"
 import { mailer } from "@/server/lib/mailer"
 import {
   CONFIRM_TTL_MS,
@@ -747,5 +750,193 @@ describe("retention", () => {
       "again@example.ie",
       "young@example.ie",
     ])
+  })
+})
+
+describe("purge-newsletter job (D4.3)", () => {
+  it("is a daily recurring job that removes stale pending rows only", async () => {
+    expect(RECURRING_JOBS.map((j) => j.key)).toContain("purge-newsletter")
+    expect(purgeNewsletterJob.everyMs).toBe(24 * 60 * 60_000)
+    const now = new Date("2026-10-19T12:00:00Z")
+    const old = new Date(now.getTime() - 60 * 86_400_000)
+    const fresh = new Date(now.getTime() - 86_400_000)
+    await getDb()
+      .insert(newsletterSubscribers)
+      .values([
+        {
+          email: "stale@example.ie",
+          status: "pending",
+          createdAt: old,
+          updatedAt: old,
+        },
+        {
+          email: "new@example.ie",
+          status: "pending",
+          createdAt: fresh,
+          updatedAt: fresh,
+        },
+        {
+          email: "yes@example.ie",
+          status: "confirmed",
+          createdAt: old,
+          updatedAt: old,
+        },
+        {
+          email: "gone@example.ie",
+          status: "unsubscribed",
+          createdAt: old,
+          updatedAt: old,
+        },
+      ])
+    expect(await purgeNewsletterJob.run({ now, payload: null })).toEqual({})
+    expect((await rows()).map((r) => r.email).sort()).toEqual([
+      "gone@example.ie",
+      "new@example.ie",
+      "yes@example.ie",
+    ])
+  })
+
+  it("warns (and purges nothing) while settings.newsletter is unpublished", async () => {
+    await getDb()
+      .update(settings)
+      .set({ published: null })
+      .where(eq(settings.key, "newsletter"))
+    expect(
+      await purgeNewsletterJob.run({ now: new Date(), payload: null })
+    ).toEqual({
+      warning: "settings.newsletter is not published; no sign-ups purged",
+    })
+  })
+})
+
+describe("privacy helper (lead CSV-by-email, D4.3)", () => {
+  // [POST /lookup, POST /erase]
+  const MATRIX: Record<Role, [number, number]> = {
+    owner: [200, 200],
+    admin: [200, 200],
+    marketer: [200, 403],
+    editor: [403, 403],
+    author: [403, 403],
+    intake: [403, 403],
+    viewer: [403, 403],
+  }
+
+  it.each(ROLES)("RBAC for %s", async (role) => {
+    const { cookie } = await signedInUser([role])
+    await getDb()
+      .insert(newsletterSubscribers)
+      .values({ email: `${role}-p@example.ie`, status: "confirmed" })
+    const json = { email: `${role}-p@example.ie` }
+    expect([
+      (
+        await adminRequest("/newsletter/lookup", {
+          cookie,
+          method: "POST",
+          json,
+        })
+      ).status,
+      (
+        await adminRequest("/newsletter/erase", {
+          cookie,
+          method: "POST",
+          json,
+        })
+      ).status,
+    ]).toEqual(MATRIX[role])
+  })
+
+  it("looks an address up case-insensitively and erases it with an audit entry", async () => {
+    const { cookie } = await signedInUser(["admin"])
+    const [row] = await getDb()
+      .insert(newsletterSubscribers)
+      .values({ email: "ann@example.ie", status: "confirmed" })
+      .returning()
+    const lookup = async (email: string) => {
+      const res = await adminRequest("/newsletter/lookup", {
+        cookie,
+        method: "POST",
+        json: { email },
+      })
+      return (await res.json()) as { subscriber: unknown }
+    }
+    expect(await lookup(" Ann@Example.IE ")).toEqual({
+      subscriber: expect.objectContaining({
+        id: row.id,
+        email: "ann@example.ie",
+        status: "confirmed",
+      }),
+    })
+    expect(await lookup("nobody@example.ie")).toEqual({ subscriber: null })
+
+    const erased = await adminRequest("/newsletter/erase", {
+      cookie,
+      method: "POST",
+      json: { email: "ANN@example.ie" },
+    })
+    expect(erased.status).toBe(200)
+    expect(await erased.json()).toEqual({ erased: 1 })
+    expect(await rows()).toEqual([])
+    const audits = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, "newsletter.deleted"))
+    expect(audits).toHaveLength(1)
+    expect(JSON.stringify(audits[0])).not.toContain("ann@example.ie")
+    expect(await lookup("ann@example.ie")).toEqual({ subscriber: null })
+  })
+
+  it("rejects a malformed address with 422", async () => {
+    const { cookie } = await signedInUser(["admin"])
+    const res = await adminRequest("/newsletter/lookup", {
+      cookie,
+      method: "POST",
+      json: { email: "not-an-email" },
+    })
+    expect(res.status).toBe(422)
+  })
+})
+
+describe("dashboard KPI subscribers (D4.3)", () => {
+  const kpi = async (roles: Role[]) => {
+    const { cookie } = await signedInUser(roles)
+    const res = await adminRequest("/dashboard", { cookie })
+    return ((await res.json()) as DashboardDto).kpis.subscribers
+  }
+
+  it("shows confirmed subscribers to newsletter readers while a placement is on", async () => {
+    const now = Date.now()
+    await getDb()
+      .insert(newsletterSubscribers)
+      .values([
+        {
+          email: "a@example.ie",
+          status: "confirmed",
+          confirmedAt: new Date(now - 86_400_000),
+        },
+        {
+          email: "b@example.ie",
+          status: "confirmed",
+          confirmedAt: new Date(now - 60 * 86_400_000),
+        },
+        { email: "c@example.ie", status: "pending" },
+      ])
+    expect(await kpi(["marketer"])).toEqual({ confirmed: 2, since30d: 1 })
+    expect(await kpi(["editor"])).toBeNull()
+    expect(await kpi(["viewer"])).toBeNull()
+  })
+
+  it("placement off: hidden at 0 confirmed, shown once there are some", async () => {
+    await patchNewsletter({ placement: "off" })
+    expect(await kpi(["admin"])).toBeNull()
+    await getDb().insert(newsletterSubscribers).values({
+      email: "a@example.ie",
+      status: "confirmed",
+      confirmedAt: new Date(),
+    })
+    expect(await kpi(["admin"])).toEqual({ confirmed: 1, since30d: 1 })
+  })
+
+  it("placement on: shown at 0", async () => {
+    expect(await kpi(["owner"])).toEqual({ confirmed: 0, since30d: 0 })
   })
 })

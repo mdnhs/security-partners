@@ -103,12 +103,18 @@ type DataTableProps<T extends Record<string, unknown> & { id: string }> = {
   filterKey?: string
   /** Empty-list title while extra filters are active. */
   filteredEmpty?: string
+  /** Hint under it (default: "Try different filters or clear them."). */
+  filteredEmptyDescription?: ReactNode
   /**
    * Keep page, sort and search in the URL (?page=&sort=&q=, replaced, not
    * pushed) and remember it for "back to the list" links (useListHref).
    * One synced table per page.
    */
   syncUrl?: boolean
+  /** Rows per page (default 20). */
+  pageSize?: number
+  /** Search debounce in ms (default 250). */
+  searchDebounceMs?: number
 }
 
 type ListState = { page: number; sorting: SortingState; q: string }
@@ -195,6 +201,9 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
   toolbar,
   filterKey = "",
   filteredEmpty = "Nothing matches these filters",
+  filteredEmptyDescription = "Try different filters or clear them.",
+  pageSize = PAGE_SIZE,
+  searchDebounceMs = 250,
   initialState,
   onStateChange,
 }: DataTableProps<T> & {
@@ -206,10 +215,10 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
   )
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: (initialState?.page ?? 1) - 1,
-    pageSize: PAGE_SIZE,
+    pageSize,
   })
   const [search, setSearch] = useState(initialState?.q ?? "")
-  const q = useDebouncedValue(search.trim(), 250)
+  const q = useDebouncedValue(search.trim(), searchDebounceMs)
   // Back to page 1 when the debounced query changes (adjusted during render,
   // so no request goes out for the new page with the old query or vice versa).
   const [pagedQ, setPagedQ] = useState(q)
@@ -376,7 +385,7 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
             q
               ? `Nothing matches “${q}”.`
               : filterKey
-                ? "Try different filters or clear them."
+                ? filteredEmptyDescription
                 : emptyDescription
           }
           action={q || filterKey ? undefined : emptyAction}
