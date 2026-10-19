@@ -7,10 +7,17 @@ import type { NextUpItem } from "@/lib/schemas/api/dashboard"
 import { cn } from "@/lib/utils"
 
 /** JW "Next up": the first open step as a headline, the checklist, one CTA. */
-export function NextUp({ items }: { items: NextUpItem[] }) {
+export function NextUp({
+  items,
+  headingLevel = 2,
+}: {
+  items: NextUpItem[]
+  /** 3 under a page section's h2 (the /admin/design gallery). */
+  headingLevel?: 2 | 3
+}) {
   const next = items.find((item) => !item.done)
   return (
-    <DashboardCard title="Next up">
+    <DashboardCard title="Next up" headingLevel={headingLevel}>
       <div className="flex flex-1 flex-col justify-between gap-6">
         <div className="flex flex-col gap-3">
           <p className="text-2xl leading-tight font-semibold text-primary">

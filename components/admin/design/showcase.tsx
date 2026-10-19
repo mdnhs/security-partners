@@ -1,15 +1,10 @@
 "use client"
 
-import {
-  BriefcaseBusiness,
-  Circle,
-  CircleCheck,
-  InboxIcon,
-  PlusIcon,
-} from "lucide-react"
+import { BriefcaseBusiness, InboxIcon, PlusIcon } from "lucide-react"
 import Link from "next/link"
-import { type ReactNode, useId } from "react"
+import { type ReactNode, useId, useState } from "react"
 
+import { NextUp } from "@/components/admin/dashboard/next-up"
 import { ActivityFeed } from "@/components/admin/kit/activity-feed"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { EmptyState } from "@/components/admin/kit/empty-state"
@@ -18,8 +13,8 @@ import { KpiCard } from "@/components/admin/kit/kpi-card"
 import { PillBarChart } from "@/components/admin/kit/pill-bar-chart"
 import { CardSkeleton, KpiRowSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
-  LINK_PRIMARY,
   PageHeader,
   PRIMARY_ACTION,
   SECONDARY_ACTION,
@@ -53,13 +48,6 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -112,59 +100,9 @@ function Section({
   )
 }
 
-/**
- * The dashboard's Next up card on sample items. Same markup as
- * components/admin/dashboard/next-up.tsx, but titled with an h3 under the
- * section's h2 (that card is fixed at h2 for the dashboard).
- */
-function SampleNextUp() {
-  const next = SAMPLE_NEXT_UP.find((item) => !item.done)
-  return (
-    <DashboardCard title="Next up" headingLevel={3}>
-      <div className="flex flex-1 flex-col justify-between gap-6">
-        <div className="flex flex-col gap-3">
-          <p className="text-2xl leading-tight font-semibold text-primary">
-            {next?.title}
-          </p>
-          <p className="text-sm text-muted-foreground">{next?.description}</p>
-        </div>
-        <ul aria-label="Setup checklist" className="flex flex-col gap-1">
-          {SAMPLE_NEXT_UP.map((item) => (
-            <li key={item.id}>
-              <Link
-                href={item.href}
-                className="flex min-h-11 items-center gap-2 rounded-md text-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {item.done ? (
-                  <CircleCheck aria-hidden className="text-success size-4" />
-                ) : (
-                  <Circle
-                    aria-hidden
-                    className="size-4 text-muted-foreground"
-                  />
-                )}
-                <span className={cn(item.done && "text-muted-foreground")}>
-                  {item.title}
-                </span>
-                <span className="sr-only">
-                  {item.done ? " (done)" : " (to do)"}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {next ? (
-          <Link href={next.href} className={LINK_PRIMARY}>
-            Get started
-          </Link>
-        ) : null}
-      </div>
-    </DashboardCard>
-  )
-}
-
 function FormControls() {
   const ids = useId()
+  const [region, setRegion] = useState("dublin")
   const id = (name: string) => `${ids}-${name}`
   return (
     <div className="rounded-card flex flex-col gap-6 bg-card p-5 text-card-foreground sm:p-6">
@@ -186,19 +124,13 @@ function FormControls() {
         </Field>
         <Field>
           <FieldLabel htmlFor={id("region")}>Region</FieldLabel>
-          {/* Base UI shows the raw value unless `items` maps it to a label. */}
-          <Select defaultValue="dublin" items={SAMPLE_REGIONS}>
-            <SelectTrigger id={id("region")} className="w-full sm:w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SAMPLE_REGIONS.map((region) => (
-                <SelectItem key={region.value} value={region.value}>
-                  {region.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <OptionSelect
+            id={id("region")}
+            value={region}
+            options={SAMPLE_REGIONS}
+            onChange={setRegion}
+            className="sm:w-64"
+          />
         </Field>
         <FieldSet>
           <FieldLegend id={id("response")} variant="label">
@@ -300,7 +232,7 @@ export function Showcase() {
               data={SAMPLE_WEEK}
             />
           </DashboardCard>
-          <SampleNextUp />
+          <NextUp items={SAMPLE_NEXT_UP} headingLevel={3} />
         </div>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <DashboardCard title="Team activity" headingLevel={3}>

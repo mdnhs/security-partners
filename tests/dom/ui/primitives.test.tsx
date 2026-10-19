@@ -45,6 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const FOCUS = ["focus-visible:ring-3", "focus-visible:ring-ring/50"]
@@ -156,6 +157,28 @@ describe("shadcn primitives", () => {
     expect(large).toHaveFocus()
     expect(large).toHaveAttribute("aria-checked", "true")
     expect(small).toHaveAttribute("aria-checked", "false")
+  })
+
+  it("Switch keeps its size and pads a 44 px hit area on touch", () => {
+    render(
+      <>
+        <Switch aria-label="Open" />
+        <Switch aria-label="Small" size="sm" />
+      </>
+    )
+    for (const name of ["Open", "Small"]) {
+      const sw = screen.getByRole("switch", { name })
+      // Visual size unchanged (32x18.4 / 24x14); the ::after grows on coarse
+      // pointers to >= 44 px tall (14 + 2*15) and wide (24 + 2*12).
+      expect(sw).toHaveClass(
+        "relative",
+        "after:absolute",
+        "after:-inset-x-3",
+        "after:-inset-y-2",
+        "pointer-coarse:after:-inset-y-[15px]",
+        ...FOCUS
+      )
+    }
   })
 
   it("Table renders semantic table roles with roomy cells", () => {

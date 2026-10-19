@@ -11,6 +11,7 @@ vi.mock("next/link", () => ({
 }))
 
 import { ActivityFeed } from "@/components/admin/kit/activity-feed"
+import { NextUp } from "@/components/admin/dashboard/next-up"
 import { ContentStatusPills } from "@/components/admin/kit/content-status"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { EmptyState } from "@/components/admin/kit/empty-state"
@@ -61,6 +62,27 @@ describe("admin kit", () => {
     expect(within(region).getByRole("heading", { level: 2 })).toHaveClass(
       "text-card-title"
     )
+  })
+
+  it("NextUp titles with an h2 by default and an h3 on request", () => {
+    const items = [
+      {
+        id: "smtp" as const,
+        title: "Add a service",
+        description: "List what you offer.",
+        href: "/admin/services",
+        done: false,
+      },
+    ]
+    const { unmount } = render(<NextUp items={items} />)
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Next up" })
+    ).toBeVisible()
+    unmount()
+    render(<NextUp items={items} headingLevel={3} />)
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Next up" })
+    ).toBeVisible()
   })
 
   it("EmptyState says what will appear and offers the next step", () => {
@@ -285,9 +307,10 @@ describe("admin kit", () => {
         breadcrumbs={<Link href="/admin/leads">Back to leads</Link>}
       />
     )
-    expect(
-      screen.getByRole("link", { name: "Back to leads" })
-    ).toHaveAttribute("href", "/admin/leads")
+    expect(screen.getByRole("link", { name: "Back to leads" })).toHaveAttribute(
+      "href",
+      "/admin/leads"
+    )
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull()
   })
 
