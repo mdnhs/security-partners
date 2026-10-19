@@ -43,8 +43,9 @@ function source(file: string): string {
 /**
  * Pages whose action needs more than the registry's read permission for
  * their href: the page must keep its finer check, awaited, next to
- * requirePage. Mutation-checked: commenting out the insights/new check, or
- * calling it without `await`, fails "keeps its finer check".
+ * requirePage. Mutation-checked: commenting out the insights/new check,
+ * calling it without `await`, or `void check() // await check` (a trailing
+ * comment), fails "keeps its finer check".
  */
 const FINER_CHECKS: Record<string, string> = {
   "insights/new/page.tsx": `requirePermission({ article: ["create"] })`,
@@ -125,7 +126,13 @@ describe("panel page guards", () => {
   it.each(Object.entries(FINER_CHECKS))(
     "%s keeps its finer check",
     (file, check) => {
-      expect(source(`${ROOT}/${file}`)).toContain(`await ${check}`)
+      // Only a statement counts: `await check` starting a line. Text after
+      // code (`void check() // await check`) or inside a string does not.
+      const statement = new RegExp(
+        `^\\s*await ${check.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+        "m"
+      )
+      expect(source(`${ROOT}/${file}`)).toMatch(statement)
     }
   )
 
