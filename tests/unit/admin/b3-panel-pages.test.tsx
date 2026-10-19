@@ -52,12 +52,14 @@ import CollectionsPage from "@/app/(admin)/admin/(panel)/collections/page"
 import ActivityPage from "@/app/(admin)/admin/(panel)/activity/page"
 import MarketingCodePage from "@/app/(admin)/admin/(panel)/marketing/code/page"
 import MarketingConsentPage from "@/app/(admin)/admin/(panel)/marketing/consent/page"
+import MarketingEventsPage from "@/app/(admin)/admin/(panel)/marketing/events/page"
 import MarketingPage from "@/app/(admin)/admin/(panel)/marketing/page"
 import SettingsKeyPage from "@/app/(admin)/admin/(panel)/settings/[key]/page"
 import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/page"
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
 import { ConsentEditor } from "@/components/admin/marketing/consent-editor"
+import { EventsView } from "@/components/admin/marketing/events-view"
 import { TrackingEditor } from "@/components/admin/marketing/tracking-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
@@ -145,6 +147,20 @@ describe("moved pages", () => {
     )
     expect(out!.type).toBe(ConsentEditor)
     expect(out!.props).not.toHaveProperty("backHref")
+  })
+
+  it("/admin/marketing/events is the Event catalogue, for marketing readers (D2.4)", async () => {
+    session.roles = ["marketer"]
+    const out = await inner(MarketingEventsPage())
+    expect(session.requirePermission).toHaveBeenCalledWith({
+      marketing: ["read"],
+    })
+    expect(permissionFor("/admin/marketing/events")).toEqual({
+      marketing: ["read"],
+    })
+    expect(out!.type).toBe(EventsView)
+    session.roles = ["author"]
+    await expect(inner(MarketingEventsPage())).rejects.toThrow("FORBIDDEN")
   })
 
   it("/admin/marketing/code is Custom code, owner only", async () => {
