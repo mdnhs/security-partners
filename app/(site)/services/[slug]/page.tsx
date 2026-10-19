@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
 import { JsonLd } from "@/components/seo/json-ld"
+import { SiteThemed } from "@/components/site-themed"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ServiceDetailTemplate } from "@/templates/services/render"
@@ -23,9 +23,9 @@ export default function ServiceDetailPage({
   params,
 }: PageProps<"/services/[slug]">) {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <ServiceDetail params={params} />
-    </Suspense>
+    </SiteThemed>
   )
 }
 

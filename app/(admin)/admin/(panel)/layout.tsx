@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import { SIDEBAR_COOKIE } from "@/components/admin/shell/constants"
 import { AdminShellSkeleton } from "@/components/admin/shell/shell-skeleton"
+import { AdminThemed } from "@/components/admin/theme/admin-themed"
 import { requireSession } from "@/server/auth/session"
 import { getEnv } from "@/server/env"
 import { loadShellExtras } from "@/server/lib/admin-shell-extras"
@@ -17,10 +18,14 @@ import { getSettings } from "@/server/modules/settings/queries"
 export default function PanelLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // The theme gates the skeleton too: it never paints in default tokens
+  // when a non-default theme is published.
   return (
-    <Suspense fallback={<AdminShellSkeleton />}>
-      <PanelFrame>{children}</PanelFrame>
-    </Suspense>
+    <AdminThemed>
+      <Suspense fallback={<AdminShellSkeleton />}>
+        <PanelFrame>{children}</PanelFrame>
+      </Suspense>
+    </AdminThemed>
   )
 }
 

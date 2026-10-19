@@ -2,6 +2,12 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+// The published-theme boundary is an async server component (covered by
+// tests/integration/theme/runtime.test.tsx); here only its children matter.
+vi.mock("@/components/admin/theme/admin-themed", () => ({
+  AdminThemed: ({ children }: { children: React.ReactNode }) => children,
+}))
+
 import PanelError from "@/app/(admin)/admin/(panel)/error"
 import Forbidden from "@/app/(admin)/admin/forbidden"
 import AdminNotFound from "@/app/(admin)/admin/not-found"

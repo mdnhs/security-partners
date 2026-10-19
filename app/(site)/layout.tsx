@@ -68,18 +68,17 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {/* Published brand overrides (Appearance); nothing by default. */}
-        <Suspense fallback={null}>
-          <SiteThemeStyle />
-        </Suspense>
         <SmoothScroll />
         <ThemeProvider>{children}</ThemeProvider>
         {/* Draft-mode only (admins); renders nothing for visitors. */}
         <Suspense fallback={null}>
           <PreviewBar />
         </Suspense>
-        {/* JSON-LD (and, when tracking is on, the consent banner). */}
+        {/* JSON-LD (and, when tracking is on, the consent banner). The
+            banner uses the brand colours: the overrides share its boundary
+            (each page's content has its own, components/site-themed.tsx). */}
         <Suspense fallback={null}>
+          <SiteThemeStyle id="site-theme-extras" />
           <SiteExtras />
         </Suspense>
       </body>
