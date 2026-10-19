@@ -97,7 +97,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     browser,
   }) => {
     await signIn(page, E2E_OWNER.email)
-    await page.goto("/admin/marketing/tracking")
+    await page.goto("/admin/marketing")
     await expect(
       page.getByRole("heading", { level: 1, name: "Tracking" })
     ).toBeVisible()
@@ -182,7 +182,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     expect(
       (await page.request.get("/api/v1/admin/marketing/customCode")).status()
     ).toBe(403)
-    await page.goto("/admin/marketing/tracking")
+    await page.goto("/admin/marketing")
     await expect(
       page.getByRole("navigation", { name: "Marketing" })
     ).not.toContainText("Custom code")
@@ -193,7 +193,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     browser,
   }) => {
     await signIn(page, E2E_OWNER.email)
-    await page.goto("/admin/marketing/custom-code")
+    await page.goto("/admin/marketing/code")
     await expect(
       page.getByRole("heading", { level: 1, name: "Custom code" })
     ).toBeVisible()

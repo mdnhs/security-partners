@@ -185,7 +185,7 @@ test("integrations are for owners and admins only", async ({ page }) => {
   await expect(
     page
       .getByRole("navigation", { name: "Settings" })
-      .getByRole("link", { name: "Site" })
+      .getByRole("link", { name: "Identity" })
   ).toBeVisible()
   await expect(
     page

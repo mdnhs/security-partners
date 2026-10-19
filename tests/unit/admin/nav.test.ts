@@ -11,6 +11,7 @@ import {
 import {
   activeItem,
   dockLinks,
+  firstVisibleChild,
   NAV_ITEMS,
   reachableLinks,
   visibleNav,
@@ -222,7 +223,7 @@ describe("shell adapters (B1 → B4 bridge, current routes)", () => {
     const href = (id: string) => owner.find((i) => i.id === id)!.href
     expect(href("insights")).toBe("/admin/insights")
     expect(href("collections")).toBe("/admin/collections/team")
-    expect(href("marketing")).toBe("/admin/marketing/tracking")
+    expect(href("marketing")).toBe("/admin/marketing")
     expect(href("settings")).toBe("/admin/settings/site")
     const destinations = navDestinations(["owner"]).map((d) => d.href)
     for (const target of Object.values(CURRENT_ROUTES))
@@ -237,7 +238,7 @@ describe("shell adapters (B1 → B4 bridge, current routes)", () => {
   it("dock keeps Account until /admin/help exists", () => {
     expect(dockItems(["owner"]).map((i) => [i.label, i.href])).toEqual([
       ["Users & roles", "/admin/users"],
-      ["Activity log", "/admin/audit"],
+      ["Activity log", "/admin/activity"],
       ["Account", "/admin/account"],
     ])
     for (const role of [
@@ -289,8 +290,59 @@ describe("shell adapters (B1 → B4 bridge, current routes)", () => {
     expect(isActiveItem(find("dashboard"), "/admin")).toBe(true)
     expect(isActiveItem(find("dashboard"), "/admin/pages")).toBe(false)
     expect(isActiveItem(find("seo"), "/admin/seo/redirects")).toBe(true)
+    // B3 pages live at their registry hrefs.
+    expect(isActiveItem(find("marketing"), "/admin/marketing")).toBe(true)
+    expect(isActiveItem(find("marketing"), "/admin/marketing/code")).toBe(true)
+    expect(isActiveItem(find("settings"), "/admin/settings/ai-assistant")).toBe(
+      true
+    )
+    expect(isActiveItem(dockItems(["owner"])[1]!, "/admin/activity")).toBe(true)
     const users = dockItems(["owner"])[0]!
     expect(isActiveItem(users, "/admin/users/0190f0e0")).toBe(true)
     expect(isActiveItem(users, "/admin/users-archive")).toBe(false)
+  })
+})
+
+describe("isActiveItem also answers for the unmapped registry hrefs", () => {
+  it("a section shown at a current route is active on its registry path", () => {
+    // Every remaining CURRENT_ROUTES entry: the item (or its child) is mapped
+    // to the page's current address, yet a pathname at the registry href
+    // (e.g. reached through a redirect or a server link) still highlights it.
+    const owner = menuSections(["owner"]).flatMap((s) => s.items)
+    for (const registryHref of Object.keys(CURRENT_ROUTES)) {
+      const section = NAV_ITEMS.find(
+        (i) =>
+          i.href === registryHref ||
+          i.children?.some((c) => c.href === registryHref)
+      )!
+      const shown = owner.find((i) => i.id === section.id)!
+      expect(isActiveItem(shown, registryHref)).toBe(true)
+    }
+    const insights = owner.find((i) => i.id === "insights")!
+    expect(isActiveItem(insights, "/admin/insights/0192")).toBe(true)
+    expect(isActiveItem(insights, "/admin/services")).toBe(false)
+    const dashboard = owner.find((i) => i.id === "dashboard")!
+    expect(isActiveItem(dashboard, "/admin/pages")).toBe(false)
+  })
+})
+
+describe("firstVisibleChild (section index pages)", () => {
+  it("is the first child the roles may open", () => {
+    expect(firstVisibleChild("settings", ["viewer"])?.href).toBe(
+      "/admin/settings/site"
+    )
+    expect(firstVisibleChild("collections", ["editor"])?.href).toBe(
+      "/admin/collections/team"
+    )
+    expect(firstVisibleChild("marketing", ["marketer"])?.href).toBe(
+      "/admin/marketing"
+    )
+  })
+
+  it("is undefined when the section is hidden or has no children", () => {
+    expect(firstVisibleChild("settings", ["author"])).toBeUndefined()
+    expect(firstVisibleChild("collections", ["author"])).toBeUndefined()
+    expect(firstVisibleChild("pages", ["owner"])).toBeUndefined()
+    expect(firstVisibleChild("nope", ["owner"])).toBeUndefined()
   })
 })

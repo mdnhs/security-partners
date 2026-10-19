@@ -102,17 +102,18 @@ describe("settings editor (master 4.5)", () => {
     const nav = screen.getByRole("navigation", { name: "Settings" })
     const links = within(nav).getAllByRole("link")
     // No overview tab: /admin/settings redirects to the first key.
-    expect(links[0]).toHaveTextContent("Site")
+    expect(links[0]).toHaveTextContent("Identity")
     expect(links[0]).toHaveAttribute("href", "/admin/settings/site")
-    // 11 settings keys, then Integrations (owner/admin, Phase 6).
-    expect(links).toHaveLength(12)
-    expect(links[11]).toHaveTextContent("Integrations")
+    // 11 settings keys, then AI assistant and Integrations (owner/admin).
+    expect(links).toHaveLength(13)
+    expect(links[11]).toHaveTextContent("AI assistant")
+    expect(links[12]).toHaveTextContent("Integrations")
     expect(
       within(nav).getByRole("link", { name: "Enquiries" })
     ).toHaveAttribute("aria-current", "page")
-    expect(within(nav).getByRole("link", { name: "Site" })).not.toHaveAttribute(
-      "aria-current"
-    )
+    expect(
+      within(nav).getByRole("link", { name: "Identity" })
+    ).not.toHaveAttribute("aria-current")
     // Inside the rail there is no back link to an overview.
     expect(screen.queryByRole("link", { name: "All settings" })).toBeNull()
     // The editor bar is the opaque, sticky top of the white content card.

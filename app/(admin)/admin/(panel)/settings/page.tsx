@@ -2,23 +2,23 @@ import type { Metadata } from "next"
 import { forbidden, redirect } from "next/navigation"
 import { Suspense } from "react"
 
-import { firstReadableSettingsKey } from "@/lib/admin/settings-keys"
+import { firstVisibleChild } from "@/lib/admin/nav"
 import { requirePermission } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Settings" }
+export const metadata: Metadata = { title: "Site settings" }
 
-/** No overview: Settings opens on the first key the user may read. */
+/** No overview: Site settings opens on the first child the user may read. */
 export default function SettingsPage() {
   return (
     <Suspense fallback={null}>
-      <FirstKey />
+      <FirstChild />
     </Suspense>
   )
 }
 
-async function FirstKey(): Promise<never> {
+async function FirstChild(): Promise<never> {
   const actor = await requirePermission({ settings: ["read"] })
-  const key = firstReadableSettingsKey(actor.roles)
-  if (!key) forbidden()
-  redirect(`/admin/settings/${key}`)
+  const child = firstVisibleChild("settings", actor.roles)
+  if (!child) forbidden()
+  redirect(child.href)
 }
