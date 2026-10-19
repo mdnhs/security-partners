@@ -6,6 +6,7 @@ import { z } from "zod"
 
 import { makeQueryClient } from "@/components/admin/providers"
 import { formTabs } from "@/components/admin/schema-form/form-tabs"
+import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
 import { fixtureMediaLookup } from "@/server/db/seed/fixtures/media"
 import { pagesFixture } from "@/server/db/seed/fixtures/pages"
@@ -280,5 +281,149 @@ describe("formTabs", () => {
       "slug",
     ])
     expect(tabs.find((tab) => tab.keys[0] === "general")?.id).toBe("general")
+  })
+})
+
+describe("SchemaForm choice widgets (shadcn Select / RadioGroup / Checkbox)", () => {
+  function renderChoices<S extends z.ZodObject>(
+    schema: S,
+    value: z.input<S>,
+    meta: EditorMeta,
+    errors?: Record<string, string[]>
+  ) {
+    const onChange = vi.fn()
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <SchemaForm
+          schema={schema}
+          meta={meta}
+          value={value}
+          onChange={onChange}
+          errors={errors}
+        />
+      </QueryClientProvider>
+    )
+    return {
+      onChange,
+      last: () => onChange.mock.calls.at(-1)![0] as Record<string, unknown>,
+    }
+  }
+
+  const kindSchema = z.object({ kind: z.enum(["a", "b", "c"]) })
+  const kindMeta: EditorMeta = {
+    fields: {
+      kind: {
+        widget: "select",
+        options: [
+          { value: "a", label: "Alpha" },
+          { value: "b", label: "Beta" },
+          { value: "c", label: "Gamma" },
+        ],
+      },
+    },
+  }
+
+  it("select: a labelled combobox picked by keyboard, value reaches RHF", async () => {
+    const user = userEvent.setup()
+    const { last } = renderChoices(kindSchema, { kind: "a" }, kindMeta)
+    const box = screen.getByRole("combobox", { name: "Kind" })
+    expect(box).toHaveTextContent("Alpha")
+    expect(box).toHaveAttribute("aria-required", "true")
+    await user.click(box)
+    const alpha = await screen.findByRole("option", { name: "Alpha" })
+    await waitFor(() => expect(alpha).toHaveAttribute("data-highlighted"))
+    await user.keyboard("{ArrowDown}{Enter}")
+    await waitFor(() => expect(last().kind).toBe("b"))
+    expect(box).toHaveTextContent("Beta")
+  })
+
+  it("select: shows a server error on the combobox", async () => {
+    renderChoices(kindSchema, { kind: "a" }, kindMeta, {
+      kind: ["Pick another kind"],
+    })
+    const box = screen.getByRole("combobox", { name: "Kind" })
+    await waitFor(() => expect(box).toHaveAttribute("aria-invalid", "true"))
+    expect(box).toHaveAccessibleDescription(
+      expect.stringContaining("Pick another kind")
+    )
+  })
+
+  const sizeMeta: EditorMeta = {
+    fields: {
+      size: {
+        widget: "radio",
+        help: "How big the card is.",
+        options: [
+          { value: "s", label: "Small" },
+          { value: "m", label: "Medium" },
+          { value: "l", label: "Large" },
+        ],
+      },
+    },
+  }
+
+  it("radio: a legend-labelled radio group, arrow keys select", async () => {
+    const user = userEvent.setup()
+    const { last } = renderChoices(
+      z.object({ size: z.enum(["s", "m", "l"]) }),
+      { size: "s" },
+      sizeMeta
+    )
+    const fieldset = screen.getByRole("group", { name: "Size" })
+    expect(fieldset.tagName).toBe("FIELDSET")
+    const group = within(fieldset).getByRole("radiogroup", { name: "Size" })
+    expect(group).toHaveAccessibleDescription("How big the card is.")
+    const small = within(group).getByRole("radio", { name: "Small" })
+    expect(small).toHaveAttribute("aria-checked", "true")
+    small.focus()
+    await user.keyboard("{ArrowDown}")
+    const medium = within(group).getByRole("radio", { name: "Medium" })
+    expect(medium).toHaveFocus()
+    expect(medium).toHaveAttribute("aria-checked", "true")
+    await waitFor(() => expect(last().size).toBe("m"))
+  })
+
+  it("radio: more than four options falls back to a Select", () => {
+    renderChoices(
+      z.object({ size: z.enum(["xs", "s", "m", "l", "xl"]) }),
+      { size: "m" },
+      { fields: { size: { widget: "radio" } } }
+    )
+    expect(screen.getByRole("combobox", { name: "Size" })).toHaveTextContent(
+      "m"
+    )
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument()
+  })
+
+  it("checkboxes: a multi-select of roles is a legend-labelled checkbox group", async () => {
+    const user = userEvent.setup()
+    const { last } = renderChoices(
+      z.object({ roles: z.array(z.enum(["admin", "editor", "viewer"])) }),
+      { roles: [] },
+      {
+        fields: {
+          roles: {
+            label: "Allowed roles",
+            options: [
+              { value: "admin", label: "Admin" },
+              { value: "editor", label: "Editor" },
+              { value: "viewer", label: "Viewer" },
+            ],
+          },
+        },
+      }
+    )
+    const fieldset = screen.getByRole("group", { name: "Allowed roles" })
+    expect(fieldset.tagName).toBe("FIELDSET")
+    await user.click(within(fieldset).getByRole("checkbox", { name: "Viewer" }))
+    within(fieldset).getByRole("checkbox", { name: "Admin" }).focus()
+    await user.keyboard(" ")
+    // Stored in option order, whatever the click order.
+    await waitFor(() => expect(last().roles).toEqual(["admin", "viewer"]))
+    expect(
+      within(fieldset).getByRole("checkbox", { name: "Editor" })
+    ).toHaveAttribute("aria-checked", "false")
+    await user.click(within(fieldset).getByRole("checkbox", { name: "Admin" }))
+    await waitFor(() => expect(last().roles).toEqual(["viewer"]))
   })
 })

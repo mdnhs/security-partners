@@ -290,50 +290,10 @@ export function ToggleWidget({ field, path }: WidgetProps) {
   )
 }
 
-export function SelectWidget({ field, path }: WidgetProps) {
-  const { idPrefix, disabled } = useSchemaForm()
-  const {
-    field: { value, onChange, onBlur, ref },
-    fieldState,
-  } = useController({ name: path })
-  const id = fieldId(idPrefix, path)
-  const error = errorText(fieldState.error)
-  const help = field.meta.help
-  const values = (field.schema as z.ZodEnum).options as string[]
-  const labelOf = (value: string) =>
-    field.meta.options?.find((o) => o.value === value)?.label ?? value
-  return (
-    <FieldShell
-      id={id}
-      label={field.label}
-      help={help}
-      error={error}
-      optional={field.optional || field.nullable}
-    >
-      <NativeSelect
-        id={id}
-        value={(value as string | null | undefined) ?? ""}
-        disabled={disabled}
-        invalid={!!error}
-        describedBy={describedBy(id, { help, error })}
-        selectRef={ref}
-        onChange={(value) => onChange(value === "" ? null : value)}
-        onBlur={onBlur}
-      >
-        {field.optional || field.nullable ? (
-          <option value="">— None —</option>
-        ) : null}
-        {values.map((value) => (
-          <option key={value} value={value}>
-            {labelOf(value)}
-          </option>
-        ))}
-      </NativeSelect>
-    </FieldShell>
-  )
-}
-
-/** Styled native <select>: accessible and keyboard-friendly everywhere. */
+/**
+ * Styled native <select> for admin forms outside SchemaForm (SchemaForm's
+ * own choices use the shadcn primitives, see ./choice.tsx).
+ */
 export function NativeSelect({
   id,
   value,

@@ -141,6 +141,27 @@ describe("resolveWidget covers every shipped schema (master 4.3)", () => {
     expect(resolveWidget(text, { widget: "textarea" }, "x", "x").kind).toBe(
       "textarea"
     )
+    // radio: opt-in, ≤ 4 options; more options fall back to a select.
+    expect(
+      resolveWidget(z.enum(["a", "b", "c", "d"]), { widget: "radio" }, "p", "p")
+        .kind
+    ).toBe("radio")
+    expect(
+      resolveWidget(
+        z.enum(["a", "b", "c", "d", "e"]).optional(),
+        { widget: "radio" },
+        "p",
+        "p"
+      ).kind
+    ).toBe("select")
+    // An array of an enum is a checkbox group; other arrays stay lists.
+    expect(
+      resolveWidget(z.array(z.enum(["admin", "editor"])), {}, "roles", "roles")
+        .kind
+    ).toBe("checkboxes")
+    expect(resolveWidget(z.array(z.string()), {}, "tags", "tags").kind).toBe(
+      "list"
+    )
     expect(() => resolveWidget(z.date(), {}, "when", "a.when")).toThrow(
       'No widget for field "a.when"'
     )

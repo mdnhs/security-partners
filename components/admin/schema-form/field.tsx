@@ -8,11 +8,11 @@ import { metaFor, type WidgetKind } from "./editor-meta"
 import { resolveWidget } from "./resolve-widget"
 import {
   NumberWidget,
-  SelectWidget,
   TextareaWidget,
   TextWidget,
   ToggleWidget,
 } from "./widgets/basic"
+import { CheckboxesWidget, RadioWidget, SelectWidget } from "./widgets/choice"
 import {
   CollectionWidget,
   LinkWidget,
@@ -34,6 +34,8 @@ export const WIDGETS: Record<WidgetKind, ComponentType<WidgetProps>> = {
   list: ListWidget,
   group: GroupWidget,
   collection: CollectionWidget,
+  radio: RadioWidget,
+  checkboxes: CheckboxesWidget,
 }
 
 /** Renders the widget for one schema node at `path` (recursive via group/list). */
