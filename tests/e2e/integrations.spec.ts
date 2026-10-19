@@ -60,7 +60,7 @@ async function signIn(page: Page, who: { email: string; name: string }) {
 async function openSmtp(page: Page) {
   await page.goto("/admin/settings")
   await page
-    .getByRole("navigation", { name: "Settings" })
+    .getByRole("navigation", { name: "Site settings" })
     .getByRole("link", { name: "Integrations" })
     .click()
   await expect(
@@ -184,12 +184,12 @@ test("integrations are for owners and admins only", async ({ page }) => {
   await page.goto("/admin/settings/site")
   await expect(
     page
-      .getByRole("navigation", { name: "Settings" })
-      .getByRole("link", { name: "Site" })
+      .getByRole("navigation", { name: "Site settings" })
+      .getByRole("link", { name: "Identity" })
   ).toBeVisible()
   await expect(
     page
-      .getByRole("navigation", { name: "Settings" })
+      .getByRole("navigation", { name: "Site settings" })
       .getByRole("link", { name: "Integrations" })
   ).toHaveCount(0)
   await page.goto("/admin/settings/integrations/smtp")

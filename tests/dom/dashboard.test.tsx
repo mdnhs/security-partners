@@ -179,6 +179,26 @@ describe("dashboard (JW layout)", () => {
     ).toHaveAttribute("href", "/admin/settings/integrations/smtp")
   })
 
+  it("A9: Next up rows sit at MK's 28 px pitch, 44 px on touch", async () => {
+    renderDashboard(["owner"])
+    const next = await screen.findByRole("region", { name: "Next up" })
+    const list = within(next).getByRole("list", { name: "Setup checklist" })
+    // 24 px rows (the WCAG 2.2 AA minimum) 4 px apart; 44 px on coarse pointers.
+    expect(list).toHaveClass("gap-1")
+    for (const link of within(list).getAllByRole("link")) {
+      expect(link).toHaveClass("min-h-6", "pointer-coarse:min-h-11")
+      expect(link).not.toHaveClass("min-h-11")
+    }
+  })
+
+  it("A9: the KPI row follows the header by the page gap only (MK)", async () => {
+    renderDashboard(["owner"])
+    await screen.findAllByRole("article")
+    // The page's flex gap-6 spaces header and KPIs; no extra header margin.
+    const header = screen.getByTestId("greeting").closest("header")
+    expect(header).not.toHaveClass("mb-6")
+  })
+
   it("Next up leads with the spam-protection warning when Turnstile settings can't be read", async () => {
     vi.stubGlobal(
       "fetch",
@@ -341,7 +361,7 @@ describe("dashboard (JW layout)", () => {
       "/admin/leads",
       "/admin/leads",
       "/admin/pages",
-      "/admin/articles?status=in_review",
+      "/admin/insights?status=in_review",
     ])
   })
 

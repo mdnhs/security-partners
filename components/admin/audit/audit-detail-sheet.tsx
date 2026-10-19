@@ -84,7 +84,7 @@ export function AuditDetailSheet({
           <>
             <SheetHeader className="border-b pr-12">
               <SheetTitle className="text-lg font-semibold">
-                Audit entry
+                Activity entry
               </SheetTitle>
               <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span>

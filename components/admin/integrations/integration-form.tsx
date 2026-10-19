@@ -251,13 +251,17 @@ export function IntegrationForm({
     <PageHeader
       stacked
       breadcrumbs={
-        <Link
-          href="/admin/settings/integrations"
-          className="inline-flex min-h-6 w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:underline pointer-coarse:min-h-11"
-        >
-          <ArrowLeft aria-hidden className="size-4" />
-          Integrations
-        </Link>
+        // AI assistant is a Site settings page of its own (MK parity §5.1),
+        // a sibling of Integrations in the rail, not one of its pages.
+        key === "integrations.ai" ? undefined : (
+          <Link
+            href="/admin/settings/integrations"
+            className="inline-flex min-h-6 w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:underline pointer-coarse:min-h-11"
+          >
+            <ArrowLeft aria-hidden className="size-4" />
+            Integrations
+          </Link>
+        )
       }
       title={INTEGRATIONS[key].label}
       description={meta.intro}

@@ -17,7 +17,6 @@ import {
   SECONDARY_ACTION,
 } from "@/components/admin/page-header"
 import { mergeListSearch } from "@/components/admin/data-table/list-url"
-import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { cn } from "@/lib/utils"
@@ -70,9 +69,7 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
   const canUpdate = usePermission({ collection: ["update"] })
   const canDelete = usePermission({ collection: ["delete"] })
   const [reordering, setReordering] = useState(false)
-  // Phone cards on a section tab's white card are outlined, not white-on-white.
-  const onCard = useInSectionTabs()
-  const card = cn("rounded-card bg-card p-4", onCard && "border")
+  const card = "rounded-card bg-card p-4"
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<AnyItem | null>(null)
   const editId = searchParams.get("edit")
@@ -139,7 +136,6 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
   return (
     <>
       <PageHeader
-        stacked={onCard}
         title={config.title}
         description={config.description}
         actions={

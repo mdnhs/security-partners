@@ -24,7 +24,11 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
   await expect(
     page.getByRole("heading", { name: greeting(account.name) })
   ).toBeVisible()
-  await page.getByRole("link", { name: "Account" }).click()
+  // Account is in the user menu (the dock holds Help since MK B7).
+  await page
+    .getByRole("button", { name: `Account menu for ${account.name}` })
+    .click()
+  await page.getByRole("menuitem", { name: "Account" }).click()
   await expect(
     page.getByRole("heading", { name: "Account", exact: true })
   ).toBeVisible()
@@ -34,7 +38,7 @@ test("account page: turn on 2FA, then sign in with a backup code (Task 2.6)", as
     "true"
   )
   await sections.getByRole("tab", { name: "Devices" }).click()
-  await expect(page).toHaveURL(/\?tab=sessions$/)
+  await expect(page).toHaveURL(/\?tab=devices$/)
   await expect(page.getByText("This device")).toBeVisible()
 
   await sections.getByRole("tab", { name: "Security" }).click()
@@ -85,9 +89,17 @@ test("account page: turn 2FA off, then sign in without a code (spec §15 2FA dis
     page.getByRole("heading", { name: greeting(twoFactorOff.name) })
   ).toBeVisible()
 
-  await page.goto("/admin/account")
+  // The user menu's Security entry deep-links the Security tab.
+  await page
+    .getByRole("button", { name: `Account menu for ${twoFactorOff.name}` })
+    .click()
+  await page.getByRole("menuitem", { name: "Security" }).click()
+  await expect(page).toHaveURL(/\/admin\/account\?tab=security$/)
   const sections = page.getByRole("tablist", { name: "Account sections" })
-  await sections.getByRole("tab", { name: "Security" }).click()
+  await expect(sections.getByRole("tab", { name: "Security" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  )
   await expect(page.getByText("Two-factor authentication is on")).toBeVisible()
   await page.getByLabel("Your password").fill(E2E_PASSWORD)
   await page.getByRole("button", { name: "Turn off" }).click()

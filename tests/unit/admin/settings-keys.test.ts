@@ -2,21 +2,40 @@ import { describe, expect, it } from "vitest"
 
 import {
   EDITABLE_SETTINGS_KEYS,
-  firstReadableSettingsKey,
+  SETTINGS_ENTRIES,
   readableSettingsKeys,
 } from "@/lib/admin/settings-keys"
 
-describe("settings landing (no overview page)", () => {
-  it("lands readers on the first key in tab order", () => {
-    expect(firstReadableSettingsKey(["viewer"])).toBe("site")
+describe("readableSettingsKeys", () => {
+  it("lists the keys readers may open, in tab order", () => {
+    expect(readableSettingsKeys(["viewer"])[0]).toBe("site")
     expect(readableSettingsKeys(["editor"])).toEqual([
       ...EDITABLE_SETTINGS_KEYS,
     ])
   })
 
-  it("has no landing key for roles without settings:read", () => {
+  it("is empty for roles without settings:read", () => {
     expect(readableSettingsKeys(["author"])).toEqual([])
-    expect(firstReadableSettingsKey(["author"])).toBeUndefined()
-    expect(firstReadableSettingsKey([])).toBeUndefined()
+    expect(readableSettingsKeys([])).toEqual([])
+  })
+})
+
+describe("labels (MK parity spec §5.1)", () => {
+  it("site is Identity and microcopy is Forms & microcopy", () => {
+    expect(
+      EDITABLE_SETTINGS_KEYS.map((key) => SETTINGS_ENTRIES[key].label)
+    ).toEqual([
+      "Identity",
+      "Contact details",
+      "Navigation",
+      "Footer",
+      "Forms & microcopy",
+      "About section",
+      "Contact section",
+      "Enquire banner",
+      "Clients strip",
+      "Why choose us",
+      "Enquiries",
+    ])
   })
 })

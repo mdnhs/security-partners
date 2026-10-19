@@ -12,6 +12,7 @@ import {
   AdminSessionProvider,
 } from "@/components/admin/session-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
+import type { NavBadges } from "@/lib/admin/nav"
 import type { AiStatusDto } from "@/lib/schemas/api/ai"
 import type { ShellNotification } from "@/lib/schemas/api/dashboard"
 
@@ -19,8 +20,8 @@ import { AppSidebar } from "./app-sidebar"
 import { CommandPalette } from "./command-palette"
 import { DEFAULT_SITE, type SiteInfo } from "./constants"
 import { ImpersonationBanner } from "./impersonation-banner"
-import type { NavBadges } from "./nav"
 import { CommandPaletteProvider } from "./palette-context"
+import { SectionRail } from "./section-rail"
 import { ShellSignOutProvider } from "./sign-out-context"
 import { SiteInfoProvider } from "./site-context"
 import { Topbar } from "./topbar"
@@ -110,7 +111,8 @@ export function AdminShell({
                       className="rounded-card relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sidebar p-(--main-pad) outline-none [--main-pad:1rem] sm:[--main-pad:1.5rem] lg:[--main-pad:2rem]"
                     >
                       <SiteInfoProvider value={site}>
-                        {children}
+                        {/* The active section's sub-pages (MK section rail). */}
+                        <SectionRail>{children}</SectionRail>
                       </SiteInfoProvider>
                     </main>
                   </div>

@@ -324,12 +324,12 @@ describe("AdminShell (master 4.1)", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent)
-    ).toEqual(["Dashboard", "Leads"])
+    ).toEqual(["Dashboard", "Enquiries"])
     expect(screen.getByRole("main")).toHaveTextContent("Body")
   })
 
   it("lists sections only and marks Collections on a collection page", () => {
-    pathname.current = "/admin/clients"
+    pathname.current = "/admin/collections/clients"
     render(
       <AdminShell session={session(["editor"])}>
         <p>Body</p>
@@ -343,16 +343,16 @@ describe("AdminShell (master 4.1)", () => {
     ).toEqual([
       "Dashboard",
       "Pages",
-      "Articles",
+      "Insights",
       "Services",
       "Collections",
       "Media",
       "SEO",
-      "Settings",
+      "Site settings",
     ])
     const collections = within(nav).getByRole("link", { name: "Collections" })
     expect(collections).toHaveAttribute("aria-current", "page")
-    expect(collections).toHaveAttribute("href", "/admin/team")
+    expect(collections).toHaveAttribute("href", "/admin/collections/team")
   })
 
   it("puts the floating panels on the canvas: sidebar, topbar, content", () => {
@@ -545,7 +545,7 @@ describe("AdminShell (master 4.1)", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
-  it("footer dock: Account link and Log out (which clears the cache)", async () => {
+  it("footer dock: Help link and Log out (which clears the cache)", async () => {
     signOut.mockResolvedValue({ error: null })
     const client = makeQueryClient()
     const clear = vi.spyOn(client, "clear")
@@ -564,8 +564,9 @@ describe("AdminShell (master 4.1)", () => {
     })
     expect(docks).toHaveLength(2)
     expect(
-      within(docks[0]).getByRole("link", { name: "Account" })
-    ).toHaveAttribute("href", "/admin/account")
+      within(docks[0]).getByRole("link", { name: "Help" })
+    ).toHaveAttribute("href", "/admin/help")
+    expect(within(docks[0]).queryByRole("link", { name: "Account" })).toBeNull()
     await user.click(within(docks[0]).getByRole("button", { name: "Log out" }))
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(
@@ -676,7 +677,7 @@ describe("AdminShell (master 4.1)", () => {
         .getAllByRole("list")
         .map((list) => list.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id!)?.textContent)
-    ).toEqual(["Overview", "Content", "Growth", "Configuration"])
+    ).toEqual(["Menu", "Growth", "General"])
   })
 
   it("website card: environment, host and Open site", () => {
@@ -712,12 +713,16 @@ describe("AdminShell (master 4.1)", () => {
 
 describe("NavEntry", () => {
   const item = {
+    id: "leads",
+    group: "menu" as const,
     label: "Leads",
     href: "/admin/leads",
     icon: Inbox,
     permission: null,
     match: "prefix" as const,
     badge: "new-leads" as const,
+    // Announced text comes from badgeLabel, never from the label.
+    badgeLabel: "new enquiries",
   }
   const renderEntry = (badge?: number) =>
     render(
@@ -728,17 +733,17 @@ describe("NavEntry", () => {
       </SidebarProvider>
     )
 
-  it("shows a count badge with an accessible label", () => {
+  it("shows a count badge labelled by badgeLabel, not the item label", () => {
     renderEntry(3)
-    expect(screen.getByRole("img", { name: "3 new leads" })).toHaveTextContent(
-      "3"
-    )
+    expect(
+      screen.getByRole("img", { name: "3 new enquiries" })
+    ).toHaveTextContent("3")
   })
 
   it("caps the badge at 99+ and hides it at zero", () => {
     const { unmount } = renderEntry(120)
     expect(
-      screen.getByRole("img", { name: "120 new leads" })
+      screen.getByRole("img", { name: "120 new enquiries" })
     ).toHaveTextContent("99+")
     unmount()
     renderEntry(0)

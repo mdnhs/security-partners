@@ -11,12 +11,10 @@ import {
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { FORM_ACTION } from "@/components/admin/page-header"
-import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import type { Reorderable } from "@/lib/schemas/api/collections"
 import { type Paginated, PAGE_SIZE_MAX } from "@/lib/schemas/api/list"
-import { cn } from "@/lib/utils"
 
 /** PUT /reorder accepts at most this many ids (reorderInput). */
 export const REORDER_MAX_ITEMS = 500
@@ -60,7 +58,6 @@ export function ReorderPanel({
   onDone: () => void
 }) {
   const queryClient = useQueryClient()
-  const onCard = useInSectionTabs()
   const all = useQuery({
     queryKey: [...queryKey, "all"],
     queryFn: load,
@@ -129,7 +126,7 @@ export function ReorderPanel({
         Drag the handle, or use the arrow buttons. Keyboard: focus a handle,
         press space, use the arrow keys, press space again.
       </p>
-      <div className={cn("rounded-card bg-card p-4", onCard && "border")}>
+      <div className="rounded-card bg-card p-4">
         <SortableList
           label={label}
           items={items}

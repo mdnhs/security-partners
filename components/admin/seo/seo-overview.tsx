@@ -9,7 +9,6 @@ import { Gauge } from "@/components/admin/kit/gauge"
 import { CardSkeleton, KpiRowSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import { PageHeader, PRIMARY_ACTION } from "@/components/admin/page-header"
-import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
@@ -49,16 +48,10 @@ export function SeoOverview({ origin }: { origin: string }) {
     editing && query.data
       ? (query.data.entries.find((e) => keyOf(e) === editing) ?? null)
       : null
-  // On a section tab's white card: a stacked header and outlined cards.
-  const onCard = useInSectionTabs()
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        stacked={onCard}
-        title="SEO"
-        description="How search engines and social networks see each page. Changes apply to the live site as soon as you save."
-      />
+      <PageHeader title="SEO" description="How search engines see the site." />
       {query.isPending ? (
         <>
           <KpiRowSkeleton />
@@ -79,11 +72,7 @@ export function SeoOverview({ origin }: { origin: string }) {
           }
         />
       ) : (
-        <Loaded
-          data={query.data}
-          cardClassName={onCard ? "border" : undefined}
-          onEdit={(e) => setEditing(keyOf(e))}
-        />
+        <Loaded data={query.data} onEdit={(e) => setEditing(keyOf(e))} />
       )}
       {entry ? (
         <SeoSheet
@@ -99,11 +88,9 @@ export function SeoOverview({ origin }: { origin: string }) {
 
 function Loaded({
   data,
-  cardClassName,
   onEdit,
 }: {
   data: SeoOverviewDto
-  cardClassName: string | undefined
   onEdit: (entry: SeoEntry) => void
 }) {
   const canEdit = usePermission({ seo: ["update"] })
@@ -111,7 +98,7 @@ function Loaded({
   const needWork = live.filter((e) => e.issues.length > 0).length
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <DashboardCard title="SEO health" className={cardClassName}>
+      <DashboardCard title="SEO health">
         {data.checks.total === 0 ? (
           <EmptyState
             title="Nothing published yet"
@@ -131,7 +118,7 @@ function Loaded({
             : `${needWork} of ${live.length} published pages need attention.`}
         </p>
       </DashboardCard>
-      <DashboardCard title="Pages and posts" className={cardClassName}>
+      <DashboardCard title="Pages and posts">
         <div className="flex flex-col gap-6">
           {GROUPS.map((group) => {
             const entries = data.entries.filter((e) => e.kind === group.kind)

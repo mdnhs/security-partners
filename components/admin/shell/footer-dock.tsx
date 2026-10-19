@@ -1,6 +1,6 @@
 "use client"
 
-import { LogOut } from "lucide-react"
+import { LogOut, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import type { ReactElement } from "react"
 
@@ -10,9 +10,20 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { dockLinks, type NavLink } from "@/lib/admin/nav"
+import type { Role } from "@/lib/auth/roles"
 import { cn } from "@/lib/utils"
 
-import { isActiveItem, type NavItem } from "./nav"
+/** A dock link always has its icon (the dock shows no labels). */
+type DockLink = NavLink & { icon: LucideIcon }
+
+/** The registry's dock for `roles`; every dock entry has an icon. */
+const shellDock = (roles: readonly Role[]): DockLink[] =>
+  dockLinks(roles).map((link) => ({ ...link, icon: link.icon! }))
+
+/** The page is this link's or below it (a user's detail under Users). */
+const isCurrent = (href: string, pathname: string) =>
+  pathname === href || pathname.startsWith(`${href}/`)
 
 // "card" sits on the website card's navy gradient, "rail" on the sidebar.
 const DOCK_BUTTON = {
@@ -21,7 +32,7 @@ const DOCK_BUTTON = {
 }
 
 export type DockProps = {
-  links: readonly NavItem[]
+  roles: readonly Role[]
   pathname: string
   onNavigate: () => void
   onSignOut: () => void
@@ -29,12 +40,13 @@ export type DockProps = {
 }
 
 /**
- * Users, Audit log (owners/admins), Account and Log out as icon buttons: a
- * row in the website card, a column in the icon rail.
+ * The registry's dock (Users & roles and Activity log when allowed, Help) and
+ * Log out as icon buttons: a row in the website card, a column in the icon
+ * rail. Account lives in the user menu.
  */
 export function FooterDock({
   tone,
-  links,
+  roles,
   pathname,
   onNavigate,
   onSignOut,
@@ -42,9 +54,11 @@ export function FooterDock({
 }: DockProps & { tone: "card" | "rail" }) {
   const button = cn(
     buttonVariants({ variant: "ghost", size: "icon-lg" }),
-    "size-10 rounded-lg [&_svg]:size-5",
+    // 40 px, 44 px on coarse pointers.
+    "size-10 rounded-lg pointer-coarse:size-11 [&_svg]:size-5",
     DOCK_BUTTON[tone]
   )
+  const links = shellDock(roles)
   return (
     <nav aria-label="Administration">
       <ul
@@ -55,7 +69,7 @@ export function FooterDock({
       >
         {links.map((link) => {
           const Icon = link.icon
-          const active = isActiveItem(link, pathname)
+          const active = isCurrent(link.href, pathname)
           return (
             <li key={link.href}>
               <DockTip label={link.label}>

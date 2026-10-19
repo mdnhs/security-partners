@@ -2,9 +2,9 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { LeadsScreen } from "@/components/admin/leads/leads-screen"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Leads" }
+export const metadata: Metadata = { title: "Enquiries" }
 
 export default function LeadsPage() {
   return (
@@ -15,6 +15,6 @@ export default function LeadsPage() {
 }
 
 async function Screen() {
-  await requirePermission({ lead: ["read"] })
+  await requirePage("/admin/leads")
   return <LeadsScreen />
 }

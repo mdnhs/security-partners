@@ -19,7 +19,7 @@ import {
   StatusPills,
 } from "@/components/admin/kit/content-status"
 import { useListHref } from "@/components/admin/data-table/list-url"
-import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
+import { useInSectionRail } from "@/components/admin/shell/section-rail"
 import { cn } from "@/lib/utils"
 
 /** Header buttons (History, Preview, Publish, Delete): 40 px, 44 on touch. */
@@ -32,30 +32,29 @@ const GAP = 16
 /**
  * Sticky offsets, all from main's padding (--main-pad, set by the shell):
  * - The bar sticks 12 px below main's top edge (below lg) or at main's
- *   padding (from lg, level with the Settings rail), so `top` is that
+ *   padding (from lg, level with the section rail), so `top` is that
  *   distance less the padding (sticky offsets count from the padding edge).
  * - A strip in main's grey (::before, drawn in admin.css) fills the space
  *   above the stuck bar (--strip-h: 12 px / --main-pad) and the corners
  *   beside its rounded top, so fields never show through there. That space
- *   is at rest main's padding or the gap above the Settings card: the strip
- *   never covers the tab row.
+ *   is at rest main's padding: the strip never covers the rail's row.
  */
 const STICKY =
   "@container/bar sticky z-20 top-[calc(0.75rem-var(--main-pad,0px))] lg:top-0 [--strip-h:0.75rem] lg:[--strip-h:var(--main-pad)]"
 
 /**
  * Editor frame (JW page builder): a sticky header card (back link where a
- * parent list exists, title, public path, status pills, save state,
- * actions), then the form. Inside section tabs (Settings) the header is
- * the opaque, full-width top of the tab's white card (padding --card-pad);
- * elsewhere it is a card of its own. Sets --section-tabs-top so the form's
- * sticky tab rail stops below the bar, and keeps a focused field from
- * hiding under it (WCAG 2.4.11).
+ * parent list exists, title, public path, status pills, MK description,
+ * save state, actions incl. History), then the form on the panel. Beside
+ * the shell's section rail the form is narrower. Sets --section-tabs-top
+ * so the form's sticky tab rail stops below the bar, and keeps a focused
+ * field from hiding under it (WCAG 2.4.11).
  */
 export function EditorLayout({
   backHref,
   backLabel,
   title,
+  description,
   status,
   path,
   saveState,
@@ -70,6 +69,8 @@ export function EditorLayout({
   backHref?: string
   backLabel?: string
   title: string
+  /** One line under the title (MK page copy, e.g. the draft/publish rule). */
+  description?: ReactNode
   /** The record's state (Draft / Published / Unpublished changes), or pills of its own. */
   status: ContentState | readonly StatusPillSpec[]
   /** Public path of the record ("/services/cctv"), shown beside the pills. */
@@ -92,7 +93,7 @@ export function EditorLayout({
   preview?: ReactNode
   children: ReactNode
 }) {
-  const inTabs = useInSectionTabs()
+  const inRail = useInSectionRail()
   // Back to the list as it was left (page, sort, search, filters).
   const backTo = useListHref(backHref ?? "")
   const barRef = useRef<HTMLDivElement>(null)
@@ -110,12 +111,8 @@ export function EditorLayout({
         data-slot="editor-bar"
         className={cn(
           STICKY,
-          "bg-card",
-          inTabs
-            ? // The card's top: full width over its padding, a rule below.
-              "rounded-t-card -mx-(--card-pad,0px) -mt-(--card-pad,0px) border-b px-(--card-pad) py-4"
-            : // A card of its own; the strip starts outside its 1 px border.
-              "rounded-card border px-4 py-4 shadow-xs [--bar-border:1px] sm:px-6"
+          // A card of its own; the strip starts outside its 1 px border.
+          "rounded-card border bg-card px-4 py-4 shadow-xs [--bar-border:1px] sm:px-6"
         )}
       >
         {/* Side by side once the bar is wide enough (container query): the
@@ -154,6 +151,9 @@ export function EditorLayout({
                 <ContentStatusPills record={status} />
               )}
             </div>
+            {description ? (
+              <p className="text-sm text-muted-foreground">{description}</p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {saveState}
@@ -188,7 +188,7 @@ export function EditorLayout({
             asideColumnFrom === "xl"
               ? "xl:grid-cols-[minmax(0,1fr)_18rem]"
               : "2xl:grid-cols-[minmax(0,1fr)_18rem]",
-            inTabs ? "max-w-240" : "max-w-304"
+            inRail ? "max-w-240" : "max-w-304"
           )}
         >
           <div data-slot="editor-form" className="min-w-0">

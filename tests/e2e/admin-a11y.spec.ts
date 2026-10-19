@@ -81,18 +81,18 @@ const PANEL = [
   "/admin/pages",
   "/admin/pages/home",
   "/admin/services",
-  "/admin/articles",
-  "/admin/articles?status=in_review", // the review queue (empty in the seed)
-  "/admin/articles/new",
-  "/admin/team",
-  "/admin/clients",
-  "/admin/group-companies",
-  "/admin/categories",
+  "/admin/insights",
+  "/admin/insights?status=in_review", // the review queue (empty in the seed)
+  "/admin/insights/new",
+  "/admin/collections/team",
+  "/admin/collections/clients",
+  "/admin/collections/group-companies",
+  "/admin/insights/categories",
   "/admin/settings/site",
   "/admin/settings/contact",
   "/admin/account",
   "/admin/account?tab=security",
-  "/admin/account?tab=sessions",
+  "/admin/account?tab=devices",
   "/admin/users", // forbidden (403) for an editor
   "/admin/this-page-does-not-exist", // not found (404)
 ]
@@ -154,7 +154,7 @@ async function openArticle(
     const record = (await (await route.fetch()).json()) as object
     await route.fulfill({ json: { ...record, ...state } })
   })
-  await page.goto(`/admin/articles/${article.id}`)
+  await page.goto(`/admin/insights/${article.id}`)
   await expect(
     page.getByRole("heading", { level: 1, name: article.title })
   ).toBeVisible()
@@ -167,7 +167,7 @@ const INTEGRATIONS = [
   "/admin/settings/integrations/smtp",
   "/admin/settings/integrations/r2",
   "/admin/settings/integrations/turnstile",
-  "/admin/settings/integrations/ai",
+  "/admin/settings/ai-assistant",
 ]
 
 /** Growth ▸ SEO (Phase 8), audited signed in as the admin. */
@@ -364,7 +364,10 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`administration screens in ${colorScheme}`, async ({ page }) => {
       await signIn(page, E2E_ADMIN)
-      const failures = await auditEach(page, ["/admin/users", "/admin/audit"])
+      const failures = await auditEach(page, [
+        "/admin/users",
+        "/admin/activity",
+      ])
       // One user's page, by its list link.
       await page.goto("/admin/users")
       await page
@@ -377,16 +380,16 @@ for (const colorScheme of ["light", "dark"] as const) {
       for (const violation of await blocking(page))
         failures.push(`/admin/users/[id] → ${violation}`)
       // The audit detail sheet.
-      await page.goto("/admin/audit")
+      await page.goto("/admin/activity")
       await page
         .getByRole("button", { name: /^Details of auth\.sign_in/ })
         .first()
         .click()
       await expect(
-        page.getByRole("dialog", { name: "Audit entry" })
+        page.getByRole("dialog", { name: "Activity entry" })
       ).toBeVisible()
       for (const violation of await blocking(page))
-        failures.push(`/admin/audit + detail sheet → ${violation}`)
+        failures.push(`/admin/activity + detail sheet → ${violation}`)
       expect(failures).toEqual([])
     })
 
@@ -417,9 +420,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page, E2E_OWNER)
       const failures: string[] = []
       for (const [path, title] of [
-        ["/admin/marketing/tracking", "Tracking"],
+        ["/admin/marketing", "Tracking"],
         ["/admin/marketing/consent", "Consent banner"],
-        ["/admin/marketing/custom-code", "Custom code"],
+        ["/admin/marketing/code", "Custom code"],
       ] as const) {
         await page.goto(path)
         await expect(
@@ -692,7 +695,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         failures.push(`user menu → ${violation}`)
       await page.keyboard.press("Escape")
       // A collection record sheet.
-      await page.goto("/admin/team")
+      await page.goto("/admin/collections/team")
       await page
         .getByRole("button", { name: "Edit Michael McDonald" })
         .first()
@@ -842,7 +845,7 @@ test.describe("ledger checks", () => {
     page,
   }) => {
     await signIn(page, readFixtures().editor)
-    await page.goto("/admin/team")
+    await page.goto("/admin/collections/team")
     const opener = page
       .getByRole("button", { name: "Edit Michael McDonald" })
       .first()

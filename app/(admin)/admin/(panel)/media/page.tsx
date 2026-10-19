@@ -3,7 +3,7 @@ import { Suspense } from "react"
 
 import { MediaLibrary } from "@/components/admin/media/library"
 import { PageHeader } from "@/components/admin/page-header"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Media" }
 
@@ -16,12 +16,12 @@ export default function MediaPage() {
 }
 
 async function Media() {
-  await requirePermission({ media: ["read"] })
+  await requirePage("/admin/media")
   return (
     <>
       <PageHeader
         title="Media"
-        description="Images and documents used on the site. Uploads are kept on the server disk, or in Cloudflare R2 once it is set up."
+        description="Images and PDFs used across the site."
       />
       <MediaLibrary />
     </>

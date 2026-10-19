@@ -29,12 +29,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import type { Paginated } from "@/lib/schemas/api/list"
 import type { RedirectDto } from "@/lib/schemas/api/redirects"
-import { cn } from "@/lib/utils"
 
 import { RedirectDialog } from "./redirect-dialog"
 
@@ -140,8 +138,6 @@ export function RedirectsScreen() {
   const canUpdate = usePermission({ redirect: ["update"] })
   const canDelete = usePermission({ redirect: ["delete"] })
   const queryClient = useQueryClient()
-  // On the SEO tabs' white card: a stacked header and outlined phone cards.
-  const onCard = useInSectionTabs()
   const [editing, setEditing] = useState<RedirectDto | "new" | null>(null)
   const [deleting, setDeleting] = useState<RedirectDto | null>(null)
   const refresh = () =>
@@ -176,7 +172,6 @@ export function RedirectsScreen() {
     >
       <div className="flex flex-col gap-6">
         <PageHeader
-          stacked={onCard}
           title="Redirects"
           description="Send old addresses to their new home. Renamed or deleted services and articles are redirected automatically."
           actions={addButton(PRIMARY_ACTION)}
@@ -201,12 +196,7 @@ export function RedirectsScreen() {
           initialSort={[{ id: "updatedAt", desc: true }]}
           searchPlaceholder="Search addresses"
           renderCard={(row) => (
-            <div
-              className={cn(
-                "rounded-card flex flex-col gap-2 bg-card p-4",
-                onCard && "border"
-              )}
-            >
+            <div className="rounded-card flex flex-col gap-2 bg-card p-4">
               <code className="font-mono text-xs">{row.fromPath}</code>
               <code className="font-mono text-xs break-all text-muted-foreground">
                 → {row.toPath}

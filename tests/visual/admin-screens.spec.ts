@@ -399,7 +399,7 @@ async function openArticle(
       json: { ...record, ...ARTICLE_TIMES, ...state },
     })
   })
-  await page.goto(`/admin/articles/${article.id}`)
+  await page.goto(`/admin/insights/${article.id}`)
   return article
 }
 
@@ -690,9 +690,9 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`admin articles list ${colorScheme}`, async ({ page }) => {
       await signIn(page)
-      await page.goto("/admin/articles")
+      await page.goto("/admin/insights")
       await expect(
-        page.getByRole("heading", { level: 1, name: "Articles" })
+        page.getByRole("heading", { level: 1, name: "Insights" })
       ).toBeVisible()
       await expect(
         page
@@ -710,7 +710,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         route.fulfill({ json: REVIEW_QUEUE })
       )
       await signIn(page)
-      await page.goto("/admin/articles?status=in_review")
+      await page.goto("/admin/insights?status=in_review")
       await expect(
         page.getByRole("button", { name: "Review queue" })
       ).toHaveAttribute("aria-pressed", "true")
@@ -727,7 +727,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`admin new article ${colorScheme}`, async ({ page }) => {
       await signIn(page)
-      await page.goto("/admin/articles/new")
+      await page.goto("/admin/insights/new")
       await expect(
         page.getByRole("heading", { level: 1, name: "New article" })
       ).toBeVisible()
@@ -844,7 +844,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`admin team collection ${colorScheme}`, async ({ page }) => {
       await signIn(page)
-      await page.goto("/admin/team")
+      await page.goto("/admin/collections/team")
       await expect(
         page.getByRole("navigation", { name: "Collections" })
       ).toBeVisible()
@@ -938,9 +938,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/settings/site")
       await expect(
-        page.getByRole("navigation", { name: "Settings" })
+        page.getByRole("navigation", { name: "Site settings" })
       ).toBeVisible()
-      await editorReady(page, "Site")
+      await editorReady(page, "Identity")
       await expect(page).toHaveScreenshot(shot("settings-site"), {
         mask: await masks(page),
       })
@@ -950,7 +950,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     // covered by tests/e2e/admin-a11y.spec.ts and consent.spec.ts. (The
     // visual seed gained an owner in MK-parity A7 for /admin/design.)
     for (const [path, title, name] of [
-      ["/admin/marketing/tracking", "Tracking", "marketing-tracking"],
+      ["/admin/marketing", "Tracking", "marketing-tracking"],
       ["/admin/marketing/consent", "Consent banner", "marketing-consent"],
     ] as const) {
       test(`admin ${name} ${colorScheme}`, async ({ page }) => {
@@ -1082,11 +1082,12 @@ for (const colorScheme of ["light", "dark"] as const) {
     for (const tab of [
       { id: "profile", label: "Profile" },
       { id: "security", label: "Security" },
-      { id: "sessions", label: "Devices" },
-    ]) {
+      // The snapshot keeps its "sessions" name; the URL is MK's ?tab=devices.
+      { id: "sessions", param: "devices", label: "Devices" },
+    ] as { id: string; param?: string; label: string }[]) {
       test(`admin account ${tab.id} ${colorScheme}`, async ({ page }) => {
         await signIn(page)
-        await page.goto(`/admin/account?tab=${tab.id}`)
+        await page.goto(`/admin/account?tab=${tab.param ?? tab.id}`)
         const tabs = page.getByRole("tablist", { name: "Account sections" })
         await expect(
           tabs.getByRole("tab", { name: tab.label })
@@ -1298,7 +1299,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page)
       await page.goto("/admin/leads")
       await expect(
-        page.getByRole("heading", { level: 1, name: "Leads" })
+        page.getByRole("heading", { level: 1, name: "Enquiries" })
       ).toBeVisible()
       // A table from 640 px, cards below: find the links in either.
       await expect(
@@ -1350,12 +1351,12 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
-    test(`admin audit log ${colorScheme}`, async ({ page }) => {
+    test(`admin activity log ${colorScheme}`, async ({ page }) => {
       await pinData(page)
       await signIn(page)
-      await page.goto("/admin/audit")
+      await page.goto("/admin/activity")
       await expect(
-        page.getByRole("heading", { level: 1, name: "Audit log" })
+        page.getByRole("heading", { level: 1, name: "Activity log" })
       ).toBeVisible()
       // Three pinned entries, as table rows or as cards.
       await expect(
@@ -1368,7 +1369,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page
         .getByRole("button", { name: /^Details of settings\.draft_saved/ })
         .click()
-      const sheet = page.getByRole("dialog", { name: "Audit entry" })
+      const sheet = page.getByRole("dialog", { name: "Activity entry" })
       await expect(sheet.getByLabel("After", { exact: true })).toContainText(
         "01 234 9999"
       )

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { IntegrationForm } from "@/components/admin/integrations/integration-form"
@@ -8,7 +8,7 @@ import {
   INTEGRATIONS,
   integrationKeyFromSlug,
 } from "@/lib/schemas/integrations"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export async function generateMetadata({
   params,
@@ -32,7 +32,10 @@ async function Integration({
 }: Pick<PageProps<"/admin/settings/integrations/[slug]">, "params">) {
   const key = integrationKeyFromSlug((await params).slug)
   if (!key) notFound()
-  await requirePermission({ integration: ["read"] })
+  // The AI assistant moved to Site settings (MK §5.1). next.config's legacy
+  // redirect normally answers first; this keeps the page from rendering it.
+  if (key === "integrations.ai") redirect("/admin/settings/ai-assistant")
+  await requirePage("/admin/settings/integrations")
   return (
     <IntegrationForm integrationKey={key}>
       {key === "integrations.r2" ? <MigrateMediaPanel /> : null}

@@ -38,7 +38,7 @@ export const SETTINGS_ENTRIES: Record<
   }
 > = {
   site: {
-    label: "Site",
+    label: "Identity",
     description:
       "Name, logos, production URL, time zone and the copyright line.",
     group: "General",
@@ -69,7 +69,7 @@ export const SETTINGS_ENTRIES: Record<
     update: CONTENT_UPDATE,
   },
   microcopy: {
-    label: "Microcopy",
+    label: "Forms & microcopy",
     description: "Small labels, button text and screen-reader labels.",
     group: "General",
     read: { settings: ["read"] },
@@ -135,11 +135,4 @@ export function readableSettingsKeys(
   return EDITABLE_SETTINGS_KEYS.filter((key) =>
     hasPermission(roles, SETTINGS_ENTRIES[key].read)
   )
-}
-
-/** Where /admin/settings lands (it has no overview page of its own). */
-export function firstReadableSettingsKey(
-  roles: readonly string[]
-): EditableSettingsKey | undefined {
-  return readableSettingsKeys(roles)[0]
 }

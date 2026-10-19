@@ -47,7 +47,7 @@ beforeEach(() => {
                 id: "a1",
                 title: "Key Holding Explained",
                 subtitle: "/blog/key-holding-explained",
-                href: "/admin/articles/a1",
+                href: "/admin/insights/a1",
               },
             ],
           }),
@@ -71,11 +71,14 @@ describe("⌘K palette and articles (Phase 5)", () => {
     const labels = within(dialog)
       .getAllByRole("option")
       .map((o) => o.textContent)
-    expect(labels).toEqual(expect.arrayContaining(["Articles", "New article"]))
+    // Articles is a sub-page of Insights (its section shown beside it).
+    expect(labels).toEqual(
+      expect.arrayContaining(["ArticlesInsights", "New article"])
+    )
     await user.click(
       within(dialog).getByRole("option", { name: "New article" })
     )
-    expect(push).toHaveBeenCalledWith("/admin/articles/new")
+    expect(push).toHaveBeenCalledWith("/admin/insights/new")
 
     const again = await openPalette()
     await again.user.type(
@@ -87,7 +90,7 @@ describe("⌘K palette and articles (Phase 5)", () => {
     })
     expect(result).toHaveTextContent("Article · /blog/key-holding-explained")
     await again.user.click(result)
-    expect(push).toHaveBeenCalledWith("/admin/articles/a1")
+    expect(push).toHaveBeenCalledWith("/admin/insights/a1")
   })
 
   it("viewers can find articles but get no New article action", async () => {
@@ -96,7 +99,7 @@ describe("⌘K palette and articles (Phase 5)", () => {
     const labels = within(dialog)
       .getAllByRole("option")
       .map((o) => o.textContent)
-    expect(labels).toContain("Articles")
+    expect(labels).toContain("ArticlesInsights")
     expect(labels).not.toContain("New article")
   })
 })

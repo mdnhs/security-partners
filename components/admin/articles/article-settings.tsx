@@ -399,7 +399,7 @@ function DeleteCard({
       // Drop the deleted record first so nothing refetches it (404).
       queryClient.removeQueries({ queryKey: ["articles", article.id] })
       await queryClient.invalidateQueries({ queryKey: ["articles"] })
-      router.push("/admin/articles")
+      router.push("/admin/insights")
     },
     onError: (err) => {
       setOpen(false)
@@ -431,7 +431,7 @@ function DeleteCard({
               {article.live
                 ? `It disappears from /blog and /blog/${article.slug} shows “not found”. `
                 : ""}
-              Its history is kept in the audit log only.
+              Its history is kept in the activity log only.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -8,7 +8,6 @@ vi.mock("next/navigation", () => ({
 
 import { makeQueryClient } from "@/components/admin/providers"
 import { SettingsEditor } from "@/components/admin/settings/settings-editor"
-import { SettingsTabs } from "@/components/admin/settings/settings-tabs"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { Role } from "@/lib/auth/roles"
 
@@ -65,9 +64,7 @@ function renderAs(roles: Role[]) {
         impersonatedBy: null,
       }}
     >
-      <SettingsTabs>
-        <SettingsEditor settingsKey="leads" />
-      </SettingsTabs>
+      <SettingsEditor settingsKey="leads" />
     </AdminShell>
   )
 }
@@ -97,45 +94,55 @@ describe("settings editor (master 4.5)", () => {
     ).toBeEnabled()
   })
 
-  it("lists the settings keys as route tabs with the current one marked", async () => {
+  it("the shell's rail lists the settings pages with the current one marked", async () => {
     renderAs(["admin"])
-    const nav = screen.getByRole("navigation", { name: "Settings" })
+    const nav = screen.getByRole("navigation", { name: "Site settings" })
     const links = within(nav).getAllByRole("link")
     // No overview tab: /admin/settings redirects to the first key.
-    expect(links[0]).toHaveTextContent("Site")
+    expect(links[0]).toHaveTextContent("Identity")
     expect(links[0]).toHaveAttribute("href", "/admin/settings/site")
-    // 11 settings keys, then Integrations (owner/admin, Phase 6).
-    expect(links).toHaveLength(12)
-    expect(links[11]).toHaveTextContent("Integrations")
+    // 11 settings keys, then AI assistant and Integrations (owner/admin).
+    expect(links).toHaveLength(13)
+    expect(links[11]).toHaveTextContent("AI assistant")
+    expect(links[12]).toHaveTextContent("Integrations")
     expect(
       within(nav).getByRole("link", { name: "Enquiries" })
     ).toHaveAttribute("aria-current", "page")
-    expect(within(nav).getByRole("link", { name: "Site" })).not.toHaveAttribute(
-      "aria-current"
-    )
+    expect(
+      within(nav).getByRole("link", { name: "Identity" })
+    ).not.toHaveAttribute("aria-current")
     // Inside the rail there is no back link to an overview.
     expect(screen.queryByRole("link", { name: "All settings" })).toBeNull()
-    // The editor bar is the opaque, sticky top of the white content card.
+    // MK: the page sits on the panel beside the rail; the editor bar is a
+    // card of its own (no white content card around the editor).
     const heading = await screen.findByRole("heading", {
       level: 1,
       name: "Enquiries",
     })
     const bar = heading.closest('[data-slot="editor-bar"]')
-    expect(bar).toHaveClass("bg-card", "rounded-t-card", "border-b")
+    expect(bar).toHaveClass("bg-card", "rounded-card", "border")
+    expect(bar).not.toHaveClass("rounded-t-card", "-mx-(--card-pad,0px)")
     expect(bar).not.toHaveClass("backdrop-blur")
-    // Sticky itself; offsets come from main's and the card's padding
-    // variables, and the strip above it (admin.css) is --strip-h tall.
+    // Sticky itself; offsets come from main's padding variable, and the
+    // strip above it (admin.css) is --strip-h tall.
     expect(bar).toHaveClass(
       "sticky",
       "lg:top-0",
-      "-mx-(--card-pad,0px)",
-      "-mt-(--card-pad,0px)",
       "lg:[--strip-h:var(--main-pad)]"
     )
-    expect(bar?.closest('[data-slot="section-tabs-content"]')).toHaveClass(
-      "bg-card"
-    )
-    // The editor sits in the tab content (no full-bleed header bar).
+    const content = bar?.closest('[data-slot="section-content"]')
+    expect(content).not.toBeNull()
+    expect(content).not.toHaveClass("bg-card")
+    expect(bar?.closest('[data-slot="section-tabs-content"]')).toBeNull()
+    // MK copy under the title; History stays in the bar.
+    expect(
+      within(bar as HTMLElement).getByText(
+        "Changes stay in a draft until you publish."
+      )
+    ).toBeVisible()
+    expect(
+      within(bar as HTMLElement).getByRole("button", { name: "History" })
+    ).toBeInTheDocument()
     expect(
       await screen.findByRole("heading", { level: 1, name: "Enquiries" })
     ).toBeVisible()
@@ -143,6 +150,8 @@ describe("settings editor (master 4.5)", () => {
 
   it("lists only the keys the user may read", () => {
     renderAs(["author"])
-    expect(screen.queryByRole("navigation", { name: "Settings" })).toBeNull()
+    expect(
+      screen.queryByRole("navigation", { name: "Site settings" })
+    ).toBeNull()
   })
 })

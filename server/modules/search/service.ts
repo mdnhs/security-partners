@@ -64,7 +64,7 @@ export async function search(
         id: row.id,
         title: row.title,
         subtitle: `/blog/${row.slug}`,
-        href: `/admin/articles/${row.id}`,
+        href: `/admin/insights/${row.id}`,
       })
 
   if (can({ collection: ["read"] })) {
@@ -80,7 +80,7 @@ export async function search(
         id: row.id,
         title: row.name,
         subtitle: row.role,
-        href: `/admin/team?edit=${row.id}`,
+        href: `/admin/collections/team?edit=${row.id}`,
       })
     for (const row of clientRows)
       items.push({
@@ -88,7 +88,7 @@ export async function search(
         id: row.id,
         title: row.name,
         subtitle: null,
-        href: `/admin/clients?edit=${row.id}`,
+        href: `/admin/collections/clients?edit=${row.id}`,
       })
     for (const row of companies)
       items.push({
@@ -96,7 +96,7 @@ export async function search(
         id: row.id,
         title: row.name,
         subtitle: row.site,
-        href: `/admin/group-companies?edit=${row.id}`,
+        href: `/admin/collections/group-companies?edit=${row.id}`,
       })
     for (const row of categories)
       items.push({
@@ -104,7 +104,7 @@ export async function search(
         id: row.id,
         title: row.name,
         subtitle: row.slug,
-        href: `/admin/categories?edit=${row.id}`,
+        href: `/admin/insights/categories?edit=${row.id}`,
       })
   }
 

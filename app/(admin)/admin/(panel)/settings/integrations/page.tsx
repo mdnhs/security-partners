@@ -3,7 +3,7 @@ import { Suspense } from "react"
 
 import { IntegrationsOverview } from "@/components/admin/integrations/integrations-overview"
 import { PageHeader } from "@/components/admin/page-header"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Integrations" }
 
@@ -16,7 +16,7 @@ export default function IntegrationsPage() {
 }
 
 async function Integrations() {
-  await requirePermission({ integration: ["read"] })
+  await requirePage("/admin/settings/integrations")
   return (
     <>
       <PageHeader

@@ -73,7 +73,7 @@ export function ArticleEditor({ id }: { id: string }) {
   return (
     <VersionedEditor<ArticleDto>
       title={record.data?.title ?? "Article"}
-      backHref="/admin/articles"
+      backHref="/admin/insights"
       backLabel="All articles"
       path={record.data ? `/blog/${record.data.slug}` : undefined}
       queryKey={queryKey}

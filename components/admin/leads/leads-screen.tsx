@@ -149,8 +149,8 @@ export function LeadsScreen() {
   return (
     <>
       <PageHeader
-        title="Leads"
-        description="Enquiries sent through the website contact form. Spam is hidden unless you filter for it."
+        title="Enquiries"
+        description="Messages from the contact form."
         actions={
           canExport ? (
             <CsvDownloadButton href={leadExportHref({ ...query, q: search })}>

@@ -28,6 +28,12 @@ const ICONS: Record<string, LucideIcon> = {
   ai: Bot,
 }
 
+/** The AI assistant has its own Site settings page (MK parity §5.1). */
+const integrationHref = (slug: string) =>
+  slug === "ai"
+    ? "/admin/settings/ai-assistant"
+    : `/admin/settings/integrations/${slug}`
+
 /** The four integrations of spec §5.4, each with its state. */
 export function IntegrationsOverview() {
   const list = useQuery({
@@ -70,7 +76,7 @@ export function IntegrationsOverview() {
         return (
           <li key={item.key} className="flex">
             <Link
-              href={`/admin/settings/integrations/${item.slug}`}
+              href={integrationHref(item.slug)}
               className="group flex w-full flex-col gap-3 rounded-2xl border bg-card p-4 shadow-xs transition-colors outline-none hover:border-foreground/25 focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5"
             >
               <span className="flex items-start gap-3">

@@ -11,11 +11,11 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar"
+import type { NavBadges } from "@/lib/admin/nav"
 
 import { BrandMark } from "./brand-mark"
 import type { SiteInfo } from "./constants"
 import { type DockProps, FooterDock } from "./footer-dock"
-import { dockItems, type NavBadges } from "./nav"
 import { NavMain } from "./nav-main"
 import { useShellSignOut } from "./sign-out-context"
 import { WebsiteCard } from "./website-card"
@@ -41,7 +41,7 @@ export function AppSidebar({
     if (isMobile) setOpenMobile(false)
   }
   const dockProps: DockProps = {
-    links: dockItems(roles),
+    roles,
     pathname,
     onNavigate,
     onSignOut: () => signOut("dock"),

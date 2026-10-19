@@ -8,7 +8,7 @@ const { push, replace, search } = vi.hoisted(() => ({
   search: { current: new URLSearchParams() },
 }))
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/categories",
+  usePathname: () => "/admin/insights/categories",
   useRouter: () => ({ push, replace, refresh: vi.fn() }),
   useSearchParams: () => search.current,
 }))
@@ -16,7 +16,6 @@ vi.mock("next/navigation", () => ({
 import { CollectionScreen } from "@/components/admin/collections/collection-screen"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
-import { SectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { SortableList } from "@/components/admin/sortable-list"
 import { slugify } from "@/components/admin/services/new-service-form"
 import type { Role } from "@/lib/auth/roles"
@@ -72,7 +71,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock)
 })
 
-function renderScreen(roles: Role[] = ["editor"], { inTabs = false } = {}) {
+function renderScreen(roles: Role[] = ["editor"]) {
   const content = <CollectionScreen name="categories" />
   return render(
     <AdminShell
@@ -89,16 +88,7 @@ function renderScreen(roles: Role[] = ["editor"], { inTabs = false } = {}) {
         impersonatedBy: null,
       }}
     >
-      {inTabs ? (
-        <SectionTabs
-          ariaLabel="Collections"
-          items={[{ id: "c", label: "Categories", href: "/admin/categories" }]}
-        >
-          {content}
-        </SectionTabs>
-      ) : (
-        content
-      )}
+      {content}
     </AdminShell>
   )
 }
@@ -163,34 +153,24 @@ describe("collection screen + data table (master 4.6)", () => {
     expect(screen.queryByRole("button", { name: "Change order" })).toBeNull()
   })
 
-  it("outlines the table and cards on a section tab's white card", async () => {
-    renderScreen(["editor"], { inTabs: true })
+  it("beside the Insights rail the page sits on the panel (MK, no tab card)", async () => {
+    renderScreen(["editor"])
     const table = await screen.findByRole("table", { name: "Categories" })
-    // No second white card inside the tab card: a bordered table instead.
-    expect(table.closest('[data-slot="table-card"]')).toHaveClass(
-      "rounded-card",
-      "border"
-    )
+    const rail = screen.getByRole("navigation", { name: "Insights" })
+    expect(
+      within(rail).getByRole("link", { name: "Categories" })
+    ).toHaveAttribute("aria-current", "page")
+    // White cards on the grey panel: no outline, header beside its actions.
+    expect(table.closest('[data-slot="table-card"]')).not.toHaveClass("border")
     const cards = within(
       screen.getByRole("list", { name: "Categories" })
     ).getAllByRole("button")
-    expect(cards[0]).toHaveClass("rounded-card", "border")
-  })
-
-  it("stacks the header actions in one row under the title on a tab card", async () => {
-    renderScreen(["editor"], { inTabs: true })
-    await screen.findByRole("table", { name: "Categories" })
-    const header = screen
-      .getByRole("heading", { name: "Categories", level: 1 })
-      .closest("header")!
-    expect(header).not.toHaveClass("lg:flex-row")
-    const actions = screen.getByRole("button", {
-      name: "Add category",
-    }).parentElement!
-    expect(actions).toHaveClass("flex-wrap", "gap-3")
+    expect(cards[0]).not.toHaveClass("border")
     expect(
-      within(actions).getByRole("button", { name: "Change order" })
-    ).toBeInTheDocument()
+      screen
+        .getByRole("heading", { name: "Categories", level: 1 })
+        .closest("header")
+    ).toHaveClass("lg:flex-row")
   })
 
   it("hides the pager while loading and when the list fails", async () => {
@@ -421,7 +401,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     await user.type(name, "Renamed")
     await user.click(within(sheet).getByRole("button", { name: "Save" }))
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/admin/categories")
+      expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
     )
     // The router drops ?edit, then ⌘K opens the same record again.
     search.current = new URLSearchParams()
@@ -442,7 +422,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     renderScreen(["viewer"])
     await screen.findByRole("table", { name: "Categories" })
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/admin/categories")
+      expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
     )
     expect(screen.queryByRole("dialog")).toBeNull()
   })
@@ -640,7 +620,11 @@ describe("record sheet: unsaved changes, footer, list URL (final review I1/I2/I4
 
   it("keeps page, sort and search in the URL and starts from it", async () => {
     const user = userEvent.setup()
-    window.history.replaceState(null, "", "/admin/categories?page=2&q=cat")
+    window.history.replaceState(
+      null,
+      "",
+      "/admin/insights/categories?page=2&q=cat"
+    )
     search.current = new URLSearchParams("page=2&q=cat")
     renderScreen()
     await screen.findByRole("table", { name: "Categories" })
@@ -659,7 +643,7 @@ describe("record sheet: unsaved changes, footer, list URL (final review I1/I2/I4
       expect(window.location.search).toBe("?q=cat&sort=name%3Aasc")
     )
     expect(
-      window.sessionStorage.getItem("sp-admin:list:/admin/categories")
+      window.sessionStorage.getItem("sp-admin:list:/admin/insights/categories")
     ).toBe("q=cat&sort=name%3Aasc")
   })
 })

@@ -395,9 +395,9 @@ function RolesSection({
               {dropping.length > 1 ? "roles" : "role"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You would lose access to Users and the audit log as soon as this
-              page reloads, and only another owner or admin could give the role
-              back. Make sure someone else can still manage the admin.
+              You would lose access to Users and the activity log as soon as
+              this page reloads, and only another owner or admin could give the
+              role back. Make sure someone else can still manage the admin.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -465,7 +465,7 @@ function AccessSection({ user, isSelf }: { user: UserItem; isSelf: boolean }) {
     onError: (error) =>
       toast.error("Not unbanned", { description: errorMessage(error) }),
   })
-  const reasonHelp = "Kept in the audit log."
+  const reasonHelp = "Kept in the activity log."
   return (
     <FormCard
       id="user-access"

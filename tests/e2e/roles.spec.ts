@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test"
 
-import { dockItems, menuSections } from "@/components/admin/shell/nav"
+import { dockLinks, visibleNav } from "@/lib/admin/nav"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { ROLES } from "@/lib/auth/roles"
 
@@ -27,7 +27,10 @@ async function signIn(page: Page, email: string) {
   await expect(page).toHaveURL(/\/admin$/)
 }
 
-/** Screens guarded by requirePermission (forbidden page otherwise). */
+/**
+ * Screens guarded by requirePage (forbidden page otherwise). The permissions
+ * are spelled out, not read from the registry, so they check it.
+ */
 const SCREENS: { path: string; permission: PermissionRequest }[] = [
   { path: "/admin/pages", permission: { page: ["read"] } },
   { path: "/admin/settings/site", permission: { settings: ["read"] } },
@@ -35,9 +38,15 @@ const SCREENS: { path: string; permission: PermissionRequest }[] = [
     path: "/admin/settings/integrations/smtp",
     permission: { integration: ["read"] },
   },
+  {
+    path: "/admin/settings/ai-assistant",
+    permission: { integration: ["read"] },
+  },
   { path: "/admin/leads", permission: { lead: ["read"] } },
   { path: "/admin/users", permission: { user: ["read"] } },
-  { path: "/admin/audit", permission: { audit: ["read"] } },
+  { path: "/admin/activity", permission: { audit: ["read"] } },
+  { path: "/admin/marketing/code", permission: { customCode: ["read"] } },
+  { path: "/admin/design", permission: { customCode: ["update"] } },
 ]
 
 for (const role of ROLES) {
@@ -47,9 +56,7 @@ for (const role of ROLES) {
     test.setTimeout(60_000)
     await signIn(page, `${role}@demo.local`)
 
-    const menu = menuSections([role]).flatMap((s) =>
-      s.items.map((i) => i.label)
-    )
+    const menu = visibleNav([role]).flatMap((s) => s.items.map((i) => i.label))
     // exact: "Admin" would also match the footer dock ("Administration").
     const nav = page.getByRole("navigation", { name: "Admin", exact: true })
     await expect(nav.getByRole("link")).toHaveCount(menu.length)
@@ -58,7 +65,7 @@ for (const role of ROLES) {
         nav.getByRole("link", { name: new RegExp(`^${escape(label)}`) })
       ).toBeVisible()
     const dock = page.getByRole("navigation", { name: "Administration" })
-    const docked = dockItems([role]).map((item) => item.label)
+    const docked = dockLinks([role]).map((link) => link.label)
     await expect(dock.getByRole("link")).toHaveCount(docked.length)
     for (const label of docked)
       await expect(

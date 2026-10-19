@@ -56,7 +56,7 @@ test("owner invites a user and copies the invitation link", async ({
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"])
   await signIn(page, E2E_OWNER.email)
-  await dockLink(page, "Users").click()
+  await dockLink(page, "Users & roles").click()
   await expect(
     page.getByRole("heading", { level: 1, name: "Users" })
   ).toBeVisible()
@@ -172,7 +172,7 @@ test("owner views the admin as the editor, then stops", async ({ page }) => {
   )
   await expect(page).toHaveURL(/\/admin$/)
   // The editor holds no user:read: the dock loses Users and Audit log.
-  await expect(dockLink(page, "Users")).toHaveCount(0)
+  await expect(dockLink(page, "Users & roles")).toHaveCount(0)
   await expect(
     page.getByRole("button", { name: `Account menu for ${editor.name}` })
   ).toBeVisible()
@@ -184,14 +184,14 @@ test("owner views the admin as the editor, then stops", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: `Account menu for ${E2E_OWNER.name}` })
   ).toBeVisible()
-  await expect(dockLink(page, "Users")).toBeVisible()
+  await expect(dockLink(page, "Users & roles")).toBeVisible()
 })
 
 test("an admin sees no owner-only controls, and the API agrees", async ({
   page,
 }) => {
   await signIn(page, E2E_ADMIN.email)
-  await dockLink(page, "Users").click()
+  await dockLink(page, "Users & roles").click()
 
   await page.getByRole("button", { name: "Invite user" }).click()
   const dialog = page.getByRole("dialog", { name: "Invite user" })
@@ -250,13 +250,14 @@ test("the audit log filters by action and person and shows the invitation", asyn
   page,
 }) => {
   await signIn(page, E2E_OWNER.email)
-  await dockLink(page, "Audit log").click()
+  await dockLink(page, "Activity log").click()
+  await expect(page).toHaveURL(/\/admin\/activity$/)
   await expect(
-    page.getByRole("heading", { level: 1, name: "Audit log" })
+    page.getByRole("heading", { level: 1, name: "Activity log" })
   ).toBeVisible()
 
   await page.getByLabel("Action", { exact: true }).fill("user.invite")
-  const table = page.getByRole("table", { name: "Audit log" })
+  const table = page.getByRole("table", { name: "Activity log" })
   const row = table
     .getByRole("row", { name: /user\.invite/ })
     .filter({ hasText: E2E_OWNER.name })
@@ -279,7 +280,7 @@ test("the audit log filters by action and person and shows the invitation", asyn
 
   await page.getByLabel("Action", { exact: true }).fill("user.invite")
   await row.getByRole("button", { name: /^Details of user\.invite/ }).click()
-  const sheet = page.getByRole("dialog", { name: "Audit entry" })
+  const sheet = page.getByRole("dialog", { name: "Activity entry" })
   await expect(sheet.getByLabel("Details", { exact: true })).toContainText(
     invitee.email
   )

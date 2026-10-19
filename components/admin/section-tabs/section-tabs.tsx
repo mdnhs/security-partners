@@ -46,15 +46,39 @@ export type SectionTabsProps = {
   heading?: string
 }
 
-// How deep we are in SectionTabs: a nested set (an editor's groups inside
-// the Settings tabs) only becomes a column from xl, so two columns of tabs
-// never squeeze the content at lg.
+// How deep we are in tab columns: a nested set (an editor's groups beside
+// the shell's section rail) only becomes a column from xl, so two columns
+// of tabs never squeeze the content at lg.
 const DepthContext = createContext(0)
+// True on the white card a top-level SectionTabs puts its content on.
+const CardContext = createContext(false)
 
-/** True inside another SectionTabs' content (layouts drop full-bleed tricks). */
+/**
+ * True on a section tab's white card (Account, a user, a lead): a second
+ * white card there would vanish, so lists and cards outline themselves.
+ * False beside the shell's section rail, whose content sits on the panel.
+ */
 export function useInSectionTabs(): boolean {
-  return useContext(DepthContext) > 0
+  return useContext(CardContext)
 }
+
+/**
+ * Counts as one column of tabs for the SectionTabs inside it (they become
+ * a column from xl) without putting them on a card: the shell's section
+ * rail wraps the page in this.
+ */
+export function SectionTabsColumn({ children }: { children: ReactNode }) {
+  const depth = useContext(DepthContext)
+  return (
+    <DepthContext.Provider value={depth + 1}>{children}</DepthContext.Provider>
+  )
+}
+
+/** Route tab link: 36 px, 44 on touch; muted until current. */
+export const SECTION_TAB =
+  "relative flex h-9 shrink-0 items-center gap-2 rounded-md px-3 pointer-coarse:h-11 text-left text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+export const SECTION_TAB_ACTIVE =
+  "bg-sidebar-accent font-semibold text-foreground"
 
 type PanelContextValue = {
   selected: string
@@ -155,14 +179,14 @@ const LAYOUT = {
     tab: "xl:w-full",
     marker: "xl:block",
     columnFrom: 1280,
-    // Nested sets already sit on their parent's card.
+    // A nested set: on its parent's card, or beside the shell's section
+    // rail on the panel; either way no card of its own.
     content: "min-w-0 flex-1",
   },
 } as const
 
-const TAB =
-  "relative flex h-9 shrink-0 items-center gap-2 rounded-md px-3 pointer-coarse:h-11 text-left text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-const TAB_ACTIVE = "bg-sidebar-accent font-semibold text-foreground"
+const TAB = SECTION_TAB
+const TAB_ACTIVE = SECTION_TAB_ACTIVE
 
 /**
  * aria-orientation follows the layout: a row below the breakpoint, a column
@@ -249,16 +273,19 @@ function TabContent({
  */
 export function SectionTabs(props: SectionTabsProps) {
   const depth = useContext(DepthContext)
+  const onCard = useContext(CardContext)
   const layout = depth > 0 ? LAYOUT.xl : LAYOUT.lg
   const routeMode =
     props.items.length > 0 && props.items.every((item) => item.href)
   return (
     <DepthContext.Provider value={depth + 1}>
-      {routeMode ? (
-        <RouteTabs {...props} layout={layout} />
-      ) : (
-        <InPageTabs {...props} layout={layout} />
-      )}
+      <CardContext.Provider value={onCard || layout === LAYOUT.lg}>
+        {routeMode ? (
+          <RouteTabs {...props} layout={layout} />
+        ) : (
+          <InPageTabs {...props} layout={layout} />
+        )}
+      </CardContext.Provider>
     </DepthContext.Provider>
   )
 }

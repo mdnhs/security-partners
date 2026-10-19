@@ -39,7 +39,7 @@ type ContentAccess = { pages: boolean; services: boolean; articles: boolean }
 function contentHref(access: ContentAccess): string {
   if (access.pages) return "/admin/pages"
   if (access.services) return "/admin/services"
-  return "/admin/articles"
+  return "/admin/insights"
 }
 
 /** Every KPI links its chip to the screen it counts (the API gates each part). */
@@ -74,7 +74,7 @@ function kpisFor(dto: DashboardDto, access: ContentAccess): Kpi[] {
       label: "Drafts in review",
       value: formatNumber(kpis.inReview),
       caption: "articles waiting for an editor",
-      href: "/admin/articles?status=in_review",
+      href: "/admin/insights?status=in_review",
     })
   return out
 }
@@ -110,6 +110,8 @@ export function Dashboard({
       <PageHeader
         title={`${greetingFor(new Date(renderedAt))}, ${firstName}`}
         titleTestId="greeting"
+        // The column's gap-6 alone spaces header and KPI row (MK).
+        className="mb-0"
         description="Here's what's happening on the website."
         actions={
           <>
@@ -238,7 +240,7 @@ function Body({
 }: {
   dto: DashboardDto
   kpis: Kpi[]
-  /** The Team activity card's body; null when the role may not read the audit log. */
+  /** The Team activity card's body; null when the role may not read the activity log. */
   activity: ReactNode
 }) {
   // The Content health gauge (hidden without seo:read) sits beside the feed.

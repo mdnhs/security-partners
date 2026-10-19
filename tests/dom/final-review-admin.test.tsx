@@ -405,6 +405,50 @@ describe("shell unsaved-changes registry (I2/I3)", () => {
     ).toBe(false)
   })
 
+  it("⌘K Sign out asks first while something is unsaved (MK B6)", async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      void input
+      return Response.json({ items: [] })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    render(
+      <AdminShell
+        queryClient={makeQueryClient()}
+        session={{
+          user: {
+            id: "u1",
+            name: "Edith Editor",
+            email: "e@example.test",
+            title: null,
+            twoFactorEnabled: true,
+          },
+          roles: ["editor"],
+          impersonatedBy: null,
+        }}
+      >
+        <UnsavedGuard when />
+      </AdminShell>
+    )
+    await user.keyboard("{Control>}k{/Control}")
+    const palette = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.click(within(palette).getByRole("option", { name: "Sign out" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "Leave without saving?",
+        })
+      ).getByRole("button", { name: "Keep editing" })
+    )
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/api/auth/sign-out")
+      )
+    ).toBe(false)
+  })
+
   it("account forms count as unsaved once a field changes", async () => {
     const user = userEvent.setup()
     render(

@@ -79,7 +79,7 @@ export function NewArticleForm() {
         description:
           "Write the article, then submit it for review or publish it.",
       })
-      router.push(`/admin/articles/${dto.id}`)
+      router.push(`/admin/insights/${dto.id}`)
     },
     onError: (err) => {
       if (err instanceof ApiError) setErrors(err.fieldErrors)
