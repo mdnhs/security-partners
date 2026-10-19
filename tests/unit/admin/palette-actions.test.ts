@@ -7,10 +7,15 @@ import {
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { Role } from "@/lib/auth/roles"
 
-function actionsFor(roles: Role[]) {
+function actionsFor(
+  roles: Role[],
+  state: { theme?: string; signingOut?: boolean } = {}
+) {
   const input = {
     setTheme: vi.fn(),
     signOut: vi.fn(),
+    signingOut: state.signingOut ?? false,
+    theme: state.theme,
     open: vi.fn(),
     navigate: vi.fn(),
     can: (p: PermissionRequest) => hasPermission(roles, p),
@@ -75,6 +80,31 @@ describe("buildActions", () => {
     expect(input.open).toHaveBeenCalledWith("/")
     expect(input.setTheme.mock.calls).toEqual([["light"], ["dark"], ["system"]])
     expect(input.signOut).toHaveBeenCalledOnce()
+  })
+
+  it("leaves out the action for the active theme", () => {
+    const themes = (theme?: string) =>
+      actionsFor(["owner"], { theme })
+        .actions.map((a) => a.id)
+        .filter((id) => id.startsWith("theme-"))
+    expect(themes("light")).toEqual(["theme-dark", "theme-system"])
+    expect(themes("dark")).toEqual(["theme-light", "theme-system"])
+    expect(themes("system")).toEqual(["theme-light", "theme-dark"])
+    // Unknown (next-themes not mounted yet): all three.
+    expect(themes(undefined)).toEqual([
+      "theme-light",
+      "theme-dark",
+      "theme-system",
+    ])
+  })
+
+  it("disables Sign out (only) while a sign-out is pending", () => {
+    const disabled = (signingOut: boolean) =>
+      actionsFor(["owner"], { signingOut })
+        .actions.filter((a) => a.disabled)
+        .map((a) => a.id)
+    expect(disabled(true)).toEqual(["sign-out"])
+    expect(disabled(false)).toEqual([])
   })
 
   it("gives every action keywords", () => {

@@ -116,6 +116,8 @@ export async function requirePermission(
  * `null` → any signed-in user. Dynamic routes pass their static parent href.
  * Pages whose action needs more (New article, an editable settings key)
  * add that finer check after this one.
+ * tests/unit/admin/b3-panel-pages.test.tsx mocks this with a copy of its
+ * logic: change both together.
  */
 export async function requirePage(href: string): Promise<Actor> {
   const permission = permissionFor(href)

@@ -2,10 +2,12 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { push, setTheme, signOut } = vi.hoisted(() => ({
+const { push, setTheme, signOut, signOutState } = vi.hoisted(() => ({
   push: vi.fn(),
   setTheme: vi.fn(),
   signOut: vi.fn(),
+  /** Forces the shell's sign-out to read as in flight. */
+  signOutState: { pending: false },
 }))
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin",
@@ -23,7 +25,14 @@ vi.mock("@/components/admin/shell/sign-out-context", async (importOriginal) => {
     >()
   return {
     ...actual,
-    useShellSignOut: () => ({ ...actual.useShellSignOut(), signOut }),
+    useShellSignOut: () => {
+      const real = actual.useShellSignOut()
+      return {
+        ...real,
+        signOut,
+        pending: signOutState.pending || real.pending,
+      }
+    },
   }
 })
 
@@ -59,6 +68,7 @@ beforeEach(() => {
   push.mockReset()
   setTheme.mockReset()
   signOut.mockReset()
+  signOutState.pending = false
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost")
@@ -349,6 +359,10 @@ describe("⌘K command palette (master 4.1)", () => {
           .getAllByRole("option")
           .map((o) => o.textContent)
       ).toEqual(["CategoriesInsights"])
+      // Assistive tech hears the section apart from the label.
+      expect(
+        within(goTo).getByRole("option", { name: "Categories, in Insights" })
+      ).toBeInTheDocument()
     })
 
     it("hides destinations the role cannot open", async () => {
@@ -383,6 +397,19 @@ describe("⌘K command palette (master 4.1)", () => {
       await again.user.type(again.input(), "sign out")
       await again.user.keyboard("{Enter}")
       expect(signOut).toHaveBeenCalled()
+    })
+
+    it("disables Sign out while a sign-out is pending", async () => {
+      empty()
+      signOutState.pending = true
+      renderShell(["author"])
+      const { user, dialog, input } = await openPalette()
+      await user.type(input(), "sign out")
+      const option = within(dialog).getByRole("option", { name: "Sign out" })
+      expect(option).toHaveAttribute("aria-disabled", "true")
+      await user.click(option)
+      await user.keyboard("{Enter}")
+      expect(signOut).not.toHaveBeenCalled()
     })
 
     it("opens the live site in a new tab", async () => {

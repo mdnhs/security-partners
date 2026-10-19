@@ -65,7 +65,10 @@ beforeEach(() => {
       return { roles: session.roles }
     }
   )
-  // The real requirePage's logic over the mocked requirePermission.
+  // A copy of requirePage (server/auth/session.ts) over the mocked
+  // requirePermission. Keep the two in step: vi.importActual can't stand in,
+  // because the real requirePage calls its module's own requirePermission
+  // (bypassing this mock) and loads the database and Better Auth.
   session.requirePage.mockImplementation(async (href: string) => {
     const permission = permissionFor(href)
     if (permission === undefined) nav.notFound()

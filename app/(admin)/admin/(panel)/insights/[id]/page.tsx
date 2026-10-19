@@ -22,7 +22,8 @@ async function Screen({
   params,
 }: Pick<PageProps<"/admin/insights/[id]">, "params">) {
   const { id } = await params
-  if (!z.uuid().safeParse(id).success) notFound()
+  // Permission first, as on every [param] page but settings/[key].
   await requirePage("/admin/insights")
+  if (!z.uuid().safeParse(id).success) notFound()
   return <ArticleEditor id={id} />
 }

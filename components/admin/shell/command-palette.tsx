@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/command"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
-import { HELP_LINK, NAV_ITEMS, reachableLinks } from "@/lib/admin/nav"
+import { HELP_LINK, reachableLinks } from "@/lib/admin/nav"
 import { api, unwrap } from "@/lib/api-client"
 import { hasPermission } from "@/lib/auth/permissions"
 import type { SearchType } from "@/lib/schemas/api/search"
@@ -77,11 +77,6 @@ const ACTION_ICONS: Record<string, LucideIcon> = {
   "sign-out": LogOut,
 }
 
-/** A section's own search terms, so its sub-pages answer to them too. */
-const SECTION_KEYWORDS = new Map(
-  NAV_ITEMS.map((item) => [item.label, item.keywords ?? []])
-)
-
 /** True for ⌘K (macOS) / Ctrl+K (elsewhere). */
 export function isPaletteShortcut(event: KeyboardEvent): boolean {
   return (
@@ -107,8 +102,8 @@ export function CommandPalette() {
   }
   const { roles } = useAdminSession()
   const canReadUsers = usePermission({ user: ["read"] })
-  const { setTheme } = useTheme()
-  const { signOut } = useShellSignOut()
+  const { theme, setTheme } = useTheme()
+  const { signOut, pending: signingOut } = useShellSignOut()
   const { open, setOpen } = useCommandPalette()
   const [query, setQuery] = useState("")
   const trimmed = query.trim()
@@ -165,13 +160,15 @@ export function CommandPalette() {
     .filter((item) =>
       matchesQuery(trimmed, item.label, [
         ...(item.keywords ?? []),
-        ...(item.parent
-          ? [item.parent, ...(SECTION_KEYWORDS.get(item.parent) ?? [])]
-          : []),
+        // A sub-page answers to its section's name and search terms too.
+        ...(item.parent ? [item.parent] : []),
+        ...item.parentKeywords,
       ])
     )
   const actions = buildActions({
     setTheme,
+    theme,
+    signingOut,
     // From the menu: a failure shows in the user menu. Asks first while
     // something is unsaved (the shell's sign-out goes through confirmLeave).
     signOut: () => signOut("menu"),
@@ -237,6 +234,14 @@ export function CommandPalette() {
                     <CommandItem
                       key={item.href}
                       value={`nav:${item.href}`}
+                      // Label and section read as one run of text otherwise
+                      // ("CategoriesInsights"); an sr-only ", in " loses its
+                      // trailing space in the computed name.
+                      aria-label={
+                        item.parent
+                          ? `${item.label}, in ${item.parent}`
+                          : undefined
+                      }
                       onSelect={() => go(() => navigate(item.href))}
                     >
                       <Icon aria-hidden />
@@ -301,6 +306,7 @@ export function CommandPalette() {
                     <CommandItem
                       key={action.id}
                       value={`action:${action.id}`}
+                      disabled={action.disabled}
                       onSelect={() => go(action.run)}
                     >
                       <Icon aria-hidden />

@@ -28,7 +28,8 @@ async function Editor({
   params,
 }: Pick<PageProps<"/admin/pages/[key]">, "params">) {
   const { key } = await params
-  if (!isPageKey(key)) notFound()
+  // Permission first, as on every [param] page but settings/[key].
   await requirePage("/admin/pages")
+  if (!isPageKey(key)) notFound()
   return <PageEditor pageKey={key} />
 }
