@@ -117,8 +117,9 @@ describe("convertLegacyCustomCode", () => {
     })
     expect(out.disabled).toBe(false)
     expect(out.allowedHosts).toEqual([])
-    expect(out.snippets.map(({ id: _id, ...rest }) => rest)).toEqual([
+    expect(out.snippets.map((s) => ({ ...s, id: "ID" }))).toEqual([
       {
+        id: "ID",
         name: "Head code",
         placement: "head",
         src: "",
@@ -128,6 +129,7 @@ describe("convertLegacyCustomCode", () => {
         enabled: true,
       },
       {
+        id: "ID",
         name: "Body code",
         placement: "body",
         src: "",

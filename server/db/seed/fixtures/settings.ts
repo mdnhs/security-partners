@@ -234,7 +234,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       metaEnabled: false,
       metaPixelId: null,
     },
-    customCode: { headHtml: "", bodyEndHtml: "" },
+    customCode: { disabled: false, allowedHosts: [], snippets: [] },
     microcopy: {
       header: { phone24hLabel: "24 Hour Number:", hoursLabel: "Office hours:" },
       aria: {

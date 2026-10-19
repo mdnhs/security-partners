@@ -22,6 +22,18 @@ const TRACKING_OFF = {
   metaPixelId: null,
 }
 
+const NO_CODE = { disabled: false, allowedHosts: [], snippets: [] }
+const necessary = (placement: "head" | "body", html: string) => ({
+  id: crypto.randomUUID(),
+  name: `E2E ${placement}`,
+  placement,
+  src: "",
+  html,
+  category: "necessary",
+  routes: [],
+  enabled: true,
+})
+
 // The consent version can never go down (review D2.2 I1: 422), so tests
 // only reset the interval and read the version that is live.
 const CONSENT_RESET = { reconsentMonths: 6 }
@@ -83,10 +95,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       ...d,
       ...TRACKING_OFF,
     }))
-    await publishSetting(page, "customCode", () => ({
-      headHtml: "",
-      bodyEndHtml: "",
-    }))
+    await publishSetting(page, "customCode", () => NO_CODE)
     await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_RESET }))
     await context.close()
   })
@@ -338,9 +347,14 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       page.getByRole("heading", { level: 1, name: "Custom code" })
     ).toBeVisible()
     await publishSetting(page, "customCode", () => ({
-      headHtml:
-        '<meta name="sp-e2e" content="head"><script>window.__spHead = 1</script>',
-      bodyEndHtml: "<script>window.__spBody = 2</script>",
+      ...NO_CODE,
+      snippets: [
+        necessary(
+          "head",
+          '<meta name="sp-e2e" content="head"><script>window.__spHead = 1</script>'
+        ),
+        necessary("body", "<script>window.__spBody = 2</script>"),
+      ],
     }))
     try {
       const visitor = await browser.newContext()
@@ -357,10 +371,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       await expect(site.locator('head meta[name="sp-e2e"]')).toHaveCount(1)
       await visitor.close()
     } finally {
-      await publishSetting(page, "customCode", () => ({
-        headHtml: "",
-        bodyEndHtml: "",
-      }))
+      await publishSetting(page, "customCode", () => NO_CODE)
     }
   })
 })

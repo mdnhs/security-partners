@@ -98,8 +98,6 @@ const LONG_TEXT = new Set([
   "excerpt",
   "caption",
   "callout",
-  "headHtml",
-  "bodyEndHtml",
 ])
 
 /** Text fields whose values are long lines: they take the full row. */

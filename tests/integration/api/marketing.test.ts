@@ -33,6 +33,23 @@ beforeEach(async () => {
   revalidateTag.mockClear()
 })
 
+/** A custom code value with these snippets (D2.3 shape). */
+const code = (snippets: unknown[], allowedHosts: string[] = []) => ({
+  disabled: false,
+  allowedHosts,
+  snippets,
+})
+const snippet = (over: { html?: string; src?: string }) => ({
+  id: crypto.randomUUID(),
+  name: "Test",
+  placement: "head",
+  src: over.src ?? "",
+  html: over.html ?? "",
+  category: "necessary",
+  routes: [],
+  enabled: true,
+})
+
 const get = (cookie: string, key: string) =>
   adminRequest(`/marketing/${key}`, { cookie })
 
@@ -90,10 +107,9 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
     ).toBe(200)
     expect(
       (
-        await saveAndPublish(owner, "customCode", () => ({
-          headHtml: "<!-- x -->",
-          bodyEndHtml: "",
-        }))
+        await saveAndPublish(owner, "customCode", () =>
+          code([snippet({ html: "<!-- x -->" })])
+        )
       ).status
     ).toBe(200)
     const rows = await getDb()
@@ -125,15 +141,36 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
         await adminRequest("/marketing/customCode/draft", {
           cookie: admin,
           method: "PUT",
-          json: { draft: { headHtml: "", bodyEndHtml: "" }, version: 1 },
+          json: { draft: code([]), version: 1 },
         })
       ).status
     ).toBe(403)
-    const published = await saveAndPublish(owner, "customCode", (d) => ({
-      ...d,
-      headHtml: '<meta name="x" content="y">',
-    }))
+    const published = await saveAndPublish(owner, "customCode", () =>
+      code([snippet({ html: '<meta name="x" content="y">' })])
+    )
     expect(published.status).toBe(200)
+  })
+
+  it("custom code: a script on a host that is not allowed → 422 on snippets.0.src (D2.3)", async () => {
+    const dto = (await (
+      await get(owner, "customCode")
+    ).json()) as GrowthSettingsDto
+    const res = await adminRequest("/marketing/customCode/draft", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        draft: code(
+          [snippet({ src: "https://evil.example.net/x.js" })],
+          ["cdn.example.com"]
+        ),
+        version: dto.version,
+      },
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as {
+      error: { fieldErrors: Record<string, string[]> }
+    }
+    expect(Object.keys(body.error.fieldErrors)).toEqual(["snippets.0.src"])
   })
 
   it("keys edited elsewhere are 404 here; these keys stay 404 under /settings", async () => {
@@ -164,10 +201,9 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
   })
 
   it("history follows each key's read permission; integrations never", async () => {
-    await saveAndPublish(owner, "customCode", (d) => ({
-      ...d,
-      bodyEndHtml: "<script>window.x=1</script>",
-    }))
+    await saveAndPublish(owner, "customCode", () =>
+      code([snippet({ html: "<script>window.x=1</script>" })])
+    )
     await saveAndPublish(marketer, "consent", (d) => ({
       ...d,
       title: "Cookies?",

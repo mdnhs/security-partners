@@ -32,7 +32,11 @@ const TRACKING_OFF: TrackingSettings = {
   metaEnabled: false,
   metaPixelId: null,
 }
-const NO_CODE: CustomCodeSettings = { headHtml: "", bodyEndHtml: "" }
+const NO_CODE: CustomCodeSettings = {
+  disabled: false,
+  allowedHosts: [],
+  snippets: [],
+}
 
 /**
  * Tracking, consent copy and custom code as the public site uses them:

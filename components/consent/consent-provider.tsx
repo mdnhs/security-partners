@@ -22,6 +22,7 @@ import {
   withdrawn,
 } from "@/lib/analytics/consent"
 import type { AnalyticsWindow } from "@/lib/analytics/events"
+import { CONSENT_EVENT } from "@/lib/analytics/snippets"
 
 /** Server render and hydration: the cookie is not known yet. */
 const PENDING = "pending" as const
@@ -55,6 +56,8 @@ function createStore(version: number, maxAgeSeconds: number) {
   const publish = (next: ConsentChoice | null) => {
     value = next
     ;(window as AnalyticsWindow).__spConsent = next
+    // Custom code snippets wait on this (components/consent/custom-code.tsx).
+    window.dispatchEvent(new CustomEvent(CONSENT_EVENT, { detail: next }))
   }
   return {
     subscribe(listener: () => void) {

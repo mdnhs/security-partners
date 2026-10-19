@@ -149,16 +149,64 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
   },
   customCode: {
     fields: {
-      headHtml: {
-        label: "Code in <head>",
-        rows: 10,
-        help: "Added to the <head> of every public page after it loads.",
+      disabled: {
+        label: "Switch all custom code off",
+        help: "Kill switch: while on, no snippet runs on the public site. Also set by `pnpm custom-code:off` on the server when you cannot sign in.",
       },
-      bodyEndHtml: {
-        label: "Code at the end of <body>",
-        rows: 10,
-        help: "Added at the end of every public page after it loads.",
+      allowedHosts: {
+        label: "Allowed hosts",
+        itemName: "Host",
+        help: "Script addresses must be https:// on one of these hosts, e.g. www.googletagmanager.com.",
       },
+      "allowedHosts[]": { label: "Host", placeholder: "cdn.example.com" },
+      snippets: {
+        label: "Snippets",
+        itemName: "Snippet",
+        itemLabel: "name",
+        help: "Each snippet is a script address or an HTML block, not both.",
+      },
+      "snippets[].id": { hidden: true },
+      "snippets[].name": {
+        label: "Name",
+        help: "For you only; never sent to visitors.",
+      },
+      "snippets[].enabled": { label: "On" },
+      "snippets[].placement": {
+        label: "Where",
+        widget: "radio",
+        options: [
+          { value: "head", label: "In <head>" },
+          { value: "body", label: "End of <body>" },
+        ],
+      },
+      "snippets[].category": {
+        label: "Consent needed",
+        widget: "radio",
+        options: [
+          { value: "necessary", label: "None (necessary)" },
+          { value: "analytics", label: "Analytics" },
+          { value: "marketing", label: "Marketing" },
+        ],
+        help: "Anything that sets cookies or tracks visitors needs Analytics or Marketing: it then waits for the visitor's consent (and never runs while tracking is off).",
+      },
+      "snippets[].src": {
+        label: "Script address",
+        placeholder: "https://cdn.example.com/widget.js",
+        help: "Loaded as <script async>. Leave empty to use HTML.",
+        width: "full",
+      },
+      "snippets[].html": {
+        label: "HTML",
+        widget: "textarea",
+        rows: 8,
+        help: "Added after the page loads. Leave empty to use a script address.",
+      },
+      "snippets[].routes": {
+        label: "Pages",
+        itemName: "Page",
+        help: 'Leave empty for every page. "/" is the home page only; "/blog/*" is the blog and everything under it.',
+      },
+      "snippets[].routes[]": { label: "Page", placeholder: "/blog/*" },
     },
   },
 }

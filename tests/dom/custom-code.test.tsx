@@ -46,7 +46,6 @@ const consent = (choice: { analytics: boolean; marketing: boolean } | null) => {
 
 beforeEach(() => {
   delete w().__spConsent
-  for (const k of ["__nec", "__ana", "__mkt", "__twice"]) delete w()[k]
   document.body.innerHTML = ""
   document.head.querySelectorAll("[data-t]").forEach((n) => n.remove())
 })
@@ -88,7 +87,7 @@ describe("CustomCodeSnippets (server-rendered loader)", () => {
   it("the payload cannot close its own <script> and carries no names", () => {
     const s = snippet({
       name: "Secret name",
-      html: '</script><p id="custom-p">hi</p> ',
+      html: '</script><p id="custom-p">hi</p>\u2028',
     })
     const script = snippetsLoaderScript([s], "body")
     expect(script).not.toContain("</script>")
@@ -99,47 +98,41 @@ describe("CustomCodeSnippets (server-rendered loader)", () => {
   })
 })
 
+// jsdom does not execute scripts, so each snippet inserts a marker element
+// (in a browser, a <script> in the fragment runs on insertion; e2e covers it).
+const count = (id: string) => document.querySelectorAll(`#${id}`).length
+
 describe("snippet loader gating", () => {
   it("a necessary snippet runs at once; head placement goes to <head>", () => {
     run([snippet({ html: '<meta data-t name="x-head">' })], "head")
     expect(document.head.querySelector('meta[name="x-head"]')).not.toBeNull()
-    run([snippet({ html: "<script>window.__nec=1</script>" })])
-    expect(w().__nec).toBe(1)
+    run([snippet({ html: '<i id="nec"></i>' })])
+    expect(count("nec")).toBe(1)
   })
 
   it("analytics/marketing snippets wait for their own consent", () => {
     run([
-      snippet({
-        category: "analytics",
-        html: "<script>window.__ana=(window.__ana||0)+1</script>",
-      }),
-      snippet({
-        category: "marketing",
-        html: "<script>window.__mkt=1</script>",
-      }),
+      snippet({ category: "analytics", html: '<i id="ana"></i>' }),
+      snippet({ category: "marketing", html: '<i id="mkt"></i>' }),
     ])
-    expect(w().__ana).toBeUndefined()
-    expect(w().__mkt).toBeUndefined()
+    expect(count("ana")).toBe(0)
+    expect(count("mkt")).toBe(0)
+    consent(null)
     consent({ analytics: false, marketing: false })
-    expect(w().__ana).toBeUndefined()
+    expect(count("ana")).toBe(0)
     consent({ analytics: true, marketing: false })
-    expect(w().__ana).toBe(1)
-    expect(w().__mkt).toBeUndefined()
+    expect(count("ana")).toBe(1)
+    expect(count("mkt")).toBe(0)
     // A later change never runs a snippet twice.
     consent({ analytics: true, marketing: true })
-    expect(w().__ana).toBe(1)
-    expect(w().__mkt).toBe(1)
+    expect(count("ana")).toBe(1)
+    expect(count("mkt")).toBe(1)
   })
 
   it("an existing choice (set before the loader) applies at once", () => {
     w().__spConsent = { analytics: true, marketing: false }
-    run([
-      snippet({
-        category: "analytics",
-        html: "<script>window.__ana=1</script>",
-      }),
-    ])
-    expect(w().__ana).toBe(1)
+    run([snippet({ category: "analytics", html: '<i id="ana"></i>' })])
+    expect(count("ana")).toBe(1)
   })
 
   it("a src snippet becomes <script src async>", () => {

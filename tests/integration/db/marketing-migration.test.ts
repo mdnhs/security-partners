@@ -196,7 +196,7 @@ describe("marketing migration — custom code becomes snippets (D2.3)", () => {
     const value = v as CustomCodeSettings
     return {
       ...value,
-      snippets: value.snippets.map(({ id: _id, ...rest }) => rest),
+      snippets: value.snippets.map((s) => ({ ...s, id: "ID" })),
     }
   }
 

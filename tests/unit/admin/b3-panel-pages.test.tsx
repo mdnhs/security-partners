@@ -44,6 +44,15 @@ vi.mock("@/components/admin/marketing/tracking-editor", () => ({
 vi.mock("@/components/admin/marketing/consent-editor", () => ({
   ConsentEditor: () => null,
 }))
+vi.mock("@/components/admin/marketing/snippets-editor", () => ({
+  SnippetsEditor: () => null,
+}))
+const published = vi.hoisted(() => ({
+  customCode: null as unknown,
+}))
+vi.mock("@/server/modules/settings/queries", () => ({
+  getPublishedSettings: vi.fn(async () => published.customCode),
+}))
 vi.mock("@/components/admin/audit/audit-screen", () => ({
   AuditScreen: () => null,
 }))
@@ -58,6 +67,7 @@ import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/p
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
 import { ConsentEditor } from "@/components/admin/marketing/consent-editor"
+import { SnippetsEditor } from "@/components/admin/marketing/snippets-editor"
 import { TrackingEditor } from "@/components/admin/marketing/tracking-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
@@ -147,10 +157,15 @@ describe("moved pages", () => {
     expect(out!.props).not.toHaveProperty("backHref")
   })
 
-  it("/admin/marketing/code is Custom code, owner only", async () => {
-    const out = await inner(MarketingCodePage())
-    expect(out!.props).toMatchObject({ settingsKey: "customCode" })
+  it("/admin/marketing/code is Custom code, owner only; banner while switched off (D2.3)", async () => {
+    published.customCode = null
+    let out = await inner(MarketingCodePage())
+    expect(out!.type).toBe(SnippetsEditor)
+    expect(out!.props).toMatchObject({ killSwitchOn: false })
     expect(out!.props).not.toHaveProperty("backHref")
+    published.customCode = { disabled: true, allowedHosts: [], snippets: [] }
+    out = await inner(MarketingCodePage())
+    expect(out!.props).toMatchObject({ killSwitchOn: true })
     session.roles = ["marketer"]
     await expect(inner(MarketingCodePage())).rejects.toThrow("FORBIDDEN")
   })

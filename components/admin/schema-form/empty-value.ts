@@ -1,5 +1,6 @@
 import type { z } from "zod"
 
+import { newSnippetId } from "@/lib/analytics/snippets"
 import { link, mediaRef, paragraphsText, richText } from "@/lib/schemas/common"
 
 import { arrayBounds, unwrapSchema } from "./resolve-widget"
@@ -38,6 +39,12 @@ export function emptyValue(schema: z.ZodType): unknown {
       return (inner as z.ZodNumber).minValue ?? 0
     case "enum":
       return (inner as z.ZodEnum).options[0]
+    case "string":
+      // A z.uuid() id (custom code snippets) starts as a fresh v4 id: it is
+      // hidden in the form, so it could never be filled in.
+      return (inner as { format?: string | null }).format === "uuid"
+        ? newSnippetId()
+        : ""
     default:
       return ""
   }

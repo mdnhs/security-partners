@@ -29,7 +29,11 @@ describe("loadPublicMarketing (published values only)", () => {
       metaEnabled: false,
     })
     expect(m.consent?.manageLabel).toBe("Cookie settings")
-    expect(m.customCode).toEqual({ headHtml: "", bodyEndHtml: "" })
+    expect(m.customCode).toEqual({
+      disabled: false,
+      allowedHosts: [],
+      snippets: [],
+    })
   })
 
   it("never reads drafts; invalid published values switch tracking off", async () => {
@@ -46,11 +50,28 @@ describe("loadPublicMarketing (published values only)", () => {
       .where(eq(settings.key, "tracking"))
     await getDb()
       .update(settings)
-      .set({ draft: { headHtml: "<script>1</script>", bodyEndHtml: "" } })
+      .set({
+        draft: {
+          disabled: false,
+          allowedHosts: [],
+          snippets: [
+            {
+              id: "6f1c7a52-3b0e-4d6a-9f3e-2a1b4c5d6e7f",
+              name: "Draft only",
+              placement: "head",
+              src: "",
+              html: "<script>1</script>",
+              category: "necessary",
+              routes: [],
+              enabled: true,
+            },
+          ],
+        },
+      })
       .where(eq(settings.key, "customCode"))
     let m = await loadPublicMarketing()
     expect(m.tracking.enabled).toBe(false)
-    expect(m.customCode.headHtml).toBe("")
+    expect(m.customCode.snippets).toEqual([])
 
     await getDb()
       .update(settings)

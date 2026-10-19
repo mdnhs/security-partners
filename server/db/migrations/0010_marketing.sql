@@ -34,3 +34,42 @@ WHERE "key" = 'consent' AND jsonb_typeof("published") = 'object';
 --> statement-breakpoint
 UPDATE "revisions" SET "data" = '{"version":1,"reconsentMonths":6}'::jsonb || "data"
 WHERE "entity_type" = 'settings' AND "entity_id" = 'consent' AND jsonb_typeof("data") = 'object';
+--> statement-breakpoint
+-- Custom code (D2.3): { headHtml, bodyEndHtml } becomes structured snippets.
+-- Each non-blank block becomes a necessary, all-routes, enabled snippet
+-- ("Head code" / "Body code"): it ran without consent before, so it keeps
+-- doing so. Same result as convertLegacyCustomCode (lib/analytics/snippets.ts).
+-- Snippet ids are gen_random_uuid() (v4) as text. The settings row's draft
+-- and published share their ids, so an unchanged value stays unchanged.
+-- Only values that still have headHtml are converted (safe to re-run).
+UPDATE "settings" SET
+  "draft" = CASE WHEN jsonb_typeof("draft") = 'object' AND "draft" ? 'headHtml' THEN jsonb_build_object(
+    'disabled', false, 'allowedHosts', '[]'::jsonb, 'snippets',
+    (CASE WHEN COALESCE("draft"->>'headHtml', '') ~ '\S' THEN jsonb_build_array(jsonb_build_object(
+      'id', "ids"."head", 'name', 'Head code', 'placement', 'head', 'src', '', 'html', "draft"->>'headHtml',
+      'category', 'necessary', 'routes', '[]'::jsonb, 'enabled', true)) ELSE '[]'::jsonb END)
+    || (CASE WHEN COALESCE("draft"->>'bodyEndHtml', '') ~ '\S' THEN jsonb_build_array(jsonb_build_object(
+      'id', "ids"."body", 'name', 'Body code', 'placement', 'body', 'src', '', 'html', "draft"->>'bodyEndHtml',
+      'category', 'necessary', 'routes', '[]'::jsonb, 'enabled', true)) ELSE '[]'::jsonb END))
+    ELSE "draft" END,
+  "published" = CASE WHEN jsonb_typeof("published") = 'object' AND "published" ? 'headHtml' THEN jsonb_build_object(
+    'disabled', false, 'allowedHosts', '[]'::jsonb, 'snippets',
+    (CASE WHEN COALESCE("published"->>'headHtml', '') ~ '\S' THEN jsonb_build_array(jsonb_build_object(
+      'id', "ids"."head", 'name', 'Head code', 'placement', 'head', 'src', '', 'html', "published"->>'headHtml',
+      'category', 'necessary', 'routes', '[]'::jsonb, 'enabled', true)) ELSE '[]'::jsonb END)
+    || (CASE WHEN COALESCE("published"->>'bodyEndHtml', '') ~ '\S' THEN jsonb_build_array(jsonb_build_object(
+      'id', "ids"."body", 'name', 'Body code', 'placement', 'body', 'src', '', 'html', "published"->>'bodyEndHtml',
+      'category', 'necessary', 'routes', '[]'::jsonb, 'enabled', true)) ELSE '[]'::jsonb END))
+    ELSE "published" END
+FROM (SELECT gen_random_uuid()::text AS "head", gen_random_uuid()::text AS "body") AS "ids"
+WHERE "settings"."key" = 'customCode';
+--> statement-breakpoint
+UPDATE "revisions" SET "data" = jsonb_build_object(
+    'disabled', false, 'allowedHosts', '[]'::jsonb, 'snippets',
+    (CASE WHEN COALESCE("data"->>'headHtml', '') ~ '\S' THEN jsonb_build_array(jsonb_build_object(
+      'id', gen_random_uuid()::text, 'name', 'Head code', 'placement', 'head', 'src', '', 'html', "data"->>'headHtml',
+      'category', 'necessary', 'routes', '[]'::jsonb, 'enabled', true)) ELSE '[]'::jsonb END)
+    || (CASE WHEN COALESCE("data"->>'bodyEndHtml', '') ~ '\S' THEN jsonb_build_array(jsonb_build_object(
+      'id', gen_random_uuid()::text, 'name', 'Body code', 'placement', 'body', 'src', '', 'html', "data"->>'bodyEndHtml',
+      'category', 'necessary', 'routes', '[]'::jsonb, 'enabled', true)) ELSE '[]'::jsonb END))
+WHERE "entity_type" = 'settings' AND "entity_id" = 'customCode' AND jsonb_typeof("data") = 'object' AND "data" ? 'headHtml';
