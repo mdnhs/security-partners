@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
 import { JsonLd } from "@/components/seo/json-ld"
+import { SiteThemed } from "@/components/site-themed"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ArticleTemplate } from "@/templates/blog/render"
@@ -21,9 +21,9 @@ export async function generateMetadata({
 
 export default function ArticlePage({ params }: PageProps<"/blog/[slug]">) {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <Article params={params} />
-    </Suspense>
+    </SiteThemed>
   )
 }
 

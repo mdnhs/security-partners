@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
+import { SiteThemed } from "@/components/site-themed"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { HomeTemplate } from "@/templates/home/render"
 import { homeView } from "@/templates/home/view"
@@ -16,9 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
 // build never touches the database. The fallback renders nothing.
 export default function HomePage() {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <Home />
-    </Suspense>
+    </SiteThemed>
   )
 }
 

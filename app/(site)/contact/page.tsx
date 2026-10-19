@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
+import { SiteThemed } from "@/components/site-themed"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ContactTemplate } from "@/templates/contact/render"
 import { contactView } from "@/templates/contact/view"
@@ -14,9 +14,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function ContactPage() {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <Contact />
-    </Suspense>
+    </SiteThemed>
   )
 }
 
