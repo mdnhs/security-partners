@@ -20,7 +20,7 @@ export function SearchPill() {
       onClick={() => setOpen(true)}
       aria-label="Search"
       aria-keyshortcuts="Meta+K Control+K"
-      className="flex h-11 w-full max-w-sm min-w-0 items-center gap-3 rounded-full bg-card px-4 text-sm text-muted-foreground ring-1 ring-border transition-shadow outline-none hover:ring-ring/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="flex h-11 w-full max-w-sm min-w-11 items-center gap-3 rounded-full bg-card px-4 text-sm text-muted-foreground ring-1 ring-border transition-shadow outline-none hover:ring-ring/40 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <Search aria-hidden className="size-4 shrink-0" />
       <span className="flex-1 truncate text-left">Search</span>

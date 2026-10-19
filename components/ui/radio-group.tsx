@@ -14,6 +14,12 @@ function RadioGroup({ className, ...props }: RadioGroupPrimitive.Props) {
   )
 }
 
+/**
+ * A 16 px radio. Place it inside a <label> or a Field (FieldLabel) so the
+ * label text is part of the hit area; on its own it is below the 24 px
+ * minimum (WCAG 2.5.8) — the coarse-pointer ::after only pads it on touch
+ * screens.
+ */
 function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
   return (
     <RadioPrimitive.Root

@@ -53,10 +53,23 @@ describe("topbar Enquiries link", () => {
   it("shows the new-leads count for lead readers", () => {
     renderShell({ roles: ["intake"], badges: { "new-leads": 3 } })
     const topbar = screen.getByRole("banner")
-    const link = within(topbar).getByRole("link", { name: "Enquiries, 3 new" })
+    const link = within(topbar).getByRole("link", {
+      name: "Enquiries, 3 new unassigned",
+    })
     expect(link).toHaveAttribute("href", "/admin/leads")
     // Same count as the sidebar's Leads badge.
     expect(link).toHaveTextContent("3")
+    // Phones rely on the sidebar's Leads badge: the topbar keeps room for search.
+    expect(link).toHaveClass("hidden", "sm:inline-flex")
+  })
+
+  it("keeps the search pill a 44 px target on narrow phones", () => {
+    renderShell({ roles: ["intake"], badges: { "new-leads": 3 } })
+    const pill = within(screen.getByRole("banner")).getByRole("button", {
+      name: "Search",
+    })
+    expect(pill).toHaveClass("h-11", "min-w-11")
+    expect(pill).not.toHaveClass("min-w-0")
   })
 
   it("is a plain Enquiries link with no new leads", () => {
@@ -70,7 +83,7 @@ describe("topbar Enquiries link", () => {
   it("caps a large count like the sidebar badge", () => {
     renderShell({ roles: ["owner"], badges: { "new-leads": 250 } })
     expect(
-      screen.getByRole("link", { name: "Enquiries, 250 new" })
+      screen.getByRole("link", { name: "Enquiries, 250 new unassigned" })
     ).toHaveTextContent("99+")
   })
 
@@ -196,6 +209,29 @@ describe("toast anchor", () => {
     expect(root.getPropertyValue("--admin-toast-top")).toBe("156px")
     unmount()
     expect(root.getPropertyValue("--admin-toast-top")).toBe("")
+  })
+
+  it("writes the variable only when the value changes", () => {
+    headerBottom(84)
+    const spy = vi.spyOn(CSSStyleDeclaration.prototype, "setProperty")
+    renderShell({ roles: ["owner"] })
+    const writes = () =>
+      spy.mock.calls.filter(([name]) => name === "--admin-toast-top").length
+    expect(writes()).toBe(1)
+    act(() => {
+      window.dispatchEvent(new Event("resize"))
+      window.dispatchEvent(new Event("resize"))
+    })
+    expect(writes()).toBe(1)
+    headerBottom(100)
+    act(() => {
+      window.dispatchEvent(new Event("resize"))
+    })
+    expect(writes()).toBe(2)
+    expect(
+      document.documentElement.style.getPropertyValue("--admin-toast-top")
+    ).toBe("108px")
+    spy.mockRestore()
   })
 
   it("keeps at least 8 px under a phone topbar", () => {

@@ -50,17 +50,21 @@ export function Topbar({
   )
 }
 
-/** The leads inbox as a circular icon link; the count matches the sidebar. */
+/**
+ * The leads inbox as a circular icon link; the count matches the sidebar.
+ * Hidden on phones (the sidebar's Leads badge covers it) so the search pill
+ * keeps its room at 320-360 px.
+ */
 function EnquiriesLink({ count }: { count: number }) {
   return (
     <Link
       href="/admin/leads"
-      aria-label={count ? `Enquiries, ${count} new` : "Enquiries"}
+      aria-label={count ? `Enquiries, ${count} new unassigned` : "Enquiries"}
       data-slot="button"
       className={cn(
         buttonVariants({ variant: "outline", size: "icon-lg" }),
         ICON_BUTTON,
-        "relative"
+        "relative hidden sm:inline-flex"
       )}
     >
       <MailIcon aria-hidden />

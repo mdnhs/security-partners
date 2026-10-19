@@ -1,5 +1,4 @@
-"use client"
-
+// No hooks or handlers: renders on the server too.
 import * as React from "react"
 import { cn } from "cn"
 

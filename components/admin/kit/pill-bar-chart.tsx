@@ -40,9 +40,17 @@ export function PillBarChart({
   legend,
   emptyText,
   rowHeader = "Day",
+  labelFigure = true,
 }: {
   data: readonly PillBarDatum[]
+  /** The figure's name and the sr table's caption. */
   ariaLabel: string
+  /**
+   * false inside a container already named with the same text (a titled
+   * card): the figure stays unnamed so the name is not announced three times;
+   * the table keeps its caption.
+   */
+  labelFigure?: boolean
   legend?: { current: string; previous: string }
   /** Overlay shown when every current and previous value is 0. */
   emptyText?: string
@@ -63,7 +71,9 @@ export function PillBarChart({
   } satisfies ChartConfig
 
   return (
-    <figure aria-label={ariaLabel} className="flex flex-col gap-4">
+    <figure
+      aria-label={labelFigure ? ariaLabel : undefined}
+      className="flex flex-col gap-4">
       <div className="relative">
         <ChartContainer
           config={config}

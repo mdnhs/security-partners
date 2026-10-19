@@ -272,6 +272,8 @@ function Body({
           <DashboardCard title="Enquiries, last 90 days">
             <PillBarChart
               ariaLabel="Enquiries, last 90 days"
+              // The card's title already names this region.
+              labelFigure={false}
               rowHeader="Week of"
               legend={{ current: "Enquiries", previous: "Previous period" }}
               emptyText="No enquiries yet"

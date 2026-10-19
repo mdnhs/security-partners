@@ -165,11 +165,14 @@ function useToastAnchor() {
     const header = ref.current
     if (!header) return
     const root = document.documentElement
-    const measure = () =>
-      root.style.setProperty(
-        "--admin-toast-top",
-        `${Math.ceil(header.getBoundingClientRect().bottom) + TOAST_GAP}px`
-      )
+    let last = ""
+    // Resize fires often; touch <html>'s style only when the value moves.
+    const measure = () => {
+      const next = `${Math.ceil(header.getBoundingClientRect().bottom) + TOAST_GAP}px`
+      if (next === last) return
+      last = next
+      root.style.setProperty("--admin-toast-top", next)
+    }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(header)

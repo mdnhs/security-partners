@@ -320,9 +320,14 @@ describe("dashboard (JW layout)", () => {
     // The overlay is real text inside the labelled figure, not decoration.
     const overlay = within(card).getByText("No enquiries yet")
     expect(overlay.closest("[aria-hidden]")).toBeNull()
-    expect(overlay.closest("figure")).toHaveAccessibleName(
-      "Enquiries, last 90 days"
-    )
+    // Named once, by the card; the figure adds no second name and the sr
+    // table keeps its caption.
+    const figure = overlay.closest("figure")
+    expect(figure).not.toBeNull()
+    expect(figure).not.toHaveAttribute("aria-label")
+    expect(
+      within(card).getByRole("table", { name: "Enquiries, last 90 days" })
+    ).toBeInTheDocument()
   })
 
   it("every KPI links its chip to the screen it counts", async () => {

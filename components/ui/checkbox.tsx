@@ -4,6 +4,11 @@ import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 import { cn } from "cn"
 import { CheckIcon } from "lucide-react"
 
+/**
+ * A 16 px box. Place it inside a <label> or a Field (FieldLabel) so the label
+ * text is part of the hit area; on its own it is below the 24 px minimum
+ * (WCAG 2.5.8) — the coarse-pointer ::after only pads it on touch screens.
+ */
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   return (
     <CheckboxPrimitive.Root

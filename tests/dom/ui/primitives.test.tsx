@@ -99,6 +99,8 @@ describe("shadcn primitives", () => {
     // arrow key moves from it (timing differs under a loaded test run).
     const alpha = await screen.findByRole("option", { name: "Alpha" })
     await waitFor(() => expect(alpha).toHaveAttribute("data-highlighted"))
+    // 44 px rows on a coarse pointer (WCAG 2.5.8).
+    expect(alpha).toHaveClass("pointer-coarse:min-h-11")
     await user.keyboard("{ArrowDown}{Enter}")
     expect(box).toHaveTextContent("Beta")
     expect(box.textContent).not.toContain("▼")
@@ -215,6 +217,10 @@ describe("shadcn primitives", () => {
       ...FOCUS
     )
     expect(screen.getByText("Pages")).toHaveAttribute("aria-current", "page")
+    // The current crumb is plain text, not a (disabled) link.
+    expect(screen.getAllByRole("link")).toHaveLength(1)
+    expect(screen.getByText("Pages")).not.toHaveAttribute("role")
+    expect(screen.getByText("Pages")).not.toHaveAttribute("aria-disabled")
   })
 
   it("Item and ScrollArea render their slots", () => {

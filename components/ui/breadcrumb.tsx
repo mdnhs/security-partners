@@ -61,12 +61,13 @@ function BreadcrumbLink({
   })
 }
 
+// LOCAL: shadcn ships role="link" aria-disabled="true" here; the current page
+// is plain text, not a disabled link. Re-apply after `shadcn add breadcrumb
+// --overwrite`.
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="breadcrumb-page"
-      role="link"
-      aria-disabled="true"
       aria-current="page"
       className={cn("font-normal text-foreground", className)}
       {...props}

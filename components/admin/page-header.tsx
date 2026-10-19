@@ -34,7 +34,10 @@ export const LINK_SECONDARY = cn(
 )
 export const LINK_FORM = cn(buttonVariants(), FORM_ACTION)
 
-/** One breadcrumb; the one without an `href` (normally the last) is the current page. */
+/**
+ * One breadcrumb. The last one is the current page (its `href` is ignored);
+ * an earlier one without an `href` renders as plain text.
+ */
 export type Crumb = { label: string; href?: string }
 
 function isCrumbs(value: unknown): value is readonly Crumb[] {
@@ -60,15 +63,18 @@ function Breadcrumbs({ items }: { items: readonly Crumb[] }) {
     <Breadcrumb aria-label="Breadcrumb">
       <BreadcrumbList>
         {items.map((item, index) => {
-          const current = !item.href || index === items.length - 1
+          const current = index === items.length - 1
           return (
             <Fragment key={`${index}-${item.label}`}>
               {index > 0 ? <BreadcrumbSeparator /> : null}
               <BreadcrumbItem className="gap-1.5">
-                {current || item.href === undefined ? (
+                {current ? (
                   <BreadcrumbPage className="font-medium">
                     {item.label}
                   </BreadcrumbPage>
+                ) : item.href === undefined ? (
+                  // A middle crumb with no page of its own: plain text.
+                  <span>{item.label}</span>
                 ) : (
                   <BreadcrumbLink
                     className="inline-flex items-center rounded-md pointer-coarse:min-h-11"

@@ -130,6 +130,21 @@ describe("admin kit", () => {
     expect(container.querySelector("[data-series=previous]")).toBeNull()
   })
 
+  it("PillBarChart inside a named card leaves the figure unnamed (table caption stays)", () => {
+    const { container } = render(
+      <PillBarChart
+        ariaLabel="Enquiries by week"
+        labelFigure={false}
+        data={[{ key: "a", label: "6 Oct", current: 2, previous: null }]}
+      />
+    )
+    const figure = container.querySelector("figure")
+    expect(figure).not.toHaveAttribute("aria-label")
+    expect(
+      screen.getByRole("table", { name: "Enquiries by week" })
+    ).toBeInTheDocument()
+  })
+
   it("PillBarChart: two series with a hatched comparison legend", () => {
     render(
       <PillBarChart
@@ -161,9 +176,10 @@ describe("admin kit", () => {
       "border",
       "relative",
       "after:absolute",
-      "after:-inset-1",
-      "pointer-coarse:after:-inset-[2px]"
+      "after:-inset-1"
     )
+    // -inset-1 already makes 48 px; a smaller coarse inset would shrink it.
+    expect(chip.className).not.toContain("pointer-coarse:after:")
   })
 
   it("KpiCard without an href (bad data) renders chip-less instead of crashing", () => {
@@ -237,6 +253,28 @@ describe("admin kit", () => {
     expect(within(nav).getByText("Jane Doe")).toHaveAttribute(
       "data-slot",
       "breadcrumb-page"
+    )
+  })
+
+  it("PageHeader: only the last crumb is the current page", () => {
+    render(
+      <PageHeader
+        title="Jane Doe"
+        breadcrumbs={[
+          { label: "Leads", href: "/admin/leads" },
+          { label: "Archive" },
+          { label: "Jane Doe" },
+        ]}
+      />
+    )
+    const nav = screen.getByRole("navigation", { name: "Breadcrumb" })
+    const middle = within(nav).getByText("Archive")
+    expect(middle.tagName).toBe("SPAN")
+    expect(middle).not.toHaveAttribute("aria-current")
+    expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
+    expect(within(nav).getByText("Jane Doe")).toHaveAttribute(
+      "aria-current",
+      "page"
     )
   })
 

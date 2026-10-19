@@ -57,7 +57,7 @@ export function KpiCard({
             className={cn(
               // 40 px chip; the ::after overlay grows the hit area to 48 px
               // (44 px on a coarse pointer, WCAG 2.5.8).
-              "relative flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors outline-none after:absolute after:-inset-1 focus-visible:ring-3 pointer-coarse:after:-inset-[2px]",
+              "relative flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors outline-none after:absolute after:-inset-1 focus-visible:ring-3",
               hero
                 ? "border-hero-chip bg-hero-chip text-hero-chip-foreground hover:bg-hero-chip/85 focus-visible:ring-white/60"
                 : "border-foreground/70 hover:bg-muted focus-visible:ring-ring/50"
