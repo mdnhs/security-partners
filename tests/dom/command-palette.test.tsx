@@ -212,7 +212,7 @@ describe("⌘K command palette (master 4.1)", () => {
       .map((o) => o.textContent)
     expect(options).toEqual([
       "Dashboard",
-      "Leads",
+      "Enquiries",
       "Account",
       "Open the public site",
     ])

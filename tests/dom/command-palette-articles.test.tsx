@@ -71,7 +71,10 @@ describe("⌘K palette and articles (Phase 5)", () => {
     const labels = within(dialog)
       .getAllByRole("option")
       .map((o) => o.textContent)
-    expect(labels).toEqual(expect.arrayContaining(["Articles", "New article"]))
+    // Articles is a sub-page of Insights (its section shown beside it).
+    expect(labels).toEqual(
+      expect.arrayContaining(["ArticlesInsights", "New article"])
+    )
     await user.click(
       within(dialog).getByRole("option", { name: "New article" })
     )
@@ -96,7 +99,7 @@ describe("⌘K palette and articles (Phase 5)", () => {
     const labels = within(dialog)
       .getAllByRole("option")
       .map((o) => o.textContent)
-    expect(labels).toContain("Articles")
+    expect(labels).toContain("ArticlesInsights")
     expect(labels).not.toContain("New article")
   })
 })

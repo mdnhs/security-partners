@@ -42,7 +42,8 @@ describe("Collections section tabs", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent)
-    ).toEqual(["Team", "Clients", "Group companies", "Categories"])
+      // Categories moved to Insights (MK IA, spec §5.1).
+    ).toEqual(["Team", "Clients", "Group companies"])
     expect(within(nav).getByRole("link", { name: "Clients" })).toHaveAttribute(
       "aria-current",
       "page"

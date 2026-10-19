@@ -1,59 +1,64 @@
 import {
-  Building2,
-  FileText,
-  Images,
-  Inbox,
-  LayoutDashboard,
-  Layers,
-  type LucideIcon,
-  Megaphone,
-  Newspaper,
-  ScrollText,
-  SearchCheck,
-  Settings,
-  ShieldCheck,
-  Tags,
-  UserCog,
-  UserRound,
-  Users,
-  Wrench,
-} from "lucide-react"
+  EXTRA_LINKS,
+  HELP_LINK,
+  type NavItem,
+  type NavLink,
+  NAV_ITEMS,
+  reachableLinks,
+  visibleNav,
+} from "@/lib/admin/nav"
+import { hasPermission } from "@/lib/auth/permissions"
+import type { Role } from "@/lib/auth/roles"
 
-import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
-import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
+import type { LucideIcon } from "lucide-react"
 
-/** Live counts shown beside nav items. */
-export type NavBadgeKey = "new-leads"
-export type NavBadges = Partial<Record<NavBadgeKey, number>>
+/**
+ * Transitional bridge (MK parity B1 → B4): the registry lives in
+ * `lib/admin/nav.ts`; these thin adapters keep the current shell, the
+ * per-section tab layouts and the role e2e working until B4 switches them to
+ * `visibleNav`/`dockLinks`/`reachableLinks` and deletes this file.
+ */
+export * from "@/lib/admin/nav"
 
-export type NavChild = {
-  label: string
-  href: string
-  /** ⌘K's icon for the sub-page (the parent's when absent). */
-  icon?: LucideIcon
-  /** null = every signed-in user. */
-  permission: PermissionRequest | null
+/**
+ * Registry hrefs whose pages have not moved yet (B2/B3 move them and drop
+ * their entries; old URLs then redirect). Until then the shell links to the
+ * page's current address so nothing it renders is a 404.
+ */
+export const CURRENT_ROUTES: Readonly<Record<string, string>> = {
+  "/admin/insights": "/admin/articles",
+  "/admin/insights/categories": "/admin/categories",
+  "/admin/collections/team": "/admin/team",
+  "/admin/collections/clients": "/admin/clients",
+  "/admin/collections/group-companies": "/admin/group-companies",
+  "/admin/marketing": "/admin/marketing/tracking",
+  "/admin/marketing/code": "/admin/marketing/custom-code",
+  "/admin/settings/ai-assistant": "/admin/settings/integrations/ai",
+  "/admin/activity": "/admin/audit",
+}
+/** Registered pages that do not exist yet (B4 builds /admin/help). */
+const UNBUILT = new Set([HELP_LINK.href])
+
+const route = (href: string) => CURRENT_ROUTES[href] ?? href
+const onCurrentRoute = <T extends NavLink>(link: T): T => ({
+  ...link,
+  href: route(link.href),
+})
+
+/** The item at current routes; a section opens its first visible sub-page. */
+function legacyItem(item: NavItem): NavItem {
+  if (!item.children) return onCurrentRoute(item)
+  const children = item.children.map(onCurrentRoute)
+  return { ...item, href: children[0]!.href, children }
 }
 
-/** Stable handles for items other code looks up (labels may change). */
-export type NavItemId = "collections"
-
-export type NavItem = {
-  /** Set when other code (e.g. the Collections tabs) needs to find the item. */
-  id?: NavItemId
-  label: string
-  href: string
-  icon: LucideIcon
-  /** null = every signed-in user. Items are hidden without read permission (spec §8.1). */
-  permission: PermissionRequest | null
-  /** "exact" for /admin (otherwise every admin URL would match). */
-  match: "exact" | "prefix"
-  /** Which count from NavBadges (if any) to show beside the label. */
-  badge?: NavBadgeKey
-  /** Sub-pages, shown as SectionTabs inside the content panel (JW). */
-  children?: NavChild[]
-  /** Drawn as an icon button in the sidebar's footer dock, not in the menu. */
-  dock?: true
+const ACCOUNT = EXTRA_LINKS.find((link) => link.id === "account")!
+const ACCOUNT_ITEM: NavItem = {
+  ...ACCOUNT,
+  group: "general",
+  icon: ACCOUNT.icon!,
+  match: "prefix",
+  dock: true,
 }
 
 export type NavSection = { label: string; items: NavItem[] }
@@ -62,280 +67,58 @@ export type NavDestination = {
   label: string
   href: string
   icon: LucideIcon
-  /** The section item a sub-page belongs to (⌘K shows it as context). */
+  /** The section a sub-page belongs to (⌘K shows it as context). */
   parent: string | null
 }
 
-const COLLECTION = { collection: ["read"] } satisfies PermissionRequest
+/** The sidebar menu (Menu / Growth / General) at current routes. */
+export function menuSections(roles: readonly Role[]): NavSection[] {
+  return visibleNav(roles).map((group) => ({
+    label: group.label,
+    items: group.items.map(legacyItem),
+  }))
+}
 
 /**
- * Admin IA (spec §8.1) in the James Whitfield structure: the sidebar lists
- * sections; a section's sub-pages are tabs in the content panel; account
- * and administration links (Users, Audit log — ruling D3) sit in the footer
- * dock. Later phases add their items here (SEO, Marketing).
+ * Footer dock: Users & roles, Activity log (owners/admins) and Account; Help
+ * replaces Account in B4, when /admin/help exists.
  */
-export const NAV_SECTIONS: NavSection[] = [
-  {
-    label: "Overview",
-    items: [
-      {
-        label: "Dashboard",
-        href: "/admin",
-        icon: LayoutDashboard,
-        permission: null,
-        match: "exact",
-      },
-      {
-        label: "Leads",
-        href: "/admin/leads",
-        icon: Inbox,
-        permission: { lead: ["read"] },
-        match: "prefix",
-        badge: "new-leads",
-      },
-    ],
-  },
-  {
-    label: "Content",
-    items: [
-      {
-        label: "Pages",
-        href: "/admin/pages",
-        icon: FileText,
-        permission: { page: ["read"] },
-        match: "prefix",
-      },
-      {
-        label: "Articles",
-        href: "/admin/articles",
-        icon: Newspaper,
-        permission: { article: ["read"] },
-        match: "prefix",
-      },
-      {
-        label: "Services",
-        href: "/admin/services",
-        icon: Wrench,
-        permission: { service: ["read"] },
-        match: "prefix",
-      },
-      {
-        id: "collections",
-        label: "Collections",
-        href: "/admin/team",
-        icon: Layers,
-        permission: COLLECTION,
-        match: "prefix",
-        children: [
-          {
-            label: "Team",
-            href: "/admin/team",
-            icon: Users,
-            permission: COLLECTION,
-          },
-          {
-            label: "Clients",
-            href: "/admin/clients",
-            icon: ShieldCheck,
-            permission: COLLECTION,
-          },
-          {
-            label: "Group companies",
-            href: "/admin/group-companies",
-            icon: Building2,
-            permission: COLLECTION,
-          },
-          {
-            label: "Categories",
-            href: "/admin/categories",
-            icon: Tags,
-            permission: COLLECTION,
-          },
-        ],
-      },
-      {
-        label: "Media",
-        href: "/admin/media",
-        icon: Images,
-        permission: { media: ["read"] },
-        match: "prefix",
-      },
-    ],
-  },
-  {
-    // Phase 8 (04b "Patterns for later phases"): SEO and Marketing, each a
-    // section whose sub-pages are route tabs.
-    label: "Growth",
-    items: [
-      {
-        label: "SEO",
-        href: "/admin/seo",
-        icon: SearchCheck,
-        permission: { seo: ["read"] },
-        match: "prefix",
-        children: [
-          {
-            label: "Overview",
-            href: "/admin/seo",
-            permission: { seo: ["read"] },
-          },
-          {
-            label: "Defaults",
-            href: "/admin/seo/defaults",
-            permission: { seo: ["read"] },
-          },
-          {
-            label: "Redirects",
-            href: "/admin/seo/redirects",
-            permission: { redirect: ["read"] },
-          },
-        ],
-      },
-      {
-        label: "Marketing",
-        href: "/admin/marketing/tracking",
-        icon: Megaphone,
-        permission: { marketing: ["read"] },
-        match: "prefix",
-        children: [
-          {
-            label: "Tracking",
-            href: "/admin/marketing/tracking",
-            permission: { marketing: ["read"] },
-          },
-          {
-            label: "Consent banner",
-            href: "/admin/marketing/consent",
-            permission: { marketing: ["read"] },
-          },
-          {
-            label: "Custom code",
-            href: "/admin/marketing/custom-code",
-            // Owner only; the same rule the page and API check.
-            permission: GROWTH_SETTINGS.customCode.read,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    label: "Configuration",
-    items: [
-      {
-        label: "Settings",
-        href: "/admin/settings",
-        icon: Settings,
-        permission: { settings: ["read"] },
-        match: "prefix",
-      },
-    ],
-  },
-  {
-    label: "Administration",
-    items: [
-      {
-        label: "Users",
-        href: "/admin/users",
-        icon: UserCog,
-        permission: { user: ["read"] },
-        match: "prefix",
-        dock: true,
-      },
-      {
-        label: "Audit log",
-        href: "/admin/audit",
-        icon: ScrollText,
-        permission: { audit: ["read"] },
-        match: "prefix",
-        dock: true,
-      },
-    ],
-  },
-  {
-    label: "You",
-    items: [
-      {
-        label: "Account",
-        href: "/admin/account",
-        icon: UserRound,
-        permission: null,
-        match: "prefix",
-        dock: true,
-      },
-    ],
-  },
-]
-
-const allowed = (
-  roles: readonly string[],
-  permission: PermissionRequest | null
-) => permission === null || hasPermission(roles, permission)
-
-/** The sections and items `roles` may see (children filtered); empty ones dropped. */
-export function navItems(roles: readonly string[]): NavSection[] {
-  return NAV_SECTIONS.map((section) => ({
-    label: section.label,
-    items: section.items.flatMap((item): NavItem[] => {
-      if (!allowed(roles, item.permission)) return []
-      if (!item.children) return [item]
-      const children = item.children.filter((child) =>
-        allowed(roles, child.permission)
-      )
-      if (children.length === 0) return []
-      // The parent opens its first visible sub-page.
-      return [{ ...item, href: children[0]!.href, children }]
-    }),
-  })).filter((section) => section.items.length > 0)
+export function dockItems(roles: readonly Role[]): NavItem[] {
+  return [
+    ...NAV_ITEMS.filter(
+      (item) =>
+        item.dock &&
+        (item.permission === null || hasPermission(roles, item.permission))
+    ).map(legacyItem),
+    ACCOUNT_ITEM,
+  ]
 }
 
-/** The sidebar menu: navItems without the dock's items. */
-export function menuSections(roles: readonly string[]): NavSection[] {
-  return navItems(roles)
-    .map((section) => ({
-      label: section.label,
-      items: section.items.filter((item) => !item.dock),
-    }))
-    .filter((section) => section.items.length > 0)
+/** Every visible item, dock included, at current routes (section tab layouts). */
+export function navItems(roles: readonly Role[]): NavSection[] {
+  return [...menuSections(roles), { label: "Dock", items: dockItems(roles) }]
 }
 
-/** Footer-dock links: Users, Audit log (owners/admins) and Account. */
-export function dockItems(roles: readonly string[]): NavItem[] {
-  return navItems(roles).flatMap((section) =>
-    section.items.filter((item) => item.dock)
-  )
-}
-
-/** Every page a role can open from the navigation, sub-pages flattened (⌘K). */
-export function navDestinations(roles: readonly string[]): NavDestination[] {
-  return navItems(roles).flatMap((section) =>
-    section.items.flatMap((item): NavDestination[] =>
-      item.children
-        ? item.children.map((child) => ({
-            label: child.label,
-            href: child.href,
-            icon: child.icon ?? item.icon,
-            parent: item.label,
-          }))
-        : [
-            {
-              label: item.label,
-              href: item.href,
-              icon: item.icon,
-              parent: null,
-            },
-          ]
-    )
-  )
-}
-
-/** The item `id` names, as `roles` may see it (children filtered), if any. */
+/** The visible item with this registry id, at current routes. */
 export function findNavItem(
-  roles: readonly string[],
-  id: NavItemId
+  roles: readonly Role[],
+  id: string
 ): NavItem | undefined {
   return navItems(roles)
     .flatMap((section) => section.items)
     .find((item) => item.id === id)
+}
+
+/** ⌘K destinations: `reachableLinks` at current routes, unbuilt pages left out. */
+export function navDestinations(roles: readonly Role[]): NavDestination[] {
+  return reachableLinks(roles)
+    .filter((link) => !UNBUILT.has(link.href))
+    .map((link) => ({
+      label: link.label,
+      href: route(link.href),
+      icon: link.icon,
+      parent: link.parent,
+    }))
 }
 
 const covers = (href: string, pathname: string) =>

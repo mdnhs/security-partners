@@ -395,10 +395,10 @@ describe("leads inbox (master 7.4)", () => {
       </AdminShell>
     )
     const nav = screen.getByRole("navigation", { name: "Admin" })
-    const leads = within(nav).getByRole("link", { name: /Leads/ })
+    const leads = within(nav).getByRole("link", { name: /Enquiries/ })
     expect(leads).toHaveAttribute("href", "/admin/leads")
     expect(leads).toHaveAttribute("aria-current", "page")
-    expect(within(nav).getByLabelText("3 new leads")).toHaveTextContent("3")
+    expect(within(nav).getByLabelText("3 new enquiries")).toHaveTextContent("3")
   })
 
   it("admins can delete after confirming", async () => {

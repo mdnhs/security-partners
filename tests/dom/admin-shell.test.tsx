@@ -324,7 +324,7 @@ describe("AdminShell (master 4.1)", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent)
-    ).toEqual(["Dashboard", "Leads"])
+    ).toEqual(["Dashboard", "Enquiries"])
     expect(screen.getByRole("main")).toHaveTextContent("Body")
   })
 
@@ -343,12 +343,12 @@ describe("AdminShell (master 4.1)", () => {
     ).toEqual([
       "Dashboard",
       "Pages",
-      "Articles",
+      "Insights",
       "Services",
       "Collections",
       "Media",
       "SEO",
-      "Settings",
+      "Site settings",
     ])
     const collections = within(nav).getByRole("link", { name: "Collections" })
     expect(collections).toHaveAttribute("aria-current", "page")
@@ -676,7 +676,7 @@ describe("AdminShell (master 4.1)", () => {
         .getAllByRole("list")
         .map((list) => list.getAttribute("aria-labelledby"))
         .map((id) => document.getElementById(id!)?.textContent)
-    ).toEqual(["Overview", "Content", "Growth", "Configuration"])
+    ).toEqual(["Menu", "Growth", "General"])
   })
 
   it("website card: environment, host and Open site", () => {
@@ -712,6 +712,8 @@ describe("AdminShell (master 4.1)", () => {
 
 describe("NavEntry", () => {
   const item = {
+    id: "leads",
+    group: "menu" as const,
     label: "Leads",
     href: "/admin/leads",
     icon: Inbox,
