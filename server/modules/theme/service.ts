@@ -1,7 +1,6 @@
 import "server-only"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
-import { isDeepEqual } from "@/lib/json"
 import type {
   ThemeDraftInput,
   ThemeDto,
@@ -28,45 +27,49 @@ import {
   type VersionedAuditEvent,
   type VersionedRecord,
   type VersionedStore,
+  versionedDto,
 } from "@/server/lib/versioning"
 import {
   findSettingsForEdit,
   type SettingsEditRow,
   updateSettingsIfVersion,
 } from "@/server/modules/settings/repo"
+import { readThemeOrDefault } from "@/server/modules/theme/queries"
 
 /** The theme is the settings row "theme" (revisions: settings/theme). */
 const KEY = "theme"
 
 type Row = SettingsEditRow & VersionedRecord<ThemeConfigValue>
 
-/** A stored value that no longer parses reads as the default theme. */
-function readTheme(value: unknown): ThemeConfigValue {
-  const parsed = ThemeConfig.safeParse(value)
-  return parsed.success ? parsed.data : DEFAULT_THEME
-}
-
-/** settings rows lack status/publishedAt/scheduledAt (spec §5.4): derive them. */
+/**
+ * settings rows lack status/publishedAt/scheduledAt (spec §5.4): derive them.
+ * draft/published stay the raw stored values (as the settings store does):
+ * publish re-validates the draft, so a corrupt or schema-drifted row is a
+ * 422, never a silent publish of the default theme.
+ */
 function asVersioned(row: SettingsEditRow | null): Row | null {
   if (!row) return null
   return {
     ...row,
-    draft: readTheme(row.draft),
-    published: row.published === null ? null : readTheme(row.published),
+    draft: row.draft as ThemeConfigValue,
+    published: row.published as ThemeConfigValue | null,
     status: row.published === null ? "draft" : "published",
     scheduledAt: null,
     publishedAt: null,
   }
 }
 
+/** The editor's view: an unparseable stored value shows as the default (logged). */
 function toDto(row: Row): ThemeDto {
+  const draft = readThemeOrDefault(row.draft)
   return {
-    draft: row.draft,
-    published: row.published,
+    draft,
+    published:
+      row.published === null ? null : readThemeOrDefault(row.published),
     version: row.version,
     updatedAt: row.updatedAt.toISOString(),
-    issues: checkTheme(row.draft),
-    hasDraft: row.published === null || !isDeepEqual(row.draft, row.published),
+    issues: checkTheme(draft),
+    hasDraft: versionedDto(row).dirty,
   }
 }
 
