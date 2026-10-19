@@ -161,7 +161,7 @@ test("SEO overview: alt-text card, Needs work / All, Fix opens the editor's SEO 
     alt.getByRole("link", { name: "Find images without alt text" })
   ).toHaveAttribute("href", "/admin/media?missingAlt=true")
 
-  const filter = page.getByRole("navigation", { name: "Show" })
+  const filter = page.getByRole("navigation", { name: "Issue filter" })
   await expect(
     filter.getByRole("link", { name: "Needs work" })
   ).toHaveAttribute("aria-current", "page")

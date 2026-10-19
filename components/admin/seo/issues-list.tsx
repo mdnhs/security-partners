@@ -10,6 +10,8 @@ import { StatusPill } from "@/components/admin/kit/status-pill"
 import type { SeoHealthDto, SeoIssueDto } from "@/lib/schemas/api/seo"
 import { cn } from "@/lib/utils"
 
+import { MISSING_ALT_HREF } from "./alt-text-card"
+
 /** Needs work (default) or All (?show=all). */
 export type IssuesFilter = "needs-work" | "all"
 
@@ -77,8 +79,16 @@ export function groupIssues(
   return [...groups.values()]
 }
 
-const SEGMENT =
-  "inline-flex h-8 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-10"
+/** Image groups shown before pointing to the media library's filter. */
+export const IMAGE_GROUP_LIMIT = 10
+
+/** 44 px on touch (WCAG 2.5.8 + project rule). */
+const COARSE_TARGET = "pointer-coarse:h-11 pointer-coarse:min-w-11"
+
+const SEGMENT = cn(
+  "inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+  COARSE_TARGET
+)
 const SEGMENT_ACTIVE = "bg-card text-foreground shadow-sm"
 
 /** Needs work / All as a segmented control; the choice lives in ?show=. */
@@ -98,7 +108,7 @@ function FilterControl({ filter }: { filter: IssuesFilter }) {
   ]
   return (
     <nav
-      aria-label="Show"
+      aria-label="Issue filter"
       className="inline-flex gap-1 self-start rounded-lg bg-muted p-1"
     >
       {items.map((item) => {
@@ -107,7 +117,7 @@ function FilterControl({ filter }: { filter: IssuesFilter }) {
           <Link
             key={item.value}
             href={hrefFor(item.value)}
-            replace
+            // A click pushes: Back restores the previous filter.
             scroll={false}
             aria-current={active ? "page" : undefined}
             className={cn(SEGMENT, active && SEGMENT_ACTIVE)}
@@ -136,7 +146,13 @@ export function IssuesList({
   filter: IssuesFilter
   renderAction?: (group: IssueGroup) => ReactNode
 }) {
-  const groups = groupIssues(issues, entities, filter)
+  const all = groupIssues(issues, entities, filter)
+  // A large library can have many images without alt text: show the first
+  // few, the media library's filter lists the rest.
+  const images = all.filter((g) => g.kind === "media")
+  const hiddenImages = Math.max(0, images.length - IMAGE_GROUP_LIMIT)
+  const shown = new Set(images.slice(0, IMAGE_GROUP_LIMIT))
+  const groups = all.filter((g) => g.kind !== "media" || shown.has(g))
   return (
     <div className="flex flex-col gap-4">
       <FilterControl filter={filter} />
@@ -164,6 +180,24 @@ export function IssuesList({
           ))}
         </ul>
       )}
+      {hiddenImages > 0 ? (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <span>
+            {hiddenImages === 1
+              ? "1 more image without alt text."
+              : `${hiddenImages} more images without alt text.`}
+          </span>
+          <Link
+            href={MISSING_ALT_HREF}
+            className={cn(
+              "inline-flex items-center font-semibold text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+              COARSE_TARGET
+            )}
+          >
+            Find images without alt text
+          </Link>
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -171,7 +205,9 @@ export function IssuesList({
 function Group({ group, action }: { group: IssueGroup; action: ReactNode }) {
   const headingId = useId()
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2 py-3">
+    // An article, not a region: dozens of groups must not flood the
+    // landmarks list.
+    <article aria-labelledby={headingId} className="flex flex-col gap-2 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -206,7 +242,10 @@ function Group({ group, action }: { group: IssueGroup; action: ReactNode }) {
               <span className="min-w-0">{issue.message}</span>
               <Link
                 href={issue.fixHref}
-                className="inline-flex h-8 shrink-0 items-center rounded-md px-2 font-semibold text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:h-10"
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center justify-center rounded-md px-2 font-semibold text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  COARSE_TARGET
+                )}
               >
                 Fix
                 <span className="sr-only">
@@ -217,6 +256,6 @@ function Group({ group, action }: { group: IssueGroup; action: ReactNode }) {
           ))}
         </ul>
       )}
-    </section>
+    </article>
   )
 }
