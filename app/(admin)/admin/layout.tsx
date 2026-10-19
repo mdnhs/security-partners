@@ -51,6 +51,8 @@ export default function AdminRootLayout({
       )}
     >
       <body className="min-h-svh bg-background text-foreground">
+        {/* The published theme is applied per segment (AdminThemed), in the
+            same Suspense boundary as the content it styles. */}
         <AdminThemeProvider>{children}</AdminThemeProvider>
       </body>
     </html>

@@ -15,6 +15,7 @@ export type NextUpItem = {
   id:
     | "smtp"
     | "r2"
+    | "ai"
     | "two-factor"
     | "review"
     | "unassigned-leads"

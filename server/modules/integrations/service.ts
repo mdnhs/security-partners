@@ -14,6 +14,13 @@ import {
   type IntegrationKey,
   isSecretField,
 } from "@/lib/schemas/integrations"
+import { normaliseBaseUrl } from "@/lib/ai/base-url"
+import {
+  AI_SHARE_ENQUIRY_OFF,
+  type AiShareEnquiryDetails,
+  aiShareEnquiryDetails,
+  aiShareEnquiryDetailsInput,
+} from "@/lib/schemas/integrations/ai"
 import { smtpConfig } from "@/lib/schemas/integrations/smtp"
 import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
@@ -26,6 +33,7 @@ import {
   forbidden,
   notFound,
 } from "@/server/lib/errors"
+import { consumeRateLimit } from "@/server/lib/rate-limit"
 import { resetR2Client } from "@/server/lib/r2-client"
 import { resolveSmtpTarget, type SmtpTarget } from "@/server/lib/smtp-target"
 import { countMediaByDriver } from "@/server/modules/media/repo"
@@ -43,8 +51,19 @@ import { runIntegrationTest, type TestResult } from "./testers"
 
 type Values = Record<string, unknown>
 
-const sameValue = (a: unknown, b: unknown) =>
-  JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+/** JSON with object keys sorted: jsonb does not keep the key order. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value ?? null, (_, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0
+          )
+        )
+      : v
+  )
+
+const sameValue = (a: unknown, b: unknown) => canonical(a) === canonical(b)
 
 /** AAD binding each ciphertext to its settings key and field (spec §4). */
 export const secretAad = (key: IntegrationKey, field: string) =>
@@ -224,10 +243,69 @@ const RETARGET_RULES: Partial<
       secretAccessKey: "Enter the secret access key again for the new bucket",
     },
   },
-  "integrations.ai": {
-    targets: ["provider"],
-    secrets: { apiKey: "Enter the API key again for the new provider" },
-  },
+}
+
+/**
+ * Where the AI key is sent: the provider, plus the base URL of an
+ * OpenAI-compatible one. Unlike the rules above, a new target drops the
+ * stored key (MK parity): it is never sent anywhere it was not entered for.
+ */
+const aiTarget = (values: Values) => {
+  const provider = String(values.provider ?? "")
+  return provider === "openai-compatible"
+    ? `${provider} ${normaliseBaseUrl(String(values.baseUrl ?? ""))}`
+    : provider
+}
+const AI_KEY_AGAIN = "Enter the API key again for the new provider"
+const ACKNOWLEDGE_FIRST = "Confirm the acknowledgement first"
+
+const isEntered = (value: unknown) =>
+  typeof value === "string" && value.trim() !== ""
+
+/**
+ * The stored enquiry-details switch after this save (ruling 5). Turning it
+ * on needs owner:manage (403) and the acknowledgement (422), and stamps who
+ * and when; turning it off (anyone who may save) clears the stamp; an
+ * unchanged "on" keeps the owner's stamp.
+ *
+ * `retargeted` (a new provider or OpenAI-compatible base URL): the details
+ * would go to a processor the owner never acknowledged, so the switch is
+ * reset to off. A switch re-sent as it was (no `acknowledge`) is reset
+ * silently; only an owner re-acknowledging in the same save keeps it on.
+ */
+function nextShareEnquiryDetails(
+  actor: Actor,
+  input: Values,
+  previous: Values | null,
+  retargeted: boolean
+): AiShareEnquiryDetails {
+  const stored = aiShareEnquiryDetails.safeParse(previous?.shareEnquiryDetails)
+  const current =
+    stored.success && !retargeted ? stored.data : AI_SHARE_ENQUIRY_OFF
+  if (!("shareEnquiryDetails" in input)) return current
+  const parsed = aiShareEnquiryDetailsInput.safeParse(input.shareEnquiryDetails)
+  if (!parsed.success)
+    throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
+      fieldErrors: { shareEnquiryDetails: ["Invalid value"] },
+    })
+  if (!parsed.data.enabled) return AI_SHARE_ENQUIRY_OFF
+  if (current.enabled) return current
+  if (retargeted && parsed.data.acknowledge !== true)
+    return AI_SHARE_ENQUIRY_OFF
+  if (
+    actor.impersonatorId ||
+    !hasPermission(actor.roles, { owner: ["manage"] })
+  )
+    throw forbidden()
+  if (parsed.data.acknowledge !== true)
+    throw new AppError("VALIDATION_FAILED", ACKNOWLEDGE_FIRST, {
+      fieldErrors: { shareEnquiryDetails: [ACKNOWLEDGE_FIRST] },
+    })
+  return {
+    enabled: true,
+    acknowledgedBy: actor.userId,
+    acknowledgedAt: new Date().toISOString(),
+  }
 }
 
 function retargetErrors(
@@ -334,6 +412,25 @@ export async function saveIntegration(
     const opened = row ? openRow(key, row) : null
     const previous = opened?.values ?? null
     const merged = mergeValues(key, input.values, previous)
+    // "Remove key": only this integration's secrets, never with a new value.
+    const clearErrors: Record<string, string[]> = {}
+    for (const field of input.clearSecrets ?? []) {
+      if (!isSecretField(key, field))
+        throw new AppError(
+          "VALIDATION_FAILED",
+          "Only a secret can be removed",
+          {
+            fieldErrors: { clearSecrets: ["Only a secret can be removed"] },
+          }
+        )
+      if (isEntered(input.values[field]))
+        clearErrors[field] = ["Either enter a new value or remove it, not both"]
+      else merged[field] = ""
+    }
+    if (Object.keys(clearErrors).length > 0)
+      throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
+        fieldErrors: clearErrors,
+      })
     if (key === "integrations.r2" && previous) {
       // Before field validation: re-entering the keys cannot help here.
       const candidate = INTEGRATIONS[key].schema.safeParse(merged)
@@ -346,8 +443,29 @@ export async function saveIntegration(
     // SMTP without sign-in sends no password: none is kept.
     if (key === "integrations.smtp" && String(merged.user ?? "").trim() === "")
       merged.password = ""
+    let aiKeyDropped = false
+    if (key === "integrations.ai") {
+      // Only an OpenAI-compatible provider has a base URL.
+      if (merged.provider !== "openai-compatible") merged.baseUrl = ""
+      const retargeted =
+        previous !== null && aiTarget(merged) !== aiTarget(previous)
+      merged.shareEnquiryDetails = nextShareEnquiryDetails(
+        actor,
+        input.values,
+        previous,
+        retargeted
+      )
+      if (
+        retargeted &&
+        !isEntered(input.values.apiKey) &&
+        merged.apiKey !== ""
+      ) {
+        merged.apiKey = ""
+        aiKeyDropped = true
+      }
+    }
     const parsed = INTEGRATIONS[key].schema.safeParse(merged)
-    const fieldErrors = {
+    const fieldErrors: Record<string, string[]> = {
       ...(parsed.success ? {} : fieldErrorsFromIssues(parsed.error.issues)),
       ...retargetErrors(
         key,
@@ -364,6 +482,8 @@ export async function saveIntegration(
           : await resolveSmtpTarget(host)
       if (target.kind === "blocked") fieldErrors.host = [BLOCKED_HOST_MESSAGE]
     }
+    // An assistant left on needs the key again for its new provider.
+    if (aiKeyDropped && fieldErrors.apiKey) fieldErrors.apiKey = [AI_KEY_AGAIN]
     if (!parsed.success || Object.keys(fieldErrors).length > 0)
       throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
         fieldErrors,
@@ -488,11 +608,24 @@ export async function integrationReadState(
 }
 
 /** "Test connection" with the saved settings. A failed test is a result (200), not an error. */
+/** Spec §6.3: "Test connection" at most 5 a minute per user. */
+export const INTEGRATION_TEST_RATE_LIMIT = { max: 5, windowMs: 60_000 } as const
+
 export async function testIntegration(
   actor: Actor,
   key: IntegrationKey
 ): Promise<IntegrationTestResult> {
   assertCan(actor, { integration: ["test"] })
+  // Each test reaches an outside service with the saved secrets.
+  const limit = await consumeRateLimit(
+    `integrations:test:${actor.userId}`,
+    INTEGRATION_TEST_RATE_LIMIT
+  )
+  if (!limit.allowed)
+    throw new AppError(
+      "RATE_LIMITED",
+      "You have run a lot of connection tests. Wait a minute, then try again."
+    )
   const db = getDb()
   const loaded = await loadConfig(db, key)
   if (!loaded)

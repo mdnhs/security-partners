@@ -29,11 +29,16 @@ describe("settings schemas (spec §5.4 + shared sections ruling)", () => {
       "customCode",
       "microcopy",
       "leads",
+      "theme",
     ])
     expect(Object.keys(fixture).sort()).toEqual([...SETTINGS_KEYS].sort())
     expect(PUBLIC_SETTINGS_KEYS.every(isSettingsKey)).toBe(true)
     expect(isSettingsKey("integrations.smtp")).toBe(false)
     expect(isSettingsKey("toString")).toBe(false)
+    // Appearance only (server/modules/theme), never public.
+    expect((PUBLIC_SETTINGS_KEYS as readonly string[]).includes("theme")).toBe(
+      false
+    )
   })
 
   it.each(SETTINGS_KEYS)(

@@ -7,14 +7,22 @@ import {
 } from "@aws-sdk/client-s3"
 import nodemailer from "nodemailer"
 
-import type {
-  AiConfig,
-  IntegrationConfig,
-  IntegrationKey,
-  R2Config,
-  SmtpConfig,
-  TurnstileConfig,
+import { baseUrlProblem } from "@/lib/ai/base-url"
+import {
+  type AiConfig,
+  allowLocalAiHttp,
+  type IntegrationConfig,
+  type IntegrationKey,
+  type R2Config,
+  type SmtpConfig,
+  type TurnstileConfig,
 } from "@/lib/schemas/integrations"
+import {
+  aiAuthHeaders,
+  aiFetchFor,
+  aiModelsUrl,
+} from "@/server/lib/ai-endpoints"
+import { isAiTargetBlocked } from "@/server/lib/ai-target"
 import { isTimeoutError } from "@/server/lib/errors"
 import { createR2Client, r2Failure } from "@/server/lib/r2-client"
 import { isLoopbackHost } from "@/server/lib/smtp-target"
@@ -172,28 +180,32 @@ export function aiModelRequest(c: AiConfig): {
   url: string
   headers: Record<string, string>
 } {
-  const model = encodeURIComponent(c.model)
-  if (c.provider === "anthropic")
-    return {
-      url: `https://api.anthropic.com/v1/models/${model}`,
-      headers: { "x-api-key": c.apiKey, "anthropic-version": "2023-06-01" },
-    }
   return {
-    url: `https://api.openai.com/v1/models/${model}`,
-    headers: { authorization: `Bearer ${c.apiKey}` },
+    url: `${aiModelsUrl(c.provider, c.baseUrl)}/${encodeURIComponent(c.model)}`,
+    headers: aiAuthHeaders(c.provider, c.apiKey),
   }
 }
 
+/**
+ * AI: retrieve the saved model with the saved key. A user-set base URL is
+ * fetched through the SSRF guard (resolved, checked, pinned, no redirects).
+ */
 export async function testAi(
   c: AiConfig,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = aiFetchFor(c.provider)
 ): Promise<TestResult> {
   if (c.apiKey === "") return fail("Enter the API key first.")
   if (c.model === "") return fail("Enter the model first.")
+  if (
+    c.provider === "openai-compatible" &&
+    baseUrlProblem(c.baseUrl, { allowLocalHttp: allowLocalAiHttp() })
+  )
+    return fail("The base URL is not allowed.")
   const { url, headers } = aiModelRequest(c)
   try {
     const res = await fetchImpl(url, {
       headers,
+      redirect: "error",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (res.ok)
@@ -204,6 +216,7 @@ export async function testAi(
       return fail(`The key works, but model “${c.model}” was not found.`)
     return fail(`The provider answered ${res.status}.`)
   } catch (err) {
+    if (isAiTargetBlocked(err)) return fail("The base URL is not allowed.")
     return fail(
       isTimeoutError(err)
         ? "The provider did not respond in time."

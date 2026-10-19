@@ -946,6 +946,30 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
+    // MK-parity C5: the Appearance screen with the seeded (default) theme.
+    test(`admin appearance ${colorScheme}`, async ({ page }) => {
+      await signIn(page)
+      await page.goto("/admin/appearance")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Appearance" })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("status", { name: "Save status" })
+      ).toHaveText("No draft changes")
+      await expect(
+        page.getByRole("heading", { name: "Brand images" })
+      ).toBeVisible()
+      // History depends on what earlier e2e runs published (sp_e2e with a
+      // reused server): wait for it to load, then mask it.
+      const history = page.getByRole("region", { name: "History" })
+      await expect(history).toBeVisible()
+      await expect(history.getByText("Loading…")).toHaveCount(0)
+      await visibleImagesLoaded(page)
+      await expect(page).toHaveScreenshot(shot("appearance"), {
+        mask: [...(await masks(page)), history],
+      })
+    })
+
     // Phase 8 Task 11: Marketing tabs. Custom code is owner-only; it is
     // covered by tests/e2e/admin-a11y.spec.ts and consent.spec.ts. (The
     // visual seed gained an owner in MK-parity A7 for /admin/design.)

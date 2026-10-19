@@ -13,7 +13,9 @@ import {
   AssistantProvider,
   useAssistantScreen,
 } from "@/components/admin/ai/assistant-context"
+import { AssistantPanel } from "@/components/admin/ai/assistant-panel"
 import { AI_STATUS_KEY } from "@/components/admin/ai/queries"
+import type { AssistantChat } from "@/components/admin/ai/use-assistant-chat"
 import { makeQueryClient } from "@/components/admin/providers"
 import type { AiStatusDto } from "@/lib/schemas/api/ai"
 
@@ -36,6 +38,8 @@ const reply = (text: string, conversationId = "c1") =>
 
 const ON: AiStatusDto = {
   available: true,
+  canManage: false,
+  reason: null,
   model: "claude-sonnet-5-5",
   readOnly: false,
 }
@@ -158,10 +162,79 @@ async function sendMessage(
 
 describe("AssistantButton (master 9.2: hidden when disabled)", () => {
   it("renders nothing while off, not allowed or unknown, and asks nothing", () => {
-    renderAssistant({ available: false, model: null, readOnly: false })
+    renderAssistant({
+      available: false,
+      canManage: false,
+      reason: "off",
+      model: null,
+      readOnly: false,
+    })
     expect(screen.queryByRole("button", { name: "AI assistant" })).toBeNull()
     renderAssistant(null)
     expect(screen.queryByRole("button", { name: "AI assistant" })).toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  it("shows managers the button while unavailable, with a set-up link (MK C7)", async () => {
+    const user = userEvent.setup()
+    renderAssistant({
+      available: false,
+      canManage: true,
+      reason: "unconfigured",
+      model: null,
+      readOnly: false,
+    })
+    const dialog = await openPanel(user)
+    expect(
+      within(dialog).getByText(
+        "The AI assistant is turned off or not set up yet."
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole("link", { name: "Set up AI assistant" })
+    ).toHaveAttribute("href", "/admin/settings/ai-assistant")
+    expect(
+      within(dialog).queryByRole("textbox", {
+        name: "Message the AI assistant",
+      })
+    ).toBeNull()
+    // Nothing is asked of the server for an unavailable assistant.
+    expect(calls).toEqual([])
+  })
+
+  it("the unavailable panel offers no set-up link without canManage and starts on Close", async () => {
+    const trigger = { current: null }
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <AssistantProvider>
+          <AssistantPanel
+            open
+            onOpenChange={() => {}}
+            status={{
+              available: false,
+              canManage: false,
+              reason: "not-allowed",
+              model: null,
+              readOnly: false,
+            }}
+            chat={{} as AssistantChat}
+            trigger={trigger}
+          />
+        </AssistantProvider>
+      </QueryClientProvider>
+    )
+    const dialog = await screen.findByRole("dialog", { name: "AI assistant" })
+    expect(
+      within(dialog).getByText(
+        "The AI assistant is turned off or not set up yet."
+      )
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByRole("link")).toBeNull()
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Close" })
+      ).toHaveFocus()
+    )
     expect(calls).toEqual([])
   })
 

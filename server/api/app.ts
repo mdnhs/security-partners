@@ -42,6 +42,7 @@ import { searchRoutes } from "@/server/modules/search/routes"
 import { seoRoutes } from "@/server/modules/seo/routes"
 import { servicesRoutes } from "@/server/modules/services/routes"
 import { settingsRoutes } from "@/server/modules/settings/routes"
+import { themeRoutes } from "@/server/modules/theme/routes"
 import { usersRoutes } from "@/server/modules/users/routes"
 
 /**
@@ -71,6 +72,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/marketing", marketingRoutes)
   .route("/seo", seoRoutes)
   .route("/ai", aiRoutes)
+  .route("/appearance", themeRoutes)
 export type AdminApi = typeof adminRoutes
 
 /** Builds the API. Mount order follows spec §7; Phase 2 adds Better Auth + session middleware. */

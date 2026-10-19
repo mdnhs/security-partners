@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
 import { BlogPosts } from "@/components/blog/blog-posts"
+import { SiteThemed } from "@/components/site-themed"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { BlogTemplate } from "@/templates/blog/render"
 import { blogView } from "@/templates/blog/view"
@@ -15,9 +15,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function BlogPage({ searchParams }: PageProps<"/blog">) {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <Blog searchParams={searchParams} />
-    </Suspense>
+    </SiteThemed>
   )
 }
 

@@ -86,6 +86,26 @@ describe("preview (master 4.4)", () => {
     expect(settings.headers.get("location")).toBe("/")
   })
 
+  it("previews the theme draft for appearance readers only (C5)", async () => {
+    // A marketer reads appearance but not settings.
+    const marketer = (await signedInUser(["marketer"])).cookie
+    const theme = await openPreview("entity=settings&id=theme", {
+      cookie: marketer,
+    })
+    expect(theme.status).toBe(302)
+    expect(theme.headers.get("location")).toBe("/")
+    // Other settings still need settings:read.
+    expect(
+      (await openPreview("entity=settings&id=footer", { cookie: marketer }))
+        .status
+    ).toBe(403)
+    // No appearance:read, no theme preview.
+    const author = (await signedInUser(["author"])).cookie
+    expect(
+      (await openPreview("entity=settings&id=theme", { cookie: author })).status
+    ).toBe(403)
+  })
+
   it("requires a session and read permission", async () => {
     expect((await openPreview("entity=page&id=home")).status).toBe(401)
     expect(

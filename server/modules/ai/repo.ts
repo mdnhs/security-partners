@@ -1,9 +1,18 @@
 import "server-only"
 
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm"
+import { and, asc, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm"
 
+import type { ContentStatus } from "@/lib/schemas/api/content"
 import type { DbOrTx } from "@/server/db/client"
-import { aiConversations, aiMessages } from "@/server/db/schema"
+import {
+  aiConversations,
+  aiMessages,
+  articles,
+  leads,
+  pages,
+  services,
+  users,
+} from "@/server/db/schema"
 
 export type ChatRole = "user" | "assistant"
 
@@ -151,4 +160,93 @@ export async function recentMessageRows(
     .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
     .limit(limit)
   return (rows as MessageRow[]).reverse()
+}
+
+// ------------------------------------------------ assistant tools (C8)
+
+/** The signed-in user's display name (for "You are helping …"). */
+export async function findUserName(
+  db: DbOrTx,
+  userId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, userId))
+  return row?.name ?? null
+}
+
+export type ContentStatusRow = { id: string; status: ContentStatus }
+
+/** Status of the services, articles or pages (by key) in `ids`. */
+export function contentStatuses(
+  db: DbOrTx,
+  kind: "page" | "service" | "article",
+  ids: string[]
+): Promise<ContentStatusRow[]> {
+  if (ids.length === 0) return Promise.resolve([])
+  if (kind === "page")
+    return db
+      .select({ id: pages.key, status: pages.status })
+      .from(pages)
+      .where(inArray(pages.key, ids))
+  const table = kind === "service" ? services : articles
+  return db
+    .select({ id: table.id, status: table.status })
+    .from(table)
+    .where(inArray(table.id, ids))
+}
+
+const leadDay = sql<string>`to_char(${leads.createdAt} at time zone 'Europe/Dublin', 'YYYY-MM-DD')`
+
+/** Lead counts since `since`: per status (all), per service and per day (no spam). */
+export async function leadCounts(db: DbOrTx, since: Date) {
+  const [byStatus, byService, byDay] = await Promise.all([
+    db
+      .select({ status: leads.status, n: count() })
+      .from(leads)
+      .where(gte(leads.createdAt, since))
+      .groupBy(leads.status),
+    db
+      .select({ service: leads.service, n: count() })
+      .from(leads)
+      .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
+      .groupBy(leads.service),
+    db
+      .select({ date: leadDay, n: count() })
+      .from(leads)
+      .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
+      .groupBy(leadDay),
+  ])
+  return { byStatus, byService, byDay }
+}
+
+/**
+ * The newest non-spam leads since `since`, without email, phone or any
+ * other contact column (only read when the owner shares enquiry details).
+ */
+export function recentLeadRows(db: DbOrTx, since: Date, limit: number) {
+  return db
+    .select({
+      name: leads.name,
+      company: leads.company,
+      service: leads.service,
+      message: leads.message,
+      status: leads.status,
+      createdAt: leads.createdAt,
+    })
+    .from(leads)
+    .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
+    .orderBy(desc(leads.createdAt))
+    .limit(limit)
+}
+
+/** Service titles and slugs, to name the services enquiries were about. */
+export function serviceNames(db: DbOrTx) {
+  return db
+    .select({
+      slug: services.slug,
+      title: sql<string>`${services.draft}->>'title'`,
+    })
+    .from(services)
 }

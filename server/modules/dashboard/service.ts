@@ -10,6 +10,7 @@ import {
 } from "@/lib/schemas/api/dashboard"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
+import { getAiStatus } from "@/server/modules/ai/service"
 import { integrationReadState } from "@/server/modules/integrations/service"
 
 import * as repo from "./repo"
@@ -61,6 +62,7 @@ export async function getDashboard(
     twoFactor,
     jobProblems,
     turnstile,
+    ai,
   ] = await Promise.all([
     canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
     canLeads ? repo.countOpenLeads(db) : null,
@@ -76,6 +78,7 @@ export async function getDashboard(
     can({ integration: ["read"] })
       ? integrationReadState("integrations.turnstile", db)
       : null,
+    can({ integration: ["update"] }) ? getAiStatus(actor) : null,
   ])
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
@@ -110,6 +113,16 @@ export async function getDashboard(
       done: configured.has("integrations.r2"),
     })
   }
+  // Managers only, while the assistant is not on (MK parity C7). A role
+  // left out of its allow-list on purpose is not asked to turn it on.
+  if (ai && (ai.reason === "off" || ai.reason === "unconfigured"))
+    nextUp.push({
+      id: "ai",
+      title: "Turn on the AI assistant",
+      description: "Draft copy, check SEO and summarise enquiries.",
+      href: "/admin/settings/ai-assistant",
+      done: false,
+    })
   if (twoFactor !== null)
     nextUp.push({
       id: "two-factor",

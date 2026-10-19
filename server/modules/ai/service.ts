@@ -1,9 +1,11 @@
 import "server-only"
 
-import { type ModelMessage, streamText } from "ai"
+import { isStepCount, type ModelMessage, streamText } from "ai"
 
+import { baseUrlProblem, normaliseBaseUrl } from "@/lib/ai/base-url"
 import { type ChatStreamEvent, encodeChatEvent } from "@/lib/ai/chat-stream"
 import { hasPermission } from "@/lib/auth/permissions"
+import { SITE_LOCALE, SITE_TIME_ZONE } from "@/lib/format"
 import type {
   AiConversationDto,
   AiConversationSummary,
@@ -11,17 +13,35 @@ import type {
   AiStatusDto,
   ChatInput,
   ConversationsQuery,
+  ListModelsInput,
 } from "@/lib/schemas/api/ai"
 import type { Paginated } from "@/lib/schemas/api/list"
-import type { AiConfig } from "@/lib/schemas/integrations"
+import {
+  type AiConfig,
+  type AiProvider,
+  allowLocalAiHttp,
+} from "@/lib/schemas/integrations"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
-import { AppError, forbidden, notFound } from "@/server/lib/errors"
+import {
+  aiAuthHeaders,
+  aiFetchFor,
+  aiModelsUrl,
+} from "@/server/lib/ai-endpoints"
+import { isAiTargetBlocked } from "@/server/lib/ai-target"
+import {
+  AppError,
+  forbidden,
+  isTimeoutError,
+  notFound,
+} from "@/server/lib/errors"
 import { consumeRateLimit } from "@/server/lib/rate-limit"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 
+import { readPublishedSettings } from "@/server/modules/settings/service"
+
 import {
-  ASSISTANT_RULES,
+  buildSystemPrompt,
   contextMessage,
   conversationContext,
   conversationTitle,
@@ -31,6 +51,7 @@ import {
   type ConversationRow,
   deleteConversationRow,
   findConversation,
+  findUserName,
   insertConversation,
   insertMessage,
   listConversationRows,
@@ -39,10 +60,10 @@ import {
   recentMessageRows,
   touchConversation,
 } from "./repo"
+import { buildTools } from "./tools"
 
 /** Messages of a conversation sent to the model with each new one. */
 export const AI_HISTORY_LIMIT = 20
-export const AI_MAX_OUTPUT_TOKENS = 1500
 /**
  * Per user: at most `max` messages in `windowMs`. Counted in the shared
  * rate-limit table (not ai_messages), so deleting conversations does not
@@ -52,9 +73,24 @@ export const AI_RATE_LIMIT = { max: 30, windowMs: 10 * 60 * 1000 } as const
 /** Provider call limits: whole answer, and silence between chunks. */
 export const AI_TIMEOUT = { totalMs: 120_000, chunkMs: 30_000 } as const
 
-export const aiRateLimitKey = (userId: string) => `ai:chat:${userId}`
+/** Model calls per chat turn (tool calls plus the answer), spec §6.3. */
+export const AI_MAX_STEPS = 5
 
-const OFF = { available: false, model: null, readOnly: false } as const
+/** "Monday 20 October 2026" in Irish time, for the instructions. */
+const todayInDublin = new Intl.DateTimeFormat(SITE_LOCALE, {
+  timeZone: SITE_TIME_ZONE,
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+})
+
+export const aiRateLimitKey = (userId: string) => `ai:chat:${userId}`
+/** "List models" per user (it spends a provider call with the saved key). */
+export const AI_MODELS_RATE_LIMIT = { max: 10, windowMs: 60_000 } as const
+const AI_MODELS_TIMEOUT_MS = 10_000
+/** At most this many model IDs are returned. */
+const AI_MODELS_MAX = 500
 
 const turnedOff = () =>
   new AppError("NOT_FOUND", "The AI assistant is turned off")
@@ -62,25 +98,40 @@ const turnedOff = () =>
 /** Logged once until the settings read cleanly again (status runs on every admin page). */
 let unreadableLogged = false
 
-/** The saved settings when the assistant is on; null when off or unreadable. */
-async function activeConfig(): Promise<AiConfig | null> {
+type AiState =
+  | { kind: "unconfigured" | "off"; config: null }
+  | { kind: "on"; config: AiConfig }
+
+/**
+ * The saved settings and whether they turn the assistant on. Unreadable
+ * settings (saved secrets that no longer decrypt) count as not set up until
+ * the key is entered again.
+ */
+async function readAiState(): Promise<AiState> {
   let config: AiConfig | null
   try {
     config = await readIntegrationConfig("integrations.ai")
   } catch (error) {
-    // Saved secrets that no longer decrypt: off until re-entered.
     if (error instanceof AppError) {
       if (!unreadableLogged) {
         unreadableLogged = true
         console.error("[ai] settings unreadable")
       }
-      return null
+      return { kind: "unconfigured", config: null }
     }
     throw error
   }
   unreadableLogged = false
-  if (!config?.enabled || !config.model || !config.apiKey) return null
-  return config
+  if (!config) return { kind: "unconfigured", config: null }
+  if (!config.enabled) return { kind: "off", config: null }
+  if (!config.model || !config.apiKey)
+    return { kind: "unconfigured", config: null }
+  return { kind: "on", config }
+}
+
+/** The saved settings when the assistant is on; null when off or unreadable. */
+async function activeConfig(): Promise<AiConfig | null> {
+  return (await readAiState()).config
 }
 
 const inAllowList = (actor: Actor, config: AiConfig) =>
@@ -122,16 +173,151 @@ const modelMessage = (row: MessageRow): ModelMessage =>
     ? { role: "user", content: row.content }
     : { role: "assistant", content: row.content }
 
-/** Whether this user sees the assistant (spec §8.3: off and hidden until configured). */
+/**
+ * Whether this user sees the assistant (spec §8.3), and for managers
+ * (integration:update) why not, so the shell can point them to set-up.
+ */
 export async function getAiStatus(actor: Actor): Promise<AiStatusDto> {
-  if (!hasPermission(actor.roles, { ai: ["use"] })) return OFF
-  const config = await activeConfig()
-  if (!config || !inAllowList(actor, config)) return OFF
+  const canManage = hasPermission(actor.roles, { integration: ["update"] })
+  const unavailable = (reason: NonNullable<AiStatusDto["reason"]>) => ({
+    available: false,
+    canManage,
+    reason,
+    model: null,
+    readOnly: false,
+  })
+  if (!hasPermission(actor.roles, { ai: ["use"] }))
+    return unavailable("not-allowed")
+  const state = await readAiState()
+  if (state.kind !== "on") return unavailable(state.kind)
+  if (!inAllowList(actor, state.config)) return unavailable("not-allowed")
   return {
     available: true,
-    model: config.model,
+    canManage,
+    reason: null,
+    model: state.config.model,
     readOnly: actor.impersonatorId !== null,
   }
+}
+
+const invalid = (message: string, field?: string) =>
+  new AppError(
+    "VALIDATION_FAILED",
+    message,
+    field ? { fieldErrors: { [field]: [message] } } : undefined
+  )
+
+const MODEL_ID = /^[A-Za-z0-9._:/-]{1,100}$/
+
+/** Model IDs from a provider's list response; anything else is ignored. */
+function modelIdsOf(provider: AiProvider, body: unknown): string[] {
+  const record = (body ?? {}) as Record<string, unknown>
+  const ids: string[] = []
+  if (provider === "google") {
+    const models = Array.isArray(record.models) ? record.models : []
+    for (const model of models as Record<string, unknown>[]) {
+      const methods = model?.supportedGenerationMethods
+      if (Array.isArray(methods) && !methods.includes("generateContent"))
+        continue
+      if (typeof model?.name === "string")
+        ids.push(model.name.replace(/^models\//, ""))
+    }
+  } else {
+    const data = Array.isArray(record.data) ? record.data : []
+    for (const model of data as Record<string, unknown>[])
+      if (typeof model?.id === "string") ids.push(model.id)
+  }
+  return [...new Set(ids.filter((id) => MODEL_ID.test(id)))]
+    .sort()
+    .slice(0, AI_MODELS_MAX)
+}
+
+const listQueryFor = (provider: AiProvider) =>
+  provider === "anthropic"
+    ? "?limit=1000"
+    : provider === "google"
+      ? "?pageSize=1000"
+      : ""
+
+/**
+ * "List models": asks the provider which models the saved key can use. The
+ * key is sent only to the saved provider and base URL (a changed target
+ * must be saved with its own key first). Provider errors are masked.
+ */
+export async function listModels(
+  actor: Actor,
+  input: ListModelsInput
+): Promise<{ models: string[] }> {
+  if (!hasPermission(actor.roles, { integration: ["update"] }))
+    throw forbidden()
+  const limit = await consumeRateLimit(
+    `ai:models:${actor.userId}`,
+    AI_MODELS_RATE_LIMIT
+  )
+  if (!limit.allowed)
+    throw new AppError(
+      "RATE_LIMITED",
+      "You have listed the models a lot. Wait a minute, then try again."
+    )
+  const compatible = input.provider === "openai-compatible"
+  const baseUrl = compatible ? normaliseBaseUrl(input.baseUrl) : ""
+  if (compatible) {
+    const problem = baseUrlProblem(baseUrl, {
+      allowLocalHttp: allowLocalAiHttp(),
+    })
+    if (problem) throw invalid(problem, "baseUrl")
+  }
+  let config: AiConfig | null
+  try {
+    config = await readIntegrationConfig("integrations.ai")
+  } catch (error) {
+    // A key that no longer decrypts, or stored values that no longer
+    // validate (e.g. a development-only base URL read in production).
+    if (error instanceof AppError)
+      throw invalid(
+        "The saved settings can't be used. Check them, enter the API key again and save."
+      )
+    throw error
+  }
+  if (!config?.apiKey) throw invalid("Save an API key first.", "apiKey")
+  if (config.provider !== input.provider || config.baseUrl !== baseUrl)
+    throw invalid(
+      "Save the new provider with its API key first, then list its models.",
+      "apiKey"
+    )
+  let res: Response
+  try {
+    // A user-set base URL goes through the SSRF guard (server/lib/ai-target).
+    res = await aiFetchFor(config.provider)(
+      `${aiModelsUrl(config.provider, config.baseUrl)}${listQueryFor(config.provider)}`,
+      {
+        headers: aiAuthHeaders(config.provider, config.apiKey),
+        redirect: "error",
+        signal: AbortSignal.timeout(AI_MODELS_TIMEOUT_MS),
+      }
+    )
+  } catch (error) {
+    if (isAiTargetBlocked(error))
+      throw invalid(
+        "This address is not allowed (private, local or metadata address)",
+        "baseUrl"
+      )
+    throw invalid(
+      isTimeoutError(error)
+        ? "The provider did not respond in time."
+        : "Could not reach the provider."
+    )
+  }
+  if (res.status === 401 || res.status === 403)
+    throw invalid("The API key was rejected.", "apiKey")
+  if (!res.ok) throw invalid(`The provider answered ${res.status}.`)
+  let body: unknown
+  try {
+    body = await res.json()
+  } catch {
+    throw invalid("The provider sent an unexpected answer.")
+  }
+  return { models: modelIdsOf(config.provider, body) }
 }
 
 /**
@@ -198,11 +384,30 @@ export async function chat(
     ? AbortSignal.any([opts.signal, cancelled.signal])
     : cancelled.signal
 
+  // Read-only tools, offered by the user's roles and run as the user.
+  const tools = buildTools({ actor, config })
+  const [userName, site] = await Promise.all([
+    findUserName(getDb(), actor.userId),
+    readPublishedSettings("site"),
+  ])
+  const instructions = buildSystemPrompt({
+    siteName: site?.name ?? "Security Partners",
+    firstName: (userName ?? "").trim().split(/\s+/)[0] ?? "",
+    roles: actor.roles,
+    today: todayInDublin.format(new Date()),
+    toolNames: Object.keys(tools),
+    extra: config.extraInstructions,
+    screen: input.context?.screen ?? null,
+  })
+
   const result = streamText({
     model: createLanguageModel(config),
-    instructions: ASSISTANT_RULES,
+    instructions,
     messages,
-    maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+    tools,
+    // At most 5 model calls per turn (tool calls and the answer).
+    stopWhen: isStepCount(AI_MAX_STEPS),
+    maxOutputTokens: config.maxOutputTokens,
     maxRetries: 1,
     timeout: AI_TIMEOUT,
     abortSignal: signal,

@@ -8,6 +8,7 @@ import "../globals.css"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { PreviewBar } from "@/components/preview-bar"
 import { SiteExtras } from "@/components/site-extras"
+import { SiteThemeStyle } from "@/components/site-theme-style"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { publicOrigin } from "@/server/lib/site-origin"
@@ -73,8 +74,11 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <PreviewBar />
         </Suspense>
-        {/* JSON-LD (and, when tracking is on, the consent banner). */}
+        {/* JSON-LD (and, when tracking is on, the consent banner). The
+            banner uses the brand colours: the overrides share its boundary
+            (each page's content has its own, components/site-themed.tsx). */}
         <Suspense fallback={null}>
+          <SiteThemeStyle id="site-theme-extras" />
           <SiteExtras />
         </Suspense>
       </body>

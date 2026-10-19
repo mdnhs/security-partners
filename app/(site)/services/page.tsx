@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
+import { SiteThemed } from "@/components/site-themed"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ServicesTemplate } from "@/templates/services/render"
 import { servicesView } from "@/templates/services/view"
@@ -14,9 +14,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function ServicesPage() {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <Services />
-    </Suspense>
+    </SiteThemed>
   )
 }
 

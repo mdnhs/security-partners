@@ -14,9 +14,10 @@ import { useAssistantChat } from "./use-assistant-chat"
 import { useAssistantHotkey } from "./use-assistant-hotkey"
 
 /**
- * Topbar entry to the AI assistant (spec §8.3; JW `AiAssistant`): hidden
- * unless it is on and allowed for this user. The status arrives from the
- * panel layout and is refetched when Settings ▸ Integrations changes it.
+ * Topbar entry to the AI assistant (spec §8.3; JW `AiAssistant`): shown
+ * when it is on and allowed for this user, or to those who can set it up.
+ * The status arrives from the panel layout and is refetched when Settings ▸
+ * AI assistant changes it.
  */
 export function AssistantButton({
   initialStatus,
@@ -33,11 +34,14 @@ export function AssistantButton({
   const chat = useAssistantChat()
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
-  const available = status.data?.available === true
+  // Managers also see it while it is off or not set up (MK parity C7):
+  // the panel then points them to the settings.
+  const visible =
+    status.data?.available === true || status.data?.canManage === true
   const toggle = useCallback(() => setOpen((value) => !value), [])
-  useAssistantHotkey(available, toggle)
+  useAssistantHotkey(visible, toggle)
 
-  if (!available || !status.data) return null
+  if (!visible || !status.data) return null
   return (
     <>
       <Button

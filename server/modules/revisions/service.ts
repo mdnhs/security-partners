@@ -35,7 +35,7 @@ const READ: Record<RevisionEntity, PermissionRequest> = {
 /**
  * The permission to read one record's history. Settings rows: per key —
  * content keys (Settings), the Growth keys (SEO defaults: seo; tracking and
- * consent: marketing; custom code: owner only); any other key (integrations)
+ * consent: marketing; custom code: owner only; theme: appearance); any other key (integrations)
  * is never served here, whatever its revision rows contain.
  */
 function readPermission(
@@ -45,6 +45,7 @@ function readPermission(
   if (entity !== "settings") return READ[entity]
   if (isEditableSettingsKey(entityId)) return SETTINGS_ENTRIES[entityId].read
   if (isGrowthSettingsKey(entityId)) return GROWTH_SETTINGS[entityId].read
+  if (entityId === "theme") return { appearance: ["read"] }
   throw notFound("Revision")
 }
 

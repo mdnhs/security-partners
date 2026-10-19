@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { SettingsKey, SettingsValue } from "@/lib/schemas/settings"
+import { DEFAULT_THEME } from "@/lib/theme/schema"
 
 import type { MediaLookup } from "./media"
 import { paragraphs } from "./rich-text"
@@ -313,5 +314,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       retentionMonths: 24,
       acknowledgement: false,
     },
+    // Same value the *_theme migration inserts (no <style> by default).
+    theme: DEFAULT_THEME,
   }
 }

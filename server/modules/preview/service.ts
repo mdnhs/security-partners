@@ -21,7 +21,10 @@ const READ: Record<PreviewEntity, PermissionRequest> = {
 
 /** May preview drafts at all: read permission on some previewable entity. */
 export function canPreview(roles: readonly string[]): boolean {
-  return PREVIEW_ENTITIES.some((entity) => hasPermission(roles, READ[entity]))
+  return (
+    PREVIEW_ENTITIES.some((entity) => hasPermission(roles, READ[entity])) ||
+    hasPermission(roles, { appearance: ["read"] })
+  )
 }
 
 /**
@@ -33,7 +36,13 @@ export async function previewPath(
   entity: PreviewEntity,
   id: string
 ): Promise<string> {
-  if (!hasPermission(actor.roles, READ[entity])) throw forbidden()
+  // The theme is read with appearance:read (a marketer has it, but not
+  // settings:read). Every other settings key keeps settings:read.
+  const read =
+    entity === "settings" && id === "theme"
+      ? ({ appearance: ["read"] } satisfies PermissionRequest)
+      : READ[entity]
+  if (!hasPermission(actor.roles, read)) throw forbidden()
   switch (entity) {
     case "page":
       if (!isPageKey(id)) throw notFound("Page")

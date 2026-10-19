@@ -91,6 +91,8 @@ export function useAutosave<T>({
     }
   }, [])
 
+  const currentConflict = useCallback(() => conflictRef.current, [])
+
   // Editing again after a failed save retries (the error clears).
   const lastValue = useRef(value)
   useEffect(() => {
@@ -121,6 +123,12 @@ export function useAutosave<T>({
     state,
     dirty,
     conflict,
+    /**
+     * The 409 as of now (set synchronously by a failing save): `conflict`
+     * in a closure is still the previous render's value right after a
+     * `flush()` that hit one.
+     */
+    currentConflict,
     error,
     flush,
     resolveConflict: () => {
