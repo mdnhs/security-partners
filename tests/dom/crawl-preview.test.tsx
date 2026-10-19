@@ -38,12 +38,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("CrawlPreview (D1.6)", () => {
-  it("robots.txt tab shows the live file and the non-production note", async () => {
+  it("robots.txt tab shows the live file and a truthful note", async () => {
     render(<CrawlPreview />)
     const card = screen.getByRole("region", { name: "What crawlers see" })
     expect(card).toHaveTextContent(
-      "Outside production, robots.txt blocks everything."
+      "This is the robots.txt this site serves now, in every environment. It blocks all crawlers only while the whole site is hidden from search."
     )
+    expect(card).not.toHaveTextContent("Outside production")
     expect(
       screen.getByRole("tab", { name: "robots.txt", selected: true })
     ).toBeInTheDocument()

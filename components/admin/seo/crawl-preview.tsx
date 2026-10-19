@@ -127,7 +127,8 @@ export function CrawlPreview() {
         </TabsContent>
       </Tabs>
       <p className="text-sm text-muted-foreground">
-        Outside production, robots.txt blocks everything.
+        This is the robots.txt this site serves now, in every environment. It
+        blocks all crawlers only while the whole site is hidden from search.
       </p>
     </DashboardCard>
   )
