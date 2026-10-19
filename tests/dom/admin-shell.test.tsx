@@ -329,7 +329,7 @@ describe("AdminShell (master 4.1)", () => {
   })
 
   it("lists sections only and marks Collections on a collection page", () => {
-    pathname.current = "/admin/clients"
+    pathname.current = "/admin/collections/clients"
     render(
       <AdminShell session={session(["editor"])}>
         <p>Body</p>
@@ -352,7 +352,7 @@ describe("AdminShell (master 4.1)", () => {
     ])
     const collections = within(nav).getByRole("link", { name: "Collections" })
     expect(collections).toHaveAttribute("aria-current", "page")
-    expect(collections).toHaveAttribute("href", "/admin/team")
+    expect(collections).toHaveAttribute("href", "/admin/collections/team")
   })
 
   it("puts the floating panels on the canvas: sidebar, topbar, content", () => {
@@ -720,6 +720,8 @@ describe("NavEntry", () => {
     permission: null,
     match: "prefix" as const,
     badge: "new-leads" as const,
+    // Announced text comes from badgeLabel, never from the label.
+    badgeLabel: "new enquiries",
   }
   const renderEntry = (badge?: number) =>
     render(
@@ -730,17 +732,17 @@ describe("NavEntry", () => {
       </SidebarProvider>
     )
 
-  it("shows a count badge with an accessible label", () => {
+  it("shows a count badge labelled by badgeLabel, not the item label", () => {
     renderEntry(3)
-    expect(screen.getByRole("img", { name: "3 new leads" })).toHaveTextContent(
-      "3"
-    )
+    expect(
+      screen.getByRole("img", { name: "3 new enquiries" })
+    ).toHaveTextContent("3")
   })
 
   it("caps the badge at 99+ and hides it at zero", () => {
     const { unmount } = renderEntry(120)
     expect(
-      screen.getByRole("img", { name: "120 new leads" })
+      screen.getByRole("img", { name: "120 new enquiries" })
     ).toHaveTextContent("99+")
     unmount()
     renderEntry(0)

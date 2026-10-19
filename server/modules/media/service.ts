@@ -373,15 +373,15 @@ function describeUsage(
     case "service":
       return with_(`Service: ${name}`, `/admin/services/${id}`)
     case "article":
-      return with_(`Article: ${name}`, `/admin/articles/${id}`)
+      return with_(`Article: ${name}`, `/admin/insights/${id}`)
     case "team":
-      return with_(`Team: ${name}`, `/admin/team?edit=${id}`)
+      return with_(`Team: ${name}`, `/admin/collections/team?edit=${id}`)
     case "client":
-      return with_(`Client: ${name}`, `/admin/clients?edit=${id}`)
+      return with_(`Client: ${name}`, `/admin/collections/clients?edit=${id}`)
     case "groupCompany":
       return with_(
         `Group company: ${name}`,
-        `/admin/group-companies?edit=${id}`
+        `/admin/collections/group-companies?edit=${id}`
       )
     default:
       return with_(`${type} ${id}`, null)

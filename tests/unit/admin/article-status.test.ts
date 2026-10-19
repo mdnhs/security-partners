@@ -52,9 +52,9 @@ describe("article status badges", () => {
     expect(parseStatusParam("in_review")).toBe("in_review")
     expect(parseStatusParam("nope")).toBeNull()
     expect(parseStatusParam(null)).toBeNull()
-    expect(articleListHref(null)).toBe("/admin/articles")
+    expect(articleListHref(null)).toBe("/admin/insights")
     expect(articleListHref("scheduled")).toBe(
-      "/admin/articles?status=scheduled"
+      "/admin/insights?status=scheduled"
     )
     expect(ARTICLE_STATUS_FILTERS.map((f) => f.label)).toEqual([
       "All",

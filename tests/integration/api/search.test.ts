@@ -103,10 +103,13 @@ describe("GET /api/v1/admin/search (⌘K, master 4.1)", () => {
         subtitle: "/blog/mobile-patrols-protect-your-business-after-hours",
       }),
     ])
-    expect(results[0].href).toMatch(/^\/admin\/articles\/[0-9a-f-]{36}$/)
-    const opened = await adminRequest(results[0].href.replace("/admin", ""), {
-      cookie: author.cookie,
-    })
+    expect(results[0].href).toMatch(/^\/admin\/insights\/[0-9a-f-]{36}$/)
+    const opened = await adminRequest(
+      results[0].href.replace("/admin/insights", "/articles"),
+      {
+        cookie: author.cookie,
+      }
+    )
     expect(opened.status).toBe(200)
     expect(
       ((await opened.json()) as { permissions: { update: boolean } })

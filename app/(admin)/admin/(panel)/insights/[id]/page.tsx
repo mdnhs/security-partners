@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Edit article" }
 
 export default function EditArticlePage({
   params,
-}: PageProps<"/admin/articles/[id]">) {
+}: PageProps<"/admin/insights/[id]">) {
   return (
     <Suspense fallback={null}>
       <Screen params={params} />
@@ -20,7 +20,7 @@ export default function EditArticlePage({
 
 async function Screen({
   params,
-}: Pick<PageProps<"/admin/articles/[id]">, "params">) {
+}: Pick<PageProps<"/admin/insights/[id]">, "params">) {
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
   await requirePermission({ article: ["read"] })

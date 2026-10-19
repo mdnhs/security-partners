@@ -160,7 +160,7 @@ export function CommandPalette() {
       id: "new-article",
       label: "New article",
       icon: Plus,
-      run: () => navigate("/admin/articles/new"),
+      run: () => navigate("/admin/insights/new"),
     },
     {
       id: "open-site",

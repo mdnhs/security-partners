@@ -52,18 +52,26 @@ export type NavLink = {
   icon?: LucideIcon
 }
 
-export type NavItem = NavLink & {
-  group: NavGroupId
-  icon: LucideIcon
-  /** "exact" only for /admin (otherwise every admin URL would match). */
-  match: "exact" | "prefix"
-  /** Which count from NavBadges (if any) to show beside the label. */
-  badge?: NavBadgeKey
-  /** Sub-pages, shown as the section rail inside the content panel. */
-  children?: NavLink[]
-  /** Drawn as an icon button in the sidebar's footer dock, not in the menu. */
-  dock?: true
-}
+/**
+ * A count beside the label: which one, and what the count is of for screen
+ * readers ("3 new enquiries"), kept apart from the label so renaming the
+ * item never changes what assistive tech announces.
+ */
+type NavItemBadge =
+  | { badge?: undefined; badgeLabel?: undefined }
+  | { badge: NavBadgeKey; badgeLabel: string }
+
+export type NavItem = NavLink &
+  NavItemBadge & {
+    group: NavGroupId
+    icon: LucideIcon
+    /** "exact" only for /admin (otherwise every admin URL would match). */
+    match: "exact" | "prefix"
+    /** Sub-pages, shown as the section rail inside the content panel. */
+    children?: NavLink[]
+    /** Drawn as an icon button in the sidebar's footer dock, not in the menu. */
+    dock?: true
+  }
 
 export type ReachableLink = NavLink & {
   /** The section's label for a sub-page (⌘K context); null for a section. */
@@ -184,6 +192,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: { lead: ["read"] },
     match: "prefix",
     badge: "new-leads",
+    badgeLabel: "new enquiries",
     keywords: ["leads", "contact", "inbox", "messages"],
   },
   {

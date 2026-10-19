@@ -399,7 +399,7 @@ async function openArticle(
       json: { ...record, ...ARTICLE_TIMES, ...state },
     })
   })
-  await page.goto(`/admin/articles/${article.id}`)
+  await page.goto(`/admin/insights/${article.id}`)
   return article
 }
 
@@ -690,7 +690,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`admin articles list ${colorScheme}`, async ({ page }) => {
       await signIn(page)
-      await page.goto("/admin/articles")
+      await page.goto("/admin/insights")
       await expect(
         page.getByRole("heading", { level: 1, name: "Articles" })
       ).toBeVisible()
@@ -710,7 +710,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         route.fulfill({ json: REVIEW_QUEUE })
       )
       await signIn(page)
-      await page.goto("/admin/articles?status=in_review")
+      await page.goto("/admin/insights?status=in_review")
       await expect(
         page.getByRole("button", { name: "Review queue" })
       ).toHaveAttribute("aria-pressed", "true")
@@ -727,7 +727,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`admin new article ${colorScheme}`, async ({ page }) => {
       await signIn(page)
-      await page.goto("/admin/articles/new")
+      await page.goto("/admin/insights/new")
       await expect(
         page.getByRole("heading", { level: 1, name: "New article" })
       ).toBeVisible()
@@ -841,7 +841,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`admin team collection ${colorScheme}`, async ({ page }) => {
       await signIn(page)
-      await page.goto("/admin/team")
+      await page.goto("/admin/collections/team")
       await expect(
         page.getByRole("navigation", { name: "Collections" })
       ).toBeVisible()

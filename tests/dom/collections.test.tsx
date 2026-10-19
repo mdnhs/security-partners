@@ -8,7 +8,7 @@ const { push, replace, search } = vi.hoisted(() => ({
   search: { current: new URLSearchParams() },
 }))
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/categories",
+  usePathname: () => "/admin/insights/categories",
   useRouter: () => ({ push, replace, refresh: vi.fn() }),
   useSearchParams: () => search.current,
 }))
@@ -92,7 +92,13 @@ function renderScreen(roles: Role[] = ["editor"], { inTabs = false } = {}) {
       {inTabs ? (
         <SectionTabs
           ariaLabel="Collections"
-          items={[{ id: "c", label: "Categories", href: "/admin/categories" }]}
+          items={[
+            {
+              id: "c",
+              label: "Categories",
+              href: "/admin/insights/categories",
+            },
+          ]}
         >
           {content}
         </SectionTabs>
@@ -415,7 +421,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     await user.type(name, "Renamed")
     await user.click(within(sheet).getByRole("button", { name: "Save" }))
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/admin/categories")
+      expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
     )
     // The router drops ?edit, then ⌘K opens the same record again.
     search.current = new URLSearchParams()
@@ -436,7 +442,7 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     renderScreen(["viewer"])
     await screen.findByRole("table", { name: "Categories" })
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/admin/categories")
+      expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
     )
     expect(screen.queryByRole("dialog")).toBeNull()
   })
@@ -634,7 +640,11 @@ describe("record sheet: unsaved changes, footer, list URL (final review I1/I2/I4
 
   it("keeps page, sort and search in the URL and starts from it", async () => {
     const user = userEvent.setup()
-    window.history.replaceState(null, "", "/admin/categories?page=2&q=cat")
+    window.history.replaceState(
+      null,
+      "",
+      "/admin/insights/categories?page=2&q=cat"
+    )
     search.current = new URLSearchParams("page=2&q=cat")
     renderScreen()
     await screen.findByRole("table", { name: "Categories" })
@@ -653,7 +663,7 @@ describe("record sheet: unsaved changes, footer, list URL (final review I1/I2/I4
       expect(window.location.search).toBe("?q=cat&sort=name%3Aasc")
     )
     expect(
-      window.sessionStorage.getItem("sp-admin:list:/admin/categories")
+      window.sessionStorage.getItem("sp-admin:list:/admin/insights/categories")
     ).toBe("q=cat&sort=name%3Aasc")
   })
 })

@@ -220,8 +220,8 @@ describe("shell adapters (B1 → B4 bridge, current routes)", () => {
   it("links point at pages that exist today", () => {
     const owner = menuSections(["owner"]).flatMap((s) => s.items)
     const href = (id: string) => owner.find((i) => i.id === id)!.href
-    expect(href("insights")).toBe("/admin/articles")
-    expect(href("collections")).toBe("/admin/team")
+    expect(href("insights")).toBe("/admin/insights")
+    expect(href("collections")).toBe("/admin/collections/team")
     expect(href("marketing")).toBe("/admin/marketing/tracking")
     expect(href("settings")).toBe("/admin/settings/site")
     const destinations = navDestinations(["owner"]).map((d) => d.href)
@@ -262,21 +262,29 @@ describe("shell adapters (B1 → B4 bridge, current routes)", () => {
     )
     expect(
       navDestinations(["editor"]).find((d) => d.label === "Team")
-    ).toMatchObject({ href: "/admin/team", parent: "Collections" })
+    ).toMatchObject({ href: "/admin/collections/team", parent: "Collections" })
   })
 
   it("findNavItem finds Collections by id at current routes", () => {
     expect(
       findNavItem(["editor"], "collections")!.children!.map((c) => c.href)
-    ).toEqual(["/admin/team", "/admin/clients", "/admin/group-companies"])
+    ).toEqual([
+      "/admin/collections/team",
+      "/admin/collections/clients",
+      "/admin/collections/group-companies",
+    ])
     expect(findNavItem(["author"], "collections")).toBeUndefined()
   })
 
   it("isActiveItem marks a section active on any sub-page", () => {
     const owner = menuSections(["owner"]).flatMap((s) => s.items)
     const find = (id: string) => owner.find((i) => i.id === id)!
-    expect(isActiveItem(find("collections"), "/admin/clients")).toBe(true)
-    expect(isActiveItem(find("insights"), "/admin/categories")).toBe(true)
+    expect(
+      isActiveItem(find("collections"), "/admin/collections/clients")
+    ).toBe(true)
+    expect(isActiveItem(find("insights"), "/admin/insights/categories")).toBe(
+      true
+    )
     expect(isActiveItem(find("collections"), "/admin/services")).toBe(false)
     expect(isActiveItem(find("dashboard"), "/admin")).toBe(true)
     expect(isActiveItem(find("dashboard"), "/admin/pages")).toBe(false)
