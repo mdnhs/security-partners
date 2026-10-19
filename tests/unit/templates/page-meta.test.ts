@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { interpolate } from "@/lib/interpolate"
+import { seo } from "@/lib/schemas/common"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
 import {
   articleMetadata,
@@ -8,6 +9,7 @@ import {
   serviceMetadata,
   siteMetadata,
 } from "@/templates/shared/page-meta"
+import { placeholders } from "@/templates/shared/views"
 
 const s = fixtureSiteSources()
 const defaults = s.settings["seo.defaults"]
@@ -109,6 +111,71 @@ describe("public page metadata (spec §10)", () => {
       images: [{ url: "/og/article/key-holding-explained" }],
     })
     expect(articleMetadata(s, "nope")).toEqual({})
+  })
+
+  it("ogTitle/ogDescription override social only; page title unchanged", () => {
+    const base = pageMetadata(s, "about")
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      ...custom.pages.about.seo,
+      ogTitle: "Social",
+      ogDescription: "Social description",
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.title).toBe(base.title)
+    expect(meta.description).toBe(base.description)
+    expect(meta.openGraph).toMatchObject({
+      title: "Social",
+      description: "Social description",
+    })
+    expect(meta.twitter).toMatchObject({
+      card: "summary_large_image",
+      description: "Social description",
+    })
+  })
+
+  it("blank ogTitle/ogDescription fall back to the page title and description", () => {
+    const base = pageMetadata(s, "about")
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      ...custom.pages.about.seo,
+      ogTitle: "  ",
+      ogDescription: "",
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.openGraph).toMatchObject({
+      title: base.title,
+      description: base.description,
+    })
+    expect(meta.twitter).toMatchObject({ description: base.description })
+  })
+
+  it("social fields fill {placeholders} like the own fields", () => {
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      ...custom.pages.about.seo,
+      ogTitle: "Call {phone24h}",
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.openGraph).toMatchObject({
+      title: interpolate("Call {phone24h}", placeholders(s)),
+    })
+    expect((meta.openGraph as { title: string }).title).not.toContain("{")
+  })
+
+  it("twitterCard summary", () => {
+    const custom = structuredClone(s)
+    custom.articles[0].seo = {
+      ...custom.articles[0].seo,
+      twitterCard: "summary",
+    }
+    expect(
+      articleMetadata(custom, custom.articles[0].slug).twitter
+    ).toMatchObject({ card: "summary" })
+  })
+
+  it("ogTitle > 70 rejected by the schema", () => {
+    expect(seo.safeParse({ ogTitle: "a".repeat(71) }).success).toBe(false)
   })
 
   it("siteMetadata: metadataBase is the origin, default description for pages without one", () => {

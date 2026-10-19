@@ -64,11 +64,18 @@ function metadataFor(s: SiteSources, subject: Subject): Metadata {
     values: placeholders(s),
   })
   const image = shareImage(s, subject)
+  // Social overrides (Open Graph/Twitter only); the page title and meta
+  // description stay as above. {placeholders} fill like the own fields.
+  const social = (value: string | undefined) => {
+    const own = filled(value)
+    return own === null ? null : interpolate(own, placeholders(s))
+  }
+  const socialDescription = social(subject.seo.ogDescription) ?? description
   const shared = {
     url: subject.path,
     siteName: s.settings.site.name,
-    title,
-    description,
+    title: social(subject.seo.ogTitle) ?? title,
+    description: socialDescription,
     images: [image],
   }
   const { article } = subject
@@ -90,9 +97,9 @@ function metadataFor(s: SiteSources, subject: Subject): Metadata {
         }
       : { ...shared, type: "website" },
     twitter: {
-      card: "summary_large_image",
+      card: subject.seo.twitterCard ?? "summary_large_image",
       title,
-      description,
+      description: socialDescription,
       images: [{ url: image.url, ...(image.alt ? { alt: image.alt } : {}) }],
     },
   }

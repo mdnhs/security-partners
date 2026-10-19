@@ -160,6 +160,10 @@ export const seo = z.object({
     .optional(),
   ogImage: mediaRef.optional(),
   noindex: z.boolean().optional(),
+  // Social sharing overrides: blank falls back to title/description.
+  ogTitle: z.string().max(70).optional(),
+  ogDescription: z.string().max(200).optional(),
+  twitterCard: z.enum(["summary_large_image", "summary"]).optional(),
 })
 
 export type Link = z.infer<typeof link>
