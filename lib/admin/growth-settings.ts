@@ -36,7 +36,7 @@ export const GROWTH_SETTINGS: Record<
     label: "Tracking",
     description:
       "Google Tag Manager, Google Analytics 4 and Meta Pixel. Turning tracking on shows the cookie banner.",
-    href: "/admin/marketing/tracking",
+    href: "/admin/marketing",
     read: { marketing: ["read"] },
     update: { marketing: ["update"] },
   },
@@ -50,7 +50,7 @@ export const GROWTH_SETTINGS: Record<
   customCode: {
     label: "Custom code",
     description: "Snippets added to every public page. Owner only.",
-    href: "/admin/marketing/custom-code",
+    href: "/admin/marketing/code",
     read: { customCode: ["read"] },
     update: { customCode: ["update"] },
   },

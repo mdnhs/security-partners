@@ -46,6 +46,7 @@ beforeEach(() => {
         items: [
           item("smtp", "Email (SMTP)", true),
           item("r2", "Media storage (Cloudflare R2)", false),
+          item("ai", "AI assistant", false),
         ],
       }),
       { status: 200, headers: { "content-type": "application/json" } }
@@ -88,6 +89,11 @@ describe("Integrations overview", () => {
     const r2 = screen.getByRole("link", { name: /Media storage/ })
     expect(r2).toHaveAttribute("href", "/admin/settings/integrations/r2")
     expect(within(r2).getByText("Not set up")).toBeVisible()
+    // MK §5.1: the AI assistant has its own Site settings page.
+    expect(screen.getByRole("link", { name: /AI assistant/ })).toHaveAttribute(
+      "href",
+      "/admin/settings/ai-assistant"
+    )
   })
 
   it("a failed load says so and offers Try again", async () => {
@@ -113,11 +119,15 @@ describe("Settings tabs: Integrations", () => {
     const link = within(nav).getByRole("link", { name: "Integrations" })
     expect(link).toHaveAttribute("href", "/admin/settings/integrations")
     expect(link).toHaveAttribute("aria-current", "page")
+    expect(
+      within(nav).getByRole("link", { name: "AI assistant" })
+    ).toHaveAttribute("href", "/admin/settings/ai-assistant")
   })
 
   it("editors do not", () => {
     renderWith(["editor"], <SettingsTabs>content</SettingsTabs>)
     const nav = screen.getByRole("navigation", { name: "Settings" })
     expect(within(nav).queryByRole("link", { name: "Integrations" })).toBeNull()
+    expect(within(nav).queryByRole("link", { name: "AI assistant" })).toBeNull()
   })
 })

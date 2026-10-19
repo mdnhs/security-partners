@@ -1,5 +1,6 @@
 import type { NextConfig } from "next"
 
+import { ADMIN_LEGACY_REDIRECTS } from "./lib/admin/legacy-redirects"
 import { HSTS } from "./lib/security-headers"
 import { HTML_LIMITED_BOTS } from "./lib/seo/blocking-metadata"
 
@@ -52,6 +53,10 @@ const nextConfig: NextConfig = {
   experimental: {
     // forbidden() from requirePermission() renders app/(admin)/admin/forbidden.tsx
     authInterrupts: true,
+  },
+  // Old admin URLs (MK parity §5.2); `/admin/...` sources only.
+  async redirects() {
+    return [...ADMIN_LEGACY_REDIRECTS]
   },
   async headers() {
     return [

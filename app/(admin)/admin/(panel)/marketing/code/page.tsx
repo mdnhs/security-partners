@@ -8,7 +8,7 @@ import { requirePermission } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Custom code" }
 
-export default function CustomCodePage() {
+export default function MarketingCodePage() {
   return (
     <Suspense fallback={null}>
       <Editor />
@@ -22,8 +22,6 @@ async function Editor() {
   return (
     <GrowthSettingsEditor
       settingsKey="customCode"
-      backHref="/admin/marketing/tracking"
-      backLabel="Tracking"
       aside={<CustomCodeNotice />}
     />
   )

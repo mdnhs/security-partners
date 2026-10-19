@@ -518,6 +518,22 @@ describe("IntegrationForm (master 7.1)", () => {
     expect(boxes[0]).toHaveFocus()
   })
 
+  it("the AI assistant (a Site settings page of its own) has no Integrations back link", async () => {
+    respond = () => json(aiSaved)
+    renderForm(["owner"], "integrations.ai")
+    await screen.findByRole("switch", { name: "Turn on the assistant" })
+    expect(screen.queryByRole("link", { name: "Integrations" })).toBeNull()
+  })
+
+  it("other integrations link back to Integrations", async () => {
+    renderForm(["owner"])
+    await screen.findByLabelText("SMTP server")
+    expect(screen.getByRole("link", { name: "Integrations" })).toHaveAttribute(
+      "href",
+      "/admin/settings/integrations"
+    )
+  })
+
   it("read-only without integration:update", async () => {
     renderForm(["viewer"])
     expect(await screen.findByLabelText("SMTP server")).toBeDisabled()

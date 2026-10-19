@@ -4,9 +4,9 @@ import { Suspense } from "react"
 import { AuditScreen } from "@/components/admin/audit/audit-screen"
 import { requirePermission } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Audit log" }
+export const metadata: Metadata = { title: "Activity log" }
 
-export default function AuditPage() {
+export default function ActivityPage() {
   return (
     <Suspense fallback={null}>
       <Screen />

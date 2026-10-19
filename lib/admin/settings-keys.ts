@@ -38,7 +38,7 @@ export const SETTINGS_ENTRIES: Record<
   }
 > = {
   site: {
-    label: "Site",
+    label: "Identity",
     description:
       "Name, logos, production URL, time zone and the copyright line.",
     group: "General",
@@ -69,7 +69,7 @@ export const SETTINGS_ENTRIES: Record<
     update: CONTENT_UPDATE,
   },
   microcopy: {
-    label: "Microcopy",
+    label: "Forms & microcopy",
     description: "Small labels, button text and screen-reader labels.",
     group: "General",
     read: { settings: ["read"] },

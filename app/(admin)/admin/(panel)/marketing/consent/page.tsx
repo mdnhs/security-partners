@@ -17,11 +17,5 @@ export default function ConsentPage() {
 
 async function Editor() {
   await requirePermission(GROWTH_SETTINGS.consent.read)
-  return (
-    <GrowthSettingsEditor
-      settingsKey="consent"
-      backHref="/admin/marketing/tracking"
-      backLabel="Tracking"
-    />
-  )
+  return <GrowthSettingsEditor settingsKey="consent" />
 }

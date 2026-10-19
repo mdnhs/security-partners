@@ -937,7 +937,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("navigation", { name: "Settings" })
       ).toBeVisible()
-      await editorReady(page, "Site")
+      await editorReady(page, "Identity")
       await expect(page).toHaveScreenshot(shot("settings-site"), {
         mask: await masks(page),
       })
@@ -947,7 +947,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     // covered by tests/e2e/admin-a11y.spec.ts and consent.spec.ts. (The
     // visual seed gained an owner in MK-parity A7 for /admin/design.)
     for (const [path, title, name] of [
-      ["/admin/marketing/tracking", "Tracking", "marketing-tracking"],
+      ["/admin/marketing", "Tracking", "marketing-tracking"],
       ["/admin/marketing/consent", "Consent banner", "marketing-consent"],
     ] as const) {
       test(`admin ${name} ${colorScheme}`, async ({ page }) => {
@@ -1350,7 +1350,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     test(`admin audit log ${colorScheme}`, async ({ page }) => {
       await pinData(page)
       await signIn(page)
-      await page.goto("/admin/audit")
+      await page.goto("/admin/activity")
       await expect(
         page.getByRole("heading", { level: 1, name: "Audit log" })
       ).toBeVisible()

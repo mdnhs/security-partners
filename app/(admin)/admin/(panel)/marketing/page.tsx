@@ -1,6 +1,24 @@
-import { redirect } from "next/navigation"
+import type { Metadata } from "next"
+import { Suspense } from "react"
 
-/** Everyone who can open Marketing can read Tracking (its first tab). */
+import { TrackingNotice } from "@/components/admin/marketing/notices"
+import { GrowthSettingsEditor } from "@/components/admin/seo/growth-settings-editor"
+import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
+import { requirePermission } from "@/server/auth/session"
+
+export const metadata: Metadata = { title: "Tracking" }
+
 export default function MarketingPage() {
-  redirect("/admin/marketing/tracking")
+  return (
+    <Suspense fallback={null}>
+      <Editor />
+    </Suspense>
+  )
+}
+
+async function Editor() {
+  await requirePermission(GROWTH_SETTINGS.tracking.read)
+  return (
+    <GrowthSettingsEditor settingsKey="tracking" aside={<TrackingNotice />} />
+  )
 }

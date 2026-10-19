@@ -251,6 +251,7 @@ test("the audit log filters by action and person and shows the invitation", asyn
 }) => {
   await signIn(page, E2E_OWNER.email)
   await dockLink(page, "Activity log").click()
+  await expect(page).toHaveURL(/\/admin\/activity$/)
   await expect(
     page.getByRole("heading", { level: 1, name: "Audit log" })
   ).toBeVisible()

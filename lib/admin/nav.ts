@@ -374,6 +374,19 @@ export function visibleNav(
   })).filter((group) => group.items.length > 0)
 }
 
+/**
+ * Where a section index without a page of its own (/admin/settings,
+ * /admin/collections) lands: its first child `roles` may open; undefined
+ * when the section is hidden from them or has no children.
+ */
+export function firstVisibleChild(
+  id: string,
+  roles: readonly Role[]
+): NavLink | undefined {
+  const item = NAV_ITEMS.find((candidate) => candidate.id === id)
+  return item ? visibleItem(item, roles)?.children?.[0] : undefined
+}
+
 /** The footer dock: Users & roles, Activity log (when allowed) and Help. */
 export function dockLinks(roles: readonly Role[]): NavLink[] {
   return [

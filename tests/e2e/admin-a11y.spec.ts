@@ -167,7 +167,7 @@ const INTEGRATIONS = [
   "/admin/settings/integrations/smtp",
   "/admin/settings/integrations/r2",
   "/admin/settings/integrations/turnstile",
-  "/admin/settings/integrations/ai",
+  "/admin/settings/ai-assistant",
 ]
 
 /** Growth ▸ SEO (Phase 8), audited signed in as the admin. */
@@ -364,7 +364,10 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test(`administration screens in ${colorScheme}`, async ({ page }) => {
       await signIn(page, E2E_ADMIN)
-      const failures = await auditEach(page, ["/admin/users", "/admin/audit"])
+      const failures = await auditEach(page, [
+        "/admin/users",
+        "/admin/activity",
+      ])
       // One user's page, by its list link.
       await page.goto("/admin/users")
       await page
@@ -377,7 +380,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       for (const violation of await blocking(page))
         failures.push(`/admin/users/[id] → ${violation}`)
       // The audit detail sheet.
-      await page.goto("/admin/audit")
+      await page.goto("/admin/activity")
       await page
         .getByRole("button", { name: /^Details of auth\.sign_in/ })
         .first()
@@ -386,7 +389,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         page.getByRole("dialog", { name: "Audit entry" })
       ).toBeVisible()
       for (const violation of await blocking(page))
-        failures.push(`/admin/audit + detail sheet → ${violation}`)
+        failures.push(`/admin/activity + detail sheet → ${violation}`)
       expect(failures).toEqual([])
     })
 
@@ -417,9 +420,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page, E2E_OWNER)
       const failures: string[] = []
       for (const [path, title] of [
-        ["/admin/marketing/tracking", "Tracking"],
+        ["/admin/marketing", "Tracking"],
         ["/admin/marketing/consent", "Consent banner"],
-        ["/admin/marketing/custom-code", "Custom code"],
+        ["/admin/marketing/code", "Custom code"],
       ] as const) {
         await page.goto(path)
         await expect(

@@ -31,10 +31,6 @@ export const CURRENT_ROUTES: Readonly<Record<string, string>> = {
   "/admin/collections/team": "/admin/team",
   "/admin/collections/clients": "/admin/clients",
   "/admin/collections/group-companies": "/admin/group-companies",
-  "/admin/marketing": "/admin/marketing/tracking",
-  "/admin/marketing/code": "/admin/marketing/custom-code",
-  "/admin/settings/ai-assistant": "/admin/settings/integrations/ai",
-  "/admin/activity": "/admin/audit",
 }
 /** Registered pages that do not exist yet (B4 builds /admin/help). */
 const UNBUILT = new Set([HELP_LINK.href])
@@ -124,9 +120,20 @@ export function navDestinations(roles: readonly Role[]): NavDestination[] {
 const covers = (href: string, pathname: string) =>
   pathname === href || pathname.startsWith(`${href}/`)
 
-/** True when `pathname` is this item's page, below it, or one of its sub-pages. */
-export function isActiveItem(item: NavItem, pathname: string): boolean {
+const coversLinks = (item: NavItem, pathname: string) => {
   if (item.match === "exact") return pathname === item.href
   if (covers(item.href, pathname)) return true
   return (item.children ?? []).some((child) => covers(child.href, pathname))
+}
+
+/**
+ * True when `pathname` is this item's page, below it, or one of its
+ * sub-pages: at the item's current route (as the shell links it) or at its
+ * registry href, so a page reached at its new address (a redirect, a server
+ * link) still highlights its section while CURRENT_ROUTES maps it.
+ */
+export function isActiveItem(item: NavItem, pathname: string): boolean {
+  if (coversLinks(item, pathname)) return true
+  const registered = NAV_ITEMS.find((candidate) => candidate.id === item.id)
+  return registered !== undefined && coversLinks(registered, pathname)
 }

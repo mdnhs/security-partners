@@ -35,9 +35,13 @@ const SCREENS: { path: string; permission: PermissionRequest }[] = [
     path: "/admin/settings/integrations/smtp",
     permission: { integration: ["read"] },
   },
+  {
+    path: "/admin/settings/ai-assistant",
+    permission: { integration: ["read"] },
+  },
   { path: "/admin/leads", permission: { lead: ["read"] } },
   { path: "/admin/users", permission: { user: ["read"] } },
-  { path: "/admin/audit", permission: { audit: ["read"] } },
+  { path: "/admin/activity", permission: { audit: ["read"] } },
 ]
 
 for (const role of ROLES) {
