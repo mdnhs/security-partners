@@ -80,7 +80,10 @@ beforeEach(() => {
   )
 })
 
-function renderView(roles: Role[] = ["owner"]) {
+function renderView(
+  roles: Role[] = ["owner"],
+  impersonatedBy: string | null = null
+) {
   const session: AdminSession = {
     user: {
       id: "u1",
@@ -90,7 +93,7 @@ function renderView(roles: Role[] = ["owner"]) {
       twoFactorEnabled: true,
     },
     roles,
-    impersonatedBy: null,
+    impersonatedBy,
   }
   return render(
     <QueryClientProvider client={makeQueryClient()}>
@@ -137,6 +140,80 @@ describe("AiSettingsView (MK parity C7)", () => {
     const longest = screen.getByRole("spinbutton", { name: /Longest answer/ })
     expect(longest).toHaveAttribute("min", "64")
     expect(longest).toHaveAttribute("max", "8192")
+
+    // Spec §6.3 order: … Who can use it → Extra instructions → Longest
+    // answer → Enquiry details → Test.
+    const inOrder = [
+      screen.getByRole("switch", { name: "Turn on the AI assistant" }),
+      provider,
+      screen.getByRole("radiogroup", { name: "API key" }),
+      screen.getByRole("combobox", { name: "Model" }),
+      roles,
+      screen.getByRole("textbox", { name: /^Extra instructions/ }),
+      longest,
+      screen.getByRole("switch", {
+        name: "Let the assistant read enquiry details",
+      }),
+      screen.getByRole("button", { name: "Test connection" }),
+    ]
+    for (let i = 1; i < inOrder.length; i++)
+      expect(
+        inOrder[i - 1]!.compareDocumentPosition(inOrder[i]!) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+  })
+
+  it("a key error while Remove is chosen focuses the key choice and describes it", async () => {
+    routes[`PUT ${PATH}`] = () =>
+      json(
+        {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Check the highlighted fields",
+            requestId: "r",
+            fieldErrors: { apiKey: ["Required while the assistant is on"] },
+          },
+        },
+        422
+      )
+    const user = userEvent.setup()
+    renderView()
+    await ready()
+    const keyGroup = screen.getByRole("radiogroup", { name: "API key" })
+    const remove = within(keyGroup).getByRole("radio", { name: /Remove/ })
+    await user.click(remove)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(remove).toHaveFocus())
+    expect(keyGroup).toHaveAccessibleDescription(
+      expect.stringContaining("Required while the assistant is on")
+    )
+    expect(keyGroup).toHaveAttribute("aria-invalid", "true")
+  })
+
+  it("an owner viewing the admin as someone else cannot turn enquiry details on", async () => {
+    renderView(["owner"], "admin-1")
+    await ready()
+    const share = screen.getByRole("switch", {
+      name: "Let the assistant read enquiry details",
+    })
+    expect(share).toHaveAttribute("aria-disabled", "true")
+    expect(
+      screen.getByText(
+        "Not available while you view the admin as someone else."
+      )
+    ).toBeInTheDocument()
+  })
+
+  it("List models says “Save first” while the provider is unsaved, and asks nothing", async () => {
+    const user = userEvent.setup()
+    renderView()
+    await ready()
+    await user.click(screen.getByRole("radio", { name: "OpenAI" }))
+    const list = screen.getByRole("button", { name: "List models" })
+    expect(list).toHaveAttribute("aria-disabled", "true")
+    expect(list).toHaveAccessibleDescription("Save first")
+    await user.click(list)
+    expect(calls.some((c) => c.path === "/api/v1/admin/ai/models")).toBe(false)
   })
 
   it("an admin does not see the enquiry-details fieldset; an owner does", async () => {

@@ -28,6 +28,7 @@ import { EmptyState } from "@/components/admin/kit/empty-state"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import { FORM_ACTION, PageHeader } from "@/components/admin/page-header"
+import { useOptionalAdminSession } from "@/components/admin/session-provider"
 import {
   describedBy,
   ErrorText,
@@ -143,9 +144,9 @@ const FIELD_ORDER = [
   "apiKey",
   "model",
   "allowedRoles",
-  "shareEnquiryDetails",
   "extraInstructions",
   "maxOutputTokens",
+  "shareEnquiryDetails",
 ] as const
 type FieldName = (typeof FIELD_ORDER)[number]
 type Errors = Partial<Record<FieldName, string>>
@@ -251,8 +252,10 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
   const queryClient = useQueryClient()
   const canEdit = usePermission({ integration: ["update"] })
   const canTest = usePermission({ integration: ["test"] })
-  // The enquiry-details switch is the owner's alone (ruling 5).
+  // The enquiry-details switch is the owner's alone (ruling 5), and never
+  // while viewing the admin as someone else (the server refuses it too).
   const isOwner = usePermission({ owner: ["manage"] })
+  const impersonating = useOptionalAdminSession()?.impersonatedBy != null
   const saved = formOf(dto)
   const [form, setForm] = useState<Form>(saved)
   const hasKey = dto.secrets.apiKey?.set === true
@@ -268,19 +271,19 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
     message: string
   } | null>(null)
 
-  // A typed key never outlives the screen.
-  useEffect(() => () => setNewKey(""), [])
-
   useEffect(() => {
     if (!focusField) return
     const element = document.getElementById(FOCUS_TARGET[focusField.name])
-    // Groups carry the id: focus their first control.
+    // Groups carry the id: focus their checked radio, else first control.
     const target =
       element?.tagName === "FIELDSET" ||
       element?.getAttribute("role") === "radiogroup"
-        ? element.querySelector<HTMLElement>(
+        ? (element.querySelector<HTMLElement>(
+            '[role="radio"][aria-checked="true"]'
+          ) ??
+          element.querySelector<HTMLElement>(
             '[role="radio"]:not([aria-disabled="true"]), [role="checkbox"]:not([aria-disabled="true"]), [role="switch"]'
-          )
+          ))
         : element
     target?.focus()
   }, [focusField])
@@ -296,7 +299,11 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
   const typedKey = showKeyInput ? newKey.trim() : ""
   const removeKey = showKeyChoice && keyMode === "remove"
   const losesKey = hasKey && !keyFollows && typedKey === ""
-  const shareChanged = isOwner && form.share !== saved.share
+  const canShare = isOwner && !impersonating
+  const shareChanged = canShare && form.share !== saved.share
+  // The server lists models only with the saved key, for the saved
+  // provider and base URL: anything else must be saved first.
+  const canListModels = hasKey && keyFollows
 
   const dirty =
     JSON.stringify(form) !== JSON.stringify(saved) ||
@@ -593,23 +600,49 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
                     onChange={(e) => set("model", e.target.value)}
                   />
                   {canEdit ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(FORM_ACTION, "bg-card", SOFT_DISABLED)}
-                      aria-disabled={listModels.isPending || undefined}
-                      onClick={() => {
-                        if (!listModels.isPending) listModels.mutate()
-                      }}
-                    >
-                      {listModels.isPending ? (
-                        <LoaderCircle
-                          aria-hidden
-                          className="size-4 animate-spin motion-reduce:animate-none"
-                        />
-                      ) : null}
-                      List models
-                    </Button>
+                    <Tooltip disabled={canListModels}>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              FORM_ACTION,
+                              "bg-card",
+                              SOFT_DISABLED
+                            )}
+                            aria-disabled={
+                              !canListModels ||
+                              listModels.isPending ||
+                              undefined
+                            }
+                            aria-describedby={
+                              canListModels
+                                ? undefined
+                                : id("models-save-first")
+                            }
+                            onClick={() => {
+                              if (canListModels && !listModels.isPending)
+                                listModels.mutate()
+                            }}
+                          />
+                        }
+                      >
+                        {listModels.isPending ? (
+                          <LoaderCircle
+                            aria-hidden
+                            className="size-4 animate-spin motion-reduce:animate-none"
+                          />
+                        ) : null}
+                        List models
+                      </TooltipTrigger>
+                      <TooltipContent>{SAVE_FIRST}</TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  {canEdit && !canListModels ? (
+                    <span id={id("models-save-first")} className="sr-only">
+                      {SAVE_FIRST}
+                    </span>
                   ) : null}
                 </div>
                 <datalist id={MODELS_LIST_ID}>
@@ -674,68 +707,6 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
                   </ErrorText>
                 ) : null}
               </fieldset>
-
-              {/* Enquiry details: owners only */}
-              {isOwner ? (
-                <fieldset
-                  className="flex flex-col gap-3 rounded-xl border bg-background px-4 py-3 shadow-xs"
-                  data-invalid={invalid("shareEnquiryDetails")}
-                >
-                  <legend className="sr-only">Enquiry details</legend>
-                  <div className="flex min-h-10 items-center justify-between gap-4">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <label htmlFor={id("share")} className={LABEL_CLASS}>
-                        Let the assistant read enquiry details
-                      </label>
-                      <HelpText id={`${id("share")}-help`}>
-                        Off by default. When on, people who can read enquiries
-                        may get names, topics and messages in answers.
-                      </HelpText>
-                    </div>
-                    <Switch
-                      id={id("share")}
-                      checked={form.share}
-                      disabled={!canEdit}
-                      aria-invalid={invalid("shareEnquiryDetails")}
-                      aria-describedby={describedBy(id("share"), {
-                        help: "y",
-                        error: error("shareEnquiryDetails"),
-                      })}
-                      onCheckedChange={(checked) => {
-                        set("share", checked)
-                        if (!checked) setAcknowledge(false)
-                      }}
-                    />
-                  </div>
-                  {form.share && !saved.share ? (
-                    <label
-                      className={cn(
-                        "flex cursor-pointer items-start gap-2.5 rounded-lg py-2 text-sm pointer-coarse:min-h-11",
-                        !canEdit && "cursor-default"
-                      )}
-                    >
-                      <Checkbox
-                        className="mt-0.5"
-                        checked={acknowledge}
-                        disabled={!canEdit}
-                        aria-invalid={invalid("shareEnquiryDetails")}
-                        aria-describedby={
-                          error("shareEnquiryDetails")
-                            ? `${id("share")}-error`
-                            : undefined
-                        }
-                        onCheckedChange={(checked) => setAcknowledge(checked)}
-                      />
-                      <span>{SHARE_ACK}</span>
-                    </label>
-                  ) : null}
-                  {error("shareEnquiryDetails") ? (
-                    <ErrorText id={`${id("share")}-error`}>
-                      {error("shareEnquiryDetails")}
-                    </ErrorText>
-                  ) : null}
-                </fieldset>
-              ) : null}
             </FormSubsection>
 
             <FormSubsection id={id("answers-section")} title="Answers">
@@ -798,6 +769,71 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
                 />
               </FieldShell>
             </FormSubsection>
+
+            {/* Enquiry details: owners only, last (spec §6.3 order) */}
+            {isOwner ? (
+              <FormSubsection id={id("privacy-section")} title="Privacy">
+                <fieldset
+                  className="flex flex-col gap-3 rounded-xl border bg-background px-4 py-3 shadow-xs"
+                  data-invalid={invalid("shareEnquiryDetails")}
+                >
+                  <legend className="sr-only">Enquiry details</legend>
+                  <div className="flex min-h-10 items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <label htmlFor={id("share")} className={LABEL_CLASS}>
+                        Let the assistant read enquiry details
+                      </label>
+                      <HelpText id={`${id("share")}-help`}>
+                        {impersonating
+                          ? "Not available while you view the admin as someone else."
+                          : "Off by default. When on, people who can read enquiries may get names, topics and messages in answers."}
+                      </HelpText>
+                    </div>
+                    <Switch
+                      id={id("share")}
+                      checked={form.share}
+                      disabled={!canEdit || !canShare}
+                      aria-invalid={invalid("shareEnquiryDetails")}
+                      aria-describedby={describedBy(id("share"), {
+                        help: "y",
+                        error: error("shareEnquiryDetails"),
+                      })}
+                      onCheckedChange={(checked) => {
+                        set("share", checked)
+                        if (!checked) setAcknowledge(false)
+                      }}
+                    />
+                  </div>
+                  {canShare && form.share && !saved.share ? (
+                    <label
+                      className={cn(
+                        "flex cursor-pointer items-start gap-2.5 rounded-lg py-2 text-sm pointer-coarse:min-h-11",
+                        !canEdit && "cursor-default"
+                      )}
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={acknowledge}
+                        disabled={!canEdit}
+                        aria-invalid={invalid("shareEnquiryDetails")}
+                        aria-describedby={
+                          error("shareEnquiryDetails")
+                            ? `${id("share")}-error`
+                            : undefined
+                        }
+                        onCheckedChange={(checked) => setAcknowledge(checked)}
+                      />
+                      <span>{SHARE_ACK}</span>
+                    </label>
+                  ) : null}
+                  {error("shareEnquiryDetails") ? (
+                    <ErrorText id={`${id("share")}-error`}>
+                      {error("shareEnquiryDetails")}
+                    </ErrorText>
+                  ) : null}
+                </fieldset>
+              </FormSubsection>
+            ) : null}
           </fieldset>
 
           {formError ? (
@@ -965,8 +1001,19 @@ function ApiKeyField({
       </span>
       {saved}
       <RadioGroup
+        // Without the input (Keep / Remove), a key error focuses the group.
+        id={showInput ? undefined : inputId}
         aria-labelledby={`${inputId}-label`}
-        aria-describedby={hintId}
+        aria-describedby={
+          [
+            hintId,
+            mode === "remove" ? `${inputId}-remove` : null,
+            error ? `${inputId}-error` : null,
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
+        aria-invalid={error && !showInput ? true : undefined}
         value={mode}
         disabled={disabled}
         onValueChange={(next) => onMode(next as KeyMode)}
