@@ -248,4 +248,25 @@ describe("public page metadata (spec §10)", () => {
       siteMetadata(custom, "https://www.securitypartnersltd.com").verification
     ).toEqual({ google: "g-123", other: { "msvalidate.01": "B_9" } })
   })
+
+  it("siteMetadata: a pre-migration seo.defaults row keeps the base metadata (D1.6 M1)", () => {
+    const custom = structuredClone(s)
+    const legacy = custom.settings["seo.defaults"] as Partial<
+      (typeof custom.settings)["seo.defaults"]
+    >
+    delete legacy.verification
+    delete legacy.robots
+    const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
+    expect(Object.keys(meta).sort()).toEqual([
+      "description",
+      "icons",
+      "metadataBase",
+    ])
+    expect(String(meta.metadataBase)).toBe(
+      "https://www.securitypartnersltd.com/"
+    )
+    expect(meta.description).toBe(
+      interpolate(defaults.description, placeholders(s))
+    )
+  })
 })

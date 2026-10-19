@@ -85,7 +85,7 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
           { value: "index", label: "Show the site in search results" },
           { value: "noindex", label: "Hide the whole site from search" },
         ],
-        help: "Hide changes robots.txt to block every page and tells search engines not to index the site.",
+        help: "“Hide the whole site from search” blocks every page in robots.txt and asks search engines not to index it. Pages already in search results may stay listed until they are removed: use the removal tool in Google Search Console (and Bing Webmaster Tools) for that.",
       },
       verification: {
         label: "Search console verification",

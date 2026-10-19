@@ -81,12 +81,45 @@ describe("CrawlPreview (D1.6)", () => {
     const user = userEvent.setup()
     render(<CrawlPreview />)
     expect(
-      await screen.findByText("Could not load /robots.txt. Try again later.")
+      await screen.findByText(
+        "Could not load /robots.txt. Use Refresh to try again."
+      )
     ).toBeVisible()
     await user.click(screen.getByRole("tab", { name: "Sitemap" }))
     expect(
-      await screen.findByText("Could not load /sitemap.xml. Try again later.")
+      await screen.findByText(
+        "Could not load /sitemap.xml. Use Refresh to try again."
+      )
     ).toBeVisible()
+  })
+
+  it("Refresh refetches both files (after publishing, review M2)", async () => {
+    const user = userEvent.setup()
+    render(<CrawlPreview />)
+    expect(await screen.findByText(/Disallow: \/admin/)).toBeVisible()
+    responses["/robots.txt"] = async () =>
+      new Response("User-Agent: *\nDisallow: /\n", { status: 200 })
+    fetchMock.mockClear()
+    const refresh = screen.getByRole("button", {
+      name: "Refresh what crawlers see",
+    })
+    expect(refresh).toHaveClass("pointer-coarse:h-11")
+    await user.click(refresh)
+    expect(await screen.findByText(/Disallow: \/$/m)).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledWith("/robots.txt", expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith("/sitemap.xml", expect.anything())
+  })
+
+  it("sitemap links say they open a new tab (review M5)", async () => {
+    const user = userEvent.setup()
+    render(<CrawlPreview />)
+    await user.click(screen.getByRole("tab", { name: "Sitemap" }))
+    expect(await screen.findByText("25 URLs in the sitemap")).toBeVisible()
+    expect(
+      screen.getByRole("link", {
+        name: "https://example.ie/p1 (opens in a new tab)",
+      })
+    ).toHaveAttribute("target", "_blank")
   })
 
   it("extractLocs: trims, decodes &amp; and ignores other tags", () => {
@@ -95,5 +128,13 @@ describe("CrawlPreview (D1.6)", () => {
         "<url><loc> https://e.ie/a?x=1&amp;y=2 </loc><lastmod>2026</lastmod></url><url><loc>https://e.ie/b</loc></url>"
       )
     ).toEqual(["https://e.ie/a?x=1&y=2", "https://e.ie/b"])
+  })
+
+  it("extractLocs: keeps only http(s) locations (review M5)", () => {
+    expect(
+      extractLocs(
+        "<loc>javascript:alert(1)</loc><loc>//evil.example/x</loc><loc>data:text/html,x</loc><loc>http://e.ie/a</loc><loc>HTTPS://e.ie/b</loc>"
+      )
+    ).toEqual(["http://e.ie/a", "HTTPS://e.ie/b"])
   })
 })

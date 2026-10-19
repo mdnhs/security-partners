@@ -166,7 +166,11 @@ export const DEFAULT_FAVICON = "/favicon.ico"
  */
 export function siteMetadata(s: SiteSources, origin: string): Metadata {
   const defaults = s.settings["seo.defaults"]
-  const verification = siteVerification(defaults.verification)
+  // The layout reads settings unparsed: a row from before the robots
+  // migration has no verification and must still yield the base metadata.
+  const verification = siteVerification(
+    defaults.verification ?? { google: "", bing: "" }
+  )
   return {
     metadataBase: new URL(origin),
     description: interpolate(defaults.description, placeholders(s)),

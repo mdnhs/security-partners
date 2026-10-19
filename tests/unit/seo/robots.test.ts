@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { growthEditorMeta } from "@/components/admin/seo/growth-meta"
 import { seoDefaultsSettings } from "@/lib/schemas/settings/seo-defaults"
 import { buildRobots } from "@/lib/seo/sitemap"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
@@ -25,6 +26,17 @@ describe("site robots mode (D1.6)", () => {
     expect(buildRobots(ORIGIN, "noindex")).toEqual({
       rules: [{ userAgent: "*", disallow: "/" }],
     })
+  })
+})
+
+describe("robots help text (D1.6 review M3/M6)", () => {
+  it("says blocked pages may stay listed and points to Search Console removal", () => {
+    const help = growthEditorMeta["seo.defaults"].fields?.robots?.help ?? ""
+    expect(help).toMatch(
+      /^“Hide the whole site from search” blocks every page in robots\.txt and asks search engines not to index it\./
+    )
+    expect(help).toContain("may stay listed until they are removed")
+    expect(help).toContain("removal tool in Google Search Console")
   })
 })
 

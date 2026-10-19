@@ -1,8 +1,10 @@
 "use client"
 
+import { RefreshCw } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 /** Sitemap locations listed in the preview; the rest are only counted. */
@@ -16,19 +18,32 @@ const XML_ENTITIES: Record<string, string> = {
   "&apos;": "'",
 }
 
-/** <loc> values of a sitemap, trimmed and entity-decoded, in order. */
+/**
+ * http(s) <loc> values of a sitemap, trimmed and entity-decoded, in order.
+ * Anything else (javascript:, data:, protocol-relative) is dropped: they
+ * become links.
+ */
 export function extractLocs(xml: string): string[] {
   return Array.from(xml.matchAll(/<loc>([\s\S]*?)<\/loc>/g), (m) =>
     m[1].trim().replace(/&(?:amp|lt|gt|quot|apos);/g, (e) => XML_ENTITIES[e])
-  )
+  ).filter((loc) => /^https?:\/\//i.test(loc))
 }
 
 type Fetched =
   { state: "loading" } | { state: "error" } | { state: "done"; text: string }
 
-/** The live (same-origin) file; refetched on each mount, never cached. */
-function usePublicFile(path: string): Fetched {
+/**
+ * The live (same-origin) file, never cached; refetched on mount and
+ * whenever `nonce` changes (the Refresh button).
+ */
+function usePublicFile(path: string, nonce: number): Fetched {
   const [result, setResult] = useState<Fetched>({ state: "loading" })
+  const [loaded, setLoaded] = useState({ path, nonce })
+  // Back to "loading" on a refetch (render-time reset, no effect setState).
+  if (loaded.path !== path || loaded.nonce !== nonce) {
+    setLoaded({ path, nonce })
+    setResult({ state: "loading" })
+  }
   useEffect(() => {
     const controller = new AbortController()
     fetch(path, { cache: "no-store", signal: controller.signal })
@@ -41,7 +56,7 @@ function usePublicFile(path: string): Fetched {
         if (!controller.signal.aborted) setResult({ state: "error" })
       })
     return () => controller.abort()
-  }, [path])
+  }, [path, nonce])
   return result
 }
 
@@ -54,7 +69,7 @@ function Status({ result, path }: { result: Fetched; path: string }) {
     )
   return (
     <p role="status" className="text-destructive">
-      Could not load {path}. Try again later.
+      Could not load {path}. Use Refresh to try again.
     </p>
   )
 }
@@ -89,7 +104,7 @@ function SitemapPanel({ result }: { result: Fetched }) {
                 rel="noreferrer"
                 className="inline-block break-all text-primary underline-offset-4 hover:underline pointer-coarse:py-2.5"
               >
-                {loc}
+                {loc} <span className="sr-only">(opens in a new tab)</span>
               </a>
             </li>
           ))}
@@ -107,13 +122,32 @@ function SitemapPanel({ result }: { result: Fetched }) {
 /**
  * Aside on SEO › Defaults: the live robots.txt and sitemap.xml this
  * origin serves (published settings only, so draft changes show after
- * publishing).
+ * publishing; Refresh fetches both files again).
  */
 export function CrawlPreview() {
-  const robots = usePublicFile("/robots.txt")
-  const sitemap = usePublicFile("/sitemap.xml")
+  const [nonce, setNonce] = useState(0)
+  const robots = usePublicFile("/robots.txt", nonce)
+  const sitemap = usePublicFile("/sitemap.xml", nonce)
+  const loading = robots.state === "loading" || sitemap.state === "loading"
   return (
-    <DashboardCard title="What crawlers see" headingLevel={2}>
+    <DashboardCard
+      title="What crawlers see"
+      headingLevel={2}
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="pointer-coarse:h-11"
+          aria-label="Refresh what crawlers see"
+          disabled={loading}
+          onClick={() => setNonce((n) => n + 1)}
+        >
+          <RefreshCw aria-hidden data-icon="inline-start" />
+          Refresh
+        </Button>
+      }
+    >
       <Tabs defaultValue="robots">
         <TabsList>
           <TabsTrigger value="robots">robots.txt</TabsTrigger>
