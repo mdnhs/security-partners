@@ -22,106 +22,121 @@ export type PillBarDatum = {
   key: string
   label: string
   current: number
-  /** Comparison period (hatched); omit for a single series. */
-  previous?: number
+  /** Comparison period (hatched); null when there is none (one series). */
+  previous: number | null
 }
 
+const DEFAULT_LEGEND = { current: "Current", previous: "Previous" }
+
 /**
- * Capsule bars (hatched for a comparison period) with a value tag on the
- * busiest bar. The SVG is hidden from assistive tech; the sr-only table
- * carries the numbers.
+ * Two-series capsule bars: `current` in chart-2, `previous` hatched, a value
+ * tag on the busiest current bar. The SVG is hidden from assistive tech: the
+ * figure is labelled and an sr-only table carries every number; the legend
+ * pairs each swatch (solid vs hatched, not colour alone) with its text.
  */
 export function PillBarChart({
-  title,
   data,
-  currentLabel,
-  previousLabel,
+  ariaLabel,
+  legend,
+  emptyText,
   rowHeader = "Day",
 }: {
-  title: string
   data: readonly PillBarDatum[]
-  currentLabel: string
-  previousLabel?: string
+  ariaLabel: string
+  legend?: { current: string; previous: string }
+  /** Overlay shown when every current and previous value is 0. */
+  emptyText?: string
+  /** The sr table's first column header. */
   rowHeader?: string
 }) {
   const hatchId = `hatch-${useId().replace(/:/g, "")}`
   const reduced = useReducedMotion()
-  const compare =
-    previousLabel !== undefined && data.some((d) => d.previous !== undefined)
+  const labels = legend ?? DEFAULT_LEGEND
+  const compare = data.some((d) => d.previous !== null)
+  const empty = data.every((d) => d.current === 0 && (d.previous ?? 0) === 0)
   const currents = data.map((datum) => datum.current)
   const busiest = peakIndex(currents)
   const peak = (currents[busiest] ?? 0) > 0 ? busiest : -1
   const config = {
-    current: { label: currentLabel, color: "var(--chart-2)" },
-    previous: { label: previousLabel ?? "", color: "var(--hatch)" },
+    current: { label: labels.current, color: "var(--chart-2)" },
+    previous: { label: labels.previous, color: "var(--hatch)" },
   } satisfies ChartConfig
 
   return (
-    <figure className="flex flex-col gap-4">
-      <ChartContainer
-        config={config}
-        className="aspect-auto h-72 w-full"
-        aria-hidden
-      >
-        <BarChart
-          data={[...data]}
-          barGap={4}
-          barCategoryGap="14%"
-          margin={{ top: 44, right: 4, bottom: 0, left: 4 }}
-          accessibilityLayer={false}
+    <figure aria-label={ariaLabel} className="flex flex-col gap-4">
+      <div className="relative">
+        <ChartContainer
+          config={config}
+          className="aspect-auto h-72 w-full"
+          aria-hidden
         >
-          <defs>
-            <pattern
-              id={hatchId}
-              width="8"
-              height="8"
-              patternUnits="userSpaceOnUse"
-              patternTransform="rotate(45)"
-            >
-              <rect
+          <BarChart
+            data={[...data]}
+            barGap={4}
+            barCategoryGap="14%"
+            margin={{ top: 44, right: 4, bottom: 0, left: 4 }}
+            accessibilityLayer={false}
+          >
+            <defs>
+              <pattern
+                id={hatchId}
                 width="8"
                 height="8"
-                fill="var(--color-previous)"
-                fillOpacity={0.25}
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect
+                  width="8"
+                  height="8"
+                  fill="var(--color-previous)"
+                  fillOpacity={0.25}
+                />
+                <rect width="3.5" height="8" fill="var(--color-previous)" />
+              </pattern>
+            </defs>
+            {/* Tallest bar meets the top margin, which the value tag uses. */}
+            <YAxis hide domain={[0, maxDomain]} />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={10}
+            />
+            {compare ? (
+              <Bar
+                dataKey="previous"
+                fill={`url(#${hatchId})`}
+                stroke="var(--color-previous)"
+                strokeWidth={1.5}
+                radius={999}
+                isAnimationActive={!reduced}
               />
-              <rect width="3.5" height="8" fill="var(--color-previous)" />
-            </pattern>
-          </defs>
-          <YAxis hide domain={[0, maxDomain]} />
-          <XAxis
-            dataKey="label"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={10}
-          />
-          {compare ? (
+            ) : null}
             <Bar
-              dataKey="previous"
-              fill={`url(#${hatchId})`}
-              stroke="var(--color-previous)"
-              strokeWidth={1.5}
+              dataKey="current"
+              fill="var(--color-current)"
               radius={999}
               isAnimationActive={!reduced}
+              shape={(props: BarShapeProps) => (
+                <PillWithTag {...props} showTag={props.index === peak} />
+              )}
             />
-          ) : null}
-          <Bar
-            dataKey="current"
-            fill="var(--color-current)"
-            radius={999}
-            isAnimationActive={!reduced}
-            shape={(props: BarShapeProps) => (
-              <PillWithTag {...props} showTag={props.index === peak} />
-            )}
-          />
-        </BarChart>
-      </ChartContainer>
+          </BarChart>
+        </ChartContainer>
+        {empty && emptyText ? (
+          // Real text (the figure's status), over the hidden SVG.
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex h-64 items-center justify-center text-center">
+            <p className="text-base font-semibold">{emptyText}</p>
+          </div>
+        ) : null}
+      </div>
       <table className="sr-only">
-        <caption>{title}</caption>
+        <caption>{ariaLabel}</caption>
         <thead>
           <tr>
             <th scope="col">{rowHeader}</th>
-            <th scope="col">{currentLabel}</th>
-            {compare ? <th scope="col">{previousLabel}</th> : null}
+            <th scope="col">{labels.current}</th>
+            {compare ? <th scope="col">{labels.previous}</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -134,21 +149,29 @@ export function PillBarChart({
           ))}
         </tbody>
       </table>
-      <figcaption className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <span aria-hidden className="size-3 rounded-full bg-chart-2" />
-          {currentLabel}
-        </span>
-        {compare ? (
+      {legend ? (
+        // Last child of the figure: a figcaption must be first or last.
+        <figcaption className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
           <span className="flex items-center gap-2">
             <span
               aria-hidden
-              className="bg-hatch size-3 rounded-full border-[1.5px] border-(--hatch)"
+              data-series="current"
+              className="size-3 rounded-full bg-chart-2"
             />
-            {previousLabel}
+            {legend.current}
           </span>
-        ) : null}
-      </figcaption>
+          {compare ? (
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden
+                data-series="previous"
+                className="bg-hatch size-3 rounded-full border-[1.5px] border-(--hatch)"
+              />
+              {legend.previous}
+            </span>
+          ) : null}
+        </figcaption>
+      ) : null}
     </figure>
   )
 }

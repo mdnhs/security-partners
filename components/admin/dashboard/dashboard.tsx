@@ -9,7 +9,7 @@ import { ActivityFeed } from "@/components/admin/kit/activity-feed"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { formatNumber } from "@/components/admin/kit/format"
-import { KpiCard } from "@/components/admin/kit/kpi-card"
+import { KpiCard, type KpiCardProps } from "@/components/admin/kit/kpi-card"
 import { PillBarChart } from "@/components/admin/kit/pill-bar-chart"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import {
@@ -31,14 +31,19 @@ import { DashboardSkeleton } from "./dashboard-skeleton"
 import { NextUp } from "./next-up"
 import { greetingFor, weeklyBuckets } from "./present"
 
-type Kpi = {
-  label: string
-  value: string
-  caption: string
-  href?: string
+type Kpi = Pick<KpiCardProps, "label" | "value" | "caption" | "href">
+
+/** Content list the role may open, for the Published content chip. */
+type ContentAccess = { pages: boolean; services: boolean; articles: boolean }
+
+function contentHref(access: ContentAccess): string {
+  if (access.pages) return "/admin/pages"
+  if (access.services) return "/admin/services"
+  return "/admin/articles"
 }
 
-function kpisFor(dto: DashboardDto, canReadPages: boolean): Kpi[] {
+/** Every KPI links its chip to the screen it counts (the API gates each part). */
+function kpisFor(dto: DashboardDto, access: ContentAccess): Kpi[] {
   const { kpis } = dto
   const out: Kpi[] = []
   if (kpis.leads30d !== null)
@@ -46,12 +51,14 @@ function kpisFor(dto: DashboardDto, canReadPages: boolean): Kpi[] {
       label: "New enquiries",
       value: formatNumber(kpis.leads30d),
       caption: "last 30 days",
+      href: "/admin/leads",
     })
   if (kpis.openLeads !== null)
     out.push({
       label: "Open enquiries",
       value: formatNumber(kpis.openLeads),
       caption: "new, contacted or qualified",
+      href: "/admin/leads",
     })
   if (kpis.published) {
     const { pages, services, articles } = kpis.published
@@ -59,7 +66,7 @@ function kpisFor(dto: DashboardDto, canReadPages: boolean): Kpi[] {
       label: "Published content",
       value: formatNumber(pages + services + articles),
       caption: `${pages} pages · ${services} services · ${articles} articles`,
-      href: canReadPages ? "/admin/pages" : undefined,
+      href: contentHref(access),
     })
   }
   if (kpis.inReview !== null)
@@ -67,6 +74,7 @@ function kpisFor(dto: DashboardDto, canReadPages: boolean): Kpi[] {
       label: "Drafts in review",
       value: formatNumber(kpis.inReview),
       caption: "articles waiting for an editor",
+      href: "/admin/articles?status=in_review",
     })
   return out
 }
@@ -82,6 +90,8 @@ export function Dashboard({
   const site = useSiteInfo()
   const canCreateService = usePermission({ service: ["create"] })
   const canReadPages = usePermission({ page: ["read"] })
+  const canReadServices = usePermission({ service: ["read"] })
+  const canReadArticles = usePermission({ article: ["read"] })
   const canReadAudit = usePermission({ audit: ["read"] })
   const query = useQuery({
     queryKey: ["dashboard"],
@@ -143,7 +153,11 @@ export function Dashboard({
       ) : (
         <Body
           dto={query.data}
-          kpis={kpisFor(query.data, canReadPages)}
+          kpis={kpisFor(query.data, {
+            pages: canReadPages,
+            services: canReadServices,
+            articles: canReadArticles,
+          })}
           activity={
             canReadAudit ? (
               <TeamActivity
@@ -230,7 +244,6 @@ function Body({
   // The Content health gauge (hidden without seo:read) sits beside the feed.
   const canReadSeo = usePermission({ seo: ["read"] })
   const weeks = dto.leadsTrend ? weeklyBuckets(dto.leadsTrend) : null
-  const quiet = weeks?.every((week) => week.current === 0) ?? false
   return (
     <>
       {/* KPI cards title themselves with h3s; keep the outline continuous. */}
@@ -257,30 +270,13 @@ function Body({
       >
         {weeks ? (
           <DashboardCard title="Enquiries, last 90 days">
-            <div className="relative">
-              <PillBarChart
-                title="Enquiries, last 90 days"
-                rowHeader="Week of"
-                currentLabel="Enquiries"
-                data={weeks}
-              />
-              {quiet ? (
-                <>
-                  {/* The table already lists the zeros; the overlay is decoration. */}
-                  <p className="sr-only">No enquiries in the last 90 days.</p>
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 top-0 flex h-64 flex-col items-center justify-center gap-1 text-center"
-                  >
-                    <p className="text-base font-semibold">No enquiries yet</p>
-                    <p className="max-w-xs text-sm text-muted-foreground">
-                      Each week&apos;s enquiries from the contact form will show
-                      here.
-                    </p>
-                  </div>
-                </>
-              ) : null}
-            </div>
+            <PillBarChart
+              ariaLabel="Enquiries, last 90 days"
+              rowHeader="Week of"
+              legend={{ current: "Enquiries", previous: "Previous period" }}
+              emptyText="No enquiries yet"
+              data={weeks}
+            />
           </DashboardCard>
         ) : null}
         <NextUp items={dto.nextUp} />

@@ -29,6 +29,7 @@ describe("dashboard presenters", () => {
       key: "2026-10-10",
       label: "10 Oct",
       current: 4,
+      previous: null,
     })
     expect(weeks.at(-2)!.current).toBe(3)
     expect(weeks.reduce((sum, w) => sum + w.current, 0)).toBe(7)

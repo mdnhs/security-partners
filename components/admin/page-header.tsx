@@ -1,4 +1,6 @@
-import type { ReactNode } from "react"
+import { ChevronRight } from "lucide-react"
+import Link from "next/link"
+import { Fragment, isValidElement, type ReactNode } from "react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -25,6 +27,70 @@ export const LINK_SECONDARY = cn(
 )
 export const LINK_FORM = cn(buttonVariants(), FORM_ACTION)
 
+/** One breadcrumb; the one without an `href` (normally the last) is the current page. */
+export type Crumb = { label: string; href?: string }
+
+function isCrumbs(value: unknown): value is readonly Crumb[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        !isValidElement(item) &&
+        typeof (item as Crumb).label === "string"
+    )
+  )
+}
+
+/**
+ * Breadcrumb trail (shadcn breadcrumb markup: nav > ol > li, the current page
+ * a non-link with aria-current="page").
+ * TODO(A2 merge): render with `@/components/ui/breadcrumb` primitives.
+ */
+function Breadcrumbs({ items }: { items: readonly Crumb[] }) {
+  return (
+    <nav aria-label="Breadcrumb">
+      <ol className="flex flex-wrap items-center gap-1.5 text-sm wrap-break-word text-muted-foreground">
+        {items.map((item, index) => {
+          const current = !item.href || index === items.length - 1
+          return (
+            <Fragment key={`${index}-${item.label}`}>
+              {index > 0 ? (
+                <li
+                  role="presentation"
+                  aria-hidden
+                  className="[&>svg]:size-3.5"
+                >
+                  <ChevronRight />
+                </li>
+              ) : null}
+              <li className="inline-flex items-center gap-1.5">
+                {current || item.href === undefined ? (
+                  <span
+                    aria-current="page"
+                    className="font-medium text-foreground"
+                  >
+                    {item.label}
+                  </span>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className="inline-flex items-center rounded-md transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:min-h-11"
+                  >
+                    {item.label}
+                  </Link>
+                )}
+              </li>
+            </Fragment>
+          )
+        })}
+      </ol>
+    </nav>
+  )
+}
+
 /** Title row of an admin screen: optional breadcrumbs, h1, description, actions. */
 export function PageHeader({
   title,
@@ -37,7 +103,8 @@ export function PageHeader({
   title: ReactNode
   description?: ReactNode
   actions?: ReactNode
-  breadcrumbs?: ReactNode
+  /** A trail of crumbs (rendered as a breadcrumb nav), or a custom node such as a back link. */
+  breadcrumbs?: readonly Crumb[] | ReactNode
   titleTestId?: string
   /**
    * Actions in one row under the title, never beside it: for a header on a
@@ -53,7 +120,11 @@ export function PageHeader({
       )}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        {breadcrumbs}
+        {isCrumbs(breadcrumbs) ? (
+          <Breadcrumbs items={breadcrumbs} />
+        ) : (
+          (breadcrumbs as ReactNode)
+        )}
         <h1 className="text-title text-balance" data-testid={titleTestId}>
           {title}
         </h1>
