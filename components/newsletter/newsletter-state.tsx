@@ -1,9 +1,12 @@
 import { buttonClassName } from "@/components/ui/button"
 
+import { StripNewsletterToken } from "./strip-token"
+
 /**
  * Body of a /newsletter/[state] page, in the legal pages' reading column.
  * The button pages (confirm, unsubscribe) are a plain POST form: no script,
- * no autofocus, nothing submits without a person's click. The API never
+ * no autofocus, nothing submits without a person's click. After hydration
+ * `?token` is removed from the address bar; the hidden field keeps it. The API never
  * confirms or unsubscribes on a GET, so a link scanner fetching or
  * rendering this page changes nothing.
  */
@@ -24,6 +27,7 @@ export function NewsletterStateBody({
       <p className="text-lg leading-[1.75] text-[#3b4556]">{body}</p>
       {action && (
         <form method="post" action={action}>
+          <StripNewsletterToken />
           <input type="hidden" name="token" value={token} />
           <button
             type="submit"

@@ -7,6 +7,7 @@ vi.mock("@/lib/analytics/events", () => analytics)
 
 import { NewsletterForm } from "@/components/newsletter/newsletter-form"
 import { NewsletterStateBody } from "@/components/newsletter/newsletter-state"
+import { NEWSLETTER_TOKEN_STRIPPED } from "@/lib/newsletter/placement"
 import type { NewsletterPublicCopy } from "@/lib/schemas/settings/newsletter"
 
 const copy: NewsletterPublicCopy = {
@@ -225,6 +226,42 @@ describe("NewsletterStateBody", () => {
       submit.mockRestore()
       requestSubmit.mockRestore()
     })
+
+  it("drops ?token from the address bar after mount; the form still posts it", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/newsletter/confirm?token=abc.def&utm=x#top"
+    )
+    const stripped = vi.fn()
+    window.addEventListener(NEWSLETTER_TOKEN_STRIPPED, stripped)
+    const posted: string[] = []
+    const { container } = render(
+      <NewsletterStateBody
+        body="Press the button below."
+        button="Confirm subscription"
+        action="/api/v1/public/newsletter/confirm"
+        token="abc.def"
+      />
+    )
+    await waitFor(() => expect(window.location.search).toBe("?utm=x"))
+    expect(window.location.pathname).toBe("/newsletter/confirm")
+    expect(window.location.hash).toBe("#top")
+    expect(window.location.href).not.toContain("abc.def")
+    expect(stripped).toHaveBeenCalledOnce()
+    // jsdom does not navigate on submit: read what the form would send.
+    const form = container.querySelector("form")!
+    form.addEventListener("submit", (event) => {
+      event.preventDefault()
+      posted.push(String(new FormData(form).get("token")))
+    })
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Confirm subscription" }))
+    expect(posted).toEqual(["abc.def"])
+    window.removeEventListener(NEWSLETTER_TOKEN_STRIPPED, stripped)
+    window.history.replaceState(null, "", "/")
+  })
 
   it("no action: the body text only, no form", () => {
     const { container } = render(

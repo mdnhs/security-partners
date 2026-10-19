@@ -84,3 +84,28 @@ export function carriesNewsletterToken(location: {
     new URLSearchParams(location.search).has("token")
   )
 }
+
+/**
+ * Window event fired once a token page has removed `?token` from the address
+ * bar (the token stays only in the form's hidden field). TrackingScripts
+ * listens for it and re-checks whether tags may load.
+ */
+export const NEWSLETTER_TOKEN_STRIPPED = "sp:newsletter-token-stripped"
+
+/**
+ * Drops `token` from the current URL (path, other params and hash kept) with
+ * history.replaceState, which Next's router follows. True when it changed
+ * the URL; the caller then dispatches NEWSLETTER_TOKEN_STRIPPED.
+ */
+export function stripNewsletterToken(win: Window): boolean {
+  const url = new URL(win.location.href)
+  if (!url.searchParams.has("token")) return false
+  url.searchParams.delete("token")
+  const query = url.searchParams.toString()
+  win.history.replaceState(
+    null,
+    "",
+    `${url.pathname}${query ? `?${query}` : ""}${url.hash}`
+  )
+  return true
+}

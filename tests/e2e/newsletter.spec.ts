@@ -152,6 +152,8 @@ test("placement blog → subscribe, confirm, unsubscribe", async ({
     page.getByRole("heading", { level: 1, name: "Confirm your subscription" })
   ).toBeVisible()
   expect((await findSubscriber(api))?.status).toBe("pending")
+  // After hydration the token is only in the form, not the address bar.
+  await expect(page).toHaveURL(/\/newsletter\/confirm$/)
   await page.getByRole("button", { name: "Confirm subscription" }).click()
   await expect(page).toHaveURL(/\/newsletter\/confirmed$/)
   await expect(
