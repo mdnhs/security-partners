@@ -130,7 +130,8 @@ describe("tracking test event (sp_tracking_test)", () => {
     expect(testEvents(win)).toEqual([
       { event: "tracking_test", test_id: "abcdefgh-1" },
     ])
-    const config = win.dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
+    const config = win
+      .dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
       .find((args) => args[0] === "config")
     expect(config).toEqual(["config", "G-TEST1", { debug_mode: true }])
   })
@@ -138,29 +139,42 @@ describe("tracking test event (sp_tracking_test)", () => {
   it("without analytics consent nothing is pushed", () => {
     const win = window as AnalyticsWindow
     const search = "?sp_tracking_test=abcdefgh-1"
-    startTracking(IDS, { analytics: false, marketing: false }, {
-      win,
-      doc: document,
-      search,
-    })
+    startTracking(
+      IDS,
+      { analytics: false, marketing: false },
+      {
+        win,
+        doc: document,
+        search,
+      }
+    )
     expect(win.dataLayer).toBeUndefined()
-    startTracking(IDS, { analytics: false, marketing: true }, {
-      win,
-      doc: document,
-      search,
-    })
+    startTracking(
+      IDS,
+      { analytics: false, marketing: true },
+      {
+        win,
+        doc: document,
+        search,
+      }
+    )
     expect(testEvents(win)).toEqual([])
   })
 
   it("an invalid test id is ignored", () => {
     const win = window as AnalyticsWindow
-    startTracking(IDS, { analytics: true, marketing: false }, {
-      win,
-      doc: document,
-      search: "?sp_tracking_test=<script>",
-    })
+    startTracking(
+      IDS,
+      { analytics: true, marketing: false },
+      {
+        win,
+        doc: document,
+        search: "?sp_tracking_test=<script>",
+      }
+    )
     expect(testEvents(win)).toEqual([])
-    const config = win.dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
+    const config = win
+      .dataLayer!.map((e) => Array.from(e as ArrayLike<unknown>))
       .find((args) => args[0] === "config")
     expect(config).toEqual(["config", "G-TEST1"])
   })
