@@ -63,6 +63,38 @@ export async function listRedirectRows(
   return { rows, total }
 }
 
+/** Every redirect by from_path (CSV export and import; the table stays small). */
+export async function listAllRedirectRows(db: DbOrTx): Promise<RedirectRow[]> {
+  return db.select().from(redirects).orderBy(asc(redirects.fromPath))
+}
+
+type ImportedValues = Omit<RedirectValues, "isActive">
+
+/**
+ * CSV import (inside the caller's locked transaction): new rows are added
+ * active; existing ones get the file's target, code and note and keep
+ * their On/Off. Both become source 'import'.
+ */
+export async function writeImportedRedirects(
+  db: DbOrTx,
+  creates: readonly ImportedValues[],
+  updates: readonly ImportedValues[]
+): Promise<void> {
+  for (let i = 0; i < creates.length; i += 500)
+    await db
+      .insert(redirects)
+      .values(
+        creates
+          .slice(i, i + 500)
+          .map((v) => ({ ...v, source: "import" as const }))
+      )
+  for (const v of updates)
+    await db
+      .update(redirects)
+      .set({ toPath: v.toPath, code: v.code, note: v.note, source: "import" })
+      .where(eq(redirects.fromPath, v.fromPath))
+}
+
 export async function findRedirectById(db: DbOrTx, id: string) {
   const [row] = await db.select().from(redirects).where(eq(redirects.id, id))
   return row ?? null

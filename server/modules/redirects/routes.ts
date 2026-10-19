@@ -4,6 +4,7 @@ import { Hono } from "hono"
 
 import { idParam } from "@/lib/schemas/api/params"
 import {
+  redirectImportInput,
   redirectInput,
   redirectListQuery,
   redirectPatch,
@@ -22,6 +23,26 @@ export const redirectsRoutes = new Hono<AppEnv>()
     async (c) =>
       c.json(
         await service.listRedirectsAdmin(actorOf(c), c.req.valid("query")),
+        200
+      )
+  )
+  .get("/export.csv", can({ redirect: ["read"] }), async (c) => {
+    const csv = await service.exportRedirectsCsv(actorOf(c))
+    const date = new Date().toISOString().slice(0, 10)
+    return c.body(csv, 200, {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="redirects-${date}.csv"`,
+      "Cache-Control": "no-store",
+    })
+  })
+  .post(
+    "/import",
+    // Import adds and changes redirects: both permissions, like the form.
+    can({ redirect: ["create", "update"] }),
+    zv("json", redirectImportInput),
+    async (c) =>
+      c.json(
+        await service.importRedirects(actorOf(c), c.req.valid("json")),
         200
       )
   )

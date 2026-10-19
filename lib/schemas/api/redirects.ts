@@ -61,6 +61,16 @@ export const redirectPatch = z
   .refine((value) => Object.keys(value).length > 0, "Nothing to change")
 export type RedirectPatch = z.infer<typeof redirectPatch>
 
+/**
+ * POST /redirects/import: the CSV text (the admin body limit, 1 MB, caps
+ * it) and whether to only check it (`preview`) or write it (`commit`).
+ */
+export const redirectImportInput = z.strictObject({
+  csv: z.string(),
+  mode: z.enum(["preview", "commit"]),
+})
+export type RedirectImportInput = z.infer<typeof redirectImportInput>
+
 export const redirectListQuery = listQuery.extend({
   sort: sortParam(["fromPath", "hits", "updatedAt"], {
     field: "updatedAt",

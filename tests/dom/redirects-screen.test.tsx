@@ -52,6 +52,69 @@ const json = (status: number, body: unknown) =>
     headers: { "content-type": "application/json" },
   })
 
+const OK_ROWS = [
+  {
+    line: 2,
+    from: "/promo",
+    to: "/contact",
+    code: 301,
+    note: "",
+    status: "create",
+  },
+  {
+    line: 3,
+    from: "/old-alarms",
+    to: "/services",
+    code: 302,
+    note: "",
+    status: "update",
+  },
+]
+const BAD_ROWS = [
+  OK_ROWS[0],
+  {
+    line: 4,
+    from: "/promo",
+    to: "/about",
+    code: 301,
+    note: "",
+    status: "error",
+    message: "/promo is already in this file (line 2)",
+  },
+]
+
+/** POST /redirects/import: a file containing "bad" has an error row. */
+let importReplyOverride:
+  ((body: { csv: string; mode: string }) => Response | null) | null = null
+
+function importReply(body: { csv: string; mode: string }) {
+  const override = importReplyOverride?.(body)
+  if (override) return override
+  if (body.csv.includes("broken"))
+    return json(422, {
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Line 2: a quoted value is never closed. Check its quotes.",
+        fieldErrors: { csv: ["Line 2: a quoted value is never closed."] },
+      },
+    })
+  const bad = body.csv.includes("bad")
+  if (body.mode === "commit" && bad)
+    return json(422, {
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "1 row needs fixing. Nothing was imported.",
+        current: { rows: BAD_ROWS },
+      },
+    })
+  return bad
+    ? json(200, { rows: BAD_ROWS, created: 1, updated: 0 })
+    : json(200, { rows: OK_ROWS, created: 1, updated: 1 })
+}
+
+const csvFile = (text: string) =>
+  new File([text], "redirects.csv", { type: "text/csv" })
+
 /** While set, every PATCH waits for it (requests in flight). */
 let hold: Promise<void> | null = null
 
@@ -99,6 +162,10 @@ const fetchMock = vi.fn(
         })
       return json(201, { ...ROW, id: "new", ...body })
     }
+    if (method === "POST" && url.pathname === "/api/v1/admin/redirects/import")
+      return importReply(
+        JSON.parse(String(init!.body)) as { csv: string; mode: string }
+      )
     if (method === "DELETE") return json(200, { ok: true })
     return json(404, { error: { code: "NOT_FOUND", message: "x" } })
   }
@@ -108,6 +175,7 @@ const toastError = vi.spyOn(toast, "error")
 
 beforeEach(() => {
   hold = null
+  importReplyOverride = null
   toastError.mockClear()
   fetchMock.mockClear()
   vi.stubGlobal("fetch", fetchMock)
@@ -340,6 +408,118 @@ describe("Redirects screen (master 8.2)", () => {
     renderAs(["marketer"])
     await screen.findByRole("table", { name: "Redirects" })
     expect(screen.getByText(/marked Automatic/)).toBeVisible()
+  })
+
+  it("Export CSV for readers; Import CSV only for those who can add redirects (D1.8)", async () => {
+    renderAs(["viewer"])
+    await screen.findByRole("table", { name: "Redirects" })
+    expect(screen.getByRole("button", { name: "Export CSV" })).toHaveAttribute(
+      "data-href",
+      "/api/v1/admin/redirects/export.csv"
+    )
+    expect(screen.queryByRole("button", { name: "Import CSV" })).toBeNull()
+  })
+
+  it("import previews each row, blocks a file with errors, then imports a clean one (D1.8)", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(await screen.findByRole("button", { name: "Import CSV" }))
+    const dialog = screen.getByRole("dialog", { name: "Import redirects" })
+    const importButton = () =>
+      within(dialog).getByRole("button", { name: /^Import( \d+ redirects?)?$/ })
+
+    // A file that is not valid CSV: the reason shows inline.
+    await user.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile('from,to\n/a,"broken')
+    )
+    expect(
+      await within(dialog).findByText(
+        "Line 2: a quoted value is never closed. Check its quotes."
+      )
+    ).toBeVisible()
+    expect(within(dialog).getByLabelText("CSV file")).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    )
+
+    // A file with an error row: listed per line, nothing can be imported.
+    await user.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile("from,to\n/promo,/contact\n/promo,/about bad")
+    )
+    const table = await within(dialog).findByRole("table", {
+      name: "Rows in the file",
+    })
+    expect(
+      within(table).getByText("/promo is already in this file (line 2)")
+    ).toBeVisible()
+    expect(
+      within(dialog).getByText(/1 new · 0 updated · 1 to fix/)
+    ).toBeVisible()
+    expect(importButton()).toHaveAttribute("aria-disabled", "true")
+    await user.click(importButton())
+    expect(
+      fetchMock.mock.calls.filter(([, init]) =>
+        String(init?.body ?? "").includes('"commit"')
+      )
+    ).toHaveLength(0)
+
+    // A clean file: Import commits it.
+    await user.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile("from,to\n/promo,/contact\n/old-alarms,/services")
+    )
+    expect(
+      await within(dialog).findByText(/1 new · 1 updated · 0 to fix/)
+    ).toBeVisible()
+    await user.click(
+      within(dialog).getByRole("button", { name: "Import 2 redirects" })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Import redirects" })
+      ).toBeNull()
+    )
+    const posts = fetchMock.mock.calls
+      .filter(([input]) => String(input).includes("/redirects/import"))
+      .map(([, init]) => JSON.parse(String(init!.body)) as { mode: string })
+    expect(posts.map((p) => p.mode)).toEqual([
+      "preview",
+      "preview",
+      "preview",
+      "commit",
+    ])
+  })
+
+  it("a commit refused by the server shows its rows and keeps the dialog (D1.8)", async () => {
+    const user = userEvent.setup()
+    renderAs(["marketer"])
+    await user.click(await screen.findByRole("button", { name: "Import CSV" }))
+    const dialog = screen.getByRole("dialog", { name: "Import redirects" })
+    // Preview says clean, but the server finds an error at commit (a race).
+    importReplyOverride = (body) =>
+      body.mode === "preview"
+        ? json(200, { rows: OK_ROWS, created: 1, updated: 1 })
+        : null
+    await user.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile("from,to\n/promo,/contact bad")
+    )
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Import 2 redirects" })
+    )
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Nothing was imported", {
+        description: "1 row needs fixing. Nothing was imported.",
+      })
+    )
+    expect(
+      within(dialog).getByText("/promo is already in this file (line 2)")
+    ).toBeVisible()
+    expect(
+      screen.getByRole("dialog", { name: "Import redirects" })
+    ).toBeVisible()
   })
 
   it("viewers get no Turn on/off", async () => {

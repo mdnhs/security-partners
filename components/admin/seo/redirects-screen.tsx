@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus } from "lucide-react"
+import { Plus, Upload } from "lucide-react"
 import { createContext, useContext, useState } from "react"
 import { toast } from "sonner"
 
@@ -11,12 +11,14 @@ import {
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
 import { formatNumber } from "@/components/admin/kit/format"
+import { CsvDownloadButton } from "@/components/admin/leads/csv-download-button"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { StatusPill } from "@/components/admin/kit/status-pill"
 import {
   FORM_ACTION,
   PageHeader,
   PRIMARY_ACTION,
+  SECONDARY_ACTION,
 } from "@/components/admin/page-header"
 import {
   AlertDialog,
@@ -37,6 +39,9 @@ import type { RedirectCode, RedirectDto } from "@/lib/schemas/api/redirects"
 import { cn } from "@/lib/utils"
 
 import { RedirectDialog } from "./redirect-dialog"
+import { RedirectImportDialog } from "./redirect-import-dialog"
+
+const EXPORT_HREF = "/api/v1/admin/redirects/export.csv"
 
 type Row = RedirectDto & Record<string, unknown>
 const ch = columnsFor<Row>()
@@ -216,11 +221,15 @@ const columns = ch.columns([
 
 /** SEO › Redirects (master 8.2): list, add, edit, delete; hits per redirect. */
 export function RedirectsScreen() {
+  const canRead = usePermission({ redirect: ["read"] })
   const canCreate = usePermission({ redirect: ["create"] })
   const canUpdate = usePermission({ redirect: ["update"] })
   const canDelete = usePermission({ redirect: ["delete"] })
+  // The import route needs both (it adds and changes redirects).
+  const canImport = canCreate && canUpdate
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState<RedirectDto | "new" | null>(null)
+  const [importing, setImporting] = useState(false)
   const [deleting, setDeleting] = useState<RedirectDto | null>(null)
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -290,7 +299,27 @@ export function RedirectsScreen() {
         <PageHeader
           title="Redirects"
           description="Send old addresses to their new home. Renamed or deleted services and articles are redirected automatically, marked Automatic."
-          actions={addButton(PRIMARY_ACTION)}
+          actions={
+            <>
+              {canRead ? (
+                <CsvDownloadButton href={EXPORT_HREF}>
+                  Export CSV
+                </CsvDownloadButton>
+              ) : null}
+              {canImport ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={SECONDARY_ACTION}
+                  onClick={() => setImporting(true)}
+                >
+                  <Upload aria-hidden data-icon="inline-start" />
+                  Import CSV
+                </Button>
+              ) : null}
+              {addButton(PRIMARY_ACTION)}
+            </>
+          }
         />
         <DataTable<Row>
           syncUrl
@@ -340,6 +369,12 @@ export function RedirectsScreen() {
           redirect={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={refresh}
+        />
+      ) : null}
+      {importing ? (
+        <RedirectImportDialog
+          onClose={() => setImporting(false)}
+          onImported={refresh}
         />
       ) : null}
       <AlertDialog
