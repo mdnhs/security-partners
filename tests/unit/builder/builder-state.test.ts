@@ -10,6 +10,7 @@ import {
   type DraftDocumentValue,
   errorsByBlock,
   MAX_BLOCKS,
+  publishErrors,
   RESERVED_ANCHORS,
   selectAfterRemove,
   unavailableReason,
@@ -230,5 +231,22 @@ describe("publish errors", () => {
       data: { title: ["Required"] },
       anchor: [],
     })
+  })
+
+  it("publishErrors keys by block id against the published snapshot, so a later reorder keeps them on their block (review D5.4 M1)", () => {
+    const sent = { blocks: [...d.blocks, block("cccc", "map", "map")] }
+    const errors = publishErrors(fieldErrors, sent)
+    // The editor then moves Stats down: index 1 is now Map, but the stored
+    // id-keyed errors stay on Stats.
+    const moved = docReducer(sent, { type: "move", id: "aaaa", to: 2 })
+    expect(moved.blocks[1].id).toBe("cccc")
+    expect(errors.cccc).toBeUndefined()
+    expect(errors.aaaa).toEqual({
+      summary: errorsByBlock(fieldErrors, d).aaaa,
+      data: blockErrors(fieldErrors, 1).data,
+      anchor: blockErrors(fieldErrors, 1).anchor,
+    })
+    expect(errors["hero-1"].data).toEqual({ title: ["Required"] })
+    expect(Object.keys(errors).sort()).toEqual(["aaaa", "hero-1"])
   })
 })

@@ -69,7 +69,12 @@ export function BlockMeta({
           }
           onChange={(event) => onChange({ anchor: event.target.value })}
         />
-        {error ? <ErrorText id={`${anchorId}-error`}>{error}</ErrorText> : null}
+        {/* Polite: the problem is announced as it appears while typing. */}
+        <div aria-live="polite">
+          {error ? (
+            <ErrorText id={`${anchorId}-error`}>{error}</ErrorText>
+          ) : null}
+        </div>
       </div>
       <div className="flex min-h-16 items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3 shadow-xs">
         <div className="flex min-w-0 flex-col gap-0.5">

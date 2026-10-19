@@ -266,9 +266,10 @@ function pathLabel(rest: string): string {
 const BLOCK_KEY = /^blocks\.(\d+)(?:\.(.+))?$/
 
 /**
- * Publish errors per block id ("blocks.<i>.<path>" → the block now at
- * index i), each as "<field>: <message>" for the outline and summaries.
- * Keys outside a block (document, _media) are left out.
+ * Publish errors per block id ("blocks.<i>.<path>" → the block at index i
+ * of `doc`, which must be the document that was published, not a later
+ * edit; see publishErrors), each as "<field>: <message>" for the outline
+ * and summaries. Keys outside a block (document, _media) are left out.
  */
 export function errorsByBlock(
   fieldErrors: Record<string, string[]>,
@@ -288,7 +289,8 @@ export function errorsByBlock(
 }
 
 /**
- * One block's publish errors split for its editors: `data` keyed by the
+ * One block's publish errors split for its editors (`index` in the
+ * published snapshot, see publishErrors): `data` keyed by the
  * path inside the block's data (SchemaForm; "_root" for the block as a
  * whole, its type or id), `anchor` for BlockMeta.
  */
@@ -308,4 +310,34 @@ export function blockErrors(
     else (data._root ??= []).push(...messages)
   }
   return { data, anchor }
+}
+
+export type BlockPublishErrors = {
+  /** "<field>: <message>" lines for the outline badge and summaries. */
+  summary: string[]
+  /** For BlockForm (data paths, "_root"). */
+  data: Record<string, string[]>
+  /** For BlockMeta. */
+  anchor: string[]
+}
+
+/**
+ * A publish 422 keyed by block id, mapped once against `published` — the
+ * document that was sent. Store the result: re-mapping the index-keyed
+ * errors against a later (reordered) document would pin them to whatever
+ * block now sits at that index (review D5.4 M1).
+ */
+export function publishErrors(
+  fieldErrors: Record<string, string[]>,
+  published: DraftDocumentValue
+): Record<string, BlockPublishErrors> {
+  const summaries = errorsByBlock(fieldErrors, published)
+  const out: Record<string, BlockPublishErrors> = {}
+  published.blocks.forEach((block, index) => {
+    const { data, anchor } = blockErrors(fieldErrors, index)
+    const summary = summaries[block.id] ?? []
+    if (summary.length || anchor.length || Object.keys(data).length)
+      out[block.id] = { summary, data, anchor }
+  })
+  return out
 }

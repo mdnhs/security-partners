@@ -1,6 +1,7 @@
 import "server-only"
 
 import { cacheLife, cacheTag } from "next/cache"
+import { cache } from "react"
 
 import type { BuilderDocument } from "@/blocks/document"
 import { BlockInstance } from "@/blocks/registry"
@@ -64,15 +65,17 @@ export async function getPublishedBuilderPage(
  * nothing), else the published page. Malformed, unknown and unpublished
  * slugs never reach the cache (re-review D5.2 M9): the 'use cache' entry
  * lives "max", so arbitrary /p/<junk> probes must not mint entries.
+ * React cache(): generateMetadata and the page body share one lookup per
+ * request (review D5.4 M6).
  */
-export async function getBuilderPageForRequest(
-  slug: string
-): Promise<PublishedBuilderPage | null> {
-  if (!isBuilderSlug(slug)) return null
-  const draft = await previewerCan({ page: ["read"] })
-  if (!draft && !(await isPublishedBuilderSlug(slug))) return null
-  return getPublishedBuilderPage(slug, draft)
-}
+export const getBuilderPageForRequest = cache(
+  async (slug: string): Promise<PublishedBuilderPage | null> => {
+    if (!isBuilderSlug(slug)) return null
+    const draft = await previewerCan({ page: ["read"] })
+    if (!draft && !(await isPublishedBuilderSlug(slug))) return null
+    return getPublishedBuilderPage(slug, draft)
+  }
+)
 
 /** Is /p/<slug> live? A plain read (not cached), shared with proxy.ts. */
 export function isPublishedBuilderSlug(slug: string): Promise<boolean> {

@@ -306,6 +306,8 @@ describe("builder pages API (D5.2)", () => {
     })
     expect(unknown.status).toBe(422)
 
+    // Create expires the slug's tags (review D5.4 M5); a refused publish must not.
+    revalidateTag.mockClear()
     const res = await publish(page.id, dto.version)
     expect(res.status).toBe(422)
     const { error } = (await res.json()) as ErrorBody
@@ -802,5 +804,15 @@ describe("builder pages API (D5.2)", () => {
     const shownDto = (await shown.json()) as BuilderPageDto
     expect((await publish(page.id, shownDto.version)).status).toBe(200)
     expect(await newsletterBlockPublished()).toBe(true)
+  })
+})
+
+describe("builder pages: create expires the slug's cache (review D5.4 M5)", () => {
+  it("a create expires builder-pages and builder-page:<slug>, so a cached preview miss does not stick", async () => {
+    await create("fresh-page", "Fresh")
+    expect(revalidateTag).toHaveBeenCalledWith("builder-pages", { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledWith("builder-page:fresh-page", {
+      expire: 0,
+    })
   })
 })

@@ -76,6 +76,65 @@ describe("BlockForm", () => {
   })
 })
 
+describe("BlockForm resetKey (review D5.4 I2)", () => {
+  function Harness({ initial }: { initial: DraftBlock }) {
+    const [block, setBlock] = useState(initial)
+    const [resetKey, setResetKey] = useState(0)
+    return (
+      <QueryClientProvider client={makeQueryClient()}>
+        <BlockForm
+          block={block}
+          resetKey={resetKey}
+          onChange={(data) =>
+            setBlock((b) => ({ ...b, data: data as DraftBlock["data"] }))
+          }
+          errors={{}}
+          readOnly={false}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            // A restore / conflict reload: same block id, new data.
+            setBlock((b) => ({
+              ...b,
+              data: { heading: "Restored", intro: "From history" },
+            }))
+            setResetKey((k) => k + 1)
+          }}
+        >
+          Restore
+        </button>
+        <output data-testid="data">{JSON.stringify(block.data)}</output>
+      </QueryClientProvider>
+    )
+  }
+
+  it("a replace reloads the form, so the next edit keeps the restored data", async () => {
+    const user = userEvent.setup()
+    render(
+      <Harness
+        initial={{
+          ...fresh("team"),
+          data: { heading: "Old heading", intro: "Old intro" },
+        }}
+      />
+    )
+    const heading = screen.getByRole("textbox", { name: "Heading" })
+    expect(heading).toHaveValue("Old heading")
+    await user.click(screen.getByRole("button", { name: "Restore" }))
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Heading" })).toHaveValue(
+        "Restored"
+      )
+    )
+    await user.type(screen.getByRole("textbox", { name: "Intro" }), "!")
+    const data = JSON.parse(screen.getByTestId("data").textContent!)
+    expect(data).toEqual(
+      expect.objectContaining({ heading: "Restored", intro: "From history!" })
+    )
+  })
+})
+
 function MetaHarness({ doc }: { doc: DraftDocumentValue }) {
   const [block, setBlock] = useState(doc.blocks[1])
   const current = {
@@ -138,6 +197,18 @@ describe("BlockMeta", () => {
     await user.clear(anchor)
     await user.type(anchor, "figures")
     expect(anchor).not.toHaveAttribute("aria-invalid")
+  })
+
+  it("the anchor error sits in a polite live region", async () => {
+    const user = userEvent.setup()
+    render(<MetaHarness doc={doc} />)
+    const anchor = screen.getByRole("textbox", { name: "Anchor" })
+    const region = anchor.parentElement!.querySelector("[aria-live=polite]")
+    expect(region).not.toBeNull()
+    expect(region).toBeEmptyDOMElement()
+    await user.clear(anchor)
+    await user.type(anchor, "services")
+    expect(region).toHaveTextContent("is kept for the Services section")
   })
 
   it("the hidden switch", async () => {

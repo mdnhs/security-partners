@@ -89,18 +89,22 @@ function formValue(block: DraftBlock): Record<string, unknown> {
  * labels from BLOCK_FIELD_LABELS. Every change goes to `onChange` (valid or
  * not: autosave keeps drafts; publish runs the full check). `errors` are
  * the block's publish errors keyed by data path ("_root" for the block),
- * see blockErrors.
+ * see blockErrors. Bump `resetKey` whenever the document is replaced
+ * (restore, conflict reload, discard): the form then reloads `block.data`
+ * instead of emitting its stale copy on the next keystroke.
  */
 export function BlockForm({
   block,
   onChange,
   errors,
   readOnly,
+  resetKey,
 }: {
   block: DraftBlock
   onChange(data: unknown): void
   errors: Record<string, string[]>
   readOnly: boolean
+  resetKey?: string | number
 }) {
   const def = BLOCK_BY_TYPE[block.type]
   const meta = useMemo(() => blockEditorMeta(block.type), [block.type])
@@ -120,10 +124,11 @@ export function BlockForm({
       </FormCard>
     )
   // SchemaForm reads `value` once; keyed by block id, another block starts
-  // a fresh form.
+  // a fresh form, and `resetKey` reloads this one after a replace.
   return (
     <SchemaForm
       key={block.id}
+      resetKey={resetKey}
       schema={def.schema as unknown as z.ZodObject}
       meta={meta}
       value={formValue(block)}

@@ -182,18 +182,89 @@ describe("BlockOutline", () => {
     expect(spy).toHaveBeenCalledWith({ type: "remove", id: "aaaa" })
     expect(order()).toBe("hero-1,bbbb,cccc")
     expect(screen.getByTestId("selected")).toHaveTextContent("bbbb")
+    // Focus goes to the neighbour's select button (AlertDialog finalFocus),
+    // never back to the removed Delete button / <body>.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Text, #richtext" })
+      ).toHaveFocus()
+    )
+  })
+
+  it("deleting the last block focuses the empty outline and clears the selection", async () => {
+    const user = userEvent.setup()
+    render(<Harness initial={{ blocks: [block("aaaa", "stats", "stats")] }} />)
+    await user.click(screen.getByRole("button", { name: "Delete Stats" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Delete Stats?" })
+      ).getByRole("button", { name: "Delete block" })
+    )
+    expect(order()).toBe("")
+    expect(screen.getByTestId("selected")).toBeEmptyDOMElement()
+    await waitFor(() => expect(screen.getByText(/No blocks yet/)).toHaveFocus())
+  })
+
+  it("Keep block returns focus to the Delete button", async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const del = screen.getByRole("button", { name: "Delete Text" })
+    await user.click(del)
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", { name: "Delete Text?" })
+      ).getByRole("button", { name: "Keep block" })
+    )
+    await waitFor(() => expect(del).toHaveFocus())
+  })
+
+  it("dropping a block where it was announces that nothing changed", async () => {
+    const user = userEvent.setup()
+    const spy = vi.fn()
+    render(<Harness spy={spy} />)
+    screen.getByRole("button", { name: "Drag to reorder Stats" }).focus()
+    await user.keyboard("[Space]")
+    await waitFor(() =>
+      expect(document.body).toHaveTextContent("Picked up Stats")
+    )
+    await user.keyboard("[Space]")
+    await waitFor(() =>
+      expect(document.body).toHaveTextContent(
+        "Stats dropped, position 2 of 4, unchanged."
+      )
+    )
+    expect(document.body).not.toHaveTextContent("Stats moved to")
+    expect(spy).not.toHaveBeenCalled()
   })
 
   it("duplicate; one-per-page blocks cannot be duplicated", async () => {
     const user = userEvent.setup()
     render(<Harness />)
-    expect(screen.getByRole("button", { name: "Duplicate Map" })).toBeDisabled()
+    // Focusable, with the reason as its description (not a title tooltip).
+    const map = screen.getByRole("button", { name: "Duplicate Map" })
+    expect(map).toHaveAttribute("aria-disabled", "true")
+    expect(map).not.toHaveAttribute("title")
+    expect(map).toHaveAccessibleDescription("Only one per page")
+    await user.click(map)
+    expect(order()?.split(",")).toHaveLength(4)
     await user.click(screen.getByRole("button", { name: "Duplicate Stats" }))
     // Two Stats now: rows are told apart by anchor.
     expect(
       screen.getByRole("button", { name: "Hide Stats (#stats-2)" })
     ).toBeInTheDocument()
     expect(order()?.split(",")).toHaveLength(5)
+    // The copy is selected, focused and announced.
+    const copyId = order()!.split(",")[2]
+    expect(screen.getByTestId("selected")).toHaveTextContent(copyId)
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Stats, #stats-2" })
+      ).toHaveFocus()
+    )
+    expect(screen.getByText("Stats copied as #stats-2.")).toHaveAttribute(
+      "aria-live",
+      "polite"
+    )
   })
 
   it("selection, error badge as text, read-only", async () => {

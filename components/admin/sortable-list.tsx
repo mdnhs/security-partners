@@ -91,9 +91,11 @@ export function SortableList<T extends SortableItem>({
         : `${nameOf(active.id)} is no longer over a position.`
     },
     onDragEnd: ({ active, over }) =>
-      over
-        ? `${nameOf(active.id)} moved to ${position(over.id)}.`
-        : `${nameOf(active.id)} dropped.`,
+      !over
+        ? `${nameOf(active.id)} dropped.`
+        : over.id === active.id
+          ? `${nameOf(active.id)} dropped, ${position(active.id)}, unchanged.`
+          : `${nameOf(active.id)} moved to ${position(over.id)}.`,
     onDragCancel: ({ active }) => `Moving ${nameOf(active.id)} cancelled.`,
   }
 
@@ -197,7 +199,9 @@ function Row({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
-        "flex items-center gap-2 rounded-lg border bg-card p-2",
+        // Wraps only when a row's content sets a basis (the builder outline
+        // at 320 px): the controls then move to a line of their own.
+        "flex flex-wrap items-center gap-2 rounded-lg border bg-card p-2",
         isDragging && "z-10 shadow-lg",
         className
       )}
@@ -229,35 +233,37 @@ function Row({
           ) : null}
         </div>
       )}
-      {fixed ? null : (
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={COARSE_ICON}
-            aria-label={`Move ${item.label} up`}
-            data-focus-key={`${item.id}:up`}
-            disabled={disabled || index <= firstMovable}
-            onClick={() => onMove(index - 1, "up")}
-          >
-            <ArrowUp aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={COARSE_ICON}
-            aria-label={`Move ${item.label} down`}
-            data-focus-key={`${item.id}:down`}
-            disabled={disabled || index === count - 1}
-            onClick={() => onMove(index + 1, "down")}
-          >
-            <ArrowDown aria-hidden />
-          </Button>
-        </>
-      )}
-      {actions}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {fixed ? null : (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={COARSE_ICON}
+              aria-label={`Move ${item.label} up`}
+              data-focus-key={`${item.id}:up`}
+              disabled={disabled || index <= firstMovable}
+              onClick={() => onMove(index - 1, "up")}
+            >
+              <ArrowUp aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={COARSE_ICON}
+              aria-label={`Move ${item.label} down`}
+              data-focus-key={`${item.id}:down`}
+              disabled={disabled || index === count - 1}
+              onClick={() => onMove(index + 1, "down")}
+            >
+              <ArrowDown aria-hidden />
+            </Button>
+          </>
+        )}
+        {actions}
+      </div>
     </li>
   )
 }

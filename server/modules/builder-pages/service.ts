@@ -168,6 +168,9 @@ export async function createBuilderPage(
       })
       return newId
     })
+    // A previewer may have cached "nothing at /p/<slug>" before the page
+    // existed (review D5.4 M5): expire it so the new draft shows at once.
+    invalidate(tag.builderPages, tag.builderPage(input.slug))
     return toDto(await loadRow(db, id))
   } catch (err) {
     return mapUnique(err)
