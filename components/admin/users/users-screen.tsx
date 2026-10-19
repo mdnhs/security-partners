@@ -1,13 +1,18 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
+import { useState } from "react"
 
 import {
   columnsFor,
   DataTable,
   type DataTableColumns,
 } from "@/components/admin/data-table/data-table"
-import { useUrlFilters } from "@/components/admin/data-table/list-url"
+import {
+  mergeListSearch,
+  useUrlFilters,
+} from "@/components/admin/data-table/list-url"
 import { FilterSelect } from "@/components/admin/filter-field"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { PageHeader } from "@/components/admin/page-header"
@@ -84,6 +89,7 @@ const TABS = [
   { value: "people", label: "People" },
   { value: "roles", label: "Roles" },
 ] as const
+type TabValue = (typeof TABS)[number]["value"]
 
 /**
  * Users & roles (spec §8.1): People (search, role/status filters, invite)
@@ -92,8 +98,27 @@ const TABS = [
 export function UsersScreen() {
   const canInvite = usePermission({ user: ["invite"] })
   // Kept in ?role=&status= so returning from a user restores the list.
-  const [params, setParams] = useUrlFilters(["role", "status", "tab"] as const)
-  const tab = params.tab === "roles" ? "roles" : "people"
+  const [params, setParams] = useUrlFilters(["role", "status"] as const)
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<TabValue>(() =>
+    searchParams?.get("tab") === "roles" ? "roles" : "people"
+  )
+  // Own writer, not setParams: keeps ?page= and is never remembered as the
+  // list's "back to users" search (that stays the People list's).
+  const selectTab = (next: TabValue) => {
+    setTab(next)
+    const { pathname, hash } = window.location
+    const search = mergeListSearch(
+      window.location.search,
+      { tab: next === "roles" ? "roles" : undefined },
+      { keepPage: true }
+    )
+    window.history.replaceState(
+      null,
+      "",
+      `${pathname}${search ? `?${search}` : ""}${hash}`
+    )
+  }
   const role = (ROLES as readonly string[]).includes(params.role)
     ? (params.role as Role)
     : ""
@@ -188,7 +213,7 @@ export function UsersScreen() {
       <Tabs
         value={tab}
         onValueChange={(value) =>
-          setParams({ tab: value === "roles" ? "roles" : "" })
+          selectTab(value === "roles" ? "roles" : "people")
         }
         className="gap-4"
       >

@@ -34,6 +34,9 @@ describe("permission matrix (generated from lib/auth/permissions)", () => {
     // Roles holding updateAny/deleteAny are plain "yes".
     expect(row("article", "update")?.cells.editor).toBe("yes")
     expect(row("article", "delete")?.cells.admin).toBe("yes")
+    // maySubmit (articles policy): without updateAny, own drafts only.
+    expect(row("article", "submit")?.cells.author).toBe("own")
+    expect(row("article", "submit")?.cells.editor).toBe("yes")
     // Own-only never applies to an action the role lacks.
     expect(row("article", "update")?.cells.viewer).toBe("no")
   })

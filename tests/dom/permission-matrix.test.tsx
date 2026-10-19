@@ -80,6 +80,28 @@ describe("Users & roles: People / Roles tabs", () => {
     expect(new URLSearchParams(window.location.search).has("tab")).toBe(false)
   })
 
+  it("switching tabs keeps ?page= and never remembers tab=roles as the list search", async () => {
+    const user = userEvent.setup()
+    const KEY = "sp-admin:list:/admin/users"
+    window.sessionStorage.removeItem(KEY)
+    search.value = "page=2&role=editor"
+    window.history.replaceState(null, "", "/admin/users?page=2&role=editor")
+    renderScreen()
+    const tabs = screen.getByRole("tablist", { name: "Users & roles" })
+    const remembered = window.sessionStorage.getItem(KEY)
+
+    await user.click(within(tabs).getByRole("tab", { name: "Roles" }))
+    const onRoles = new URLSearchParams(window.location.search)
+    expect(onRoles.get("tab")).toBe("roles")
+    expect(onRoles.get("page")).toBe("2")
+    expect(onRoles.get("role")).toBe("editor")
+    expect(window.sessionStorage.getItem(KEY)).toBe(remembered)
+
+    await user.click(within(tabs).getByRole("tab", { name: "People" }))
+    expect(new URLSearchParams(window.location.search).has("tab")).toBe(false)
+    expect(window.sessionStorage.getItem(KEY) ?? "").not.toContain("tab=")
+  })
+
   it("?tab=roles opens straight on the matrix", () => {
     search.value = "tab=roles"
     renderScreen()
@@ -127,6 +149,53 @@ describe("PermissionMatrix", () => {
     const authorCell =
       within(articleUpdate).getAllByRole("cell")[ROLES.indexOf("author")]
     expect(authorCell).toHaveTextContent("Own only")
+  })
+
+  const cellsOf = (resource: string, action: string) => {
+    const table = screen.getByRole("table", { name: MATRIX })
+    const group = table.querySelector(
+      `tbody[data-resource="${resource}"]`
+    ) as HTMLElement
+    const tr = within(group)
+      .getAllByRole("row")
+      .find((r) => r.getAttribute("data-action") === action)!
+    const cells = within(tr).getAllByRole("cell")
+    return (role: (typeof ROLES)[number]) => cells[ROLES.indexOf(role)]
+  }
+
+  it("article.submit is Own only for authors, Allowed for editors", () => {
+    render(<PermissionMatrix />)
+    const cell = cellsOf("article", "submit")
+    expect(cell("author")).toHaveTextContent("Own only")
+    expect(cell("editor")).toHaveTextContent(/^Allowed$/)
+    expect(cell("viewer")).toHaveTextContent("Not allowed")
+  })
+
+  it("viewers are Not allowed every write action (sr text, no icon-only cells)", () => {
+    render(<PermissionMatrix />)
+    for (const [resource, actions] of Object.entries(statements))
+      for (const action of actions) {
+        const cell = cellsOf(resource, action)("viewer")
+        expect(cell).toHaveTextContent(
+          action === "read" ? /^Allowed$|^Not allowed$/ : /^Not allowed$/
+        )
+      }
+    expect(cellsOf("page", "read")("viewer")).toHaveTextContent(/^Allowed$/)
+    expect(cellsOf("lead", "read")("viewer")).toHaveTextContent("Not allowed")
+    const table = screen.getByRole("table", { name: MATRIX })
+    expect(table.querySelectorAll("td svg:not([aria-hidden])")).toHaveLength(0)
+  })
+
+  it("lists the runtime limits under the table", () => {
+    render(<PermissionMatrix />)
+    const notes = screen.getByRole("list", {
+      name: "Limits applied at runtime",
+    })
+    const text = notes.textContent ?? ""
+    expect(text).toMatch(/owner accounts/i)
+    expect(text).toMatch(/content settings/i)
+    expect(text).toMatch(/AI assistant/i)
+    expect(text).toMatch(/viewing as someone/i)
   })
 
   it("describes every role above the table", () => {

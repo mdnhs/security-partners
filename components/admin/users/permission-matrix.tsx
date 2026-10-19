@@ -19,6 +19,7 @@ import {
   permissionMatrix,
   resourceLabel,
 } from "@/lib/auth/matrix"
+import type { Resource } from "@/lib/auth/permissions"
 import { ROLES } from "@/lib/auth/roles"
 
 function Cell({ value }: { value: MatrixCell }) {
@@ -38,9 +39,21 @@ function Cell({ value }: { value: MatrixCell }) {
   )
 }
 
+/**
+ * Narrowings the server applies on top of the grants above, so an "Allowed"
+ * cell is never read as more than it is (users service, settings service,
+ * AI service, auth impersonation rules).
+ */
+const RUNTIME_LIMITS = [
+  "Admins’ user actions (edit, block, view as, sign out everywhere) never apply to owner accounts; only owners manage owners.",
+  "Editors’ settings changes cover content settings only.",
+  "The AI assistant is also limited to the roles chosen in Integrations, and is read-only while viewing as someone else.",
+  "Nobody can view as someone else while already viewing as someone else.",
+] as const
+
 /** Rows grouped by resource, in statement order. */
-function groups(rows: MatrixRow[]): [string, MatrixRow[]][] {
-  const out = new Map<string, MatrixRow[]>()
+function groups(rows: MatrixRow[]): [Resource, MatrixRow[]][] {
+  const out = new Map<Resource, MatrixRow[]>()
   for (const row of rows) {
     const list = out.get(row.resource) ?? []
     list.push(row)
@@ -103,7 +116,10 @@ export function PermissionMatrix() {
                   colSpan={ROLES.length + 1}
                   className="h-10 text-xs font-semibold tracking-wide uppercase"
                 >
-                  {resourceLabel(resource)}
+                  {/* Sticky label: stays in view while the table scrolls sideways. */}
+                  <span className="sticky left-4 inline-block">
+                    {resourceLabel(resource)}
+                  </span>
                 </TableHead>
               </TableRow>
               {rows.map((row) => (
@@ -125,6 +141,19 @@ export function PermissionMatrix() {
           ))}
         </Table>
       </div>
+      <section aria-labelledby="matrix-limits" className="flex flex-col gap-2">
+        <h2 id="matrix-limits" className="text-sm font-semibold">
+          Limits applied at runtime
+        </h2>
+        <ul
+          aria-labelledby="matrix-limits"
+          className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground"
+        >
+          {RUNTIME_LIMITS.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </section>
     </div>
   )
 }
