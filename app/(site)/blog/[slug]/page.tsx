@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 import { Suspense } from "react"
 
+import { NewsletterSection } from "@/components/newsletter/newsletter-section"
 import { JsonLd } from "@/components/seo/json-ld"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
@@ -42,7 +43,14 @@ async function Article({ params }: Pick<PageProps<"/blog/[slug]">, "params">) {
   )
   return (
     <>
-      <ArticleTemplate view={view} />
+      <ArticleTemplate
+        view={view}
+        newsletter={
+          <Suspense fallback={null}>
+            <NewsletterSection where="article" />
+          </Suspense>
+        }
+      />
       {jsonLd && <JsonLd data={jsonLd} />}
     </>
   )

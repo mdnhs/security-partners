@@ -5,7 +5,15 @@ import { isSafeHref } from "@/lib/href"
 /** Longest allowed chain from a redirect to its final address. */
 export const MAX_REDIRECT_HOPS = 5
 
-const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
+const RESERVED = [
+  "/admin",
+  "/api",
+  "/_next",
+  "/og",
+  "/images",
+  // Newsletter state pages (the API redirects there; never a redirect source).
+  "/newsletter",
+]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
 /** A path ending in a file extension (static files; never a page or redirect source). */
 export const FILE_EXTENSION = /\.[A-Za-z0-9]+$/

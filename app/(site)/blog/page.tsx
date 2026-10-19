@@ -3,6 +3,7 @@ import { connection } from "next/server"
 import { Suspense } from "react"
 
 import { BlogPosts } from "@/components/blog/blog-posts"
+import { NewsletterSection } from "@/components/newsletter/newsletter-section"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { BlogTemplate } from "@/templates/blog/render"
 import { blogView } from "@/templates/blog/view"
@@ -38,6 +39,11 @@ async function Blog({
           {...view.posts}
           initialCategory={typeof category === "string" ? category : undefined}
         />
+      }
+      newsletter={
+        <Suspense fallback={null}>
+          <NewsletterSection where="blog" />
+        </Suspense>
       }
     />
   )
