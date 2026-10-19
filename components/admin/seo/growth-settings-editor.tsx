@@ -32,7 +32,8 @@ export function GrowthSettingsEditor({
   /** Omit inside the section's route tabs (they already lead back). */
   backHref?: string
   backLabel?: string
-  aside?: ReactNode
+  /** Side panel; a function gets the form's current (unsaved) draft. */
+  aside?: ReactNode | ((ctx: { draft: unknown }) => ReactNode)
 }) {
   const entry = GROWTH_SETTINGS[settingsKey]
   const canEdit = usePermission(entry.update)

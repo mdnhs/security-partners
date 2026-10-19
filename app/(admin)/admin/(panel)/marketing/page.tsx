@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
-import { TrackingNotice } from "@/components/admin/marketing/notices"
-import { GrowthSettingsEditor } from "@/components/admin/seo/growth-settings-editor"
+import { TrackingEditor } from "@/components/admin/marketing/tracking-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { requirePermission } from "@/server/auth/session"
 
@@ -19,10 +18,6 @@ export default function MarketingPage() {
 async function Editor() {
   await requirePermission(GROWTH_SETTINGS.tracking.read)
   return (
-    <GrowthSettingsEditor
-      settingsKey="tracking"
-      description="Tag IDs and switches. Nothing loads until a visitor consents. Changes stay in a draft until you publish."
-      aside={<TrackingNotice />}
-    />
+    <TrackingEditor description="Tag IDs and switches. Nothing loads until a visitor consents. Changes stay in a draft until you publish." />
   )
 }

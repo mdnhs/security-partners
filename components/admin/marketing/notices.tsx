@@ -1,42 +1,6 @@
 "use client"
 
-import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ANALYTICS_EVENTS } from "@/lib/analytics/events"
-
-/** Side card on Marketing › Tracking: the consent rules the site follows. */
-export function TrackingNotice() {
-  return (
-    <DashboardCard title="What loads when" headingLevel={2}>
-      <dl className="flex flex-col gap-3 text-sm">
-        <div>
-          <dt className="font-semibold">Before a choice, or after Reject</dt>
-          <dd className="text-muted-foreground">Nothing is loaded.</dd>
-        </div>
-        <div>
-          <dt className="font-semibold">Analytics consent</dt>
-          <dd className="text-muted-foreground">
-            Google Tag Manager and Google Analytics 4 (with Consent Mode).
-          </dd>
-        </div>
-        <div>
-          <dt className="font-semibold">Marketing consent</dt>
-          <dd className="text-muted-foreground">Meta Pixel.</dd>
-        </div>
-        <div>
-          <dt className="font-semibold">Events sent to the data layer</dt>
-          <dd className="font-mono text-xs text-muted-foreground">
-            {ANALYTICS_EVENTS.join(", ")}
-          </dd>
-        </div>
-      </dl>
-      <p className="mt-4 text-sm text-muted-foreground">
-        Visitors keep their choice for 6 months and can change it with the
-        “Cookie settings” button.
-      </p>
-    </DashboardCard>
-  )
-}
 
 /** Warning on Marketing › Custom code (owner only). */
 export function CustomCodeNotice() {

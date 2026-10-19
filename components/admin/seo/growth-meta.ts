@@ -84,17 +84,29 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
     fields: {
       enabled: {
         label: "Load tracking",
-        help: "On: visitors see the cookie banner and the tags below load only after they agree. Off: no banner and no tracking at all.",
+        help: "On: visitors see the cookie banner, and the tags switched on below load only after they agree. Off: no banner and no tracking at all.",
+      },
+      gtmEnabled: {
+        label: "Use Google Tag Manager",
+        help: "Loads Tag Manager with the ID below once a visitor accepts analytics cookies.",
       },
       gtmId: {
         label: "Google Tag Manager ID",
         placeholder: "GTM-XXXXXXX",
         help: "Loads after a visitor accepts analytics cookies.",
       },
+      ga4Enabled: {
+        label: "Use Google Analytics 4",
+        help: "Loads Analytics with the ID below once a visitor accepts analytics cookies.",
+      },
       ga4Id: {
         label: "Google Analytics 4 ID",
         placeholder: "G-XXXXXXXXXX",
         help: "Loads after analytics consent. Use this or Tag Manager for Analytics, not both, or visits are counted twice.",
+      },
+      metaEnabled: {
+        label: "Use Meta Pixel",
+        help: "Loads the pixel with the ID below once a visitor accepts marketing cookies.",
       },
       metaPixelId: {
         label: "Meta Pixel ID",

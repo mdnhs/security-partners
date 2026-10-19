@@ -46,13 +46,7 @@ export async function SiteExtras() {
       {tracking?.enabled && consent ? (
         <ConsentProvider>
           <ConsentBanner copy={consentBannerCopy(s, consent)} />
-          <TrackingScripts
-            ids={{
-              gtmId: tracking.gtmId,
-              ga4Id: tracking.ga4Id,
-              metaPixelId: tracking.metaPixelId,
-            }}
-          />
+          <TrackingScripts ids={marketing.ids} />
         </ConsentProvider>
       ) : null}
       {marketing ? (

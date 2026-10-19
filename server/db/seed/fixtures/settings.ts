@@ -223,7 +223,15 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
         },
       },
     },
-    tracking: { enabled: false, gtmId: null, ga4Id: null, metaPixelId: null },
+    tracking: {
+      enabled: false,
+      gtmEnabled: false,
+      gtmId: null,
+      ga4Enabled: false,
+      ga4Id: null,
+      metaEnabled: false,
+      metaPixelId: null,
+    },
     customCode: { headHtml: "", bodyEndHtml: "" },
     microcopy: {
       header: { phone24hLabel: "24 Hour Number:", hoursLabel: "Office hours:" },

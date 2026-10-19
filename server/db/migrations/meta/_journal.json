@@ -71,6 +71,13 @@
       "when": 1792349044168,
       "tag": "0009_consent_manage_label",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792430351155,
+      "tag": "0010_marketing",
+      "breakpoints": true
     }
   ]
 }
