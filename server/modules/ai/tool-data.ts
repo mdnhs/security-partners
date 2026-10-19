@@ -1,6 +1,7 @@
 import "server-only"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
+import { isoDate } from "@/lib/format"
 import { isUuid } from "@/lib/ids"
 import { LEAD_STATUSES } from "@/lib/schemas/api/leads"
 import type { AiConfig } from "@/lib/schemas/integrations"
@@ -10,7 +11,8 @@ import type { Actor } from "@/server/lib/actor"
 import { AppError, forbidden } from "@/server/lib/errors"
 import * as articlesRepo from "@/server/modules/articles/repo"
 import { getArticleAdmin } from "@/server/modules/articles/service"
-import { getDashboard, trendDays } from "@/server/modules/dashboard/service"
+import { trendDays } from "@/server/modules/dashboard/days"
+import { getDashboard } from "@/server/modules/dashboard/service"
 import { getPage } from "@/server/modules/pages/service"
 import * as pagesRepo from "@/server/modules/pages/repo"
 import { search } from "@/server/modules/search/service"
@@ -20,6 +22,7 @@ import { getServiceAdmin } from "@/server/modules/services/service"
 import { isPageKey } from "@/templates/registry"
 
 import { oneLine } from "./prompt"
+import { redactContacts } from "./redact"
 import {
   contentStatuses,
   leadCounts,
@@ -122,9 +125,17 @@ export function flattenText(value: Json, max = TEXT_MAX): string {
   return clip(lines.join("\n"), max)
 }
 
-/** A record's own SEO fields, only for users who may read SEO. */
-function seoOf(actor: Actor, seo: Seo | null | undefined) {
+/**
+ * A record's own SEO fields, only for users who may read SEO. The admin
+ * DTOs leave SEO out, so its row is read (a second time) only then (C8
+ * review M7: no extra read for anyone else).
+ */
+async function seoRead(
+  actor: Actor,
+  find: () => Promise<{ seo: Seo | null } | null>
+) {
   if (!can(actor, { seo: ["read"] })) return undefined
+  const seo = (await find())?.seo
   return {
     title: seo?.title ?? null,
     description: seo?.description ?? null,
@@ -174,18 +185,22 @@ export async function searchContent(
 export async function readPage(actor: Actor, key: string): Promise<ToolResult> {
   assertCan(actor, { page: ["read"] })
   if (!isPageKey(key)) return notFoundResult("page")
-  const page = await getPage(actor, key)
-  const row = await pagesRepo.findPageForEdit(getDb(), key)
-  return {
-    found: true,
-    key: page.key,
-    title: page.label,
-    path: page.path,
-    status: page.status,
-    live: page.published !== null,
-    unpublishedChanges: page.dirty,
-    text: flattenText(page.draft),
-    seo: seoOf(actor, row?.seo),
+  try {
+    const page = await getPage(actor, key)
+    return {
+      found: true,
+      key: page.key,
+      title: page.label,
+      path: page.path,
+      status: page.status,
+      live: page.published !== null,
+      unpublishedChanges: page.dirty,
+      text: flattenText(page.draft),
+      seo: await seoRead(actor, () => pagesRepo.findPageForEdit(getDb(), key)),
+    }
+  } catch (error) {
+    if (isNotFound(error)) return notFoundResult("page")
+    throw error
   }
 }
 
@@ -215,7 +230,6 @@ export async function readService(
   if (!id) return notFoundResult("service")
   try {
     const service = await getServiceAdmin(actor, id)
-    const row = await servicesRepo.findServiceForEdit(db, id)
     return {
       found: true,
       id: service.id,
@@ -226,7 +240,7 @@ export async function readService(
       live: service.published !== null,
       unpublishedChanges: service.dirty,
       text: flattenText(service.draft),
-      seo: seoOf(actor, row?.seo),
+      seo: await seoRead(actor, () => servicesRepo.findServiceForEdit(db, id)),
     }
   } catch (error) {
     if (isNotFound(error)) return notFoundResult("service")
@@ -246,7 +260,6 @@ export async function readArticle(
   if (!id) return notFoundResult("article")
   try {
     const article = await getArticleAdmin(actor, id)
-    const row = await articlesRepo.findArticleForEdit(db, id)
     return {
       found: true,
       id: article.id,
@@ -256,12 +269,14 @@ export async function readArticle(
       status: article.status,
       live: article.live,
       category: article.category.name,
+      // A staff byline, not enquiry data: sent whatever the owner's
+      // enquiry-details switch says (accepted in the C8 review).
       author: article.author?.name ?? null,
       scheduledAt: article.scheduledAt,
       publishedAt: article.publishedAt,
       // Title, excerpt, lead, tags and body of the draft (capped).
       text: flattenText(article.draft),
-      seo: seoOf(actor, row?.seo),
+      seo: await seoRead(actor, () => articlesRepo.findArticleForEdit(db, id)),
     }
   } catch (error) {
     if (isNotFound(error)) return notFoundResult("article")
@@ -318,21 +333,28 @@ export async function dashboardSummary(actor: Actor): Promise<ToolResult> {
 
 export const ENQUIRY_RANGES = { "7d": 7, "30d": 30, "90d": 90 } as const
 
-const EMAIL = /[^\s@<>()[\]",;:]+@[^\s@<>()[\]",;:]+/g
-const PHONE_LIKE = /\+?\d[\d\s().\-/]{4,}\d/g
+export { redactContacts }
+
+/** Service names (by slug or title, any case) → the service's title. */
+export async function knownServices(): Promise<Map<string, string>> {
+  const known = new Map<string, string>()
+  for (const row of await serviceNames(getDb())) {
+    known.set(row.slug.toLowerCase(), row.title)
+    if (row.title) known.set(row.title.trim().toLowerCase(), row.title)
+  }
+  return known
+}
 
 /**
- * Removes contact details typed into free text: email addresses, phone-like
- * digit runs (7+ digits), and any stray "@".
+ * The public form's service field is free text: only names from the
+ * services list pass, anything else is "Other" (never the typed text).
  */
-export function redactContacts(text: string): string {
-  return text
-    .replace(EMAIL, "[email removed]")
-    .replace(PHONE_LIKE, (match) =>
-      match.replace(/\D/g, "").length >= 7 ? "[number removed]" : match
-    )
-    .replace(/\d{7,}/g, "[number removed]")
-    .replaceAll("@", " ")
+export function serviceBucket(
+  value: string | null | undefined,
+  known: Map<string, string>
+): string {
+  const text = value?.trim() ?? ""
+  return text ? (known.get(text.toLowerCase()) ?? "Other") : "Not given"
 }
 
 const RECENT_LIMIT = 10
@@ -355,31 +377,26 @@ export async function enquiryStats(
   const days = ENQUIRY_RANGES[range]
   // The range in Irish calendar days, today included (as the dashboard).
   const dates = trendDays(now, days)
+  // A day wider than the range (any DST offset); every count below keeps
+  // only the exact Irish calendar days of the range (C8 review M4).
   const since = new Date(now.getTime() - (days + 1) * DAY)
   const db = getDb()
-  const [counts, names] = await Promise.all([
+  const [counts, known] = await Promise.all([
     leadCounts(db, since),
-    serviceNames(db),
+    knownServices(),
   ])
   const inRange = new Set(dates)
 
   const byStatus = Object.fromEntries(
     LEAD_STATUSES.map((status) => [status, 0])
   ) as Record<string, number>
-  // `since` is a day wider than the range; the per-day rows below are exact.
-  for (const row of counts.byStatus) byStatus[row.status] += row.n
+  for (const row of counts.byStatus)
+    if (inRange.has(row.date)) byStatus[row.status] += row.n
 
-  const known = new Map<string, string>()
-  for (const row of names) {
-    known.set(row.slug.toLowerCase(), row.title)
-    if (row.title) known.set(row.title.trim().toLowerCase(), row.title)
-  }
   const byService: Record<string, number> = {}
   for (const row of counts.byService) {
-    const value = row.service?.trim() ?? ""
-    const label = value
-      ? (known.get(value.toLowerCase()) ?? "Other")
-      : "Not given"
+    if (!inRange.has(row.date)) continue
+    const label = serviceBucket(row.service, known)
     byService[label] = (byService[label] ?? 0) + row.n
   }
 
@@ -412,6 +429,8 @@ export async function enquiryStats(
     let budget = TEXT_MAX
     const recent: Record<string, string | null>[] = []
     for (const row of await recentLeadRows(db, since, RECENT_LIMIT)) {
+      // Newest first: rows before the range only come at the end.
+      if (!inRange.has(isoDate(row.createdAt))) break
       const item = {
         name: redactContacts(oneLine(row.name)),
         company: row.company ? redactContacts(oneLine(row.company)) : null,
@@ -420,7 +439,9 @@ export async function enquiryStats(
         message: redactContacts(clip(row.message.trim(), MESSAGE_MAX)),
         createdAt: row.createdAt.toISOString(),
       }
-      budget -= item.name.length + item.message.length
+      // Every text field counts toward the budget (C8 review M5).
+      for (const value of Object.values(item))
+        if (typeof value === "string") budget -= value.length
       if (budget < 0) break
       recent.push(item)
     }

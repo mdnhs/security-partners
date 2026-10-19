@@ -1,0 +1,1 @@
+ALTER TABLE "ai_messages" ADD COLUMN "enquiry_details" boolean DEFAULT false NOT NULL;

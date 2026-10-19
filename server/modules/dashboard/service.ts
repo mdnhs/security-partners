@@ -1,7 +1,6 @@
 import "server-only"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
-import { isoDate } from "@/lib/format"
 import {
   type DashboardDto,
   type NextUpItem,
@@ -13,19 +12,12 @@ import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
 import { integrationReadState } from "@/server/modules/integrations/service"
 
+import { trendDays } from "./days"
 import * as repo from "./repo"
 
-const DAY = 86_400_000
+export { trendDays }
 
-/** The last `days` calendar dates (Europe/Dublin), oldest first, ending today. */
-export function trendDays(now: Date, days = TREND_DAYS): string[] {
-  const [y, m, d] = isoDate(now).split("-").map(Number)
-  // Noon UTC: one calendar day per step, whatever the DST offset.
-  const todayNoon = Date.UTC(y, m - 1, d, 12)
-  return Array.from({ length: days }, (_, i) =>
-    new Date(todayNoon - (days - 1 - i) * DAY).toISOString().slice(0, 10)
-  )
-}
+const DAY = 86_400_000
 
 /**
  * KPIs, 90-day lead trend and the "Next up" checklist (spec §8.1), each

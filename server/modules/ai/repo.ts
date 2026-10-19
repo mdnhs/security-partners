@@ -28,6 +28,8 @@ export type MessageRow = {
   id: string
   role: ChatRole
   content: string
+  /** Written while enquiry details were shared (owner switch on). */
+  enquiryDetails: boolean
   createdAt: Date
 }
 
@@ -45,6 +47,7 @@ const messageColumns = {
   id: aiMessages.id,
   role: aiMessages.role,
   content: aiMessages.content,
+  enquiryDetails: aiMessages.enquiryDetails,
   createdAt: aiMessages.createdAt,
 }
 
@@ -115,7 +118,12 @@ export async function deleteConversationRow(
 
 export async function insertMessage(
   db: DbOrTx,
-  row: { conversationId: string; role: ChatRole; content: string }
+  row: {
+    conversationId: string
+    role: ChatRole
+    content: string
+    enquiryDetails?: boolean
+  }
 ): Promise<MessageRow> {
   const [created] = await db
     .insert(aiMessages)
@@ -199,19 +207,23 @@ export function contentStatuses(
 
 const leadDay = sql<string>`to_char(${leads.createdAt} at time zone 'Europe/Dublin', 'YYYY-MM-DD')`
 
-/** Lead counts since `since`: per status (all), per service and per day (no spam). */
+/**
+ * Lead counts since `since`, per Irish calendar day (the caller keeps the
+ * exact days of its range): per status (all), per service and per day (no
+ * spam).
+ */
 export async function leadCounts(db: DbOrTx, since: Date) {
   const [byStatus, byService, byDay] = await Promise.all([
     db
-      .select({ status: leads.status, n: count() })
+      .select({ status: leads.status, date: leadDay, n: count() })
       .from(leads)
       .where(gte(leads.createdAt, since))
-      .groupBy(leads.status),
+      .groupBy(leads.status, leadDay),
     db
-      .select({ service: leads.service, n: count() })
+      .select({ service: leads.service, date: leadDay, n: count() })
       .from(leads)
       .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
-      .groupBy(leads.service),
+      .groupBy(leads.service, leadDay),
     db
       .select({ date: leadDay, n: count() })
       .from(leads)

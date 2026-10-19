@@ -47,6 +47,7 @@ import {
   conversationTitle,
 } from "./prompt"
 import { aiErrorMessage, createLanguageModel, logAiError } from "./providers"
+import { screenContextFor } from "./screen-context"
 import {
   type ConversationRow,
   deleteConversationRow,
@@ -75,6 +76,10 @@ export const AI_TIMEOUT = { totalMs: 120_000, chunkMs: 30_000 } as const
 
 /** Model calls per chat turn (tool calls plus the answer), spec §6.3. */
 export const AI_MAX_STEPS = 5
+
+/** Stands in for an answer that used enquiry details no longer shared. */
+export const WITHHELD_ANSWER =
+  "[This earlier answer used enquiry details that are no longer shared with the assistant. It is left out.]"
 
 /** "Monday 20 October 2026" in Irish time, for the instructions. */
 const todayInDublin = new Intl.DateTimeFormat(SITE_LOCALE, {
@@ -333,6 +338,9 @@ export async function chat(
 ): Promise<{ conversationId: string; stream: ReadableStream<Uint8Array> }> {
   const config = await requireAssistant(actor)
   assertNotImpersonating(actor)
+  const sharing = config.shareEnquiryDetails.enabled
+  // A lead screen's record is rebuilt here, never taken from the browser.
+  const screenContext = await screenContextFor(actor, config, input.context)
   const { conversationId, history } = await getDb().transaction(async (tx) => {
     // Atomic upsert: its row lock serialises a burst until this commits; a
     // rejected or failed request rolls its count back.
@@ -372,10 +380,20 @@ export async function chat(
   // The model must see a user message first.
   while (history[0]?.role === "assistant") history.shift()
 
-  const messages = history.map(modelMessage)
+  // Answers that used enquiry details stay out of the model's history once
+  // the owner has turned sharing off (C8 review M8); while it is on, a new
+  // answer built on them carries the same mark.
+  const historyShared = history.some(
+    (row) => row.role === "assistant" && row.enquiryDetails
+  )
+  const messages = history.map((row) =>
+    !sharing && row.role === "assistant" && row.enquiryDetails
+      ? ({ role: "assistant", content: WITHHELD_ANSWER } as const)
+      : modelMessage(row)
+  )
   // The screen goes in a user-role message right before the question, never
   // in the (static) instructions.
-  const screen = contextMessage(input.context)
+  const screen = contextMessage(screenContext.context)
   if (screen) messages.splice(-1, 0, { role: "user", content: screen })
 
   // Stopped by the request (client gone) or by the stream being cancelled.
@@ -397,7 +415,6 @@ export async function chat(
     today: todayInDublin.format(new Date()),
     toolNames: Object.keys(tools),
     extra: config.extraInstructions,
-    screen: input.context?.screen ?? null,
   })
 
   const result = streamText({
@@ -407,6 +424,9 @@ export async function chat(
     tools,
     // At most 5 model calls per turn (tool calls and the answer).
     stopWhen: isStepCount(AI_MAX_STEPS),
+    // The last step must answer in words, not call another tool.
+    prepareStep: ({ stepNumber }) =>
+      stepNumber >= AI_MAX_STEPS - 1 ? { toolChoice: "none" } : undefined,
     maxOutputTokens: config.maxOutputTokens,
     maxRetries: 1,
     timeout: AI_TIMEOUT,
@@ -433,11 +453,19 @@ export async function chat(
       send({ type: "start", conversationId })
       let answer = ""
       let failed = false
+      // Enquiry details reached the model in this turn (switch on only).
+      let enquiryDetails =
+        sharing && (screenContext.enquiryDetails || historyShared)
       try {
         for await (const part of result.stream) {
           if (part.type === "text-delta") {
             answer += part.text
             send({ type: "text", text: part.text })
+          } else if (
+            part.type === "tool-call" &&
+            part.toolName === "getEnquiryStats"
+          ) {
+            if (sharing) enquiryDetails = true
           } else if (part.type === "error") {
             failed = true
             logAiError(part.error)
@@ -451,6 +479,7 @@ export async function chat(
               conversationId,
               role: "assistant",
               content: answer,
+              enquiryDetails,
             })
             send({ type: "done", messageId: saved.id })
           } else {
