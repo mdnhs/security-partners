@@ -9,6 +9,7 @@ import {
   SITE_PAIRS,
 } from "@/lib/theme/checks"
 import { contrast } from "@/lib/theme/color"
+import { buildAdminTokens } from "@/lib/theme/admin"
 import { PRESET_IDS } from "@/lib/theme/presets"
 import { ColorValue, DEFAULT_THEME, ThemeConfig } from "@/lib/theme/schema"
 import { presetSiteTheme, resolveSiteTokens } from "@/lib/theme/site"
@@ -42,20 +43,17 @@ describe("checkTheme", () => {
       ).toEqual([])
   })
 
-  // The brief's preset brands are dark, so the consent button (navy text on
-  // brand green) is their only failing pair; publish is blocked until
-  // "fix all" lightens the green. Pinned so a change here is deliberate.
-  it("non-SP site presets fail only the consent pair, and fixAll repairs it", () => {
+  // Ruling 2: a preset must never hit the publish gate. The non-SP site
+  // brands are baked in already repaired (presets.ts).
+  it("every preset passes SITE_PAIRS and ADMIN_PAIRS unmodified (light+dark)", () => {
     for (const p of PRESET_IDS) {
-      const config = { ...DEFAULT_THEME, site: presetSiteTheme(p) }
-      const issues = checkTheme(config)
-      if (p === "security-partners") expect(issues).toEqual([])
-      else
-        expect(
-          issues.map((i) => `${i.text}/${i.surface}`),
-          p
-        ).toEqual(["brand-navy/brand-green"])
-      expect(fixAll(config).remaining, p).toEqual([])
+      const config = {
+        site: presetSiteTheme(p),
+        admin: { ...DEFAULT_THEME.admin, preset: p },
+      }
+      expect(checkTheme(config), p).toEqual([])
+      const scopes = new Set(pairRatings(config).map((r) => r.scope))
+      expect(scopes, p).toEqual(new Set(["site", "admin-light", "admin-dark"]))
     }
   })
 
@@ -123,19 +121,112 @@ describe("fix automatically", () => {
     expect(fixed.site.tokens["brand-navy"]).toBeUndefined()
   })
 
-  it("fixAll never leaves a theme with more failing pairs", () => {
+  it("a locked brand-green moves the navy text instead", () => {
+    const config = withSite({ tokens: { "brand-green": "#1f3a10" } })
+    const issue = checkTheme(config).find(
+      (i) => i.text === "brand-navy" && i.surface === "brand-green"
+    )!
+    expect(issue).toBeDefined()
+    const fixed = fixIssue(config, issue)!
+    expect(fixed).not.toBeNull()
+    expect(fixed.site.tokens["brand-green"]).toBe(
+      config.site.tokens["brand-green"]
+    )
+    expect(fixed.site.tokens["brand-navy"]).toBeDefined()
+    const tokens = resolveSiteTokens(fixed.site)
+    expect(
+      contrast(tokens["brand-navy"], tokens["brand-green"])
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it("returns null or a config that clears the pair, never a non-fix", () => {
     const configs = [
-      withSite({ brand: "#000000" }),
-      withSite({ brand: "#ffffff" }),
+      withSite({ tokens: { "brand-green": "#1f3a10" } }),
+      withSite({
+        tokens: { "brand-green": "#777777", "brand-navy": "#777777" },
+      }),
       withSite({ brand: "#000000", tokens: { "brand-muted": "#dddddd" } }),
-      ThemeConfig.parse({ admin: { primary: "#000000", accent: "#ffff00" } }),
-      ThemeConfig.parse({ admin: { primary: "#ffffff" } }),
+      ThemeConfig.parse({ admin: { primary: "#ffffff", accent: "#ffff00" } }),
     ]
+    for (const config of configs)
+      for (const issue of checkTheme(config)) {
+        const fixed = fixIssue(config, issue)
+        if (fixed)
+          expect(
+            checkTheme(fixed).some(
+              (i) =>
+                i.scope === issue.scope &&
+                i.text === issue.text &&
+                i.surface === issue.surface
+            ),
+            `${issue.scope} ${issue.text}/${issue.surface}`
+          ).toBe(false)
+      }
+  })
+
+  it("the admin dark path changes dark tokens", () => {
+    const config = ThemeConfig.parse({
+      admin: { primary: "#2f5f8a", accent: "#3366cc" },
+    })
+    for (const [text, field] of [
+      ["ring", "ring"],
+      ["accent-foreground", "accent"],
+    ] as const) {
+      const fixed = fixIssue(config, {
+        scope: "admin-dark",
+        text,
+        surface: text === "ring" ? "background" : "accent",
+        ratio: 1,
+        min: 4.5,
+      })!
+      expect(fixed, text).not.toBeNull()
+      expect(buildAdminTokens(fixed.admin, "dark")[field], text).not.toEqual(
+        buildAdminTokens(config.admin, "dark")[field]
+      )
+    }
+  })
+})
+
+describe("fixAll", () => {
+  const configs = [
+    withSite({ brand: "#000000" }),
+    withSite({ brand: "#ffffff" }),
+    withSite({ brand: "#000000", tokens: { "brand-muted": "#dddddd" } }),
+    withSite({ tokens: { "brand-green": "#1f3a10" } }),
+    ThemeConfig.parse({ admin: { primary: "#000000", accent: "#ffff00" } }),
+    ThemeConfig.parse({ admin: { primary: "#ffffff" } }),
+    ThemeConfig.parse({ admin: { primary: "#d4f5c0", tint: "primary" } }),
+  ]
+
+  it("never leaves a theme with more failing pairs", () => {
     for (const config of configs) {
       const before = checkTheme(config).length
       const result = fixAll(config)
       expect(checkTheme(result.config).length).toBeLessThanOrEqual(before)
       expect(result.remaining.length).toBeLessThanOrEqual(before)
     }
+  })
+
+  it("reports exactly what is left", () => {
+    for (const config of configs) {
+      const result = fixAll(config)
+      expect(checkTheme(result.config)).toEqual(result.remaining)
+    }
+  })
+
+  it("is idempotent", () => {
+    for (const config of configs) {
+      const once = fixAll(config)
+      const twice = fixAll(once.config)
+      expect(twice.config).toEqual(once.config)
+      expect(twice.remaining).toEqual(once.remaining)
+    }
+  })
+
+  it("is deterministic", () => {
+    for (const config of configs)
+      expect(JSON.stringify(fixAll(config))).toBe(
+        JSON.stringify(fixAll(config))
+      )
   })
 })

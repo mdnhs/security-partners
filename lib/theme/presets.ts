@@ -1,4 +1,5 @@
 // lib/theme/presets.ts
+import { deepFreeze } from "./freeze"
 import type { SiteToken } from "./tokens"
 
 export const PRESET_IDS = [
@@ -14,7 +15,7 @@ export type PresetId = (typeof PRESET_IDS)[number]
 // Today's public palette, verbatim from app/globals.css @theme
 // (tests/unit/theme/presets.test.ts keeps them equal). Public colours are
 // frozen: the default theme must emit nothing (ruling 4).
-export const SP_SITE: Readonly<Record<SiteToken, string>> = {
+export const SP_SITE: Readonly<Record<SiteToken, string>> = deepFreeze({
   "brand-navy": "#0d1b36",
   "brand-blue": "#2751a3",
   "brand-blue-deep": "#03428f",
@@ -27,19 +28,23 @@ export const SP_SITE: Readonly<Record<SiteToken, string>> = {
   "brand-muted": "#718096",
   "brand-placeholder": "#a0aec0",
   "brand-map": "#e8eae6",
-}
+})
 
 // Every preset is one shift from the base tables (SP_SITE, SP_ADMIN_*): the
 // site's green family follows `site.brand`, the admin follows
-// `admin.primary`.
-export const PRESETS: Record<
-  PresetId,
-  {
-    label: string
-    site: { brand: string }
-    admin: { primary: string }
-  }
-> = {
+// `admin.primary`. The non-SP site brands are the brief's colours after
+// "fix all" (lightened so navy text on the consent button clears 4.5:1),
+// baked in as hex so every preset passes SITE_PAIRS unmodified.
+export const PRESETS: Readonly<
+  Record<
+    PresetId,
+    {
+      readonly label: string
+      readonly site: { readonly brand: string }
+      readonly admin: { readonly primary: string }
+    }
+  >
+> = deepFreeze({
   "security-partners": {
     label: "Security Partners",
     site: { brand: "#67bd31" },
@@ -47,27 +52,27 @@ export const PRESETS: Record<
   },
   evergreen: {
     label: "Evergreen",
-    site: { brand: "#1f6b3a" },
+    site: { brand: "#49925e" },
     admin: { primary: "#157d38" },
   },
   ocean: {
     label: "Ocean",
-    site: { brand: "#2f5f8a" },
+    site: { brand: "#5888b6" },
     admin: { primary: "#2f5f8a" },
   },
   plum: {
     label: "Plum",
-    site: { brand: "#6a3f6b" },
+    site: { brand: "#a475a4" },
     admin: { primary: "#6a3f6b" },
   },
   terracotta: {
     label: "Terracotta",
-    site: { brand: "#8f4a36" },
+    site: { brand: "#b9705b" },
     admin: { primary: "#9a4a32" },
   },
   graphite: {
     label: "Graphite",
-    site: { brand: "#4a4f55" },
+    site: { brand: "#80858c" },
     admin: { primary: "#4a4f55" },
   },
-}
+})

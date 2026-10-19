@@ -8,6 +8,7 @@ import {
   type Oklch,
 } from "./color"
 import { NEUTRAL_CHROMA, shift } from "./derive"
+import { deepFreeze } from "./freeze"
 import { PRESETS, type PresetId } from "./presets"
 import type { AdminThemeConfig } from "./schema"
 import { SP_ADMIN_DARK, SP_ADMIN_LIGHT } from "./sp-admin"
@@ -18,16 +19,23 @@ type Mode = "light" | "dark"
 
 // SP_ADMIN (A1) parsed; dark falls back to light for what it leaves out, as
 // in admin.css.
-const LIGHT = Object.fromEntries(
-  ADMIN_TOKENS.map((t) => [t, parseColor(SP_ADMIN_LIGHT[t])!])
-) as AdminTokens
-const DARK = Object.fromEntries(
-  ADMIN_TOKENS.map((t) => [
-    t,
-    parseColor(SP_ADMIN_DARK[t] ?? SP_ADMIN_LIGHT[t])!,
-  ])
-) as AdminTokens
-const BASE: Record<Mode, AdminTokens> = { light: LIGHT, dark: DARK }
+const LIGHT = deepFreeze(
+  Object.fromEntries(
+    ADMIN_TOKENS.map((t) => [t, parseColor(SP_ADMIN_LIGHT[t])!])
+  ) as AdminTokens
+)
+const DARK = deepFreeze(
+  Object.fromEntries(
+    ADMIN_TOKENS.map((t) => [
+      t,
+      parseColor(SP_ADMIN_DARK[t] ?? SP_ADMIN_LIGHT[t])!,
+    ])
+  ) as AdminTokens
+)
+const BASE: Readonly<Record<Mode, AdminTokens>> = deepFreeze({
+  light: LIGHT,
+  dark: DARK,
+})
 
 // Semantic colours that must not follow the brand (MK R2). SP keeps its
 // contrast-tuned status values (ruling 6).
@@ -110,10 +118,13 @@ export function buildAdminTokens(
     out.accent = out["sidebar-accent"] = surface
     out["accent-foreground"] = out["sidebar-accent-foreground"] = text
   }
+  // Fresh objects all round: callers may edit what they get without touching
+  // the frozen base tables (or one token aliasing another).
+  for (const t of ADMIN_TOKENS) out[t] = { ...out[t] }
   return out
 }
 
-export const ADMIN_DEFAULT: Record<Mode, AdminTokens> = BASE
+export const ADMIN_DEFAULT: Readonly<Record<Mode, AdminTokens>> = BASE
 
 export const presetAdminColours = (preset: PresetId) => ({
   preset,
