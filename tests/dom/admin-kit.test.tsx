@@ -228,6 +228,29 @@ describe("admin kit", () => {
       "aria-current",
       "page"
     )
+    // Built on the shadcn breadcrumb primitives (A2).
+    expect(nav).toHaveAttribute("data-slot", "breadcrumb")
+    expect(nav.querySelector('[data-slot="breadcrumb-list"]')).not.toBeNull()
+    expect(
+      nav.querySelectorAll('[data-slot="breadcrumb-separator"]')
+    ).toHaveLength(1)
+    expect(within(nav).getByText("Jane Doe")).toHaveAttribute(
+      "data-slot",
+      "breadcrumb-page"
+    )
+  })
+
+  it("PageHeader keeps a custom ReactNode breadcrumb (back link) as-is", () => {
+    render(
+      <PageHeader
+        title="Edit"
+        breadcrumbs={<Link href="/admin/leads">Back to leads</Link>}
+      />
+    )
+    expect(
+      screen.getByRole("link", { name: "Back to leads" })
+    ).toHaveAttribute("href", "/admin/leads")
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull()
   })
 
   it("PageHeader action classes: SECONDARY is the outlined twin of PRIMARY", () => {

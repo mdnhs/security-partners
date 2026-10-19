@@ -1,7 +1,14 @@
-import { ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { Fragment, isValidElement, type ReactNode } from "react"
 
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -45,49 +52,37 @@ function isCrumbs(value: unknown): value is readonly Crumb[] {
 }
 
 /**
- * Breadcrumb trail (shadcn breadcrumb markup: nav > ol > li, the current page
- * a non-link with aria-current="page").
- * TODO(A2 merge): render with `@/components/ui/breadcrumb` primitives.
+ * Breadcrumb trail on the shadcn breadcrumb primitives (nav > ol > li; the
+ * current page a non-link with aria-current="page").
  */
 function Breadcrumbs({ items }: { items: readonly Crumb[] }) {
   return (
-    <nav aria-label="Breadcrumb">
-      <ol className="flex flex-wrap items-center gap-1.5 text-sm wrap-break-word text-muted-foreground">
+    <Breadcrumb aria-label="Breadcrumb">
+      <BreadcrumbList>
         {items.map((item, index) => {
           const current = !item.href || index === items.length - 1
           return (
             <Fragment key={`${index}-${item.label}`}>
-              {index > 0 ? (
-                <li
-                  role="presentation"
-                  aria-hidden
-                  className="[&>svg]:size-3.5"
-                >
-                  <ChevronRight />
-                </li>
-              ) : null}
-              <li className="inline-flex items-center gap-1.5">
+              {index > 0 ? <BreadcrumbSeparator /> : null}
+              <BreadcrumbItem className="gap-1.5">
                 {current || item.href === undefined ? (
-                  <span
-                    aria-current="page"
-                    className="font-medium text-foreground"
-                  >
+                  <BreadcrumbPage className="font-medium">
                     {item.label}
-                  </span>
+                  </BreadcrumbPage>
                 ) : (
-                  <Link
-                    href={item.href}
-                    className="inline-flex items-center rounded-md transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:min-h-11"
+                  <BreadcrumbLink
+                    className="inline-flex items-center rounded-md pointer-coarse:min-h-11"
+                    render={<Link href={item.href} />}
                   >
                     {item.label}
-                  </Link>
+                  </BreadcrumbLink>
                 )}
-              </li>
+              </BreadcrumbItem>
             </Fragment>
           )
         })}
-      </ol>
-    </nav>
+      </BreadcrumbList>
+    </Breadcrumb>
   )
 }
 
