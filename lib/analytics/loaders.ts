@@ -5,7 +5,12 @@ import {
 } from "./consent"
 import type { TrackingSettings } from "@/lib/schemas/settings/tracking"
 
-import type { AnalyticsWindow, Fbq } from "./events"
+import {
+  type AnalyticsEvent,
+  type AnalyticsWindow,
+  cleanPageLocation,
+  type Fbq,
+} from "./events"
 
 // Loads GTM / GA4 / Meta Pixel after matching consent (spec §10).
 
@@ -33,7 +38,8 @@ export function trackingTestId(search: string): string | null {
   return id && /^[A-Za-z0-9-]{8,40}$/.test(id) ? id : null
 }
 
-const TRACKING_TEST_EVENT = "tracking_test"
+type TrackingTestEvent = Extract<AnalyticsEvent, { event: "tracking_test" }>
+const TRACKING_TEST_EVENT: TrackingTestEvent["event"] = "tracking_test"
 
 export const GTM_SRC = (id: string) =>
   `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(id)}`
@@ -101,8 +107,14 @@ export function startTracking(
   const testId = choice.analytics
     ? trackingTestId(env.search ?? win.location.search)
     : null
-  if (testId && !hasTestEvent(win, testId))
-    win.dataLayer!.push({ event: TRACKING_TEST_EVENT, test_id: testId })
+  if (testId && !hasTestEvent(win, testId)) {
+    // Pushed raw (before any tag loads), typed as the catalogue's event.
+    const probe: TrackingTestEvent = {
+      event: TRACKING_TEST_EVENT,
+      test_id: testId,
+    }
+    win.dataLayer!.push(probe)
+  }
   if (choice.analytics && ids.gtmId && !hasScript(doc, GTM_SRC(ids.gtmId))) {
     win.dataLayer!.push({ "gtm.start": Date.now(), event: "gtm.js" })
     injectScript(doc, GTM_SRC(ids.gtmId))
@@ -111,8 +123,11 @@ export function startTracking(
   if (choice.analytics && ids.ga4Id && !hasScript(doc, GA4_SRC(ids.ga4Id))) {
     injectScript(doc, GA4_SRC(ids.ga4Id))
     win.gtag!("js", new Date())
-    if (testId) win.gtag!("config", ids.ga4Id, { debug_mode: true })
-    else win.gtag!("config", ids.ga4Id)
+    win.gtag!("config", ids.ga4Id, {
+      page_location: cleanPageLocation(win),
+      ...(testId ? { debug_mode: true } : {}),
+    })
+    win.__spGa4Id = ids.ga4Id
     loaded.push("ga4")
   }
   if (choice.marketing && ids.metaPixelId && !hasScript(doc, META_PIXEL_SRC)) {

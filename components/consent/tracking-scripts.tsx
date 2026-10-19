@@ -10,8 +10,12 @@ import {
 import { startTracking, type TrackingIds } from "@/lib/analytics/loaders"
 
 import { useConsent } from "./consent-provider"
+import { RouteTracker } from "./route-tracker"
 
-/** Loads the tags the visitor agreed to and reports link clicks (typed events). */
+/**
+ * Loads the tags the visitor agreed to and reports link clicks and
+ * client-side page changes (typed events).
+ */
 export function TrackingScripts({ ids }: { ids: TrackingIds }) {
   const { choice } = useConsent()
   const { gtmId, ga4Id, metaPixelId } = ids
@@ -36,5 +40,5 @@ export function TrackingScripts({ ids }: { ids: TrackingIds }) {
     document.addEventListener("click", onClick, true)
     return () => document.removeEventListener("click", onClick, true)
   }, [])
-  return null
+  return <RouteTracker />
 }

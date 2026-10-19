@@ -252,6 +252,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
         keywords: ["cookies", "gdpr"],
       },
       {
+        id: "marketing-events",
+        label: "Event catalogue",
+        href: "/admin/marketing/events",
+        permission: { marketing: ["read"] },
+        keywords: ["events", "datalayer", "conversions"],
+      },
+      {
         id: "marketing-code",
         label: "Custom code",
         href: "/admin/marketing/code",
