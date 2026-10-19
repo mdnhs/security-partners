@@ -75,6 +75,7 @@
     "pg-connection-string": "2.14.1",
     "qrcode": "1.5.4",
     "react": "19.3.0",
+    "react-colorful": "5.8.1",
     "react-dom": "19.3.0",
     "react-email": "6.11.2",
     "react-hook-form": "7.90.0",
