@@ -3,7 +3,7 @@ import { forbidden, redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { firstVisibleChild } from "@/lib/admin/nav"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Site settings" }
 
@@ -17,7 +17,7 @@ export default function SettingsPage() {
 }
 
 async function FirstChild(): Promise<never> {
-  const actor = await requirePermission({ settings: ["read"] })
+  const actor = await requirePage("/admin/settings")
   const child = firstVisibleChild("settings", actor.roles)
   if (!child) forbidden()
   redirect(child.href)

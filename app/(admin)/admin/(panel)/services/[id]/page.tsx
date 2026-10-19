@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { z } from "zod"
 
 import { ServiceEditor } from "@/components/admin/services/service-editor"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Edit service" }
 
@@ -23,6 +23,6 @@ async function Screen({
 }: Pick<PageProps<"/admin/services/[id]">, "params">) {
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
-  await requirePermission({ service: ["read"] })
+  await requirePage("/admin/services")
   return <ServiceEditor id={id} />
 }

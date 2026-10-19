@@ -21,9 +21,11 @@ vi.mock("next/navigation", () => nav)
 const session = vi.hoisted(() => ({
   roles: ["owner"] as string[],
   requirePermission: vi.fn(),
+  requirePage: vi.fn(),
 }))
 vi.mock("@/server/auth/session", () => ({
   requirePermission: session.requirePermission,
+  requirePage: session.requirePage,
 }))
 
 vi.mock("@/components/admin/settings/settings-editor", () => ({
@@ -63,6 +65,13 @@ beforeEach(() => {
       return { roles: session.roles }
     }
   )
+  // The real requirePage's logic over the mocked requirePermission.
+  session.requirePage.mockImplementation(async (href: string) => {
+    const permission = permissionFor(href)
+    if (permission === undefined) nav.notFound()
+    if (permission === null) return { roles: session.roles }
+    return session.requirePermission(permission)
+  })
 })
 
 type Props = Record<string, unknown>

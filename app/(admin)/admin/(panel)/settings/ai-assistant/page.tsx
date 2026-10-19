@@ -3,7 +3,7 @@ import { Suspense } from "react"
 
 import { IntegrationForm } from "@/components/admin/integrations/integration-form"
 import { INTEGRATIONS } from "@/lib/schemas/integrations"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = {
   title: INTEGRATIONS["integrations.ai"].label,
@@ -23,6 +23,6 @@ export default function AiAssistantPage() {
 }
 
 async function Editor() {
-  await requirePermission({ integration: ["read"] })
+  await requirePage("/admin/settings/ai-assistant")
   return <IntegrationForm integrationKey="integrations.ai" />
 }
