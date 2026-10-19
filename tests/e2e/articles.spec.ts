@@ -47,7 +47,7 @@ test("author drafts and submits, cannot publish via the API; an editor publishes
 
   // Author: new draft.
   await signIn(page, author)
-  await page.goto("/admin/articles/new")
+  await page.goto("/admin/insights/new")
   await page.getByRole("textbox", { name: "Title" }).fill(TITLE)
   await expect(page.getByRole("textbox", { name: "Address" })).toHaveValue(SLUG)
   await page
@@ -67,7 +67,7 @@ test("author drafts and submits, cannot publish via the API; an editor publishes
   await picker.getByRole("button", { name: "Use this image" }).click()
   await expect(picker).toBeHidden()
   await page.getByRole("button", { name: "Create draft" }).click()
-  await expect(page).toHaveURL(/\/admin\/articles\/[0-9a-f-]{36}$/)
+  await expect(page).toHaveURL(/\/admin\/insights\/[0-9a-f-]{36}$/)
   await expect(
     page.getByRole("heading", { level: 1, name: TITLE })
   ).toBeVisible()
@@ -121,7 +121,7 @@ test("author drafts and submits, cannot publish via the API; an editor publishes
   })
   const editorPage = await editorContext.newPage()
   await signIn(editorPage, editor)
-  await editorPage.goto("/admin/articles")
+  await editorPage.goto("/admin/insights")
   await editorPage.getByRole("button", { name: "Review queue" }).click()
   await editorPage.getByRole("link", { name: TITLE }).click()
   await expect(

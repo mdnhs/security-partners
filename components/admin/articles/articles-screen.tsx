@@ -53,7 +53,7 @@ const columns = ch.columns([
     cell: (info) => (
       <span className="flex min-w-0 flex-col">
         <Link
-          href={`/admin/articles/${info.row.original.id}`}
+          href={`/admin/insights/${info.row.original.id}`}
           className="font-semibold underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {info.getValue()}
@@ -144,12 +144,12 @@ export function ArticlesScreen() {
     const search = mergeListSearch(window.location.search, {
       status: next ?? undefined,
     })
-    router.replace(`/admin/articles${search ? `?${search}` : ""}`, {
+    router.replace(`/admin/insights${search ? `?${search}` : ""}`, {
       scroll: false,
     })
   }
   const newArticle = canCreate ? (
-    <Link href="/admin/articles/new" className={LINK_PRIMARY}>
+    <Link href="/admin/insights/new" className={LINK_PRIMARY}>
       <Plus aria-hidden />
       New article
     </Link>
@@ -248,7 +248,7 @@ export function ArticlesScreen() {
           <div className="rounded-card relative flex flex-col gap-2 bg-card p-4">
             <span className="flex items-start justify-between gap-2">
               <Link
-                href={`/admin/articles/${row.id}`}
+                href={`/admin/insights/${row.id}`}
                 className="after:rounded-card font-semibold outline-none after:absolute after:inset-0 focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
               >
                 {row.title}

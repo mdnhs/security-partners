@@ -341,7 +341,7 @@ describe("dashboard (JW layout)", () => {
       "/admin/leads",
       "/admin/leads",
       "/admin/pages",
-      "/admin/articles?status=in_review",
+      "/admin/insights?status=in_review",
     ])
   })
 

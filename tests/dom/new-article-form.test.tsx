@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/articles/new",
+  usePathname: () => "/admin/insights/new",
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }))
@@ -143,7 +143,7 @@ describe("new article (master 5.3)", () => {
     })
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith(
-        "/admin/articles/0190f0e0-0000-7000-8000-0000000000a1"
+        "/admin/insights/0190f0e0-0000-7000-8000-0000000000a1"
       )
     )
   })

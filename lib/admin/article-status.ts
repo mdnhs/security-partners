@@ -47,5 +47,5 @@ export function parseStatusParam(value: string | null): ContentStatus | null {
 }
 
 export function articleListHref(status: ContentStatus | null): string {
-  return status ? `/admin/articles?status=${status}` : "/admin/articles"
+  return status ? `/admin/insights?status=${status}` : "/admin/insights"
 }

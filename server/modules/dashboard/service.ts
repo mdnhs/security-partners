@@ -126,7 +126,7 @@ export async function getDashboard(
         ? `Review ${inReview} draft${inReview === 1 ? "" : "s"}`
         : "No drafts waiting for review",
       description: "Authors submitted these articles for publishing.",
-      href: "/admin/articles?status=in_review",
+      href: "/admin/insights?status=in_review",
       done: inReview === 0,
     })
   if (unassigned !== null)

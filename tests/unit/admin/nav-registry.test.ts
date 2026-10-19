@@ -27,6 +27,27 @@ const allLinks = (): NavLink[] => [
 ]
 
 describe("nav registry (MK IA, spec §5.1)", () => {
+  it("every badged item names its count for screen readers", () => {
+    const badged = NAV_ITEMS.filter((item) => item.badge)
+    expect(badged.map((item) => [item.id, item.badgeLabel])).toEqual([
+      ["leads", "new enquiries"],
+    ])
+  })
+
+  it("Insights holds Articles and Categories; Collections the rest", () => {
+    const hrefs = (id: string) =>
+      NAV_ITEMS.find((item) => item.id === id)!.children!.map((c) => c.href)
+    expect(hrefs("insights")).toEqual([
+      "/admin/insights",
+      "/admin/insights/categories",
+    ])
+    expect(hrefs("collections")).toEqual([
+      "/admin/collections/team",
+      "/admin/collections/clients",
+      "/admin/collections/group-companies",
+    ])
+  })
+
   it("groups are Menu, Growth, General in order", () => {
     expect(NAV_GROUPS.map((g) => g.label)).toEqual([
       "Menu",

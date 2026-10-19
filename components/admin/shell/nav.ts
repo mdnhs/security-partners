@@ -26,11 +26,6 @@ export * from "@/lib/admin/nav"
  * page's current address so nothing it renders is a 404.
  */
 export const CURRENT_ROUTES: Readonly<Record<string, string>> = {
-  "/admin/insights": "/admin/articles",
-  "/admin/insights/categories": "/admin/categories",
-  "/admin/collections/team": "/admin/team",
-  "/admin/collections/clients": "/admin/clients",
-  "/admin/collections/group-companies": "/admin/group-companies",
   "/admin/marketing": "/admin/marketing/tracking",
   "/admin/marketing/code": "/admin/marketing/custom-code",
   "/admin/settings/ai-assistant": "/admin/settings/integrations/ai",

@@ -3,7 +3,7 @@ import type { ComponentProps } from "react"
 import { describe, expect, it, vi } from "vitest"
 
 const { pathname } = vi.hoisted(() => ({
-  pathname: { current: "/admin/team" },
+  pathname: { current: "/admin/collections/team" },
 }))
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.current }))
 vi.mock("next/link", () => ({
@@ -29,7 +29,7 @@ const session = {
 
 describe("Collections section tabs", () => {
   it("lists the collections as route tabs and marks the current one", () => {
-    pathname.current = "/admin/clients"
+    pathname.current = "/admin/collections/clients"
     render(
       <AdminSessionProvider value={session}>
         <CollectionTabs>

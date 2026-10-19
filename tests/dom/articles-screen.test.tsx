@@ -8,7 +8,7 @@ const { push, replace, search } = vi.hoisted(() => ({
   search: { current: new URLSearchParams() },
 }))
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/articles",
+  usePathname: () => "/admin/insights",
   useRouter: () => ({ push, replace, refresh: vi.fn() }),
   useSearchParams: () => search.current,
 }))
@@ -135,7 +135,7 @@ describe("articles list (master 5.3)", () => {
     const queue = screen.getByRole("button", { name: "Review queue" })
     expect(queue).toHaveAttribute("aria-pressed", "true")
     await user.click(screen.getByRole("button", { name: "All" }))
-    expect(replace).toHaveBeenCalledWith("/admin/articles", { scroll: false })
+    expect(replace).toHaveBeenCalledWith("/admin/insights", { scroll: false })
   })
 
   it("filters by category and byline", async () => {
@@ -175,7 +175,7 @@ describe("articles list (master 5.3)", () => {
     await screen.findByRole("table", { name: "Articles" })
     expect(screen.getByRole("link", { name: "New article" })).toHaveAttribute(
       "href",
-      "/admin/articles/new"
+      "/admin/insights/new"
     )
     expect(screen.queryByRole("button", { name: "Review queue" })).toBeNull()
     expect(

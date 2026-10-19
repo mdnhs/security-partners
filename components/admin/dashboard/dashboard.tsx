@@ -39,7 +39,7 @@ type ContentAccess = { pages: boolean; services: boolean; articles: boolean }
 function contentHref(access: ContentAccess): string {
   if (access.pages) return "/admin/pages"
   if (access.services) return "/admin/services"
-  return "/admin/articles"
+  return "/admin/insights"
 }
 
 /** Every KPI links its chip to the screen it counts (the API gates each part). */
@@ -74,7 +74,7 @@ function kpisFor(dto: DashboardDto, access: ContentAccess): Kpi[] {
       label: "Drafts in review",
       value: formatNumber(kpis.inReview),
       caption: "articles waiting for an editor",
-      href: "/admin/articles?status=in_review",
+      href: "/admin/insights?status=in_review",
     })
   return out
 }

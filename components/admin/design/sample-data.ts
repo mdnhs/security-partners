@@ -40,7 +40,7 @@ export const SAMPLE_KPIS: KpiCardProps[] = [
     value: "2",
     delta: null,
     caption: "articles waiting for an editor",
-    href: "/admin/articles?status=in_review",
+    href: "/admin/insights?status=in_review",
   },
 ]
 
@@ -73,7 +73,7 @@ export const SAMPLE_NEXT_UP: NextUpItem[] = [
     id: "review",
     title: "Review two articles",
     description: "Drafts are waiting for an editor.",
-    href: "/admin/articles?status=in_review",
+    href: "/admin/insights?status=in_review",
     done: false,
   },
 ]

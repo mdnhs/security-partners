@@ -81,13 +81,13 @@ const PANEL = [
   "/admin/pages",
   "/admin/pages/home",
   "/admin/services",
-  "/admin/articles",
-  "/admin/articles?status=in_review", // the review queue (empty in the seed)
-  "/admin/articles/new",
-  "/admin/team",
-  "/admin/clients",
-  "/admin/group-companies",
-  "/admin/categories",
+  "/admin/insights",
+  "/admin/insights?status=in_review", // the review queue (empty in the seed)
+  "/admin/insights/new",
+  "/admin/collections/team",
+  "/admin/collections/clients",
+  "/admin/collections/group-companies",
+  "/admin/insights/categories",
   "/admin/settings/site",
   "/admin/settings/contact",
   "/admin/account",
@@ -154,7 +154,7 @@ async function openArticle(
     const record = (await (await route.fetch()).json()) as object
     await route.fulfill({ json: { ...record, ...state } })
   })
-  await page.goto(`/admin/articles/${article.id}`)
+  await page.goto(`/admin/insights/${article.id}`)
   await expect(
     page.getByRole("heading", { level: 1, name: article.title })
   ).toBeVisible()
@@ -692,7 +692,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         failures.push(`user menu → ${violation}`)
       await page.keyboard.press("Escape")
       // A collection record sheet.
-      await page.goto("/admin/team")
+      await page.goto("/admin/collections/team")
       await page
         .getByRole("button", { name: "Edit Michael McDonald" })
         .first()
@@ -842,7 +842,7 @@ test.describe("ledger checks", () => {
     page,
   }) => {
     await signIn(page, readFixtures().editor)
-    await page.goto("/admin/team")
+    await page.goto("/admin/collections/team")
     const opener = page
       .getByRole("button", { name: "Edit Michael McDonald" })
       .first()

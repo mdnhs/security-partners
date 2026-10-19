@@ -399,7 +399,7 @@ function DeleteCard({
       // Drop the deleted record first so nothing refetches it (404).
       queryClient.removeQueries({ queryKey: ["articles", article.id] })
       await queryClient.invalidateQueries({ queryKey: ["articles"] })
-      router.push("/admin/articles")
+      router.push("/admin/insights")
     },
     onError: (err) => {
       setOpen(false)

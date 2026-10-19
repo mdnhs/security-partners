@@ -61,10 +61,10 @@ export function NavEntry({
         <Icon aria-hidden />
         <span>{item.label}</span>
       </SidebarMenuButton>
-      {badge ? (
+      {badge && item.badgeLabel ? (
         <SidebarMenuBadge
           role="img"
-          aria-label={`${badge} new ${item.label.toLowerCase()}`}
+          aria-label={`${badge} ${item.badgeLabel}`}
           className="top-3! right-2 h-6 rounded-full bg-primary px-2 text-[11px] font-semibold text-primary-foreground"
         >
           {formatBadge(badge)}
