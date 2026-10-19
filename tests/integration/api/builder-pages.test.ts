@@ -320,6 +320,26 @@ describe("builder pages API (D5.2)", () => {
     expect(revalidateTag).not.toHaveBeenCalled()
   })
 
+  it("autosave with a non-uuid media id or hostile nesting → 422, not 500", async () => {
+    const page = await create()
+    const [hero] = page.draft.blocks
+    const bad = await saveDraft(page.id, {
+      version: page.version,
+      draft: { blocks: [{ ...hero, data: { image: { mediaId: "x" } } }] },
+    })
+    expect(bad.status).toBe(422)
+    expect(
+      Object.keys(((await bad.json()) as ErrorBody).error.fieldErrors ?? {})
+    ).toEqual(["draft.blocks.0.data.image.mediaId"])
+    let deep: unknown = "leaf"
+    for (let i = 0; i < 5000; i++) deep = { a: deep }
+    const nested = await saveDraft(page.id, {
+      version: page.version,
+      draft: { blocks: [{ ...hero, data: { deep } }] },
+    })
+    expect(nested.status).toBe(422)
+  })
+
   it("marketer cannot save, publish or delete; viewer cannot either", async () => {
     const page = await create()
     for (const cookie of [marketer, viewer]) {

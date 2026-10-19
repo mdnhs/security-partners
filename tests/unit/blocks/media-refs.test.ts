@@ -53,6 +53,17 @@ describe("collectMediaIds", () => {
     expect(ids.sort()).toEqual([A, B, C, D].sort())
   })
 
+  it("skips references whose id is not a media id (unparsed drafts)", () => {
+    expect(
+      collectMediaIds({
+        blocks: [
+          { data: { image: { mediaId: "x" } } },
+          { data: { image: { mediaId: A } } },
+        ],
+      })
+    ).toEqual([A])
+  })
+
   it("returns an empty list for blocks without media", () => {
     expect(
       collectMediaIds({ blocks: [{ data: { useShared: true } }] })
