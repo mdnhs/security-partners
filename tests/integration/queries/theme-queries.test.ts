@@ -42,17 +42,29 @@ describe("theme queries", () => {
   })
 
   it("getPublishedTheme: DEFAULT_THEME when the row is missing or invalid", async () => {
-    expect(await getPublishedTheme()).toEqual(DEFAULT_THEME)
-    await insertTheme({
-      draft,
-      published: { admin: { primary: "red;}body{" } },
-    })
-    expect(await getPublishedTheme()).toEqual(DEFAULT_THEME)
-    await getDb()
-      .update(settings)
-      .set({ published: null })
-      .where(eq(settings.key, "theme"))
-    expect(await getPublishedTheme()).toEqual(DEFAULT_THEME)
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      expect(await getPublishedTheme()).toEqual(DEFAULT_THEME)
+      expect(warn).not.toHaveBeenCalled()
+      await insertTheme({
+        draft,
+        published: { admin: { primary: "red;}body{" } },
+      })
+      expect(await getPublishedTheme()).toEqual(DEFAULT_THEME)
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith(
+        "[theme] stored theme invalid; using default",
+        expect.anything()
+      )
+      await getDb()
+        .update(settings)
+        .set({ published: null })
+        .where(eq(settings.key, "theme"))
+      expect(await getPublishedTheme()).toEqual(DEFAULT_THEME)
+      expect(warn).toHaveBeenCalledTimes(1)
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it("getPreviewableSiteTheme: draft site only for a verified previewer", async () => {

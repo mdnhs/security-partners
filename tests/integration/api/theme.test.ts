@@ -11,7 +11,7 @@ vi.mock("next/cache", () => ({
 import type { ThemeDto } from "@/lib/schemas/api/theme"
 import { DEFAULT_THEME, type ThemeConfigValue } from "@/lib/theme/schema"
 import { getDb } from "@/server/db/client"
-import { auditLog, revisions } from "@/server/db/schema"
+import { auditLog, revisions, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 
 import { resetDb } from "../db"
@@ -155,6 +155,43 @@ describe("appearance API (theme draft/publish)", () => {
     expect(body.error.fieldErrors.draft[0]).toMatch(/needs 4.5:1/)
     expect(await countRevisions("settings", "theme")).toBe(0)
     expect((await getTheme(owner)).published).toEqual(DEFAULT_THEME)
+  })
+
+  it("a corrupt stored draft: GET falls back with a warning, publish → 422, live unchanged", async () => {
+    const live = withAdmin(DEFAULT_THEME, { radius: 0.5 })
+    await saveDraft(owner, 1, live)
+    expect((await post(owner, "/publish", { version: 2 })).status).toBe(200)
+    const before = await getTheme(owner)
+    await getDb()
+      .update(settings)
+      .set({ draft: { admin: { primary: "red;}body{" } } })
+      .where(eq(settings.key, "theme"))
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const dto = await getTheme(owner)
+      expect(dto.draft).toEqual(DEFAULT_THEME)
+      expect(dto.published).toEqual(before.published)
+      expect(dto.hasDraft).toBe(true)
+      expect(warn).toHaveBeenCalledWith(
+        "[theme] stored theme invalid; using default",
+        expect.anything()
+      )
+
+      const res = await post(owner, "/publish", { version: dto.version })
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as { error: { code: string } }
+      expect(body.error.code).toBe("VALIDATION_FAILED")
+    } finally {
+      warn.mockRestore()
+    }
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "theme"))
+    expect(row!.published).toEqual(before.published)
+    expect(row!.version).toBe(before.version)
+    expect(await countRevisions("settings", "theme")).toBe(1)
   })
 
   it("rejects a colour injection", async () => {
