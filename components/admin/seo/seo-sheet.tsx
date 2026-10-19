@@ -3,7 +3,10 @@
 import { useState } from "react"
 
 import { useGuardedClose } from "@/components/admin/editor/discard-changes"
+import { EmptyState } from "@/components/admin/kit/empty-state"
 import { StatusPill } from "@/components/admin/kit/status-pill"
+import { PRIMARY_ACTION } from "@/components/admin/page-header"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -11,11 +14,79 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
 import { usePermission } from "@/hooks/use-permission"
 import type { SeoEntry } from "@/lib/schemas/api/seo"
 
 import { SeoPanel } from "./seo-panel"
 import { useSaveSeo } from "./use-save-seo"
+
+/**
+ * The SEO sheet before its record is ready (?edit= set): loading, failed
+ * (with Try again) or not found. Never an empty sheet or no sheet at all.
+ */
+export function SeoSheetPlaceholder({
+  state,
+  error,
+  onRetry,
+  onClose,
+}: {
+  state: "loading" | "error" | "missing"
+  error?: string
+  onRetry: () => void
+  onClose: () => void
+}) {
+  const loading = state === "loading"
+  return (
+    <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
+      <SheetContent
+        aria-busy={loading || undefined}
+        className="w-full overflow-y-auto bg-card sm:max-w-xl"
+      >
+        <SheetHeader>
+          <SheetTitle className="text-lg font-semibold">
+            SEO settings
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            {loading
+              ? "Loading the record's SEO settings."
+              : "The record's SEO settings are not available."}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="px-4 pb-6">
+          {loading ? (
+            <div
+              role="status"
+              aria-label="Loading SEO settings"
+              className="flex flex-col gap-4"
+            >
+              <Skeleton className="bg-skeleton h-24 rounded-xl" />
+              <Skeleton className="bg-skeleton h-48 rounded-xl" />
+              <Skeleton className="bg-skeleton h-32 rounded-xl" />
+            </div>
+          ) : state === "error" ? (
+            <EmptyState
+              role="alert"
+              title="SEO settings didn't load"
+              description={error}
+              action={
+                <Button className={PRIMARY_ACTION} onClick={onRetry}>
+                  Try again
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              role="status"
+              title="This record isn't in the SEO list"
+              description="It may have been deleted. Close this and pick another one."
+            />
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
 
 /** One record's SEO fields in a right sheet (JW detail pattern); saves are live. */
 export function SeoSheet({

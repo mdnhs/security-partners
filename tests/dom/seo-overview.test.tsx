@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 }))
 
 import { makeQueryClient } from "@/components/admin/providers"
+import { groupIssues } from "@/components/admin/seo/issues-list"
 import { SeoOverview } from "@/components/admin/seo/seo-overview"
 import { AdminSessionProvider } from "@/components/admin/session-provider"
 import type { Role } from "@/lib/auth/roles"
@@ -145,29 +146,29 @@ const json = (status: number, body: unknown) =>
     headers: { "content-type": "application/json" },
   })
 
-const fetchMock = vi.fn(
-  async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(String(input), "http://localhost")
-    if (url.pathname === "/api/v1/admin/seo/overview")
-      return json(200, OVERVIEW)
-    if (url.pathname === "/api/v1/admin/seo/health") return json(200, health)
-    if (
-      init?.method === "PUT" &&
-      url.pathname === "/api/v1/admin/seo/entries/page/home"
+async function defaultFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const url = new URL(String(input), "http://localhost")
+  if (url.pathname === "/api/v1/admin/seo/overview") return json(200, OVERVIEW)
+  if (url.pathname === "/api/v1/admin/seo/health") return json(200, health)
+  if (
+    init?.method === "PUT" &&
+    url.pathname === "/api/v1/admin/seo/entries/page/home"
+  )
+    return json(
+      200,
+      entry({ seo: (JSON.parse(String(init.body)) as { seo: object }).seo })
     )
-      return json(
-        200,
-        entry({ seo: (JSON.parse(String(init.body)) as { seo: object }).seo })
-      )
-    return json(404, { error: { code: "NOT_FOUND", message: "Not found" } })
-  }
-)
+  return json(404, { error: { code: "NOT_FOUND", message: "Not found" } })
+}
+
+const fetchMock = vi.fn(defaultFetch)
 
 beforeEach(() => {
   nav.params = new URLSearchParams()
   health = HEALTH
   nav.replace.mockReset()
-  fetchMock.mockClear()
+  fetchMock.mockReset()
+  fetchMock.mockImplementation(defaultFetch)
   vi.stubGlobal("fetch", fetchMock)
 })
 
@@ -193,6 +194,26 @@ function renderAs(roles: Role[]) {
   )
 }
 
+describe("groupIssues", () => {
+  const ids = (filter: "needs-work" | "all") =>
+    groupIssues(HEALTH.issues, HEALTH.entities, filter).map(
+      (g) => `${g.kind}:${g.id}:${g.issues.length}`
+    )
+
+  it("Needs work: records with issues, then images, in API order", () => {
+    expect(ids("needs-work")).toEqual(["page:home:1", `media:${MEDIA_ID}:1`])
+  })
+
+  it("All: every entity in API order (with its issues), then images", () => {
+    expect(ids("all")).toEqual([
+      "page:home:1",
+      "service:00000000-0000-7000-8000-000000000001:0",
+      "article:00000000-0000-7000-8000-000000000002:0",
+      `media:${MEDIA_ID}:1`,
+    ])
+  })
+})
+
 describe("SEO overview (master 8.1)", () => {
   it("shows the health gauge from /seo/health", async () => {
     renderAs(["editor"])
@@ -213,24 +234,26 @@ describe("SEO overview (master 8.1)", () => {
 
   it("Needs work (default) lists only entities with issues, each with a Fix link", async () => {
     renderAs(["editor"])
-    const home = await screen.findByRole("region", { name: "Home" })
+    const home = await screen.findByRole("article", { name: "Home" })
     expect(home).toHaveTextContent("/")
     expect(home).toHaveTextContent(HOME_ISSUE)
     expect(within(home).getByRole("link", { name: /^Fix/ })).toHaveAttribute(
       "href",
       "/admin/pages/home?tab=seo"
     )
-    const image = screen.getByRole("region", { name: "van.jpg" })
+    const image = screen.getByRole("article", { name: "van.jpg" })
     expect(within(image).getByRole("link", { name: /^Fix/ })).toHaveAttribute(
       "href",
       `/admin/media?missingAlt=true&open=${MEDIA_ID}`
     )
     // Passing and unpublished records are hidden.
-    expect(screen.queryByRole("region", { name: "Alarm Responses" })).toBeNull()
-    expect(screen.queryByRole("region", { name: "Draft post" })).toBeNull()
+    expect(
+      screen.queryByRole("article", { name: "Alarm Responses" })
+    ).toBeNull()
+    expect(screen.queryByRole("article", { name: "Draft post" })).toBeNull()
     expect(screen.queryByText("All checks pass")).toBeNull()
     // The filter: Needs work current, All adds ?show=all.
-    const filter = screen.getByRole("navigation", { name: "Show" })
+    const filter = screen.getByRole("navigation", { name: "Issue filter" })
     expect(
       within(filter).getByRole("link", { name: "Needs work" })
     ).toHaveAttribute("aria-current", "page")
@@ -243,18 +266,18 @@ describe("SEO overview (master 8.1)", () => {
   it("All (?show=all) also lists passing entities", async () => {
     nav.params = new URLSearchParams("show=all")
     renderAs(["editor"])
-    const service = await screen.findByRole("region", {
+    const service = await screen.findByRole("article", {
       name: "Alarm Responses",
     })
     expect(service).toHaveTextContent("All checks pass")
     expect(within(service).queryByRole("link", { name: /^Fix/ })).toBeNull()
     expect(
-      screen.getByRole("region", { name: "Draft post" })
+      screen.getByRole("article", { name: "Draft post" })
     ).toHaveTextContent("Not published")
-    expect(screen.getByRole("region", { name: "Home" })).toHaveTextContent(
+    expect(screen.getByRole("article", { name: "Home" })).toHaveTextContent(
       HOME_ISSUE
     )
-    const filter = screen.getByRole("navigation", { name: "Show" })
+    const filter = screen.getByRole("navigation", { name: "Issue filter" })
     expect(within(filter).getByRole("link", { name: "All" })).toHaveAttribute(
       "aria-current",
       "page"
@@ -268,10 +291,64 @@ describe("SEO overview (master 8.1)", () => {
     health = ALL_PASS
     renderAs(["editor"])
     expect(await screen.findByText("Nothing to fix")).toBeInTheDocument()
-    expect(screen.queryByRole("region", { name: "Home" })).toBeNull()
+    expect(screen.queryByRole("article", { name: "Home" })).toBeNull()
     expect(
       screen.getByText("Every published page passes the checks.")
     ).toBeInTheDocument()
+  })
+
+  it("All with nothing to check says Nothing to check yet", async () => {
+    health = { ...ALL_PASS, passed: 0, total: 0, entities: [], issues: [] }
+    nav.params = new URLSearchParams("show=all")
+    renderAs(["editor"])
+    expect(await screen.findByText("Nothing to check yet")).toBeInTheDocument()
+  })
+
+  it("filter segments and Fix links are 44 px on coarse pointers", async () => {
+    renderAs(["editor"])
+    const home = await screen.findByRole("article", { name: "Home" })
+    const filter = screen.getByRole("navigation", { name: "Issue filter" })
+    for (const link of [
+      within(home).getByRole("link", { name: /^Fix/ }),
+      ...within(filter).getAllByRole("link"),
+    ]) {
+      expect(link).toHaveClass("pointer-coarse:h-11", "pointer-coarse:min-w-11")
+      expect(link.className).not.toMatch(/pointer-coarse:h-10/)
+    }
+  })
+
+  it("the alt bar counts decorative images as covered", async () => {
+    renderAs(["editor"])
+    const card = await screen.findByRole("region", { name: "Alt text" })
+    // 12 images, 1 missing: 11 covered (9 described + 2 decorative).
+    expect(
+      card.querySelector<HTMLElement>("[data-slot=alt-coverage]")!.style.width
+    ).toBe("92%")
+  })
+
+  it("lists at most 10 images and points to the media library for the rest", async () => {
+    const images = Array.from({ length: 12 }, (_, i) => ({
+      kind: "media" as const,
+      id: `00000000-0000-7000-8000-0000000001${String(i).padStart(2, "0")}`,
+      title: `img-${i}.jpg`,
+      path: null,
+      check: "alt-text" as const,
+      message: "1 image(s) missing alt text",
+      fixHref: `/admin/media?missingAlt=true&open=${i}`,
+    }))
+    health = { ...HEALTH, issues: [HEALTH.issues[0]!, ...images] }
+    renderAs(["editor"])
+    expect(
+      await screen.findByRole("article", { name: "img-9.jpg" })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("article", { name: "img-10.jpg" })).toBeNull()
+    expect(screen.getByRole("article", { name: "Home" })).toBeInTheDocument()
+    const more = screen.getByText("2 more images without alt text.")
+    expect(
+      within(more.parentElement!).getByRole("link", {
+        name: "Find images without alt text",
+      })
+    ).toHaveAttribute("href", "/admin/media?missingAlt=true")
   })
 
   it("Edit SEO puts the record in the address (?edit=)", async () => {
@@ -281,6 +358,68 @@ describe("SEO overview (master 8.1)", () => {
       await screen.findByRole("button", { name: "Edit SEO for Home" })
     )
     expect(nav.replace).toHaveBeenCalledWith("/admin/seo?edit=page%3Ahome", {
+      scroll: false,
+    })
+  })
+
+  it("the sheet shows a loading state while the record loads", async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost")
+      if (url.pathname === "/api/v1/admin/seo/overview") {
+        await gate
+        return json(200, OVERVIEW)
+      }
+      return defaultFetch(input, init)
+    })
+    nav.params = new URLSearchParams("edit=page:home")
+    renderAs(["editor"])
+    const sheet = await screen.findByRole("dialog", { name: "SEO settings" })
+    expect(sheet).toHaveAttribute("aria-busy", "true")
+    expect(
+      within(sheet).getByRole("status", { name: "Loading SEO settings" })
+    ).toBeInTheDocument()
+    release()
+    expect(
+      await screen.findByRole("dialog", { name: "SEO: Home" })
+    ).toBeInTheDocument()
+  })
+
+  it("a failed sheet load says so in the sheet and Try again reloads", async () => {
+    let fail = true
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost")
+      if (url.pathname === "/api/v1/admin/seo/overview" && fail)
+        // 4xx: the client does not retry, so the error shows at once.
+        return json(403, {
+          error: { code: "FORBIDDEN", message: "Not allowed" },
+        })
+      return defaultFetch(input, init)
+    })
+    nav.params = new URLSearchParams("edit=page:home")
+    const user = userEvent.setup()
+    renderAs(["editor"])
+    const sheet = await screen.findByRole("dialog", { name: "SEO settings" })
+    const alert = await within(sheet).findByRole("alert")
+    expect(alert).toHaveTextContent("SEO settings didn't load")
+    fail = false
+    await user.click(within(alert).getByRole("button", { name: "Try again" }))
+    expect(
+      await screen.findByRole("dialog", { name: "SEO: Home" })
+    ).toBeInTheDocument()
+  })
+
+  it("an unknown ?edit= record says so in the sheet and closes", async () => {
+    nav.params = new URLSearchParams("edit=page:nope")
+    const user = userEvent.setup()
+    renderAs(["editor"])
+    const sheet = await screen.findByRole("dialog", { name: "SEO settings" })
+    expect(
+      await within(sheet).findByText("This record isn't in the SEO list")
+    ).toBeInTheDocument()
+    await user.click(within(sheet).getByRole("button", { name: "Close" }))
+    expect(nav.replace).toHaveBeenLastCalledWith("/admin/seo", {
       scroll: false,
     })
   })

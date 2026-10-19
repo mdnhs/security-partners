@@ -225,11 +225,18 @@ const SEO_OVERVIEW = {
  * same records as SEO_OVERVIEW (11 of 12 checks pass, Home has one issue),
  * plus one image missing alt text.
  */
-const SEO_FIX_BASE = {
+const SEO_FIX_BASE: Record<string, string> = {
   page: "/admin/pages",
   service: "/admin/services",
   article: "/admin/insights",
-} as const
+  builder: "/admin/pages/custom",
+}
+/** Spec §7.1 fixHref; an unknown kind fails loudly, not "undefined/…". */
+function seoFixHref(kind: string, id: string) {
+  const base = SEO_FIX_BASE[kind]
+  if (!base) throw new Error(`SEO fixture: no fixHref base for kind ${kind}`)
+  return `${base}/${id}?tab=seo`
+}
 const SEO_HEALTH = {
   score: 92,
   ...SEO_OVERVIEW.checks,
@@ -253,7 +260,7 @@ const SEO_HEALTH = {
         title: e.name,
         path: e.path,
         ...i,
-        fixHref: `${SEO_FIX_BASE[e.kind as keyof typeof SEO_FIX_BASE]}/${e.id}?tab=seo`,
+        fixHref: seoFixHref(e.kind, e.id),
       }))
     ),
     {

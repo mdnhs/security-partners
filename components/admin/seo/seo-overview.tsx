@@ -21,7 +21,7 @@ import { AltTextCard } from "./alt-text-card"
 import { healthParts } from "./health"
 import { type IssueGroup, IssuesList, issuesFilterOf } from "./issues-list"
 import { SEO_HEALTH_KEY, SEO_OVERVIEW_KEY } from "./keys"
-import { SeoSheet } from "./seo-sheet"
+import { SeoSheet, SeoSheetPlaceholder } from "./seo-sheet"
 
 const isRecordKind = (kind: string): kind is SeoKind =>
   (SEO_KINDS as readonly string[]).includes(kind)
@@ -95,6 +95,22 @@ export function SeoOverview({ origin }: { origin: string }) {
           key={keyOf(entry)}
           entry={entry}
           origin={origin}
+          onClose={() => setEditing(null)}
+        />
+      ) : editing ? (
+        // Loading, failed or unknown record: say so in the sheet.
+        <SeoSheetPlaceholder
+          state={
+            overview.isFetching
+              ? "loading"
+              : overview.isError
+                ? "error"
+                : overview.data
+                  ? "missing"
+                  : "loading"
+          }
+          error={overview.error ? errorMessage(overview.error) : undefined}
+          onRetry={() => void overview.refetch()}
           onClose={() => setEditing(null)}
         />
       ) : null}

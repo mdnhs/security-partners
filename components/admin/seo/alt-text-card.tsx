@@ -14,7 +14,8 @@ export const MISSING_ALT_HREF = "/admin/media?missingAlt=true"
  * ("X of Y images described · Z decorative").
  */
 export function AltTextCard({ alt }: { alt: SeoHealthDto["alt"] }) {
-  const share = alt.images === 0 ? 1 : alt.described / alt.images
+  // Covered = described or decorative (decorative images need no alt).
+  const share = alt.images === 0 ? 1 : (alt.images - alt.missing) / alt.images
   return (
     <DashboardCard title="Alt text">
       <div className="flex flex-col gap-3">
@@ -29,6 +30,7 @@ export function AltTextCard({ alt }: { alt: SeoHealthDto["alt"] }) {
         </p>
         <div aria-hidden className="h-2 overflow-hidden rounded-full bg-muted">
           <div
+            data-slot="alt-coverage"
             className="h-full rounded-full bg-primary"
             style={{ width: `${Math.round(share * 100)}%` }}
           />
@@ -42,7 +44,7 @@ export function AltTextCard({ alt }: { alt: SeoHealthDto["alt"] }) {
         ) : null}
         <Link
           href={MISSING_ALT_HREF}
-          className="inline-flex items-center gap-1.5 self-start text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="inline-flex items-center gap-1.5 self-start text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:h-11"
         >
           Find images without alt text
           <ArrowRight aria-hidden className="size-4" />
