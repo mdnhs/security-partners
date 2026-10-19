@@ -47,9 +47,13 @@ const lead: LeadDto = {
   ],
 }
 
-const calls: { url: string; method: string }[] = []
+const calls: { url: string; method: string; body?: string }[] = []
+let listTotal = 1
+let patchStatus = 200
 beforeEach(() => {
   calls.length = 0
+  listTotal = 1
+  patchStatus = 200
   push.mockClear()
   replace.mockClear()
   refresh.mockClear()
@@ -65,7 +69,13 @@ beforeEach(() => {
       const url = input instanceof Request ? input.url : String(input)
       const method =
         init?.method ?? (input instanceof Request ? input.method : "GET")
-      calls.push({ url, method })
+      const body =
+        typeof init?.body === "string"
+          ? init.body
+          : input instanceof Request && method !== "GET"
+            ? await input.clone().text()
+            : undefined
+      calls.push({ url, method, body })
       const reply = (data: unknown, status = 200) =>
         new Response(JSON.stringify(data), {
           status,
@@ -82,9 +92,16 @@ beforeEach(() => {
         )
       if (url.includes(`/leads/${ID}`)) {
         if (method === "DELETE") return reply({ ok: true })
+        if (method === "PATCH")
+          return patchStatus === 200
+            ? reply({ ...lead, ...JSON.parse(body ?? "{}") })
+            : reply(
+                { error: { code: "INTERNAL", message: "Down" } },
+                patchStatus
+              )
         return reply(lead)
       }
-      return reply({ items: [lead], page: 1, pageSize: 20, total: 1 })
+      return reply({ items: [lead], page: 1, pageSize: 20, total: listTotal })
     })
   )
 })
@@ -280,5 +297,70 @@ describe("leads screen: Inbox/Spam tabs, view toggle, drawer (D3.2)", () => {
     )
     expect(window.location.search).toBe("")
     expect(push).not.toHaveBeenCalled()
+  })
+})
+
+describe("leads screen: board view (D3.3)", () => {
+  it("?view=board shows the board from the latest 100 open, won and lost", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    listTotal = 101
+    renderAs()
+    const column = await screen.findByRole("region", { name: "New" })
+    expect(
+      within(column).getByRole("button", { name: /^Dinn Rí/ })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("table", { name: "Leads" })).toBeNull()
+    const board = listCalls().at(-1)!.url
+    expect(board).toContain("pageSize=100")
+    expect(board).not.toContain("status=")
+    expect(screen.getByText("Showing the latest 100")).toBeInTheDocument()
+  })
+
+  it("moving a card PATCHes the lead's status", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    const user = userEvent.setup()
+    renderAs()
+    await screen.findByRole("region", { name: "New" })
+    expect(screen.queryByText("Showing the latest 100")).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: "Move Dinn Rí to another column" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Qualified" }))
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.method === "PATCH" && c.url.includes(ID))?.body
+      ).toBe(JSON.stringify({ status: "qualified" }))
+    )
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "Qualified" })).getByRole(
+          "button",
+          { name: /^Dinn Rí/ }
+        )
+      ).toBeInTheDocument()
+    )
+  })
+
+  it("a failed PATCH snaps the card back", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    patchStatus = 500
+    const user = userEvent.setup()
+    renderAs()
+    await screen.findByRole("region", { name: "New" })
+    await user.click(
+      screen.getByRole("button", { name: "Move Dinn Rí to another column" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Lost" }))
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "PATCH")).toBe(true)
+    )
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "New" })).getByRole(
+          "button",
+          { name: /^Dinn Rí/ }
+        )
+      ).toBeInTheDocument()
+    )
   })
 })

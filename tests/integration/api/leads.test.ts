@@ -82,6 +82,7 @@ describe("GET /leads (inbox list)", () => {
       name: "Won deal",
       status: "won",
       company: "Acme Ltd",
+      service: "CCTV",
       createdAt: new Date(now),
     })
 
@@ -92,6 +93,9 @@ describe("GET /leads (inbox list)", () => {
       "Old",
     ])
     expect(all.total).toBe(3)
+    // The board card shows the service (D3.3).
+    expect(all.items[0].service).toBe("CCTV")
+    expect(all.items[1].service).toBeNull()
     expect(all.items[1].assignee).toEqual({
       id: intake.userId,
       name: intake.name,
