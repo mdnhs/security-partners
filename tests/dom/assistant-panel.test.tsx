@@ -36,6 +36,8 @@ const reply = (text: string, conversationId = "c1") =>
 
 const ON: AiStatusDto = {
   available: true,
+  canManage: false,
+  reason: null,
   model: "claude-sonnet-5-5",
   readOnly: false,
 }
@@ -158,7 +160,13 @@ async function sendMessage(
 
 describe("AssistantButton (master 9.2: hidden when disabled)", () => {
   it("renders nothing while off, not allowed or unknown, and asks nothing", () => {
-    renderAssistant({ available: false, model: null, readOnly: false })
+    renderAssistant({
+      available: false,
+      canManage: false,
+      reason: "off",
+      model: null,
+      readOnly: false,
+    })
     expect(screen.queryByRole("button", { name: "AI assistant" })).toBeNull()
     renderAssistant(null)
     expect(screen.queryByRole("button", { name: "AI assistant" })).toBeNull()

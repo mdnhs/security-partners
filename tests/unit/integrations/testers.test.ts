@@ -223,7 +223,15 @@ describe("testAi (GET the model)", () => {
     provider: "anthropic",
     model: "claude-sonnet-4-5",
     apiKey: "sk-ant-secret",
+    baseUrl: "",
     allowedRoles: ["owner"],
+    extraInstructions: "",
+    maxOutputTokens: 1024,
+    shareEnquiryDetails: {
+      enabled: false,
+      acknowledgedBy: null,
+      acknowledgedAt: null,
+    },
   }
 
   it("calls the provider's model endpoint with the key", async () => {
@@ -250,6 +258,56 @@ describe("testAi (GET the model)", () => {
     ]
     expect(openaiUrl).toBe("https://api.openai.com/v1/models/gpt-5")
     expect(openaiInit.headers).toMatchObject({ authorization: "Bearer sk-o" })
+  })
+
+  it("calls Gemini and OpenAI-compatible model endpoints", async () => {
+    const google = vi.fn(async () => json({ name: "models/gemini-2.5-flash" }))
+    expect(
+      (
+        await testAi(
+          { ...anthropic, provider: "google", model: "gemini-2.5-flash" },
+          google
+        )
+      ).ok
+    ).toBe(true)
+    const [googleUrl, googleInit] = google.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ]
+    expect(googleUrl).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash"
+    )
+    expect(googleInit.headers).toMatchObject({
+      "x-goog-api-key": "sk-ant-secret",
+    })
+
+    const compat = vi.fn(async () => json({ id: "llama" }))
+    await testAi(
+      {
+        ...anthropic,
+        provider: "openai-compatible",
+        model: "llama",
+        baseUrl: "https://api.groq.com/openai/v1",
+      },
+      compat
+    )
+    const [compatUrl] = compat.mock.calls[0] as unknown as [string]
+    expect(compatUrl).toBe("https://api.groq.com/openai/v1/models/llama")
+  })
+
+  it("never calls a blocked OpenAI-compatible base URL", async () => {
+    const none = vi.fn()
+    const result = await testAi(
+      {
+        ...anthropic,
+        provider: "openai-compatible",
+        model: "llama",
+        baseUrl: "https://169.254.169.254/v1",
+      },
+      none
+    )
+    expect(result.ok).toBe(false)
+    expect(none).not.toHaveBeenCalled()
   })
 
   it("maps 401 and 404", async () => {

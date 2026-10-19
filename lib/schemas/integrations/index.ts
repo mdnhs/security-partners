@@ -32,9 +32,15 @@ import {
 export {
   AI_CLAUDE_MODELS,
   AI_DEFAULT_MODEL,
+  AI_EXTRA_INSTRUCTIONS_MAX,
+  AI_OUTPUT_TOKEN_LIMITS,
   AI_PROVIDERS,
   AI_ROLES,
+  AI_SHARE_ENQUIRY_OFF,
   type AiProvider,
+  type AiShareEnquiryDetails,
+  aiShareEnquiryDetailsInput,
+  allowLocalAiHttp,
 } from "./ai"
 export { R2_JURISDICTIONS } from "./r2"
 export type { AiConfig, R2Config, SmtpConfig, TurnstileConfig }

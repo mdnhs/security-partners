@@ -1,5 +1,8 @@
 import { z } from "zod"
 
+import { AI_BASE_URL_MAX } from "@/lib/ai/base-url"
+import { AI_PROVIDERS } from "@/lib/schemas/integrations/ai"
+
 import { listQuery } from "./list"
 
 /** One message from the user, in characters. */
@@ -66,11 +69,25 @@ export type ConversationsQuery = z.output<typeof conversationsQuery>
 /** GET /ai/status: whether this user sees the assistant. */
 export type AiStatusDto = {
   available: boolean
+  /** May change the AI settings (integration:update): shown the set-up entry points. */
+  canManage: boolean
+  /**
+   * Why it is unavailable (null when available): turned off, not set up
+   * (or its saved key cannot be read), or not for this user's roles.
+   */
+  reason: "off" | "unconfigured" | "not-allowed" | null
   /** The configured model, only when available. */
   model: string | null
   /** Viewing the admin as someone else: conversations can be read, not sent. */
   readOnly: boolean
 }
+
+/** POST /ai/models: the models the saved key can use at this provider. */
+export const listModelsInput = z.object({
+  provider: z.enum(AI_PROVIDERS, { error: "Choose a provider" }),
+  baseUrl: z.string().max(AI_BASE_URL_MAX).default(""),
+})
+export type ListModelsInput = z.output<typeof listModelsInput>
 
 export type AiConversationSummary = {
   id: string

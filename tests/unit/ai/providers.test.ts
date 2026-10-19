@@ -26,6 +26,7 @@ describe("createLanguageModel (libraries notes §6.3)", () => {
       provider: "anthropic",
       model: "claude-sonnet-5-5",
       apiKey: SECRET,
+      baseUrl: "",
     })
     expect(typeof claude).toBe("object")
     expect(claude).toMatchObject({
@@ -38,8 +39,36 @@ describe("createLanguageModel (libraries notes §6.3)", () => {
         provider: "openai",
         model: "gpt-5",
         apiKey: "sk-o",
+        baseUrl: "",
       })
     ).toMatchObject({ provider: "openai.responses", modelId: "gpt-5" })
+  })
+
+  it("builds Gemini and OpenAI-compatible instances", () => {
+    expect(
+      createLanguageModel({
+        provider: "google",
+        model: "gemini-2.5-flash",
+        apiKey: "g-key",
+        baseUrl: "",
+      })
+    ).toMatchObject({
+      provider: "google.generative-ai",
+      modelId: "gemini-2.5-flash",
+      specificationVersion: "v4",
+    })
+    expect(
+      createLanguageModel({
+        provider: "openai-compatible",
+        model: "llama-3.3-70b",
+        apiKey: "c-key",
+        baseUrl: "https://api.groq.com/openai/v1",
+      })
+    ).toMatchObject({
+      provider: "custom.chat",
+      modelId: "llama-3.3-70b",
+      specificationVersion: "v4",
+    })
   })
 })
 

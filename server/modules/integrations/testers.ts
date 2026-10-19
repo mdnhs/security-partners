@@ -7,13 +7,16 @@ import {
 } from "@aws-sdk/client-s3"
 import nodemailer from "nodemailer"
 
-import type {
-  AiConfig,
-  IntegrationConfig,
-  IntegrationKey,
-  R2Config,
-  SmtpConfig,
-  TurnstileConfig,
+import { baseUrlProblem, normaliseBaseUrl } from "@/lib/ai/base-url"
+import {
+  type AiConfig,
+  type AiProvider,
+  allowLocalAiHttp,
+  type IntegrationConfig,
+  type IntegrationKey,
+  type R2Config,
+  type SmtpConfig,
+  type TurnstileConfig,
 } from "@/lib/schemas/integrations"
 import { isTimeoutError } from "@/server/lib/errors"
 import { createR2Client, r2Failure } from "@/server/lib/r2-client"
@@ -167,20 +170,54 @@ export async function testTurnstile(
   }
 }
 
+const GOOGLE_API = "https://generativelanguage.googleapis.com/v1beta"
+
+/** How each provider takes the API key (sent only to the saved target). */
+export function aiAuthHeaders(
+  provider: AiProvider,
+  apiKey: string
+): Record<string, string> {
+  switch (provider) {
+    case "anthropic":
+      return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+    case "google":
+      return { "x-goog-api-key": apiKey }
+    case "openai":
+    case "openai-compatible":
+      return { authorization: `Bearer ${apiKey}` }
+    default: {
+      const unknown: never = provider
+      throw new Error(`Unknown AI provider ${String(unknown)}`)
+    }
+  }
+}
+
+/** The provider's model-list endpoint (a compatible base URL is checked by the caller). */
+export function aiModelsUrl(provider: AiProvider, baseUrl: string): string {
+  switch (provider) {
+    case "anthropic":
+      return "https://api.anthropic.com/v1/models"
+    case "openai":
+      return "https://api.openai.com/v1/models"
+    case "google":
+      return `${GOOGLE_API}/models`
+    case "openai-compatible":
+      return `${normaliseBaseUrl(baseUrl)}/models`
+    default: {
+      const unknown: never = provider
+      throw new Error(`Unknown AI provider ${String(unknown)}`)
+    }
+  }
+}
+
 /** The provider's "retrieve model" endpoint: proves the key and the model, spends no tokens. */
 export function aiModelRequest(c: AiConfig): {
   url: string
   headers: Record<string, string>
 } {
-  const model = encodeURIComponent(c.model)
-  if (c.provider === "anthropic")
-    return {
-      url: `https://api.anthropic.com/v1/models/${model}`,
-      headers: { "x-api-key": c.apiKey, "anthropic-version": "2023-06-01" },
-    }
   return {
-    url: `https://api.openai.com/v1/models/${model}`,
-    headers: { authorization: `Bearer ${c.apiKey}` },
+    url: `${aiModelsUrl(c.provider, c.baseUrl)}/${encodeURIComponent(c.model)}`,
+    headers: aiAuthHeaders(c.provider, c.apiKey),
   }
 }
 
@@ -190,10 +227,16 @@ export async function testAi(
 ): Promise<TestResult> {
   if (c.apiKey === "") return fail("Enter the API key first.")
   if (c.model === "") return fail("Enter the model first.")
+  if (
+    c.provider === "openai-compatible" &&
+    baseUrlProblem(c.baseUrl, { allowLocalHttp: allowLocalAiHttp() })
+  )
+    return fail("The base URL is not allowed.")
   const { url, headers } = aiModelRequest(c)
   try {
     const res = await fetchImpl(url, {
       headers,
+      redirect: "error",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (res.ok)

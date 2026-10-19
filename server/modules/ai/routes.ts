@@ -3,7 +3,11 @@ import "server-only"
 import { Hono } from "hono"
 
 import { CHAT_STREAM_CONTENT_TYPE } from "@/lib/ai/chat-stream"
-import { chatInput, conversationsQuery } from "@/lib/schemas/api/ai"
+import {
+  chatInput,
+  conversationsQuery,
+  listModelsInput,
+} from "@/lib/schemas/api/ai"
 import { idParam } from "@/lib/schemas/api/params"
 import type { AppEnv } from "@/server/api/context"
 import { actorOf, can } from "@/server/api/middleware/auth"
@@ -27,6 +31,14 @@ export const aiRoutes = new Hono<AppEnv>()
       "x-accel-buffering": "no",
     })
   })
+  // Settings: the models the saved key can use (rate-limited in the service).
+  .post(
+    "/models",
+    can({ integration: ["update"] }),
+    zv("json", listModelsInput),
+    async (c) =>
+      c.json(await service.listModels(actorOf(c), c.req.valid("json")), 200)
+  )
   .get(
     "/conversations",
     can({ ai: ["use"] }),

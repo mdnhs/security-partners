@@ -1,7 +1,9 @@
 import "server-only"
 
 import { createAnthropic } from "@ai-sdk/anthropic"
+import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createOpenAI } from "@ai-sdk/openai"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { APICallError, type LanguageModel, RetryError } from "ai"
 
 import type { AiConfig } from "@/lib/schemas/integrations"
@@ -11,13 +13,22 @@ import type { AiConfig } from "@/lib/schemas/integrations"
  * model string would be routed through the Vercel AI Gateway (notes §6.3).
  */
 export function createLanguageModel(
-  config: Pick<AiConfig, "provider" | "model" | "apiKey">
+  config: Pick<AiConfig, "provider" | "model" | "apiKey" | "baseUrl">
 ): LanguageModel {
   switch (config.provider) {
     case "anthropic":
       return createAnthropic({ apiKey: config.apiKey })(config.model)
     case "openai":
       return createOpenAI({ apiKey: config.apiKey })(config.model)
+    case "google":
+      return createGoogleGenerativeAI({ apiKey: config.apiKey })(config.model)
+    case "openai-compatible":
+      // The base URL passed the SSRF check when it was saved (lib/ai/base-url).
+      return createOpenAICompatible({
+        baseURL: config.baseUrl,
+        apiKey: config.apiKey,
+        name: "custom",
+      })(config.model)
     default: {
       const unknown: never = config.provider
       throw new Error(`Unknown AI provider ${String(unknown)}`)
