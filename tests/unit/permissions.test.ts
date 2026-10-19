@@ -65,6 +65,9 @@ const EXPECTED: Record<Role, string[]> = {
     "owner:manage",
     "audit:read",
     "ai:use",
+    "newsletter:read",
+    "newsletter:export",
+    "newsletter:delete",
   ],
   admin: [
     "page:read",
@@ -116,6 +119,9 @@ const EXPECTED: Record<Role, string[]> = {
     "user:revokeSessions",
     "audit:read",
     "ai:use",
+    "newsletter:read",
+    "newsletter:export",
+    "newsletter:delete",
   ],
   editor: [
     "page:read",
@@ -173,6 +179,8 @@ const EXPECTED: Record<Role, string[]> = {
     "marketing:read",
     "marketing:update",
     "ai:use",
+    "newsletter:read",
+    "newsletter:export",
   ],
   intake: ["lead:read", "lead:update", "lead:export", "ai:use"],
   viewer: [
@@ -196,9 +204,9 @@ const req = (resource: Resource, action: string) =>
   ({ [resource]: [action] }) as PermissionRequest
 
 describe("permission matrix (spec §6.1): every role × resource × action", () => {
-  it("covers 16 resources and 52 actions", () => {
-    expect(Object.keys(statements)).toHaveLength(16)
-    expect(ALL_PAIRS).toHaveLength(52)
+  it("covers 17 resources and 55 actions", () => {
+    expect(Object.keys(statements)).toHaveLength(17)
+    expect(ALL_PAIRS).toHaveLength(55)
   })
 
   for (const role of ROLES) {
@@ -264,6 +272,16 @@ describe("hasPermission", () => {
       expect(hasPermission([role], { owner: ["manage"] })).toBe(
         role === "owner"
       )
+  })
+
+  it("newsletter: owner/admin all; marketer read+export; nobody else", () => {
+    for (const role of ROLES) {
+      const full = role === "owner" || role === "admin"
+      const read = full || role === "marketer"
+      expect(hasPermission([role], { newsletter: ["read"] })).toBe(read)
+      expect(hasPermission([role], { newsletter: ["export"] })).toBe(read)
+      expect(hasPermission([role], { newsletter: ["delete"] })).toBe(full)
+    }
   })
 
   it("customCode (read and update) is owner-only", () => {

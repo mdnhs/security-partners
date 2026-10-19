@@ -9,7 +9,8 @@ import {
 
 import { getEnv } from "@/server/env"
 
-export type KeyPurpose = "secrets" | "preview" | "lead-ip" | "cron"
+export type KeyPurpose =
+  "secrets" | "preview" | "lead-ip" | "cron" | "newsletter"
 
 const SALT = "sp/v1"
 const VERSION = "v1"

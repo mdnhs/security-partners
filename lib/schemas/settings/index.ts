@@ -11,6 +11,7 @@ import { footerSettings } from "./footer"
 import { leadsSettings } from "./leads"
 import { microcopySettings } from "./microcopy"
 import { navigationSettings } from "./navigation"
+import { newsletterSettings } from "./newsletter"
 import { seoDefaultsSettings } from "./seo-defaults"
 import { siteSettings } from "./site"
 import { trackingSettings } from "./tracking"
@@ -33,6 +34,7 @@ export const settingsSchemas = {
   customCode: customCodeSettings,
   microcopy: microcopySettings,
   leads: leadsSettings,
+  newsletter: newsletterSettings,
 } as const
 
 export type SettingsKey = keyof typeof settingsSchemas

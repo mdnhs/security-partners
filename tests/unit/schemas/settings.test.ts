@@ -29,6 +29,7 @@ describe("settings schemas (spec §5.4 + shared sections ruling)", () => {
       "customCode",
       "microcopy",
       "leads",
+      "newsletter",
     ])
     expect(Object.keys(fixture).sort()).toEqual([...SETTINGS_KEYS].sort())
     expect(PUBLIC_SETTINGS_KEYS.every(isSettingsKey)).toBe(true)
@@ -72,6 +73,29 @@ describe("settings schemas (spec §5.4 + shared sections ruling)", () => {
       settingsSchemas.tracking.safeParse({ ...fixture.tracking, gtmId: "UA-1" })
         .success
     ).toBe(false)
+  })
+
+  it("seeds the newsletter off, and refuses to go live half-filled", () => {
+    expect(fixture.newsletter.placement).toBe("off")
+    const blank = {
+      ...fixture.newsletter,
+      title: "",
+      button: "",
+      success: "",
+      confirmationEmail: { subject: "", body: "" },
+    }
+    expect(settingsSchemas.newsletter.safeParse(blank).success).toBe(true)
+    const live = settingsSchemas.newsletter.safeParse({
+      ...blank,
+      placement: "blog",
+    })
+    expect(live.success).toBe(false)
+    expect(live.error?.issues.map((i) => i.path.join("."))).toEqual([
+      "title",
+      "button",
+      "success",
+      "confirmationEmail.subject",
+    ])
   })
 
   it("keeps template placeholders verbatim", () => {
