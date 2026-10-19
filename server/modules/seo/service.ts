@@ -334,8 +334,20 @@ export async function getSeoHealth(actor: Actor): Promise<SeoHealthDto> {
 /** GET /seo/overview: every record's entry for the SEO sheet, and the check totals. */
 export async function getSeoOverview(actor: Actor): Promise<SeoOverviewDto> {
   assertCan(actor, { seo: ["read"] })
-  const { entries, health } = await computeHealth(getDb())
-  return { entries, checks: { passed: health.passed, total: health.total } }
+  const db = getDb()
+  const [{ entries, health }, ctx] = await Promise.all([
+    computeHealth(db),
+    loadContext(db),
+  ])
+  return {
+    entries,
+    checks: { passed: health.passed, total: health.total },
+    // For the previews: the title pattern and the site share image.
+    defaults: {
+      titleTemplate: ctx.defaults.titleTemplate,
+      ogImageId: ctx.defaults.ogImage?.mediaId ?? null,
+    },
+  }
 }
 
 /** Blank values mean "use the fallback": they are dropped, never stored. */

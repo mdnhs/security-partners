@@ -34,6 +34,13 @@ export type SeoPanelProps = {
   origin?: string
   /** Called whenever the panel's unsaved state changes (e.g. a sheet's close guard). */
   onDirtyChange?: (dirty: boolean) => void
+  /**
+   * The site-wide default description's text, shown in the previews when
+   * `fallback.description` is null (the check still says "default").
+   */
+  defaultDescription?: string
+  /** The site default share image (SEO › Defaults) used without an own one. */
+  defaultImageId?: string | null
 }
 
 /** The checks the panel can evaluate locally while typing. */
@@ -94,6 +101,8 @@ export function SeoPanel({
   canEdit,
   origin,
   onDirtyChange,
+  defaultDescription,
+  defaultImageId,
 }: SeoPanelProps) {
   const [draft, setDraft] = useState<Seo>(value)
   const [errors, setErrors] = useState<Record<string, string[]>>({})
@@ -120,12 +129,15 @@ export function SeoPanel({
     onDirtyRef.current?.(dirty)
   }, [dirty])
 
-  const media = useMediaItem(draft.ogImage?.mediaId)
+  // The share image the page uses: its own, else the site default, else
+  // the generated card.
+  const shareImageId = draft.ogImage?.mediaId ?? defaultImageId ?? null
+  const media = useMediaItem(shareImageId)
   const title = filled(draft.title) ?? fallback.title
   const ownDescription = filled(draft.description)
   const description = ownDescription ?? fallback.description
   const ogSize =
-    draft.ogImage && media.data
+    shareImageId && media.data
       ? { width: media.data.width ?? 0, height: media.data.height ?? 0 }
       : null
   const results: CheckResult[] = runChecks({
@@ -143,13 +155,19 @@ export function SeoPanel({
   }).filter((r) => LOCAL_CHECKS.includes(r.id))
 
   const host = hostOf(origin)
-  const imageUrl =
-    draft.ogImage && media.data ? media.data.url : generatedCard(kind, id, path)
+  // While a chosen image loads (or if it is gone): an empty frame, never
+  // the generated card in its place.
+  const imageUrl = shareImageId
+    ? (media.data?.url ?? "")
+    : generatedCard(kind, id, path)
+  const previewDescription = description ?? defaultDescription ?? ""
 
   async function save() {
     setSaving(true)
     setErrors({})
     try {
+      // Only sent when dirty, so the saved value always differs from the
+      // base and the reset above clears this flag.
       setJustSaved(true)
       await onSave(draft)
     } catch (error) {
@@ -181,7 +199,8 @@ export function SeoPanel({
             <Button
               type="button"
               className={cn(FORM_ACTION, "self-start")}
-              disabled={saving}
+              // Nothing to save: disabled (blank-only edits count as none).
+              disabled={saving || !dirty}
               onClick={() => void save()}
             >
               {saving ? "Saving…" : "Save SEO"}
@@ -200,13 +219,14 @@ export function SeoPanel({
             host={host}
             path={path}
             title={title}
-            description={description ?? ""}
+            description={previewDescription}
           />
           <SocialCard
             host={host}
             title={filled(draft.ogTitle) ?? title}
-            description={filled(draft.ogDescription) ?? description ?? ""}
+            description={filled(draft.ogDescription) ?? previewDescription}
             imageUrl={imageUrl}
+            size={draft.twitterCard === "summary" ? "small" : "large"}
           />
           <SeoChecklist results={results} />
         </aside>

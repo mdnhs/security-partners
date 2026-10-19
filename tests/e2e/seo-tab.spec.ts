@@ -54,8 +54,8 @@ test("social title saved from /admin/services/<id>?tab=seo persists after reload
     const head = await (
       await page.request.get("/services/alarm-responses")
     ).text()
-    expect(head).toContain(
-      '<meta property="og:title" content="Alarm responses, day and night"/>'
+    expect(head).toMatch(
+      /<meta\s+property="og:title"\s+content="Alarm responses, day and night"\s*\/?>/
     )
   } finally {
     await page.request.put(`/api/v1/admin/seo/entries/service/${id}`, {
@@ -91,20 +91,38 @@ test("an issue's Fix link from SEO health lands on the editor's SEO tab", async 
   page,
 }) => {
   await signIn(page)
-  // D1.5 renders these links on /admin/seo; their target is the contract.
-  const res = await page.request.get("/api/v1/admin/seo/health")
-  const health = (await res.json()) as {
-    issues: { kind: string; fixHref: string }[]
-  }
-  const issue = health.issues.find((i) => i.kind === "service")
-  test.skip(!issue, "the seed has no service issue")
-  await page.goto(issue!.fixHref)
-  await expect(page).toHaveURL(/\/admin\/services\/[^/?]+\?tab=seo$/)
-  await expect(page.getByRole("tab", { name: "SEO" })).toHaveAttribute(
-    "aria-selected",
-    "true"
+  // Force a known issue (hidden from search engines) so this never skips;
+  // D1.5 renders these links on /admin/seo, their target is the contract.
+  const id = await serviceId(page, "alarm-responses")
+  const put = await page.request.put(
+    `/api/v1/admin/seo/entries/service/${id}`,
+    {
+      headers: SAME_ORIGIN,
+      data: { seo: { noindex: true } },
+    }
   )
-  await expect(
-    page.getByRole("figure", { name: "Search result preview" })
-  ).toBeVisible()
+  expect(put.status()).toBe(200)
+  try {
+    const res = await page.request.get("/api/v1/admin/seo/health")
+    const health = (await res.json()) as {
+      issues: { kind: string; id: string; check: string; fixHref: string }[]
+    }
+    const issue = health.issues.find(
+      (i) => i.kind === "service" && i.id === id && i.check === "indexable"
+    )!
+    expect(issue.fixHref).toBe(`/admin/services/${id}?tab=seo`)
+    await page.goto(issue.fixHref)
+    await expect(page.getByRole("tab", { name: "SEO" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    await expect(
+      page.getByRole("list", { name: "SEO checklist" })
+    ).toContainText("Hidden from search engines")
+  } finally {
+    await page.request.put(`/api/v1/admin/seo/entries/service/${id}`, {
+      headers: SAME_ORIGIN,
+      data: { seo: {} },
+    })
+  }
 })

@@ -26,7 +26,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 
 import { ConflictDialog } from "./conflict-dialog"
 import { EDITOR_ACTION, EditorLayout } from "./editor-layout"
-import { EditorTabs, useEditorTab } from "./editor-tabs"
+import { EditorTabs, SEO_TAB, useEditorTab } from "./editor-tabs"
 import { LivePreviewToggle, useLivePreview } from "./live-preview-toggle"
 import { PreviewPane } from "./preview-pane"
 import { PublishDialog } from "./publish-dialog"
@@ -425,6 +425,17 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     setRequestConflict(null)
   }
   const seoTab = useEditorTab(!!props.seo)
+  // Field errors (a failed publish, a 422) are all in the content: leave the
+  // SEO tab so they show. The form's section tabs usually move to the
+  // errored section first (then ?tab= is no longer "seo" and this is a no-op).
+  const { select: selectEditorTab } = seoTab
+  useEffect(() => {
+    if (!fieldErrors || Object.keys(fieldErrors).length === 0) return
+    if (new URLSearchParams(window.location.search).get("tab") === SEO_TAB)
+      selectEditorTab("content", { replace: true })
+    // Once per new set of errors.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrors])
   const form = (
     <div
       onKeyDownCapture={markTouched}
@@ -525,7 +536,8 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         asideColumnFrom={props.asideColumnFrom}
         longTitle={props.longTitle}
         preview={
-          paneAvailable && livePreview ? (
+          // The SEO tab has its own previews: no content preview beside it.
+          paneAvailable && livePreview && !seoTab.active ? (
             <PreviewPane src={props.previewHref!} refreshKey={base.version} />
           ) : undefined
         }

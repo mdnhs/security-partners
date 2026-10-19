@@ -31,20 +31,30 @@ export function textAt(value: unknown, ...path: string[]): string | null {
   return typeof at === "string" ? at : null
 }
 
+/** The title pattern with `name` in its one {title} slot (no other placeholders). */
+function applyTemplate(template: string, name: string): string | null {
+  const slots = template.match(/\{[^}]*\}/g) ?? []
+  if (slots.length !== 1 || slots[0] !== "{title}") return null
+  return template.replace("{title}", () => name)
+}
+
 /**
- * The draft's title fallback: the live one (site title pattern applied by
- * the server) with the live name swapped for the draft's, so the previews
- * follow an unsaved rename.
+ * The draft's title fallback, so the previews follow an unsaved rename: the
+ * site's title pattern applied to the draft's name. Only when the live
+ * fallback is exactly that pattern applied to the live name (else, e.g. the
+ * home page's site title or a pattern with contact placeholders, the live
+ * fallback is kept rather than guessed).
  */
 export function draftFallbackTitle(
   liveFallback: string,
-  names: DraftNames
+  names: DraftNames,
+  titleTemplate: string | undefined
 ): string {
   const live = filled(names.live)
   const draft = filled(names.draft)
-  if (!live || !draft || live === draft || !liveFallback.includes(live))
-    return liveFallback
-  return liveFallback.replace(live, draft)
+  if (!live || !draft || live === draft || !titleTemplate) return liveFallback
+  if (applyTemplate(titleTemplate, live) !== liveFallback) return liveFallback
+  return applyTemplate(titleTemplate, draft) ?? liveFallback
 }
 
 /**
@@ -77,7 +87,8 @@ export function EditorSeoTab({
       </div>
     )
   const entry = query.data?.entries?.find((e) => e.kind === kind && e.id === id)
-  if (query.isError || !entry)
+  // A failed background refetch keeps the cached entry (and unsaved edits).
+  if (!entry)
     return (
       <div
         role="alert"
@@ -104,9 +115,19 @@ export function EditorSeoTab({
         path={entry.path}
         origin={origin}
         fallback={{
-          title: draftFallbackTitle(entry.fallback.title, names),
+          title: draftFallbackTitle(
+            entry.fallback.title,
+            names,
+            query.data?.defaults?.titleTemplate
+          ),
           description,
         }}
+        // Pages always use the site default description (the server's
+        // fallback text for them).
+        defaultDescription={
+          kind === "page" ? entry.fallback.description : undefined
+        }
+        defaultImageId={query.data?.defaults?.ogImageId ?? null}
         value={entry.seo}
         canEdit={canEdit}
         onSave={async (next) => {
