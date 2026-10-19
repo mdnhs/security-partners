@@ -74,7 +74,8 @@ describe("resolveWidget covers every shipped schema (master 4.3)", () => {
     }
   )
 
-  it.each(Object.entries(settingsSchemas))(
+  // theme is edited on the Appearance screen, not through SchemaForm.
+  it.each(Object.entries(settingsSchemas).filter(([key]) => key !== "theme"))(
     "settings %s has a widget for every field",
     (_key, schema) => {
       expect(() => walk(schema, { fields: {} })).not.toThrow()

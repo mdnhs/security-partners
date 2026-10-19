@@ -63,7 +63,7 @@ describe("seedContent (master Task 3.4)", () => {
       media: 32,
       users: 1,
       articleCategories: 7,
-      settings: 15,
+      settings: 16,
       pages: 8,
       services: 6,
       articles: 7,
