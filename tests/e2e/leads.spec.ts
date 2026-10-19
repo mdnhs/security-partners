@@ -162,3 +162,36 @@ test("6th enquiry from one IP within 10 minutes → 429 with Retry-After", async
   )
   await api.dispose()
 })
+
+test("first-touch attribution travels with the enquiry to the Source section (D3.1)", async ({
+  page,
+  browser,
+}) => {
+  const { intake } = readFixtures()
+  const name = `Attributed ${Date.now()}`
+
+  const visitor = await browser.newContext({
+    extraHTTPHeaders: { "x-forwarded-for": clientIpFor(`${name} visitor`) },
+  })
+  const tab = await visitor.newPage()
+  // Lands from an external search with UTM tags, then moves on to /contact:
+  // the first touch is kept for the visit.
+  await tab.goto("/?utm_source=e2e-search&utm_campaign=%3Cb%3Ed31%3C%2Fb%3E", {
+    referer: "https://www.example.org/results?q=private",
+  })
+  await sendEnquiry(tab, name)
+  await visitor.close()
+
+  await signIn(page, intake)
+  await page.goto("/admin/leads")
+  await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
+  await page.getByRole("link", { name }).first().click()
+  const source = page.getByRole("region", { name: "Source" })
+  await expect(
+    source.getByText("https://www.example.org/results")
+  ).toBeVisible()
+  await expect(source.getByText("e2e-search")).toBeVisible()
+  // Visitor-supplied markup stays text.
+  await expect(source.getByText("<b>d31</b>")).toBeVisible()
+  await expect(source.getByText(/q=private/)).toHaveCount(0)
+})

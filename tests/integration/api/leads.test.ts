@@ -415,10 +415,10 @@ describe("GET /leads/export.csv", () => {
     expect(text.startsWith("\uFEFF")).toBe(true)
     const lines = text.slice(1).split("\r\n")
     expect(lines[0]).toBe(
-      "Received (UTC),Status,Name,Email,Phone,Company,Service,Message,Consent,Source page,Assignee,Notes,Lead ID"
+      "Received (UTC),Status,Name,Email,Phone,Company,Service,Message,Consent,Source page,Assignee,Notes,Lead ID,Referrer,Landing page,UTM source,UTM medium,UTM campaign,UTM term,UTM content"
     )
     expect(lines[1]).toBe(
-      `2026-10-01T09:00:00.000Z,New,"'=HYPERLINK(""http://evil"",""x"")",a@example.ie,'+353 85 000 0000,,,"He said ""hi"",\nthen left",yes,,,2026-10-02T10:00:00.000Z ${admin.name}: Rang back,${lead.id}`
+      `2026-10-01T09:00:00.000Z,New,"'=HYPERLINK(""http://evil"",""x"")",a@example.ie,'+353 85 000 0000,,,"He said ""hi"",\nthen left",yes,,,2026-10-02T10:00:00.000Z ${admin.name}: Rang back,${lead.id},,,,,,,`
     )
     const [audit] = await getDb()
       .select()

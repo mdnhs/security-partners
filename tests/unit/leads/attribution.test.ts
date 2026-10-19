@@ -114,7 +114,7 @@ describe("lead attribution (D3.1)", () => {
     captureAttribution(
       loc(
         `/${"p".repeat(500)}`,
-        `?utm_source=${huge}&utm_medium=${encodeURIComponent("e\u0000ma\u0007il‮\n")}&utm_campaign=${encodeURIComponent("  <script>alert(1)</script>  ")}`
+        `?utm_source=${huge}&utm_medium=${encodeURIComponent("e\u0000ma\u0007il\u202E\n")}&utm_campaign=${encodeURIComponent("  <script>alert(1)</script>  ")}`
       ),
       `https://evil.example/${"r".repeat(500)}`,
       store

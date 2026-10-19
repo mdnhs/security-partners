@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 
 import { buttonClassName } from "@/components/ui/button"
 import { track } from "@/lib/analytics/events"
+import { readAttribution, sessionStore } from "@/lib/leads/attribution"
 import { LEADS_ENDPOINT } from "@/lib/schemas/api/leads"
 import { cn } from "@/lib/utils"
 
@@ -81,6 +82,8 @@ export function ContactForm({ labels }: ContactFormProps) {
     setFeedback(null)
     try {
       const turnstileToken = await turnstile.getToken()
+      // First touch (D3.1); never part of analytics events.
+      const attribution = readAttribution(sessionStore())
       const res = await fetch(LEADS_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -93,6 +96,7 @@ export function ContactForm({ labels }: ContactFormProps) {
           sourcePage: window.location.pathname,
           website: field("website"),
           ...(turnstileToken ? { turnstileToken } : {}),
+          ...(attribution ? { attribution } : {}),
         }),
       })
       if (res.ok) {

@@ -5,9 +5,9 @@ import { AttributionCapture } from "@/components/attribution-capture"
 import { ATTRIBUTION_KEY, readAttribution } from "@/lib/leads/attribution"
 
 afterEach(() => {
+  vi.restoreAllMocks()
   window.sessionStorage.clear()
   window.history.replaceState(null, "", "/")
-  vi.restoreAllMocks()
 })
 
 describe("AttributionCapture (D3.1)", () => {
@@ -34,9 +34,7 @@ describe("AttributionCapture (D3.1)", () => {
     render(<AttributionCapture />).unmount()
     window.history.replaceState(null, "", "/b?utm_source=second")
     render(<AttributionCapture />)
-    expect(readAttribution(window.sessionStorage)?.utm.utm_source).toBe(
-      "first"
-    )
+    expect(readAttribution(window.sessionStorage)?.utm.utm_source).toBe("first")
   })
 
   it("survives blocked storage", () => {

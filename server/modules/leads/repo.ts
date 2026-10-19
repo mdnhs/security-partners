@@ -24,6 +24,7 @@ import {
   type LeadStatusFilter,
   OPEN_LEAD_STATUSES,
 } from "@/lib/schemas/api/leads"
+import type { Attribution } from "@/lib/leads/attribution"
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
 import { containsPattern } from "@/server/db/like"
@@ -99,6 +100,7 @@ const leadColumns = {
   consent: leads.consent,
   status: leads.status,
   sourcePage: leads.sourcePage,
+  attribution: leads.attribution,
   assigneeId: leads.assigneeId,
   assigneeName: users.name,
   createdAt: leads.createdAt,
@@ -115,6 +117,7 @@ export type LeadWithAssignee = {
   consent: boolean
   status: LeadStatus
   sourcePage: string | null
+  attribution: Attribution | null
   assigneeId: string | null
   assigneeName: string | null
   createdAt: Date

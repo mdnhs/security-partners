@@ -10,6 +10,7 @@ import {
   type PermissionRequest,
 } from "@/lib/auth/permissions"
 import { CSV_BOM, toCsv } from "@/lib/csv"
+import { UTM_KEYS } from "@/lib/leads/attribution"
 import type { TurnstileConfig } from "@/lib/schemas/integrations"
 import {
   LEAD_CSV_HEADER,
@@ -113,6 +114,7 @@ export async function submitLead(
       message: input.message,
       consent: input.consent,
       sourcePage: input.sourcePage ?? null,
+      attribution: input.attribution ?? null,
       ipHash: meta.ip ? hashIp(meta.ip) : null,
     })
     await repo.insertLeadEvent(tx, {
@@ -299,6 +301,7 @@ export async function getLead(actor: Actor, id: string): Promise<LeadDto> {
     service: row.service,
     message: row.message,
     consent: row.consent,
+    attribution: row.attribution,
     updatedAt: row.updatedAt.toISOString(),
     events: events.map((e) => ({
       id: e.id,
@@ -480,6 +483,9 @@ export async function exportLeads(
         r.assigneeId ? (r.assigneeName ?? "Deleted user") : null,
         notesCell(notes.get(r.id) ?? []),
         r.id,
+        r.attribution?.referrer,
+        r.attribution?.landingPath,
+        ...UTM_KEYS.map((key) => r.attribution?.utm[key]),
       ])
     )
   await writeAudit(db, actor, {

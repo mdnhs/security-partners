@@ -319,8 +319,8 @@ describe("ContactForm (master 7.3)", () => {
 
 describe("ContactForm attribution (D3.1)", () => {
   afterEach(() => {
-    window.sessionStorage.clear()
     vi.restoreAllMocks()
+    window.sessionStorage.clear()
   })
 
   it("sends the stored first-touch attribution with the lead", async () => {

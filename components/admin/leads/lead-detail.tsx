@@ -43,6 +43,11 @@ import { leadExportHref } from "@/lib/admin/leads"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
 import {
+  type Attribution,
+  UTM_KEYS,
+  type UtmKey,
+} from "@/lib/leads/attribution"
+import {
   LEAD_STATUS_LABELS,
   LEAD_STATUSES,
   type LeadAssignee,
@@ -90,6 +95,48 @@ function None() {
 
 const FACT_LINK =
   "rounded-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+
+const UTM_LABELS: Record<UtmKey, string> = {
+  utm_source: "UTM source",
+  utm_medium: "UTM medium",
+  utm_campaign: "UTM campaign",
+  utm_term: "UTM term",
+  utm_content: "UTM content",
+}
+
+/**
+ * Where the visitor first came from this visit (D3.1). Every value is
+ * visitor-supplied: shown as plain text, never as a link.
+ */
+function LeadSource({ attribution }: { attribution: Attribution | null }) {
+  return (
+    <FormCard
+      id="lead-source"
+      title="Source"
+      description="First page of the visit that sent this enquiry."
+    >
+      {attribution ? (
+        <dl className="grid gap-4">
+          <Fact label="Referrer">{attribution.referrer ?? <None />}</Fact>
+          <Fact label="Landing page">
+            <code className="font-mono text-xs break-all">
+              {attribution.landingPath}
+            </code>
+          </Fact>
+          {UTM_KEYS.map((key) => (
+            <Fact key={key} label={UTM_LABELS[key]}>
+              {attribution.utm[key] ?? <None />}
+            </Fact>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No source was recorded for this enquiry.
+        </p>
+      )}
+    </FormCard>
+  )
+}
 
 /** One note or history entry: who (or "Website") · when, then the text. */
 function EventLine({ event }: { event: LeadEventItem }) {
@@ -381,50 +428,59 @@ export function LeadDetail({ id }: { id: string }) {
                 </p>
               </div>
             </FormCard>
-            <FormCard
-              id="lead-handling"
-              title="Handling"
-              description={
-                canUpdate
-                  ? "Changes save straight away."
-                  : "You can read this lead but not change it."
-              }
-              className="self-start"
-              aria-busy={update.isPending || undefined}
-            >
-              <FieldShell id={statusId} label="Lead status">
-                <OptionSelect
-                  id={statusId}
-                  className={SELECT}
-                  value={data.status}
-                  disabled={!canUpdate}
-                  onChange={(value) => change({ status: value as LeadStatus })}
-                  options={LEAD_STATUSES.map((s) => ({
-                    value: s,
-                    label: LEAD_STATUS_LABELS[s],
-                  }))}
-                />
-              </FieldShell>
-              <FieldShell id={assigneeId} label="Assigned to">
-                <OptionSelect
-                  id={assigneeId}
-                  className={SELECT}
-                  value={data.assignee?.id ?? ""}
-                  disabled={!canUpdate}
-                  onChange={(value) => change({ assigneeId: value || null })}
-                  options={[
-                    { value: "", label: "Unassigned" },
-                    ...(data.assignee && !knownAssignee
-                      ? [{ value: data.assignee.id, label: data.assignee.name }]
-                      : []),
-                    ...(assignees.data ?? []).map((u) => ({
-                      value: u.id,
-                      label: u.name,
-                    })),
-                  ]}
-                />
-              </FieldShell>
-            </FormCard>
+            <div className="flex min-w-0 flex-col gap-6 self-start">
+              <FormCard
+                id="lead-handling"
+                title="Handling"
+                description={
+                  canUpdate
+                    ? "Changes save straight away."
+                    : "You can read this lead but not change it."
+                }
+                aria-busy={update.isPending || undefined}
+              >
+                <FieldShell id={statusId} label="Lead status">
+                  <OptionSelect
+                    id={statusId}
+                    className={SELECT}
+                    value={data.status}
+                    disabled={!canUpdate}
+                    onChange={(value) =>
+                      change({ status: value as LeadStatus })
+                    }
+                    options={LEAD_STATUSES.map((s) => ({
+                      value: s,
+                      label: LEAD_STATUS_LABELS[s],
+                    }))}
+                  />
+                </FieldShell>
+                <FieldShell id={assigneeId} label="Assigned to">
+                  <OptionSelect
+                    id={assigneeId}
+                    className={SELECT}
+                    value={data.assignee?.id ?? ""}
+                    disabled={!canUpdate}
+                    onChange={(value) => change({ assigneeId: value || null })}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...(data.assignee && !knownAssignee
+                        ? [
+                            {
+                              value: data.assignee.id,
+                              label: data.assignee.name,
+                            },
+                          ]
+                        : []),
+                      ...(assignees.data ?? []).map((u) => ({
+                        value: u.id,
+                        label: u.name,
+                      })),
+                    ]}
+                  />
+                </FieldShell>
+              </FormCard>
+              <LeadSource attribution={data.attribution} />
+            </div>
           </div>
         </SectionTabsPanel>
         <SectionTabsPanel id="notes">

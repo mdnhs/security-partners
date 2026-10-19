@@ -117,10 +117,10 @@ describe("lead attribution (D3.1)", () => {
       ...BODY,
       attribution: {
         referrer: "javascript:alert(1)",
-        landingPath: "/x\u0000‮",
+        landingPath: "/x\u0000\u202E",
         utm: {
           utm_source: "  <script>alert(1)</script>\u0007 ",
-          utm_medium: " ",
+          utm_medium: "\u2028",
         },
         capturedAt: ATTRIBUTION.capturedAt,
       },
@@ -154,10 +154,12 @@ describe("lead attribution (D3.1)", () => {
     await post({ ...BODY, email: "plain@example.ie" })
     const res = await adminRequest("/leads/export.csv", { cookie: admin })
     expect(res.status).toBe(200)
-    const lines = (await res.text()).replace(/^﻿/, "").split("\r\n")
-    expect(lines[0].endsWith(
-      ",Lead ID,Referrer,Landing page,UTM source,UTM medium,UTM campaign,UTM term,UTM content"
-    )).toBe(true)
+    const lines = (await res.text()).replace(/^\uFEFF/, "").split("\r\n")
+    expect(
+      lines[0].endsWith(
+        ",Lead ID,Referrer,Landing page,UTM source,UTM medium,UTM campaign,UTM term,UTM content"
+      )
+    ).toBe(true)
     const withSource = lines.find((l) => l.includes("dinn@example.ie"))!
     expect(withSource).toMatch(
       /,https:\/\/www\.google\.com\/search,\/services\/static-guarding,google,cpc,"'=HYPERLINK\(""http:\/\/evil"",""x""\)",'\+1,ad-1$/
