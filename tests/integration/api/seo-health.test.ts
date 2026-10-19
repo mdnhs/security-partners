@@ -237,10 +237,23 @@ describe("GET /seo/health (D1.2)", () => {
     ).toBe(true)
 
     // A body that does not parse fails (counted as 0), never passes silently.
-    await setBody({ type: "doc", content: [{ type: "nope" }] })
-    expect(
-      result(await health(), "article", article.id, "internal-link").ok
-    ).toBe(false)
+    // It is logged once per record (not on every health read), so an
+    // operator can tell an unreadable body from a missing link.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      await setBody({ type: "doc", content: [{ type: "nope" }] })
+      expect(
+        result(await health(), "article", article.id, "internal-link").ok
+      ).toBe(false)
+      await health()
+      const logged = warn.mock.calls.filter((args) =>
+        String(args[0]).includes(`article:${article.id}`)
+      )
+      expect(logged).toHaveLength(1)
+      expect(String(logged[0][0])).toContain("could not be read")
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it("seo:read only; the overview stays served", async () => {

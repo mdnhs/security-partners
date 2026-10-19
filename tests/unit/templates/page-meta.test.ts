@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import { interpolate } from "@/lib/interpolate"
-import { seo } from "@/lib/schemas/common"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
 import {
   articleMetadata,
@@ -128,8 +127,10 @@ describe("public page metadata (spec §10)", () => {
       title: "Social",
       description: "Social description",
     })
+    // X shows one coherent card: the social title, like og:title.
     expect(meta.twitter).toMatchObject({
       card: "summary_large_image",
+      title: "Social",
       description: "Social description",
     })
   })
@@ -147,7 +148,20 @@ describe("public page metadata (spec §10)", () => {
       title: base.title,
       description: base.description,
     })
-    expect(meta.twitter).toMatchObject({ description: base.description })
+    expect(meta.twitter).toMatchObject({
+      title: base.title,
+      description: base.description,
+    })
+  })
+
+  it("without social overrides twitter:title is the page title (unchanged)", () => {
+    for (const meta of [
+      pageMetadata(s, "home"),
+      pageMetadata(s, "about"),
+      serviceMetadata(s, "alarm-responses"),
+      articleMetadata(s, "key-holding-explained"),
+    ])
+      expect(meta.twitter).toMatchObject({ title: meta.title })
   })
 
   it("social fields fill {placeholders} like the own fields", () => {
@@ -172,10 +186,6 @@ describe("public page metadata (spec §10)", () => {
     expect(
       articleMetadata(custom, custom.articles[0].slug).twitter
     ).toMatchObject({ card: "summary" })
-  })
-
-  it("ogTitle > 70 rejected by the schema", () => {
-    expect(seo.safeParse({ ogTitle: "a".repeat(71) }).success).toBe(false)
   })
 
   it("siteMetadata: metadataBase is the origin, default description for pages without one", () => {

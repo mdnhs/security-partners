@@ -98,7 +98,8 @@ function metadataFor(s: SiteSources, subject: Subject): Metadata {
       : { ...shared, type: "website" },
     twitter: {
       card: subject.seo.twitterCard ?? "summary_large_image",
-      title,
+      // The social title, like og:title (X does not fall back once set).
+      title: shared.title,
       description: socialDescription,
       images: [{ url: image.url, ...(image.alt ? { alt: image.alt } : {}) }],
     },

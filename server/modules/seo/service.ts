@@ -167,6 +167,17 @@ const fixHref = (kind: SeoKind, id: string) =>
 const siteNoindex = (defaults: SeoDefaultsSettings) =>
   (defaults as { robots?: unknown }).robots === "noindex"
 
+// Records whose rich text could not be read, already logged (bounded by the
+// number of records; one line per record per server process).
+const unreadableLogged = new Set<string>()
+function warnUnreadableText(recordKey: string) {
+  if (unreadableLogged.has(recordKey)) return
+  unreadableLogged.add(recordKey)
+  console.warn(
+    `[seo] rich text of ${recordKey} could not be read; internal-link counts it as 0 links`
+  )
+}
+
 /**
  * Runs the eight checks (lib/seo/checks.ts) on every page, service and
  * article, and collects the published records' failures with Fix links,
@@ -191,13 +202,16 @@ async function computeHealth(
   ])
 
   // No rich text (null) passes; rich text that does not parse counts as 0
-  // links, so the check fails visibly instead of passing silently.
+  // links, so the check fails visibly instead of passing silently, and is
+  // logged once per record (an unreadable body, not a missing link).
   const links = new Map<string, number>()
   for (const t of texts) {
     if (t.doc === null || t.doc === undefined) continue
+    const k = key(t.kind, t.id)
     const parsed = richText.safeParse(t.doc)
+    if (!parsed.success) warnUnreadableText(k)
     links.set(
-      key(t.kind, t.id),
+      k,
       parsed.success
         ? countInternalLinks(parsed.data as RichTextDoc, ctx.origin)
         : 0
