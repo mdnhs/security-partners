@@ -2,8 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { GrowthSettingsEditor } from "@/components/admin/seo/growth-settings-editor"
-import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Consent banner" }
 
@@ -16,6 +15,6 @@ export default function ConsentPage() {
 }
 
 async function Editor() {
-  await requirePermission(GROWTH_SETTINGS.consent.read)
+  await requirePage("/admin/marketing/consent")
   return <GrowthSettingsEditor settingsKey="consent" />
 }

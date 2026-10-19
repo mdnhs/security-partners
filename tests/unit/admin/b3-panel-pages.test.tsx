@@ -21,9 +21,11 @@ vi.mock("next/navigation", () => nav)
 const session = vi.hoisted(() => ({
   roles: ["owner"] as string[],
   requirePermission: vi.fn(),
+  requirePage: vi.fn(),
 }))
 vi.mock("@/server/auth/session", () => ({
   requirePermission: session.requirePermission,
+  requirePage: session.requirePage,
 }))
 
 vi.mock("@/components/admin/settings/settings-editor", () => ({
@@ -31,6 +33,9 @@ vi.mock("@/components/admin/settings/settings-editor", () => ({
 }))
 vi.mock("@/components/admin/integrations/integration-form", () => ({
   IntegrationForm: () => null,
+}))
+vi.mock("@/components/admin/ai/ai-settings-view", () => ({
+  AiSettingsView: () => null,
 }))
 vi.mock("@/components/admin/integrations/migrate-media-panel", () => ({
   MigrateMediaPanel: () => null,
@@ -50,6 +55,7 @@ import SettingsKeyPage from "@/app/(admin)/admin/(panel)/settings/[key]/page"
 import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/page"
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
+import { AiSettingsView } from "@/components/admin/ai/ai-settings-view"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
@@ -63,6 +69,16 @@ beforeEach(() => {
       return { roles: session.roles }
     }
   )
+  // A copy of requirePage (server/auth/session.ts) over the mocked
+  // requirePermission. Keep the two in step: vi.importActual can't stand in,
+  // because the real requirePage calls its module's own requirePermission
+  // (bypassing this mock) and loads the database and Better Auth.
+  session.requirePage.mockImplementation(async (href: string) => {
+    const permission = permissionFor(href)
+    if (permission === undefined) nav.notFound()
+    if (permission === null) return { roles: session.roles }
+    return session.requirePermission(permission)
+  })
 })
 
 type Props = Record<string, unknown>
@@ -146,9 +162,9 @@ describe("moved pages", () => {
     await expect(inner(ActivityPage())).rejects.toThrow("FORBIDDEN")
   })
 
-  it("/admin/settings/ai-assistant is the AI integration form", async () => {
+  it("/admin/settings/ai-assistant is the AI settings view", async () => {
     const out = await inner(AiAssistantPage())
-    expect(out!.props).toMatchObject({ integrationKey: "integrations.ai" })
+    expect(out!.type).toBe(AiSettingsView)
     session.roles = ["editor"]
     await expect(inner(AiAssistantPage())).rejects.toThrow("FORBIDDEN")
   })

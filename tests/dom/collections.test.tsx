@@ -2,14 +2,16 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { push, replace, search } = vi.hoisted(() => ({
-  push: vi.fn(),
-  replace: vi.fn(),
-  search: { current: new URLSearchParams() },
-}))
+const { push, replace, router, search } = vi.hoisted(() => {
+  const push = vi.fn()
+  const replace = vi.fn()
+  // Stable like Next's router, so effects keyed on it do not re-run per render.
+  const router = { push, replace, refresh: vi.fn() }
+  return { push, replace, router, search: { current: new URLSearchParams() } }
+})
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/insights/categories",
-  useRouter: () => ({ push, replace, refresh: vi.fn() }),
+  useRouter: () => router,
   useSearchParams: () => search.current,
 }))
 
@@ -196,6 +198,12 @@ describe("collection screen + data table (master 4.6)", () => {
       "bg-card"
     )
     expect(table.closest('[data-slot="table-card"]')).not.toHaveClass("border")
+    // One scroll container (the Table primitive's); headers wrap as before.
+    expect(table.closest('[data-slot="table-card"]')).not.toHaveClass(
+      "overflow-x-auto"
+    )
+    for (const th of within(table).getAllByRole("columnheader"))
+      expect(th).toHaveClass("whitespace-normal")
   })
 })
 
@@ -409,6 +417,88 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
         "Renamed"
       )
     )
+  })
+
+  it("?edit must be a record id: a path is ignored, never fetched and dropped from the URL (SEC1)", async () => {
+    for (const payload of [
+      "../../admin/users",
+      "..%2F..%2Fusers%2Fx",
+      "x?role=admin",
+    ]) {
+      fetchMock.mockClear()
+      replace.mockReset()
+      const params = new URLSearchParams()
+      params.set("edit", payload)
+      search.current = params
+      const { unmount } = renderScreen()
+      await screen.findByRole("table", { name: "Categories" })
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
+      )
+      expect(screen.queryByRole("dialog")).toBeNull()
+      // Only list requests; no item request, nothing outside /categories?….
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(0)
+      for (const [input] of fetchMock.mock.calls) {
+        const raw = String(input)
+        expect(raw).toMatch(/\/api\/v1\/admin\/categories\?/)
+        expect(raw).not.toContain("..")
+        expect(raw).not.toContain("users")
+        expect(raw).not.toContain("role")
+      }
+      unmount()
+    }
+  })
+
+  it("a soft navigation from a record to a bad ?edit is gated and stripped each time (SEC1)", async () => {
+    const target = category(2)
+    route((url) =>
+      url.pathname === `/api/v1/admin/categories/${target.id}`
+        ? json(200, target)
+        : undefined
+    )
+    search.current = new URLSearchParams(`edit=${target.id}`)
+    const queryClient = makeQueryClient()
+    const tree = () => (
+      <AdminShell queryClient={queryClient} session={session(["editor"])}>
+        <CollectionScreen name="categories" />
+      </AdminShell>
+    )
+    const { rerender } = render(tree())
+    await screen.findByRole("dialog", { name: "Category" })
+
+    // The router mock does not change the URL, so each bad value stays put
+    // until the next navigation: both must be stripped.
+    for (const payload of ["../../admin/users", "..%2F..%2Fusers%2Fx"]) {
+      fetchMock.mockClear()
+      replace.mockReset()
+      const params = new URLSearchParams()
+      params.set("edit", payload)
+      search.current = params
+      rerender(tree())
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
+      )
+      for (const [input] of fetchMock.mock.calls) {
+        const raw = String(input)
+        expect(raw).not.toContain("..")
+        expect(raw).not.toContain("users")
+      }
+    }
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("?edit=<unknown id> asks for that id only and says not found (SEC1)", async () => {
+    const unknown = "0190a6e0-0000-7000-8000-0000000000ff"
+    search.current = new URLSearchParams(`edit=${unknown}`)
+    renderScreen()
+    expect(await screen.findByText("Category not found")).toBeInTheDocument()
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContainEqual(
+      expect.stringMatching(`/api/v1/admin/categories/${unknown}$`)
+    )
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
   })
 
   it("a viewer following ?edit gets the list without the param or an editor", async () => {

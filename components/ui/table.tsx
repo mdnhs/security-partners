@@ -5,11 +5,25 @@ import { cn } from "cn"
 function Table({
   className,
   scrollLabel,
+  scroll = true,
   ...props
 }: React.ComponentProps<"table"> & {
   /** Names the scroll region so keyboard users can focus and scroll it. */
   scrollLabel?: string
+  /**
+   * false renders the table alone, without the scroll container: a visually
+   * hidden data table has nothing to scroll (axe scrollable-region-focusable).
+   */
+  scroll?: boolean
 }) {
+  if (!scroll)
+    return (
+      <table
+        data-slot="table"
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+      />
+    )
   return (
     <div
       data-slot="table-container"

@@ -460,6 +460,47 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
   })
 })
 
+describe("PUT clearSecrets on other integrations (MK C7 Remove key)", () => {
+  const clear = (
+    cookie: string,
+    version: number,
+    values: Record<string, unknown>,
+    fields: string[]
+  ) =>
+    adminRequest("/integrations/integrations.smtp", {
+      cookie,
+      method: "PUT",
+      json: { version, values, clearSecrets: fields },
+    })
+
+  it("SMTP with a sign-in user cannot lose its password; without one it can", async () => {
+    expect(
+      (await put(owner, "integrations.smtp", 0, smtpValues())).status
+    ).toBe(200)
+    const refused = await clear(admin, 1, {}, ["password"])
+    expect(refused.status).toBe(422)
+    expect(
+      (
+        (await refused.json()) as {
+          error: { fieldErrors: Record<string, string[]> }
+        }
+      ).error.fieldErrors
+    ).toHaveProperty("password")
+    expect((await rawDraft("integrations.smtp"))!.version).toBe(1)
+
+    expect((await clear(editor, 1, {}, ["password"])).status).toBe(403)
+    // A name of another integration's secret is not a secret here.
+    expect((await clear(owner, 1, {}, ["apiKey"])).status).toBe(422)
+
+    const cleared = await clear(owner, 1, { user: "" }, ["password"])
+    expect(cleared.status).toBe(200)
+    expect(dto(await cleared.text()).secrets.password).toEqual({
+      set: false,
+      hint: null,
+    })
+  })
+})
+
 describe("DELETE /api/v1/admin/integrations/:key (Disconnect)", () => {
   it("removes the row with the current version; stale → 409", async () => {
     await put(owner, "integrations.smtp", 0, smtpValues())
@@ -568,6 +609,18 @@ describe("PUT integrations.r2 while files are stored there (final review I2)", (
 describe("POST /api/v1/admin/integrations/:key/test", () => {
   const test = (cookie: string, key: string) =>
     adminRequest(`/integrations/${key}/test`, { cookie, method: "POST" })
+
+  it("is rate-limited to 5 a minute per user (spec §6.3)", async () => {
+    for (let i = 0; i < 5; i++)
+      expect((await test(owner, "integrations.smtp")).status).toBe(422)
+    const sixth = await test(owner, "integrations.turnstile")
+    expect(sixth.status).toBe(429)
+    expect(
+      ((await sixth.json()) as { error: { code: string } }).error.code
+    ).toBe("RATE_LIMITED")
+    // Per user: another manager is not affected.
+    expect((await test(admin, "integrations.smtp")).status).toBe(422)
+  })
 
   it("422 before anything is saved; editor 403", async () => {
     expect((await test(owner, "integrations.smtp")).status).toBe(422)

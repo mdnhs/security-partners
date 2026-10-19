@@ -11,9 +11,13 @@ import { cn } from "@/lib/utils"
 
 export type SelectOption = { value: string; label: string }
 
-/** The admin form-control look on the shadcn Select trigger (40 px, 44 on touch). */
+/**
+ * The admin form-control look on the shadcn Select trigger (40 px, 44 on
+ * touch). Dark: --input at 20 %, not the primitive's 30 %, so the muted
+ * placeholder ("Choose…") keeps 4.5:1 (tests/unit/admin/admin-tokens).
+ */
 export const ADMIN_SELECT_TRIGGER =
-  "w-full rounded-lg bg-background shadow-xs data-[size=default]:h-10"
+  "w-full rounded-lg bg-background shadow-xs data-[size=default]:h-10 dark:bg-input/20"
 
 /**
  * shadcn Select over a flat list of `{ value, label }` options: the admin's
@@ -68,7 +72,14 @@ export function OptionSelect({
         aria-required={ariaRequired || undefined}
         ref={triggerRef}
         onBlur={onBlur}
-        className={cn(ADMIN_SELECT_TRIGGER, className)}
+        className={cn(
+          ADMIN_SELECT_TRIGGER,
+          // Base UI marks "" as a placeholder; here it is a real option
+          // ("Unassigned"), so it keeps the ordinary text colour.
+          options.some((o) => o.value === value) &&
+            "data-placeholder:text-foreground",
+          className
+        )}
       >
         <SelectValue>
           {(current: string | null) =>

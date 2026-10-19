@@ -354,3 +354,14 @@ export async function deleteUsersByIds(
     .returning({ id: users.id })
   return deleted.length
 }
+
+/** Active owners' names and emails (same "active" as countActiveOwners), by name. */
+export async function listActiveOwnerContacts(
+  db: DbOrTx
+): Promise<{ name: string; email: string }[]> {
+  return db
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(and(hasRole("owner"), not(bannedNow), hasPassword))
+    .orderBy(asc(users.name), asc(users.email))
+}

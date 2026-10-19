@@ -56,7 +56,8 @@ import { cn } from "@/lib/utils"
 import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
 
-const SELECT = "disabled:opacity-60"
+// The Handling card sets aria-busy while a change saves.
+const SELECT = "disabled:opacity-60 in-aria-busy:cursor-progress"
 
 const leadKey = (id: string) => ["leads", "detail", id] as const
 

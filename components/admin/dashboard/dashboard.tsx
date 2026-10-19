@@ -110,6 +110,8 @@ export function Dashboard({
       <PageHeader
         title={`${greetingFor(new Date(renderedAt))}, ${firstName}`}
         titleTestId="greeting"
+        // The column's gap-6 alone spaces header and KPI row (MK).
+        className="mb-0"
         description="Here's what's happening on the website."
         actions={
           <>

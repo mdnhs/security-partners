@@ -156,10 +156,14 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     const owner = reachableLinks(["owner"])
     expect(owner.find((l) => l.id === "seo-redirects")).toMatchObject({
       parent: "SEO",
+      // The section's own terms, carried on the link (not looked up by label).
+      parentKeywords: item("seo").keywords,
       href: "/admin/seo/redirects",
     })
+    expect(item("seo").keywords?.length).toBeGreaterThan(0)
     expect(owner.find((l) => l.id === "leads")).toMatchObject({
       parent: null,
+      parentKeywords: [],
       label: "Enquiries",
     })
     expect(owner.some((l) => l.id === "seo")).toBe(false)

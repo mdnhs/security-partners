@@ -1,4 +1,5 @@
 import type { StatusTone } from "@/components/admin/kit/status-pill"
+import { isUuid } from "@/lib/ids"
 import {
   LEAD_STATUS_FILTERS,
   type LeadStatus,
@@ -24,8 +25,6 @@ export type LeadInboxFilters = {
   assignee: string
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 /** ?status= & ?assignee= (dashboard and email links); unknown values → "". */
 export function parseLeadFilters(params: URLSearchParams): LeadInboxFilters {
   const status = params.get("status") ?? ""
@@ -35,7 +34,7 @@ export function parseLeadFilters(params: URLSearchParams): LeadInboxFilters {
       ? (status as LeadStatusFilter)
       : "",
     assignee:
-      assignee === "me" || assignee === "none" || UUID.test(assignee)
+      assignee === "me" || assignee === "none" || isUuid(assignee)
         ? assignee
         : "",
   }

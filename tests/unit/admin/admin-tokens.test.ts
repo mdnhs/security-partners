@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { ADMIN_SELECT_TRIGGER } from "@/components/admin/option-select"
 import {
   ADMIN_CONTRAST_PAIRS,
   ADMIN_TOKEN_NAMES,
@@ -210,6 +211,42 @@ describe.each([
         })
         .join("")
     expect(contrast(mixed, tokens.card)).toBeGreaterThanOrEqual(3)
+  })
+
+  // A select's placeholder ("Choose…") is text-muted-foreground on the
+  // trigger. In dark the trigger is --input at ADMIN_SELECT_TRIGGER's alpha
+  // over the card or a muted panel (A8 axe: 4.4:1 at the primitive's 30 %).
+  it("a select placeholder on the admin trigger meets 4.5:1", () => {
+    const match = /(?:^|\s)dark:bg-input\/(\d+)(?:\s|$)/.exec(
+      ADMIN_SELECT_TRIGGER
+    )
+    const surfaces = ["card", "muted"] as const
+    if (tokens !== dark) {
+      // Light: the trigger is --background.
+      expect(ADMIN_SELECT_TRIGGER).toMatch(/(?:^|\s)bg-background(?:\s|$)/)
+      expect(
+        contrast(tokens["muted-foreground"], tokens.background)
+      ).toBeGreaterThanOrEqual(4.5)
+      return
+    }
+    expect(match).not.toBeNull()
+    const alpha = Number(match![1]) / 100
+    for (const surface of surfaces) {
+      const trigger =
+        "#" +
+        [1, 3, 5]
+          .map((i) => {
+            const top = parseInt(tokens.input.slice(i, i + 2), 16)
+            const under = parseInt(tokens[surface].slice(i, i + 2), 16)
+            return Math.round(top * alpha + under * (1 - alpha))
+              .toString(16)
+              .padStart(2, "0")
+          })
+          .join("")
+      expect(
+        contrast(tokens["muted-foreground"], trigger)
+      ).toBeGreaterThanOrEqual(4.5)
+    }
   })
 
   // Floating panels stand off the canvas; cards stand off the panels.

@@ -166,12 +166,16 @@ describe("GET /api/v1/admin/ai/status", () => {
   it("is off until configured, then on only for allowed roles", async () => {
     expect(await status(owner.cookie)).toEqual({
       available: false,
+      canManage: true,
+      reason: "unconfigured",
       model: null,
       readOnly: false,
     })
     await configureAi()
     expect(await status(owner.cookie)).toEqual({
       available: true,
+      canManage: true,
+      reason: null,
       model: "claude-sonnet-5-5",
       readOnly: false,
     })
@@ -179,6 +183,8 @@ describe("GET /api/v1/admin/ai/status", () => {
     // admin and author hold ai:use but are not in allowedRoles; viewer has no ai:use.
     expect(await status(admin.cookie)).toEqual({
       available: false,
+      canManage: true,
+      reason: "not-allowed",
       model: null,
       readOnly: false,
     })
@@ -270,13 +276,15 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     ])
     expect(list.at(-1)).toEqual({ type: "done", messageId: expect.any(String) })
 
-    // What the model received: the static rules, then the screen as a
+    // What the model received: the rules first (then who is asking, the
+    // tools and the screen name, MK parity C8), then the screen as a
     // user-role context message right before the question.
     const call = modelOf(0).doStreamCalls[0]
-    expect(call.prompt[0]).toEqual({
-      role: "system",
-      content: ASSISTANT_RULES,
-    })
+    const system = call.prompt[0] as { role: string; content: string }
+    expect(system.role).toBe("system")
+    expect(system.content.startsWith(ASSISTANT_RULES)).toBe(true)
+    // The record never goes into the instructions.
+    expect(system.content).not.toContain("Old heading")
     const [screen, question] = call.prompt.slice(1) as {
       role: string
       content: { type: string; text: string }[]
@@ -292,7 +300,8 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
       role: "user",
       content: [{ type: "text", text: "Rewrite the heading" }],
     })
-    expect(call.maxOutputTokens).toBe(1500)
+    // The saved "longest answer" (default 1024).
+    expect(call.maxOutputTokens).toBe(1024)
 
     const [row] = await getDb()
       .select()
@@ -544,6 +553,8 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {})
     expect(await status(owner.cookie)).toEqual({
       available: false,
+      canManage: true,
+      reason: "unconfigured",
       model: null,
       readOnly: false,
     })
@@ -569,6 +580,8 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     const asEditor = mergeCookies(admin.cookie, start)
     expect(await status(asEditor)).toEqual({
       available: true,
+      canManage: false,
+      reason: null,
       model: "claude-sonnet-5-5",
       readOnly: true,
     })

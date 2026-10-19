@@ -70,6 +70,13 @@ describe("pages list (JW pattern)", () => {
       "rounded-card",
       "bg-card"
     )
+    // One scroll container (the Table primitive's), and headers wrap like
+    // the cells, as before the shadcn Table.
+    expect(table.closest('[data-slot="table-card"]')).not.toHaveClass(
+      "overflow-x-auto"
+    )
+    for (const th of within(table).getAllByRole("columnheader"))
+      expect(th).toHaveClass("whitespace-normal")
     const rows = within(table).getAllByRole("row").slice(1)
     expect(within(rows[0]).getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",

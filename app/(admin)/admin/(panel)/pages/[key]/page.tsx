@@ -4,7 +4,7 @@ import { Suspense } from "react"
 
 import { PageEditor } from "@/components/admin/pages/page-editor"
 import { PAGE_LABELS } from "@/lib/admin/page-labels"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 import { isPageKey } from "@/templates/registry"
 
 export async function generateMetadata({
@@ -28,7 +28,8 @@ async function Editor({
   params,
 }: Pick<PageProps<"/admin/pages/[key]">, "params">) {
   const { key } = await params
+  // Permission first, as on every [param] page but settings/[key].
+  await requirePage("/admin/pages")
   if (!isPageKey(key)) notFound()
-  await requirePermission({ page: ["read"] })
   return <PageEditor pageKey={key} />
 }

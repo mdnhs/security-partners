@@ -546,7 +546,7 @@ describe("AdminShell (master 4.1)", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
-  it("footer dock: Account link and Log out (which clears the cache)", async () => {
+  it("footer dock: Help link and Log out (which clears the cache)", async () => {
     signOut.mockResolvedValue({ error: null })
     const client = makeQueryClient()
     const clear = vi.spyOn(client, "clear")
@@ -565,8 +565,9 @@ describe("AdminShell (master 4.1)", () => {
     })
     expect(docks).toHaveLength(2)
     expect(
-      within(docks[0]).getByRole("link", { name: "Account" })
-    ).toHaveAttribute("href", "/admin/account")
+      within(docks[0]).getByRole("link", { name: "Help" })
+    ).toHaveAttribute("href", "/admin/help")
+    expect(within(docks[0]).queryByRole("link", { name: "Account" })).toBeNull()
     await user.click(within(docks[0]).getByRole("button", { name: "Log out" }))
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(

@@ -69,8 +69,8 @@ export async function pinAssistant(page: Page) {
 
 /**
  * Turns the assistant on the way Settings does (signed in, any page): a
- * pinned SMTP save refetches the status, the button appears; then ⌘K
- * "Edit the home page" (a client navigation: the shell, the button and the
+ * pinned SMTP save refetches the status, the button appears; then the ⌘K
+ * record "Home" (a client navigation: the shell, the button and the
  * status stay) and the hero's first text field is focused.
  */
 export async function assistantOnHomeEditor(
@@ -95,9 +95,12 @@ export async function assistantOnHomeEditor(
   await expect(button).toBeVisible()
 
   await page.getByRole("button", { name: "Search" }).click()
-  await page
-    .getByRole("dialog", { name: "Search the admin" })
-    .getByRole("option", { name: "Edit the home page" })
+  const palette = page.getByRole("dialog", { name: "Search the admin" })
+  await palette.getByRole("combobox", { name: "Search" }).fill("home")
+  await palette
+    .getByRole("group", { name: "Records" })
+    .getByRole("option", { name: /^Home/ })
+    .first()
     .click()
   await expect(
     page.getByRole("heading", { level: 1, name: "Home" })
