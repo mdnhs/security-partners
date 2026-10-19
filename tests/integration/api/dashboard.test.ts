@@ -86,6 +86,7 @@ describe("dashboard (master 4.7)", () => {
     expect(state).toEqual({
       smtp: false,
       r2: false,
+      ai: false,
       "two-factor": false,
       review: true,
       "unassigned-leads": false,
@@ -106,6 +107,47 @@ describe("dashboard (master 4.7)", () => {
       .values({ key: "integrations.smtp", draft: { host: "smtp.example.ie" } })
     const after = await dashboard(owner.cookie)
     expect(after.nextUp.find((i) => i.id === "smtp")?.done).toBe(true)
+  })
+
+  it("offers managers to turn on the AI assistant until it is on (MK C7)", async () => {
+    const item = {
+      id: "ai",
+      title: "Turn on the AI assistant",
+      description: "Draft copy, check SEO and summarise enquiries.",
+      href: "/admin/settings/ai-assistant",
+      done: false,
+    }
+    const owner = await signedInUser(["owner"])
+    const admin = await signedInUser(["admin"])
+    const editor = await signedInUser(["editor"])
+    expect((await dashboard(owner.cookie)).nextUp).toContainEqual(item)
+    expect((await dashboard(admin.cookie)).nextUp).toContainEqual(item)
+    expect(
+      (await dashboard(editor.cookie)).nextUp.map((i) => i.id)
+    ).not.toContain("ai")
+
+    // Saved but off: still offered.
+    const values = {
+      enabled: false,
+      provider: "anthropic",
+      model: "claude-sonnet-5-5",
+      apiKey: "sk-ant-dashboard-key-1234",
+      allowedRoles: ["owner", "admin", "editor"],
+    }
+    const put = (version: number, json: Record<string, unknown>) =>
+      adminRequest("/integrations/integrations.ai", {
+        cookie: owner.cookie,
+        method: "PUT",
+        json: { version, values: json },
+      })
+    expect((await put(0, values)).status).toBe(200)
+    expect((await dashboard(owner.cookie)).nextUp).toContainEqual(item)
+
+    // On: gone.
+    expect((await put(1, { enabled: true })).status).toBe(200)
+    expect(
+      (await dashboard(owner.cookie)).nextUp.map((i) => i.id)
+    ).not.toContain("ai")
   })
 
   it("hides what the role may not see", async () => {

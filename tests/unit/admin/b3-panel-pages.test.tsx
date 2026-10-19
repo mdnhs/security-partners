@@ -34,6 +34,9 @@ vi.mock("@/components/admin/settings/settings-editor", () => ({
 vi.mock("@/components/admin/integrations/integration-form", () => ({
   IntegrationForm: () => null,
 }))
+vi.mock("@/components/admin/ai/ai-settings-view", () => ({
+  AiSettingsView: () => null,
+}))
 vi.mock("@/components/admin/integrations/migrate-media-panel", () => ({
   MigrateMediaPanel: () => null,
 }))
@@ -52,6 +55,7 @@ import SettingsKeyPage from "@/app/(admin)/admin/(panel)/settings/[key]/page"
 import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/page"
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
+import { AiSettingsView } from "@/components/admin/ai/ai-settings-view"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
@@ -158,9 +162,9 @@ describe("moved pages", () => {
     await expect(inner(ActivityPage())).rejects.toThrow("FORBIDDEN")
   })
 
-  it("/admin/settings/ai-assistant is the AI integration form", async () => {
+  it("/admin/settings/ai-assistant is the AI settings view", async () => {
     const out = await inner(AiAssistantPage())
-    expect(out!.props).toMatchObject({ integrationKey: "integrations.ai" })
+    expect(out!.type).toBe(AiSettingsView)
     session.roles = ["editor"]
     await expect(inner(AiAssistantPage())).rejects.toThrow("FORBIDDEN")
   })

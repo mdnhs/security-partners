@@ -173,6 +173,33 @@ describe("AssistantButton (master 9.2: hidden when disabled)", () => {
     expect(calls).toEqual([])
   })
 
+  it("shows managers the button while unavailable, with a set-up link (MK C7)", async () => {
+    const user = userEvent.setup()
+    renderAssistant({
+      available: false,
+      canManage: true,
+      reason: "unconfigured",
+      model: null,
+      readOnly: false,
+    })
+    const dialog = await openPanel(user)
+    expect(
+      within(dialog).getByText(
+        "The AI assistant is turned off or not set up yet."
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole("link", { name: "Set up AI assistant" })
+    ).toHaveAttribute("href", "/admin/settings/ai-assistant")
+    expect(
+      within(dialog).queryByRole("textbox", {
+        name: "Message the AI assistant",
+      })
+    ).toBeNull()
+    // Nothing is asked of the server for an unavailable assistant.
+    expect(calls).toEqual([])
+  })
+
   it("hides itself when Settings turns the assistant off", async () => {
     const { client } = renderAssistant()
     expect(

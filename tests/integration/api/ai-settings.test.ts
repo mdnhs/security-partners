@@ -16,7 +16,7 @@ import { readChatStream } from "@/lib/ai/chat-stream"
 import type { AiStatusDto } from "@/lib/schemas/api/ai"
 import type { IntegrationDto } from "@/lib/schemas/api/integrations"
 import { getDb } from "@/server/db/client"
-import { revisions, settings } from "@/server/db/schema"
+import { auditLog, revisions, settings } from "@/server/db/schema"
 import { createLanguageModel } from "@/server/modules/ai/providers"
 
 import { resetDb } from "../db"
@@ -300,6 +300,67 @@ describe("PUT integrations.ai (MK fields)", () => {
     expect(fieldErrors(moved.body)).toEqual({
       apiKey: ["Enter the API key again for the new provider"],
     })
+  })
+
+  it("Remove key: clearSecrets drops the saved key (owner and admin), audited by name", async () => {
+    expect((await put(owner, 0, base)).status).toBe(200)
+    const res = await adminRequest(KEY, {
+      cookie: admin.cookie,
+      method: "PUT",
+      json: { version: 1, values: {}, clearSecrets: ["apiKey"] },
+    })
+    expect(res.status).toBe(200)
+    const body = dto(await res.json())
+    expect(body.secrets.apiKey).toEqual({ set: false, hint: null })
+    expect(body.values.model).toBe("claude-sonnet-5-5")
+    const [row] = await getDb()
+      .select({ draft: settings.draft })
+      .from(settings)
+      .where(eq(settings.key, "integrations.ai"))
+    expect((row.draft as Record<string, unknown>).apiKey).toBe("")
+    const audits = await getDb()
+      .select({ action: auditLog.action, diff: auditLog.diff })
+      .from(auditLog)
+      .where(eq(auditLog.entityId, "integrations.ai"))
+      .orderBy(auditLog.createdAt)
+    expect(audits.at(-1)).toEqual({
+      action: "integration.updated",
+      diff: { changed: ["apiKey"] },
+    })
+    expect(JSON.stringify(audits)).not.toContain(API_KEY)
+  })
+
+  it("Remove key: refused for an editor, while on, for a non-secret, or with a new key", async () => {
+    expect((await put(owner, 0, { ...base, enabled: true })).status).toBe(200)
+    const clear = (
+      who: Person,
+      values: Record<string, unknown>,
+      fields: string[]
+    ) =>
+      adminRequest(KEY, {
+        cookie: who.cookie,
+        method: "PUT",
+        json: { version: 1, values, clearSecrets: fields },
+      })
+    expect((await clear(editor, {}, ["apiKey"])).status).toBe(403)
+    const whileOn = await clear(owner, {}, ["apiKey"])
+    expect(whileOn.status).toBe(422)
+    expect(fieldErrors(await whileOn.json())).toHaveProperty("apiKey")
+    const notSecret = await clear(owner, { enabled: false }, ["model"])
+    expect(notSecret.status).toBe(422)
+    const both = await clear(
+      owner,
+      { enabled: false, apiKey: "sk-ant-new-key-99999" },
+      ["apiKey"]
+    )
+    expect(both.status).toBe(422)
+    expect(fieldErrors(await both.json())).toHaveProperty("apiKey")
+    // Nothing above changed the saved key.
+    const after = dto(
+      await (await adminRequest(KEY, { cookie: owner.cookie })).json()
+    )
+    expect(after.version).toBe(1)
+    expect(after.secrets.apiKey.set).toBe(true)
   })
 
   it("maxOutputTokens 9000 → 422", async () => {
