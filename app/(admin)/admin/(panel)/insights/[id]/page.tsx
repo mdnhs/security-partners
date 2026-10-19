@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { ArticleEditor } from "@/components/admin/articles/article-editor"
 import { requirePermission } from "@/server/auth/session"
+import { getSiteOrigin } from "@/server/modules/seo/queries"
 
 export const metadata: Metadata = { title: "Edit article" }
 
@@ -24,5 +25,5 @@ async function Screen({
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
   await requirePermission({ article: ["read"] })
-  return <ArticleEditor id={id} />
+  return <ArticleEditor id={id} origin={await getSiteOrigin()} />
 }

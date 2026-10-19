@@ -152,9 +152,10 @@ describe("SEO overview (master 8.1)", () => {
     const user = userEvent.setup()
     renderAs(["editor"])
     const sheet = await screen.findByRole("dialog", { name: "SEO: Home" })
+    // MK SERP: "host › segments" (home: the host alone).
     expect(
-      within(sheet).getByText("https://www.example.ie/")
-    ).toBeInTheDocument()
+      within(sheet).getByRole("figure", { name: "Search result preview" })
+    ).toHaveTextContent("www.example.ie")
     await user.type(
       within(sheet).getByRole("textbox", { name: /^Description/ }),
       "Security services across Ireland with a 24/7 operations team."

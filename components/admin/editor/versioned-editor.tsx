@@ -26,6 +26,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 
 import { ConflictDialog } from "./conflict-dialog"
 import { EDITOR_ACTION, EditorLayout } from "./editor-layout"
+import { EditorTabs, useEditorTab } from "./editor-tabs"
 import { LivePreviewToggle, useLivePreview } from "./live-preview-toggle"
 import { PreviewPane } from "./preview-pane"
 import { PublishDialog } from "./publish-dialog"
@@ -79,6 +80,12 @@ export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
    * the record and whether it has edits the site does not show.
    */
   status?: (record: Dto, dirty: boolean) => readonly StatusPillSpec[]
+  /**
+   * The record's SEO tab (MK D1.4): top Content / SEO tabs, the SEO one
+   * selected by ?tab=seo. Both stay mounted once shown (unsaved edits on
+   * either side survive a switch).
+   */
+  seo?: EditorSlot<Dto>
 }
 
 /** A plain node, or one rendered from the editor's state. */
@@ -417,6 +424,28 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     autosave.resolveConflict()
     setRequestConflict(null)
   }
+  const seoTab = useEditorTab(!!props.seo)
+  const form = (
+    <div
+      onKeyDownCapture={markTouched}
+      onPointerDownCapture={markTouched}
+      onInputCapture={markTouched}
+      onPasteCapture={markTouched}
+      onDropCapture={markTouched}
+    >
+      <SchemaForm
+        schema={props.schema}
+        meta={props.meta}
+        value={draft as never}
+        onChange={onFormChange}
+        errors={fieldErrors}
+        resetKey={resetKey}
+        disabled={!props.canEdit}
+        sectionTabs="Sections"
+        onFieldFocus={props.canEdit ? onFieldFocus : undefined}
+      />
+    </div>
+  )
 
   return (
     <>
@@ -492,6 +521,7 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
           </>
         }
         aside={slot(props.aside)}
+        asideHidden={seoTab.active}
         asideColumnFrom={props.asideColumnFrom}
         longTitle={props.longTitle}
         preview={
@@ -500,25 +530,11 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
           ) : undefined
         }
       >
-        <div
-          onKeyDownCapture={markTouched}
-          onPointerDownCapture={markTouched}
-          onInputCapture={markTouched}
-          onPasteCapture={markTouched}
-          onDropCapture={markTouched}
-        >
-          <SchemaForm
-            schema={props.schema}
-            meta={props.meta}
-            value={draft as never}
-            onChange={onFormChange}
-            errors={fieldErrors}
-            resetKey={resetKey}
-            disabled={!props.canEdit}
-            sectionTabs="Sections"
-            onFieldFocus={props.canEdit ? onFieldFocus : undefined}
-          />
-        </div>
+        {props.seo ? (
+          <EditorTabs state={seoTab} content={form} seo={slot(props.seo)} />
+        ) : (
+          form
+        )}
       </EditorLayout>
       <PublishDialog
         open={publishOpen}

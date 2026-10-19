@@ -5,7 +5,9 @@ import { useState } from "react"
 
 import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
 import type { StatusPillSpec } from "@/components/admin/kit/content-status"
+import { EditorSeoTab, textAt } from "@/components/admin/seo/editor-seo-tab"
 import { SeoLink } from "@/components/admin/seo/seo-link"
+import { usePermission } from "@/hooks/use-permission"
 import { api, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
 import type { ArticleDto } from "@/lib/schemas/api/articles"
@@ -55,7 +57,8 @@ export function articleStatusPills(article: {
  * Article editor (master 5.3): Phase 4's VersionedEditor with the article's
  * own rights (from the API), workflow actions and settings panel.
  */
-export function ArticleEditor({ id }: { id: string }) {
+export function ArticleEditor({ id, origin }: { id: string; origin?: string }) {
+  const canReadSeo = usePermission({ seo: ["read"] })
   const queryKey = ["articles", id] as const
   const param = { id }
   // Once deleted, nothing may load the record again (it would 404).
@@ -112,10 +115,29 @@ export function ArticleEditor({ id }: { id: string }) {
       status={(dto, dirty) => articleStatusPills({ ...dto, dirty })}
       actions={(ctx) => (
         <>
-          <SeoLink kind="article" id={id} />
+          <SeoLink />
           <WorkflowActions ctx={ctx} />
         </>
       )}
+      seo={
+        canReadSeo
+          ? (ctx) => (
+              <EditorSeoTab
+                kind="article"
+                id={id}
+                origin={origin}
+                names={{
+                  live: textAt(
+                    ctx.record.published ?? ctx.record.draft,
+                    "title"
+                  ),
+                  draft: textAt(ctx.draft, "title"),
+                  description: textAt(ctx.draft, "excerpt"),
+                }}
+              />
+            )
+          : undefined
+      }
       aside={(ctx) => (
         <ArticleSettings ctx={ctx} onDeleted={() => setDeleted(true)} />
       )}

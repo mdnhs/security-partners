@@ -103,20 +103,25 @@ function subscribe(callback: () => void) {
  * [current ?param value, select] — a click pushes a history entry (Back
  * returns); keyboard and programmatic changes pass `{ replace: true }` so
  * arrowing through tabs or an error jump does not flood the history.
+ * `select(null)` removes the param (the default tab).
  */
 export function useTabParam(
   param = "tab"
-): [string | undefined, (id: string, options?: TabChangeOptions) => void] {
+): [
+  string | undefined,
+  (id: string | null, options?: TabChangeOptions) => void,
+] {
   const value = useSyncExternalStore(
     subscribe,
     () => new URLSearchParams(window.location.search).get(param) ?? undefined,
     () => undefined
   )
   const select = useCallback(
-    (id: string, options?: TabChangeOptions) => {
+    (id: string | null, options?: TabChangeOptions) => {
       const url = new URL(window.location.href)
       if (url.searchParams.get(param) === id) return
-      url.searchParams.set(param, id)
+      if (id === null) url.searchParams.delete(param)
+      else url.searchParams.set(param, id)
       if (options?.replace) window.history.replaceState(null, "", url)
       else window.history.pushState(null, "", url)
       window.dispatchEvent(new Event(URL_EVENT))

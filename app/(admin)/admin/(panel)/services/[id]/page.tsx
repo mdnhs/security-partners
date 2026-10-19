@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { ServiceEditor } from "@/components/admin/services/service-editor"
 import { requirePermission } from "@/server/auth/session"
+import { getSiteOrigin } from "@/server/modules/seo/queries"
 
 export const metadata: Metadata = { title: "Edit service" }
 
@@ -24,5 +25,5 @@ async function Screen({
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
   await requirePermission({ service: ["read"] })
-  return <ServiceEditor id={id} />
+  return <ServiceEditor id={id} origin={await getSiteOrigin()} />
 }
