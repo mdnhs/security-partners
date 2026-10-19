@@ -86,7 +86,11 @@ describe("shadcn primitives", () => {
     const box = screen.getByRole("combobox", { name: "Status" })
     expect(box).toHaveTextContent("Alpha")
     expect(box).toHaveClass(
-      "data-[size=default]:h-11",
+      "data-[size=default]:h-8",
+      "data-[size=sm]:h-7",
+      // h-11 alone loses to the data-[size] height (higher specificity);
+      // min-h-11 guarantees the 44 px coarse target.
+      "pointer-coarse:h-11",
       "pointer-coarse:min-h-11",
       ...FOCUS
     )
