@@ -11,6 +11,7 @@ import { useUrlFilters } from "@/components/admin/data-table/list-url"
 import { FilterSelect } from "@/components/admin/filter-field"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
 import { PageHeader } from "@/components/admin/page-header"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePermission } from "@/hooks/use-permission"
 import { ROLE_INFO, roleLabels, STATUS_INFO } from "@/lib/admin/user-roles"
 import { api, unwrap } from "@/lib/api-client"
@@ -18,6 +19,7 @@ import { ROLES, type Role } from "@/lib/auth/roles"
 import { USER_STATUSES } from "@/lib/schemas/api/users"
 
 import { InviteUserDialog } from "./invite-dialog"
+import { PermissionMatrix } from "./permission-matrix"
 import type { UserItem } from "./types"
 import { RoleBadges, TwoFactorIndicator, UserStatusPill } from "./user-badges"
 
@@ -78,11 +80,20 @@ const columns = ch.columns([
   }),
 ]) as unknown as DataTableColumns<Row>
 
-/** Users list (spec §8.1): search, role/status filters, invite. */
+const TABS = [
+  { value: "people", label: "People" },
+  { value: "roles", label: "Roles" },
+] as const
+
+/**
+ * Users & roles (spec §8.1): People (search, role/status filters, invite)
+ * and Roles (read-only permission matrix), kept in `?tab=`.
+ */
 export function UsersScreen() {
   const canInvite = usePermission({ user: ["invite"] })
   // Kept in ?role=&status= so returning from a user restores the list.
-  const [params, setParams] = useUrlFilters(["role", "status"] as const)
+  const [params, setParams] = useUrlFilters(["role", "status", "tab"] as const)
+  const tab = params.tab === "roles" ? "roles" : "people"
   const role = (ROLES as readonly string[]).includes(params.role)
     ? (params.role as Role)
     : ""
@@ -91,86 +102,117 @@ export function UsersScreen() {
     : ""
   const filters = { role: role || undefined, status: status || undefined }
   const filterKey = role || status ? `${role}|${status}` : ""
+  const people = (
+    <DataTable<Row>
+      syncUrl
+      label="Users"
+      queryKey={["users", filters]}
+      filterKey={filterKey}
+      filteredEmpty="Nobody matches these filters"
+      initialSort={[{ id: "createdAt", desc: true }]}
+      searchPlaceholder="Search name or email"
+      toolbar={
+        <>
+          <FilterSelect
+            id="users-role"
+            label="Role"
+            value={role}
+            onChange={(value) => setParams({ role: value })}
+            options={[
+              { value: "", label: "All roles" },
+              ...ROLES.map((r) => ({ value: r, label: ROLE_INFO[r].label })),
+            ]}
+          />
+          <FilterSelect
+            id="users-status"
+            label="Status"
+            value={status}
+            onChange={(value) => setParams({ status: value })}
+            options={[
+              { value: "", label: "All statuses" },
+              ...USER_STATUSES.map((s) => ({
+                value: s,
+                label: STATUS_INFO[s].label,
+              })),
+            ]}
+          />
+        </>
+      }
+      fetchPage={async (params) =>
+        (await unwrap(
+          api.users.$get({
+            query: {
+              page: String(params.page),
+              pageSize: String(params.pageSize),
+              sort: params.sort,
+              q: params.q,
+              ...filters,
+            },
+          })
+        )) as { items: Row[]; page: number; pageSize: number; total: number }
+      }
+      columns={columns}
+      renderCard={(user) => (
+        <div className="rounded-card relative flex flex-col gap-2 bg-card p-4">
+          <span className="flex items-center justify-between gap-2">
+            <Link
+              href={`/admin/users/${user.id}`}
+              className="after:rounded-card truncate font-semibold outline-none after:absolute after:inset-0 focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+            >
+              {user.name}
+            </Link>
+            <UserStatusPill status={user.status} />
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            {user.email}
+          </span>
+          <span className="flex items-center justify-between gap-2 text-xs">
+            <span>{roleLabels(user.roles)}</span>
+            <TwoFactorIndicator enabled={user.twoFactorEnabled} />
+          </span>
+        </div>
+      )}
+      empty="No users yet"
+      emptyDescription="People you invite appear here with their roles and status."
+      emptyAction={canInvite ? <InviteUserDialog /> : null}
+    />
+  )
+
   return (
     <>
       <PageHeader
-        title="Users"
-        description="Everyone who can sign in to the admin. Invite people, change their roles, or block access."
+        title="Users & roles"
+        description="Everyone who can sign in to the admin, and what each role can do. Invite people, change their roles, or block access."
         actions={canInvite ? <InviteUserDialog /> : null}
       />
-      <DataTable<Row>
-        syncUrl
-        label="Users"
-        queryKey={["users", filters]}
-        filterKey={filterKey}
-        filteredEmpty="Nobody matches these filters"
-        initialSort={[{ id: "createdAt", desc: true }]}
-        searchPlaceholder="Search name or email"
-        toolbar={
-          <>
-            <FilterSelect
-              id="users-role"
-              label="Role"
-              value={role}
-              onChange={(value) => setParams({ role: value })}
-              options={[
-                { value: "", label: "All roles" },
-                ...ROLES.map((r) => ({ value: r, label: ROLE_INFO[r].label })),
-              ]}
-            />
-            <FilterSelect
-              id="users-status"
-              label="Status"
-              value={status}
-              onChange={(value) => setParams({ status: value })}
-              options={[
-                { value: "", label: "All statuses" },
-                ...USER_STATUSES.map((s) => ({
-                  value: s,
-                  label: STATUS_INFO[s].label,
-                })),
-              ]}
-            />
-          </>
+      <Tabs
+        value={tab}
+        onValueChange={(value) =>
+          setParams({ tab: value === "roles" ? "roles" : "" })
         }
-        fetchPage={async (params) =>
-          (await unwrap(
-            api.users.$get({
-              query: {
-                page: String(params.page),
-                pageSize: String(params.pageSize),
-                sort: params.sort,
-                q: params.q,
-                ...filters,
-              },
-            })
-          )) as { items: Row[]; page: number; pageSize: number; total: number }
-        }
-        columns={columns}
-        renderCard={(user) => (
-          <div className="rounded-card relative flex flex-col gap-2 bg-card p-4">
-            <span className="flex items-center justify-between gap-2">
-              <Link
-                href={`/admin/users/${user.id}`}
-                className="after:rounded-card truncate font-semibold outline-none after:absolute after:inset-0 focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-              >
-                {user.name}
-              </Link>
-              <UserStatusPill status={user.status} />
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {user.email}
-            </span>
-            <span className="flex items-center justify-between gap-2 text-xs">
-              <span>{roleLabels(user.roles)}</span>
-              <TwoFactorIndicator enabled={user.twoFactorEnabled} />
-            </span>
-          </div>
-        )}
-        empty="No users yet"
-        emptyDescription="People you invite appear here with their roles and status."
-        emptyAction={canInvite ? <InviteUserDialog /> : null}
-      />
+        className="gap-4"
+      >
+        <TabsList aria-label="Users & roles">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {TABS.map((t) => (
+          <TabsContent
+            key={t.value}
+            value={t.value}
+            className="rounded-md focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {t.value !== tab ? null : t.value === "people" ? (
+              people
+            ) : (
+              <PermissionMatrix />
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
     </>
   )
 }
