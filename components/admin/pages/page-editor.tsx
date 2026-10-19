@@ -1,23 +1,91 @@
 "use client"
 
-import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
+import { CopyPlus } from "lucide-react"
+import { useState } from "react"
+
+import type { BuilderDocument } from "@/blocks/document"
+import { NewPageDialog } from "@/components/admin/builder/new-page-dialog"
+import { EDITOR_ACTION } from "@/components/admin/editor/editor-layout"
+import {
+  type EditorActionContext,
+  VersionedEditor,
+} from "@/components/admin/editor/versioned-editor"
 import { SeoLink } from "@/components/admin/seo/seo-link"
+import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { PAGE_LABELS } from "@/lib/admin/page-labels"
 import { api, unwrap } from "@/lib/api-client"
 import { previewHref } from "@/lib/schemas/api/preview"
+import {
+  blocksFromTemplate,
+  copySlug,
+  copyTitle,
+} from "@/templates/builder/from-template"
 import { templateEditorMeta } from "@/templates/editor-meta"
 import {
   PAGE_PATHS,
   PAGES,
   type PageKey,
+  templateSchemaFor,
   templates,
 } from "@/templates/registry"
+
+/**
+ * "Copy to new page" (page:create): this page's sections and copy, as it
+ * stands in the editor, seed a NEW builder page at /p/<key>-copy. The fixed
+ * page and its route are never touched.
+ */
+function CopyToNewPage({
+  pageKey,
+  ctx,
+}: {
+  pageKey: PageKey
+  ctx: Pick<EditorActionContext<unknown>, "draft" | "showAllErrors">
+}) {
+  const [seed, setSeed] = useState<{
+    title: string
+    slug: string
+    doc: BuilderDocument
+  } | null>(null)
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className={EDITOR_ACTION}
+        onClick={() => {
+          const parsed = templateSchemaFor(pageKey).safeParse(ctx.draft)
+          // Unfinished fields are marked; nothing half-filled is copied.
+          if (!parsed.success) {
+            ctx.showAllErrors()
+            return
+          }
+          setSeed({
+            title: copyTitle(PAGE_LABELS[pageKey]),
+            slug: copySlug(pageKey),
+            doc: blocksFromTemplate(pageKey, parsed.data),
+          })
+        }}
+      >
+        <CopyPlus aria-hidden />
+        <span className="max-sm:sr-only">Copy to new page</span>
+      </Button>
+      <NewPageDialog
+        open={seed !== null}
+        onOpenChange={(open) => {
+          if (!open) setSeed(null)
+        }}
+        seed={seed ?? undefined}
+      />
+    </>
+  )
+}
 
 /** Editor for one fixed page (master 4.4). */
 export function PageEditor({ pageKey }: { pageKey: PageKey }) {
   const canEdit = usePermission({ page: ["update"] })
   const canPublish = usePermission({ page: ["publish"] })
+  const canCreate = usePermission({ page: ["create"] })
   const template = PAGES[pageKey]
   const param = { key: pageKey }
   return (
@@ -51,7 +119,12 @@ export function PageEditor({ pageKey }: { pageKey: PageKey }) {
       publicHref={PAGE_PATHS[pageKey]}
       canEdit={canEdit}
       canPublish={canPublish}
-      actions={<SeoLink kind="page" id={pageKey} />}
+      actions={(ctx) => (
+        <>
+          {canCreate ? <CopyToNewPage pageKey={pageKey} ctx={ctx} /> : null}
+          <SeoLink kind="page" id={pageKey} />
+        </>
+      )}
     />
   )
 }

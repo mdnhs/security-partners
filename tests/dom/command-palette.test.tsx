@@ -238,6 +238,7 @@ describe("⌘K command palette (master 4.1)", () => {
       .map((o) => o.textContent)
     expect(actions).toEqual([
       "Edit the home page",
+      "New page",
       "New service",
       "New article",
       "Open the public site",
@@ -246,6 +247,29 @@ describe("⌘K command palette (master 4.1)", () => {
       within(dialog).getByRole("option", { name: "New service" })
     )
     expect(push).toHaveBeenCalledWith("/admin/services/new")
+  })
+
+  it("New page (page:create) opens Pages with its New page dialog (D5.5)", async () => {
+    const user = userEvent.setup()
+    renderShell(["editor"])
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    await user.click(within(dialog).getByRole("option", { name: "New page" }))
+    expect(push).toHaveBeenCalledWith("/admin/pages?new=1")
+  })
+
+  it("no New page action without page:create (marketer)", async () => {
+    const user = userEvent.setup()
+    renderShell(["marketer"])
+    await user.keyboard("{Control>}k{/Control}")
+    const dialog = await screen.findByRole("dialog", {
+      name: "Search the admin",
+    })
+    expect(
+      within(dialog).queryByRole("option", { name: "New page" })
+    ).toBeNull()
   })
 
   it("leaves Mod-K to a focused widget that handles it", async () => {

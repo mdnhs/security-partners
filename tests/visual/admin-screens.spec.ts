@@ -664,6 +664,25 @@ for (const colorScheme of ["light", "dark"] as const) {
       })
     })
 
+    // D5.5: the page builder on the seeded /p/visual-fixture. The preview
+    // pane (a live iframe of the public page) is masked.
+    test(`admin page builder ${colorScheme}`, async ({ page }) => {
+      await signIn(page)
+      await page.goto("/admin/pages")
+      await page
+        .getByRole("main")
+        .getByRole("link", { name: "Visual fixture", exact: true })
+        .first()
+        .click()
+      await editorReady(page, "Visual fixture")
+      await expect(
+        page.getByRole("navigation", { name: "Page outline" })
+      ).toBeVisible()
+      await expect(page).toHaveScreenshot(shot("page-builder"), {
+        mask: [...(await masks(page)), page.locator("iframe")],
+      })
+    })
+
     test(`admin services list ${colorScheme}`, async ({ page }) => {
       await signIn(page)
       await page.goto("/admin/services")

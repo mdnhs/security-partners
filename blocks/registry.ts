@@ -261,6 +261,32 @@ export const Anchor = z
     "Use up to 40 lower-case letters, digits and hyphens, starting with a letter"
   )
 
+/**
+ * Section ids the shared sections render themselves (templates/builder
+ * render.tsx OWN_ID). Only the owning block may use one as its anchor,
+ * else the page has two elements with that id (D5.3 review ruling).
+ * validateDocument and DraftDocument enforce it; the builder UI too.
+ */
+export const RESERVED_ANCHORS: Readonly<Record<string, BlockType>> = {
+  about: "about",
+  services: "services",
+  team: "team",
+  blog: "blog",
+  contact: "contact",
+}
+
+/** Why `type` may not use `anchor`, or null. */
+export function reservedAnchorProblem(
+  anchor: string,
+  type: BlockType
+): string | null {
+  if (!Object.hasOwn(RESERVED_ANCHORS, anchor)) return null
+  const owner = RESERVED_ANCHORS[anchor]
+  return owner === type
+    ? null
+    : `"${anchor}" is kept for the ${BLOCK_BY_TYPE[owner].label} section`
+}
+
 const instance = <const T extends string, S extends z.ZodType>(block: {
   type: T
   schema: S

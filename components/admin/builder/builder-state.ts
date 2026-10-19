@@ -4,6 +4,8 @@ import {
   BLOCK_BY_TYPE,
   BLOCKS,
   type BlockType,
+  RESERVED_ANCHORS,
+  reservedAnchorProblem,
 } from "@/blocks/registry"
 
 // The page builder's working copy (spec §7.5): a pure reducer over the
@@ -27,19 +29,8 @@ export type DocAction =
 /** BuilderDocument / DraftDocument hold at most this many blocks. */
 export const MAX_BLOCKS = 40
 
-/**
- * Section ids the shared sections render themselves (About, Services,
- * Team, Blog, Contact; templates/builder/render.tsx OWN_ID). Only the
- * owning block may use one as its anchor, else the page has two elements
- * with that id (D5.3 review, controller ruling).
- */
-export const RESERVED_ANCHORS: Readonly<Record<string, BlockType>> = {
-  about: "about",
-  services: "services",
-  team: "team",
-  blog: "blog",
-  contact: "contact",
-}
+/** Shared with validateDocument / DraftDocument (blocks/registry.ts). */
+export { RESERVED_ANCHORS }
 
 const isFirstType = (type: BlockType) => {
   const def = BLOCK_BY_TYPE[type]
@@ -101,11 +92,8 @@ export function anchorProblem(
 ): string | null {
   const format = anchorFormatError(anchor)
   if (format) return format
-  if (Object.hasOwn(RESERVED_ANCHORS, anchor)) {
-    const owner = RESERVED_ANCHORS[anchor]
-    if (owner !== block.type)
-      return `"${anchor}" is kept for the ${BLOCK_BY_TYPE[owner].label} section`
-  }
+  const reserved = reservedAnchorProblem(anchor, block.type)
+  if (reserved) return reserved
   if (doc.blocks.some((b) => b.id !== block.id && b.anchor === anchor))
     return `Anchor "${anchor}" is already used on this page`
   return null

@@ -257,3 +257,56 @@ describe("document rules: hardening (D5.1 review)", () => {
     }
   })
 })
+
+describe("reserved anchors (D5.5 ruling: server-side too)", () => {
+  const about = (id: string, anchor: string): BlockInstance => ({
+    id,
+    type: "about",
+    anchor,
+    hidden: false,
+    data: { useShared: true },
+  })
+
+  it.each(["about", "services", "team", "blog", "contact"])(
+    "validateDocument refuses %s on a block that does not own it",
+    (anchor) => {
+      const r = validateDocument({
+        blocks: [hero("hero-1"), richtext("text-1", anchor)],
+      })
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.fieldErrors["blocks.1.anchor"]).toEqual([
+        expect.stringMatching(
+          new RegExp(`^"${anchor}" is kept for the .+ section$`)
+        ),
+      ])
+    }
+  )
+
+  it("the owning block may use its own id", () => {
+    const r = validateDocument({
+      blocks: [hero("hero-1"), about("about-1", "about"), map("map-1")],
+    })
+    expect(r.ok).toBe(true)
+  })
+
+  it("DraftDocument (save, restore, copy seed) refuses it on the anchor's path", () => {
+    const r = DraftDocument.safeParse({
+      blocks: [{ ...map("map-1"), anchor: "contact" }],
+    })
+    expect(r.success).toBe(false)
+    expect(r.error?.issues[0]).toMatchObject({
+      path: ["blocks", 0, "anchor"],
+      message: '"contact" is kept for the Contact section',
+    })
+    expect(
+      DraftDocument.safeParse({ blocks: [about("about-1", "about")] }).success
+    ).toBe(true)
+  })
+
+  it("RESERVED_ANCHORS lives in the isomorphic registry and the builder UI uses the same map", async () => {
+    const { RESERVED_ANCHORS } = await import("@/blocks/registry")
+    const ui = await import("@/components/admin/builder/builder-state")
+    expect(ui.RESERVED_ANCHORS).toBe(RESERVED_ANCHORS)
+  })
+})

@@ -85,6 +85,7 @@ export function CommandPalette() {
   const canCreateService = usePermission({ service: ["create"] })
   const canCreateArticle = usePermission({ article: ["create"] })
   const canEditPages = usePermission({ page: ["update"] })
+  const canCreatePages = usePermission({ page: ["create"] })
   const canReadUsers = usePermission({ user: ["read"] })
   const { open, setOpen } = useCommandPalette()
   const [query, setQuery] = useState("")
@@ -152,6 +153,13 @@ export function CommandPalette() {
       label: "Edit the home page",
       icon: FileText,
       run: () => navigate("/admin/pages/home"),
+    },
+    canCreatePages && {
+      id: "new-page",
+      label: "New page",
+      icon: Plus,
+      // Pages opens its New page dialog for ?new=1.
+      run: () => navigate("/admin/pages?new=1"),
     },
     canCreateService && {
       id: "new-service",

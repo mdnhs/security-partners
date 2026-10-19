@@ -10,6 +10,7 @@ vi.mock("next/link", () => ({
   ),
 }))
 
+import { AdminSessionProvider } from "@/components/admin/session-provider"
 import { DataTablePagination } from "@/components/admin/data-table/data-table-pagination"
 import { PagesList } from "@/components/admin/pages/pages-list"
 import { makeQueryClient } from "@/components/admin/providers"
@@ -30,29 +31,50 @@ const page = (over: Record<string, unknown>) => ({
 
 function renderPages() {
   return render(
-    <QueryClientProvider client={makeQueryClient()}>
-      <PagesList />
-    </QueryClientProvider>
+    <AdminSessionProvider
+      value={{
+        user: {
+          id: "u",
+          name: "U",
+          email: "u@x.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles: ["editor"],
+        impersonatedBy: null,
+      }}
+    >
+      <QueryClientProvider client={makeQueryClient()}>
+        <PagesList />
+      </QueryClientProvider>
+    </AdminSessionProvider>
   )
 }
 
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      Response.json({
-        items: [
-          page({}),
-          page({ key: "about", label: "About", path: "/about", dirty: true }),
-          page({
-            key: "terms",
-            label: "Terms",
-            path: "/terms",
-            publishedAt: null,
-            status: "draft",
-          }),
-        ],
-      })
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes("/builder-pages")
+        ? Response.json({ items: [] })
+        : Response.json({
+            items: [
+              page({}),
+              page({
+                key: "about",
+                label: "About",
+                path: "/about",
+                dirty: true,
+              }),
+              page({
+                key: "terms",
+                label: "Terms",
+                path: "/terms",
+                publishedAt: null,
+                status: "draft",
+              }),
+            ],
+          })
     )
   )
 })

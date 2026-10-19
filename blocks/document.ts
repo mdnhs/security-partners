@@ -9,6 +9,7 @@ import {
   BlockId,
   BlockInstance,
   type BlockType,
+  reservedAnchorProblem,
 } from "./registry"
 
 /** Deeper than any block shape (a linked word in a rich-text list is 13). */
@@ -62,13 +63,21 @@ export type BuilderDocument = z.infer<typeof BuilderDocument>
 export const DraftDocument = z.object({
   blocks: z
     .array(
-      z.object({
-        id: BlockId,
-        type: z.enum(BLOCK_TYPES),
-        anchor: z.string().max(40),
-        hidden: z.boolean(),
-        data: draftData,
-      })
+      z
+        .object({
+          id: BlockId,
+          type: z.enum(BLOCK_TYPES),
+          anchor: z.string().max(40),
+          hidden: z.boolean(),
+          data: draftData,
+        })
+        // Reserved section ids hold for drafts too: save, restore and a
+        // copied page's seed are refused like publish (D5.5 ruling).
+        .superRefine((block, ctx) => {
+          const problem = reservedAnchorProblem(block.anchor, block.type)
+          if (problem)
+            ctx.addIssue({ code: "custom", message: problem, path: ["anchor"] })
+        })
     )
     .max(40),
 })
@@ -87,8 +96,8 @@ const isBlockType = (value: unknown): value is BlockType =>
   typeof value === "string" && Object.hasOwn(BLOCK_BY_TYPE, value)
 
 /**
- * Rules no single block can check: unique ids and anchors, "first" blocks
- * at index 0 and "max" per type. They run on the raw input too, so an
+ * Rules no single block can check: unique ids and anchors, reserved
+ * section anchors, "first" blocks at index 0 and "max" per type. They run on the raw input too, so an
  * editor sees placement errors alongside unfinished fields.
  */
 function documentRules(
@@ -117,6 +126,10 @@ function documentRules(
     }
     const type = field(block, "type")
     if (!isBlockType(type)) return
+    if (typeof anchor === "string" && Anchor.safeParse(anchor).success) {
+      const reserved = reservedAnchorProblem(anchor, type)
+      if (reserved) add(`blocks.${i}.anchor`, reserved)
+    }
     const def = BLOCK_BY_TYPE[type]
     if ("first" in def && def.first && i !== 0)
       add(`blocks.${i}.type`, `${def.label} must be the first block`)

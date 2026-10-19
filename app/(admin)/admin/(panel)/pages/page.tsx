@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { PageHeader } from "@/components/admin/page-header"
-import { PagesList } from "@/components/admin/pages/pages-list"
+import { NewPageButton, PagesList } from "@/components/admin/pages/pages-list"
 import { requirePermission } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Pages" }
@@ -22,6 +22,7 @@ async function Pages() {
       <PageHeader
         title="Pages"
         description="Every page of the site. Changes stay in a draft until you publish."
+        actions={<NewPageButton />}
       />
       <PagesList />
     </>

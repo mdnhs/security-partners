@@ -32,7 +32,12 @@ import type { MediaItem } from "@/lib/schemas/api/media"
 import type { SeoEntry } from "@/lib/schemas/api/seo"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
-import { auditLog, builderPages, redirects } from "@/server/db/schema"
+import {
+  auditLog,
+  builderPages,
+  redirects,
+  revisions,
+} from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { syncMediaUsages } from "@/server/lib/media-usages"
 import { diskStorage } from "@/server/lib/storage"
@@ -814,5 +819,86 @@ describe("builder pages: create expires the slug's cache (review D5.4 M5)", () =
     expect(revalidateTag).toHaveBeenCalledWith("builder-page:fresh-page", {
       expire: 0,
     })
+  })
+})
+
+describe("builder pages: reserved anchors are enforced server-side (D5.5 ruling)", () => {
+  const withAnchor = (
+    doc: BuilderPageDto["draft"],
+    i: number,
+    anchor: string
+  ) => ({
+    blocks: doc.blocks.map((b, j) => (j === i ? { ...b, anchor } : b)),
+  })
+  const anchorKey = (body: ErrorBody) =>
+    Object.keys(body.error.fieldErrors ?? {}).find((k) =>
+      k.endsWith("blocks.1.anchor")
+    )
+
+  it("save refuses a text block anchored #services", async () => {
+    const { page } = await publishedPage()
+    const res = await saveDraft(page.id, {
+      version: page.version,
+      draft: withAnchor(page.draft, 1, "services"),
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as ErrorBody
+    const key = anchorKey(body)
+    expect(body.error.fieldErrors?.[key!]).toEqual([
+      '"services" is kept for the Services section',
+    ])
+  })
+
+  it("publish refuses a stored draft that holds one (e.g. saved before the rule)", async () => {
+    const { page } = await publishedPage()
+    await getDb()
+      .update(builderPages)
+      .set({ draft: withAnchor(page.draft, 1, "contact") })
+      .where(eq(builderPages.id, page.id))
+    const res = await publish(page.id, page.version)
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as ErrorBody
+    expect(body.error.fieldErrors?.["blocks.1.anchor"]).toEqual([
+      '"contact" is kept for the Contact section',
+    ])
+  })
+
+  it("restore refuses a revision that holds one", async () => {
+    const { page } = await publishedPage()
+    await getDb()
+      .update(revisions)
+      .set({ data: withAnchor(page.draft, 1, "blog") })
+      .where(eq(revisions.entityId, page.id))
+    const [rev] = await getDb()
+      .select({ id: revisions.id })
+      .from(revisions)
+      .where(eq(revisions.entityId, page.id))
+    const res = await adminRequest(`/builder-pages/${page.id}/restore`, {
+      cookie: editor,
+      method: "POST",
+      json: { version: page.version, revisionId: rev.id },
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as ErrorBody
+    expect(anchorKey(body)).toBeDefined()
+  })
+
+  it("a copied page's seed with one is refused at create", async () => {
+    const res = await post({
+      title: "Copy",
+      slug: "copy",
+      seed: {
+        blocks: [
+          {
+            id: "map-block-1",
+            type: "map",
+            anchor: "team",
+            hidden: false,
+            data: { useShared: true },
+          },
+        ],
+      },
+    })
+    expect(res.status).toBe(422)
   })
 })
