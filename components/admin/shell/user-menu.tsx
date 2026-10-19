@@ -26,6 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ROLE_INFO } from "@/lib/admin/user-roles"
+import { ROLES } from "@/lib/auth/roles"
 
 import { useShellSignOut } from "./sign-out-context"
 
@@ -36,15 +38,18 @@ const THEMES = [
 ] as const
 
 /**
- * The avatar alone in the topbar; name, email and roles sit in the menu
- * (Account, Security, Theme, Sign out). A failed sign-out shows below the
- * avatar and clears when the menu reopens (a dock failure stays).
+ * The avatar in the topbar; from lg the trigger also shows name, email and
+ * the primary role (MK). The menu repeats them with every role (Account,
+ * Security, Theme, Sign out). A failed sign-out shows below the trigger and
+ * clears when the menu reopens (a dock failure stays).
  */
 export function UserMenu() {
   const { user, roles } = useAdminSession()
   const { theme, setTheme } = useTheme()
   const { signOut, pending, error, clearError } = useShellSignOut()
   const menuError = error?.source === "menu" ? error.message : null
+  // The highest role in ROLES order (owner first).
+  const primaryRole = ROLES.find((role) => roles.includes(role))
   return (
     <div className="relative">
       <DropdownMenu
@@ -55,13 +60,34 @@ export function UserMenu() {
       >
         <DropdownMenuTrigger
           aria-label={`Account menu for ${user.name}`}
-          className="flex shrink-0 rounded-full p-1 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex shrink-0 items-center gap-3 rounded-full p-1 text-left outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 lg:pr-4"
         >
           <Avatar aria-hidden className="size-11">
             <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
+          <span
+            data-slot="user-identity"
+            className="hidden max-w-56 min-w-0 flex-col lg:flex"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-semibold text-foreground">
+                {user.name}
+              </span>
+              {primaryRole ? (
+                <span
+                  data-slot="role-pill"
+                  className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[11px] leading-none font-semibold text-accent-foreground"
+                >
+                  {ROLE_INFO[primaryRole].label}
+                </span>
+              ) : null}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {user.email}
+            </span>
+          </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuGroup>

@@ -26,6 +26,9 @@ export function makeQueryClient() {
   })
 }
 
+/** Toasts' top edge: AdminShell's measured header bottom + 8 px. */
+export const TOAST_TOP = "var(--admin-toast-top, 96px)"
+
 let browserQueryClient: { key: string; client: QueryClient } | undefined
 
 /**
@@ -59,14 +62,18 @@ export function AdminProviders({
       <TooltipProvider>
         {children}
         {/*
-         * Bottom left of the content panel (M5, re-review N4): never over the
-         * topbar, the sticky editor bar, a right sheet's footer or the AI
-         * composer; from lg it clears the 20 rem sidebar (+ gutters). Phones
-         * keep sonner's full-width bottom (its own --mobile-offset-*).
+         * Top centre (MK), 8 px below the header (topbar, plus the
+         * impersonation banner when shown): AdminShell publishes its bottom
+         * as --admin-toast-top, so toasts never cover the topbar's controls.
+         * The fallback is the plain header (16 px gutter + 72 px + 8 px).
+         * A sheet's close button ends at 56 px, so it stays reachable; bottom
+         * bars (sticky editor bar, sheet footers, AI composer) are never
+         * covered.
          */}
         <Toaster
-          position="bottom-left"
-          className="toaster group lg:[--offset-left:calc(20rem+2rem)]!"
+          position="top-center"
+          offset={{ top: TOAST_TOP }}
+          mobileOffset={{ top: TOAST_TOP }}
           richColors
           closeButton
         />
