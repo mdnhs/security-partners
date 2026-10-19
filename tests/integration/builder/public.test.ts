@@ -14,7 +14,7 @@ vi.mock("next/headers", async (importOriginal) => ({
 }))
 
 import type { BuilderDocument } from "@/blocks/document"
-import { BLOCK_TYPES } from "@/blocks/registry"
+import { BLOCK_TYPES, type BlockType } from "@/blocks/registry"
 import type { BuilderPageDto } from "@/lib/schemas/api/builder-pages"
 import { buildSitemap } from "@/lib/seo/sitemap"
 import { app } from "@/server/api/app"
@@ -22,6 +22,7 @@ import { getDb } from "@/server/db/client"
 import { builderPages } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { resolvePublicPath } from "@/server/modules/redirects/resolve"
+import { listSeoRows } from "@/server/modules/seo/repo"
 import {
   getOgSubject,
   isOgSubjectId,
@@ -97,7 +98,14 @@ describe("resolvePublicPath: /p/<slug> (D5.3)", () => {
   })
 
   it("malformed and reserved addresses are missing", async () => {
-    for (const path of ["/p/Upper", "/p/a--b", `/p/${"x".repeat(61)}`, "/p/é"])
+    for (const path of [
+      "/p/Upper",
+      "/p/a--b",
+      `/p/${"x".repeat(61)}`,
+      "/p/é",
+      "/p/admin",
+      "/p/api",
+    ])
       expect(await resolvePublicPath(path, live), path).toEqual({
         kind: "missing",
       })
@@ -108,6 +116,19 @@ describe("resolvePublicPath: /p/<slug> (D5.3)", () => {
     await getDb().delete(builderPages).where(eq(builderPages.id, row.id))
     expect(await resolvePublicPath("/p/gone", live)).toEqual({
       kind: "missing",
+    })
+
+    const { cookie } = await signedInUser(["editor"])
+    const moved = await insertPage("moved-home")
+    const res = await adminRequest(
+      `/builder-pages/${moved.id}?redirectHome=true`,
+      { cookie, method: "DELETE" }
+    )
+    expect(res.status).toBe(200)
+    expect(await resolvePublicPath("/p/moved-home", live)).toMatchObject({
+      kind: "redirect",
+      to: "/",
+      code: 301,
     })
   })
 
@@ -127,6 +148,41 @@ describe("resolvePublicPath: /p/<slug> (D5.3)", () => {
       code: 301,
     })
     expect(await resolvePublicPath("/p/new", live)).toEqual({ kind: "pass" })
+  })
+})
+
+describe("SEO overview fallback description (D5.3 review minor 2)", () => {
+  it("is the hero's description only when a page hero comes first", async () => {
+    const first = (type: BlockType, description: string) => ({
+      blocks: [
+        {
+          id: `block-${type}`,
+          type,
+          anchor: "first",
+          hidden: false,
+          data: { description },
+        },
+      ],
+    })
+    await getDb()
+      .insert(builderPages)
+      .values([
+        {
+          slug: "with-hero",
+          title: "With hero",
+          draft: first("hero.page", "Hero intro"),
+        },
+        {
+          slug: "cards-first",
+          title: "Cards first",
+          draft: first("iconCards", "Cards intro"),
+        },
+      ])
+    const rows = await listSeoRows(getDb())
+    const bySlug = (slug: string) =>
+      rows.find((r) => r.kind === "builder" && r.slug === slug)
+    expect(bySlug("with-hero")?.description).toBe("Hero intro")
+    expect(bySlug("cards-first")?.description).toBeNull()
   })
 })
 

@@ -1,13 +1,14 @@
 import "server-only"
 
 import { cacheLife, cacheTag } from "next/cache"
-import { draftMode } from "next/headers"
 
 import type { BuilderDocument } from "@/blocks/document"
 import { BlockInstance } from "@/blocks/registry"
+import { isBuilderSlug } from "@/lib/builder-slug"
 import type { Seo } from "@/lib/schemas/common"
 import { getDb } from "@/server/db/client"
 import { tag } from "@/server/lib/cache-tags"
+import { previewerCan } from "@/server/modules/preview/guard"
 
 import * as repo from "./repo"
 
@@ -30,14 +31,17 @@ function looseDoc(draft: { blocks?: unknown }): BuilderDocument {
   }
 }
 
-/** The live page at /p/<slug> (the draft in draft mode); null if missing or never published. */
+/**
+ * The live page at /p/<slug>, or its draft when `draft`; null if missing or
+ * (live) never published. Callers decide `draft` with getBuilderPageForRequest.
+ */
 export async function getPublishedBuilderPage(
-  slug: string
+  slug: string,
+  draft = false
 ): Promise<PublishedBuilderPage | null> {
   "use cache"
   cacheLife("max")
   cacheTag(tag.builderPages, tag.builderPage(slug))
-  const { isEnabled: draft } = await draftMode()
   const row = await repo.findBuilderPageBySlug(getDb(), slug)
   if (!row) return null
   const doc = draft
@@ -51,6 +55,19 @@ export async function getPublishedBuilderPage(
     doc,
     updatedAt: row.updatedAt,
   }
+}
+
+/**
+ * What /p/<slug> shows this request: the draft only to a previewer holding
+ * page:read (an author previewing an article sees the published page, or
+ * nothing), else the published page. Malformed slugs never reach the cache.
+ */
+export async function getBuilderPageForRequest(
+  slug: string
+): Promise<PublishedBuilderPage | null> {
+  if (!isBuilderSlug(slug)) return null
+  const draft = await previewerCan({ page: ["read"] })
+  return getPublishedBuilderPage(slug, draft)
 }
 
 /** For proxy.ts: is /p/<slug> live? A plain repo read (not cached). */

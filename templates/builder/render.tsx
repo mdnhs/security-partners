@@ -93,8 +93,9 @@ export function BuilderTemplate({
       <SiteHeader {...chrome.header} />
       <main>
         {blocks.map(({ block, view }) => {
-          // Hidden blocks never render; nor does newsletter without D4.
-          if (block.hidden || view.type === "newsletter") return null
+          // builderBlocksView already left hidden blocks out; newsletter
+          // renders nothing until D4.
+          if (view.type === "newsletter") return null
           return OWN_ID[view.type] === block.anchor ? (
             <Section key={block.id} view={view} />
           ) : (

@@ -68,8 +68,15 @@ const builderColumns = {
   seo: builderPages.seo,
   published: sql<boolean>`${builderPages.published} is not null`,
   title: builderPages.title,
-  /** The page hero's intro (a hero.page block is always first). */
-  description: field(builderPages, "blocks", "0", "data", "description"),
+  /**
+   * The page hero's intro, as the public meta falls back to it
+   * (firstHeroDescription): only when the first block is a page hero —
+   * a hero must come first if present, but a page need not have one.
+   */
+  description: sql<
+    string | null
+  >`case when ${field(builderPages, "blocks", "0", "type")} = 'hero.page'
+    then ${field(builderPages, "blocks", "0", "data", "description")} end`,
 }
 
 const page = (row: Omit<SeoRow, "kind" | "slug" | "description">): SeoRow => ({

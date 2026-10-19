@@ -1,30 +1,24 @@
 import { z } from "zod"
 
 import { type BuilderDocument, DraftDocument } from "@/blocks/document"
+import {
+  BUILDER_SLUG_MAX,
+  BUILDER_SLUG_PATTERN,
+  isReservedBuilderSlug,
+  RESERVED_BUILDER_SLUGS,
+} from "@/lib/builder-slug"
 import type { Seo } from "@/lib/schemas/common"
 
 import type { ContentStatus, VersionedDto } from "./content"
 
-/**
- * Slugs under /p/ that are refused although they fit the format: they read
- * as the site's own areas (Review Focus 1, "/p/admin").
- */
-export const RESERVED_BUILDER_SLUGS = [
-  "admin",
-  "api",
-  "og",
-  "images",
-  "p",
-] as const
+export { RESERVED_BUILDER_SLUGS }
 
-const RESERVED = new Set<string>(RESERVED_BUILDER_SLUGS)
-
-/** A builder page's address is always /p/<slug>. */
+/** A builder page's address is always /p/<slug> (lib/builder-slug.ts). */
 export const builderSlug = z
   .string()
-  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use lower-case words joined by hyphens")
-  .max(60)
-  .refine((slug) => !RESERVED.has(slug), "This address is reserved")
+  .regex(BUILDER_SLUG_PATTERN, "Use lower-case words joined by hyphens")
+  .max(BUILDER_SLUG_MAX)
+  .refine((slug) => !isReservedBuilderSlug(slug), "This address is reserved")
 
 export const builderPath = (slug: string) => `/p/${slug}`
 

@@ -3,8 +3,7 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 import { Suspense } from "react"
 
-import { builderSlug } from "@/lib/schemas/api/builder-pages"
-import { getPublishedBuilderPage } from "@/server/modules/builder-pages/queries"
+import { getBuilderPageForRequest } from "@/server/modules/builder-pages/queries"
 import { resolveMedia } from "@/server/modules/media/queries"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { BuilderTemplate } from "@/templates/builder/render"
@@ -19,15 +18,6 @@ import { chromeView } from "@/templates/shared/views"
 // get here as a 200: proxy.ts answers them with a real 404 (or a stored
 // redirect) before streaming. In preview the draft renders.
 
-/** The page with media resolved; null for a malformed slug or no page. */
-async function loadBuilderPage(slug: string) {
-  if (!builderSlug.safeParse(slug).success) return null
-  const page = await getPublishedBuilderPage(slug)
-  if (!page) return null
-  const { doc, seo } = await resolveMedia({ doc: page.doc, seo: page.seo })
-  return { ...page, slug, doc, seo, raw: page.doc }
-}
-
 export async function generateMetadata({
   params,
 }: PageProps<"/p/[slug]">): Promise<Metadata> {
@@ -35,14 +25,16 @@ export async function generateMetadata({
   const { slug } = await params
   // Sources first: they check preview access before any draft is read.
   const s = await loadSiteSources()
-  const page = await loadBuilderPage(slug)
+  const page = await getBuilderPageForRequest(slug)
   if (!page) return {}
+  // Only the SEO record's media is needed here, not the blocks'.
+  const { seo } = await resolveMedia({ seo: page.seo })
   return builderPageMetadata(s, {
     id: page.id,
     slug,
     title: page.title,
-    seo: page.seo,
-    firstHeroDescription: firstHeroDescription(page.raw.blocks),
+    seo,
+    firstHeroDescription: firstHeroDescription(page.doc.blocks),
   })
 }
 
@@ -58,12 +50,13 @@ async function Builder({ params }: Pick<PageProps<"/p/[slug]">, "params">) {
   await connection()
   const { slug } = await params
   const s = await loadSiteSources()
-  const page = await loadBuilderPage(slug)
+  const page = await getBuilderPageForRequest(slug)
   if (!page) notFound()
+  const { doc } = await resolveMedia({ doc: page.doc })
   return (
     <BuilderTemplate
       chrome={chromeView(s)}
-      blocks={builderBlocksView(page.doc.blocks, s)}
+      blocks={builderBlocksView(doc.blocks, s)}
       newsletterCopy={null}
     />
   )

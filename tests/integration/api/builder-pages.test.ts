@@ -432,8 +432,9 @@ describe("builder pages API (D5.2)", () => {
     const page = await create("draft-only")
     expect(await getPublishedBuilderPage("draft-only")).toBeNull()
     expect(await isPublishedBuilderSlug("draft-only")).toBe(false)
-    draft.isEnabled = true
-    const preview = await getPublishedBuilderPage("draft-only")
+    // The page route asks for the draft only for a page:read previewer
+    // (getBuilderPageForRequest, tests/integration/builder/preview-scope).
+    const preview = await getPublishedBuilderPage("draft-only", true)
     // The default hero has no image yet: dropped, not rendered broken.
     expect(preview?.doc.blocks).toEqual([])
     expect(preview?.id).toBe(page.id)

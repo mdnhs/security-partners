@@ -1,6 +1,6 @@
 import "server-only"
 
-import { builderSlug } from "@/lib/schemas/api/builder-pages"
+import { isBuilderSlug } from "@/lib/builder-slug"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 import { FILE_EXTENSION } from "@/lib/seo/redirects"
 import { getDb } from "@/server/db/client"
@@ -133,10 +133,7 @@ export async function resolvePublicPath(
     }
     if (builder) {
       const slug = builder[1]
-      if (
-        builderSlug.safeParse(slug).success &&
-        (await isPublishedBuilderSlug(db, slug))
-      )
+      if (isBuilderSlug(slug) && (await isPublishedBuilderSlug(db, slug)))
         return PASS
     }
     const redirect = await findRedirectByFrom(db, pathname)
