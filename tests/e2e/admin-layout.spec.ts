@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test"
 
 import { E2E_OWNER } from "./admin-accounts"
-import { pinAssistant } from "./ai-pins"
+import { assistantOnHomeEditor, pinAssistant } from "./ai-pins"
 import { clientIpFor, E2E_PASSWORD, greeting } from "./fixtures"
 
 // MK-parity A9, measured in a real browser (the DOM tests can only check
@@ -24,6 +24,27 @@ async function signIn(page: Page) {
   await expect(
     page.getByRole("heading", { name: greeting(E2E_OWNER.name) })
   ).toBeVisible()
+}
+
+/** Pinned SMTP integration: saving it refetches the (pinned) AI status. */
+const SAVED_SMTP = {
+  key: "integrations.smtp",
+  slug: "smtp",
+  label: "Email (SMTP)",
+  description: "Sends invitations, password resets and enquiry notifications.",
+  configured: true,
+  version: 2,
+  values: {
+    host: "smtp.example.ie",
+    port: 587,
+    secure: false,
+    user: "mailer@example.ie",
+    fromName: "Security Partners",
+    fromAddress: "no-reply@example.ie",
+  },
+  secrets: { password: { set: true, hint: "••••1234" } },
+  updatedAt: "2026-10-16T09:00:00.000Z",
+  updatedBy: { id: "u1", name: "Ada Admin" },
 }
 
 /** Every topbar control lies inside the topbar, which does not scroll. */
@@ -74,6 +95,10 @@ test("topbar fits at 1024 px with role chip, AI, mail and bell", async ({
 }) => {
   await page.setViewportSize({ width: 1024, height: 768 })
   await signIn(page)
+  // The seed has no AI integration, so the layout renders the button off
+  // and the status query never refetches on its own: turn it on the way
+  // Settings does (pinned status, no provider), then measure the topbar.
+  await assistantOnHomeEditor(page, SAVED_SMTP)
   const topbar = page.locator("[data-slot=topbar]")
   await expect(
     topbar.getByRole("button", { name: "AI assistant" })
