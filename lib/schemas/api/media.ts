@@ -19,6 +19,8 @@ export const mediaListQuery = listQuery.extend({
   sort: sortParam(["createdAt", "alt"], { field: "createdAt", dir: "desc" }),
   /** "image" = image/*, "document" = everything else (PDF); omitted = all. */
   kind: z.enum(MEDIA_KINDS).optional(),
+  /** "true" = images with no alt text that are not marked decorative. */
+  missingAlt: z.literal("true").optional(),
 })
 export type MediaListQuery = z.output<typeof mediaListQuery>
 
@@ -38,16 +40,20 @@ export type MediaItem = {
   driver: MediaDriverName
   focalX: number | null
   focalY: number | null
+  /** Decorative: needs no alt text (any alt text entered is kept). */
+  isDecorative: boolean
+  caption: string
   /** Who uploaded it (null for seeded files): uploaders may describe their own files. */
   createdBy: string | null
 }
 
 export const MEDIA_ALT_MAX = 500
+export const MEDIA_CAPTION_MAX = 300
 
 /** Alt text as stored: hidden characters (lib/hidden-chars) removed, trimmed. */
 export const cleanAltText = (value: string) => stripHiddenChars(value).trim()
 
-/** PATCH /media/:id. focal: point to keep in view when cropped (0..1 from the left/top); null resets. */
+/** PATCH /media/:id. caption: cleaned like alt text. focal: point to keep in view when cropped (0..1 from the left/top); null resets. */
 export const mediaUpdateInput = z
   .object({
     alt: z
@@ -55,14 +61,25 @@ export const mediaUpdateInput = z
       .max(MEDIA_ALT_MAX, `Up to ${MEDIA_ALT_MAX} characters`)
       .transform(cleanAltText)
       .optional(),
+    isDecorative: z.boolean().optional(),
+    caption: z
+      .string()
+      .max(MEDIA_CAPTION_MAX, `Up to ${MEDIA_CAPTION_MAX} characters`)
+      .transform(cleanAltText)
+      .optional(),
     focal: z
       .object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
       .nullable()
       .optional(),
   })
-  .refine((v) => v.alt !== undefined || v.focal !== undefined, {
-    message: "Nothing to update",
-  })
+  .refine(
+    (v) =>
+      v.alt !== undefined ||
+      v.focal !== undefined ||
+      v.isDecorative !== undefined ||
+      v.caption !== undefined,
+    { message: "Nothing to update" }
+  )
 export type MediaUpdateInput = z.output<typeof mediaUpdateInput>
 
 /** One place a file is used (media_usages row with a readable label). */

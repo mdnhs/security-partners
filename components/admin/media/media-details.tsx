@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Sheet,
   SheetContent,
@@ -39,6 +40,7 @@ import { formatDateTime } from "@/lib/format"
 import {
   ACCEPTED_IMAGE_TYPES,
   MEDIA_ALT_MAX,
+  MEDIA_CAPTION_MAX,
   type MediaItem,
   type MediaUsage,
 } from "@/lib/schemas/api/media"
@@ -69,8 +71,8 @@ const focalOf = (item: MediaItem): Point | null =>
     : null
 
 /**
- * Right-hand sheet with one file's details (spec §8.1: alt text, focal
- * point, usages, replace, delete). After a delete the file's card is gone,
+ * Right-hand sheet with one file's details (spec §8.1: alt text, decorative
+ * flag, caption, focal point, usages, replace, delete). After a delete the file's card is gone,
  * so focus goes to `afterDelete` instead of the opener.
  */
 export function MediaDetails({
@@ -89,14 +91,14 @@ export function MediaDetails({
   if (item.data && item.data !== last) setLast(item.data)
   const shown = item.data ?? (id === null ? last : null)
   const deleted = useRef(false)
-  // Unsaved alt text / focal point (reported by the body): closing asks.
+  // Unsaved details (reported by the body): closing asks.
   const [dirty, setDirty] = useState(false)
   const close = useGuardedClose({
     dirty: dirty && id !== null,
     onClose,
     title: "Discard your changes to this file?",
     description:
-      "The alt text or focal point you changed is not saved. The file keeps its current details.",
+      "The details you changed are not saved. The file keeps its current details.",
   })
   return (
     <Sheet open={id !== null} onOpenChange={close.onOpenChange}>
@@ -203,10 +205,12 @@ function DetailsBody({
   const canDelete = usePermission({ media: ["delete"] })
   const canCreate = usePermission({ media: ["create"] })
   const { user } = useAdminSession()
-  // Uploaders describe their own files (alt text, focal point; the API
+  // Uploaders describe their own files (alt text, caption, focal point; the API
   // allows the same); replacing and deleting need media:update/delete.
   const canDescribe = canUpdate || (canCreate && item.createdBy === user.id)
   const [alt, setAlt] = useState(item.alt)
+  const [decorative, setDecorative] = useState(item.isDecorative)
+  const [caption, setCaption] = useState(item.caption)
   const [focal, setFocal] = useState<Point | null>(focalOf(item))
   // A saved or replaced file comes back with a new updatedAt: show what was
   // stored (the alt text cleaned, the focal point reset by a replace). The
@@ -215,6 +219,8 @@ function DetailsBody({
   if (shown !== item.updatedAt) {
     setShown(item.updatedAt)
     setAlt(item.alt)
+    setDecorative(item.isDecorative)
+    setCaption(item.caption)
     setFocal(focalOf(item))
   }
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -224,6 +230,7 @@ function DetailsBody({
   const name = mediaName(item)
   const image = item.mime.startsWith("image/")
   const altId = `media-alt-${item.id}`
+  const captionId = `media-caption-${item.id}`
 
   const usages = useQuery({
     queryKey: ["media", "usages", item.id],
@@ -241,7 +248,7 @@ function DetailsBody({
       unwrap(
         api.media[":id"].$patch({
           param: { id: item.id },
-          json: { alt, focal },
+          json: { alt, isDecorative: decorative, caption, focal },
         })
       ),
     onSuccess: (next) => {
@@ -281,7 +288,10 @@ function DetailsBody({
   }
 
   const dirty =
-    alt !== item.alt || JSON.stringify(focal) !== JSON.stringify(focalOf(item))
+    alt !== item.alt ||
+    decorative !== item.isDecorative ||
+    caption !== item.caption ||
+    JSON.stringify(focal) !== JSON.stringify(focalOf(item))
   const canSave = dirty && !save.isPending
   useEffect(
     () => onDirtyChange(dirty && canDescribe),
@@ -352,16 +362,52 @@ function DetailsBody({
           <span className="sr-only">(opens in a new tab)</span>
         </a>
 
+        {image ? (
+          <label
+            className={cn(
+              "-mx-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60",
+              !canDescribe && "cursor-default opacity-70 hover:bg-transparent"
+            )}
+          >
+            {/* The wrapping label names the checkbox (Base UI links it). */}
+            <Checkbox
+              className="mt-0.5"
+              checked={decorative}
+              disabled={!canDescribe}
+              aria-describedby={`${altId}-decorative-help`}
+              onCheckedChange={(checked) => setDecorative(checked === true)}
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm leading-tight font-medium">
+                Decorative image (no alt text needed)
+              </span>
+              <span
+                id={`${altId}-decorative-help`}
+                aria-hidden
+                className="text-xs leading-relaxed text-muted-foreground"
+              >
+                For images that add nothing to the text, such as patterns and
+                dividers.
+              </span>
+            </span>
+          </label>
+        ) : null}
+
         <FieldShell
           id={altId}
           label="Alternative text"
-          help="Describes the image for people who cannot see it. Leave it empty for decorative images."
+          optional={image && decorative}
+          help={
+            image && decorative
+              ? "Not needed for a decorative image. Any text here is kept."
+              : "Describes the image for people who cannot see it."
+          }
           extra={
             <p
               id={`${altId}-count`}
               className="text-right text-xs text-muted-foreground tabular-nums"
             >
-              {alt.length} / {MEDIA_ALT_MAX}
+              {alt.length}/{MEDIA_ALT_MAX}
             </p>
           }
         >
@@ -374,6 +420,31 @@ function DetailsBody({
             rows={3}
             aria-describedby={`${altId}-help ${altId}-count`}
             onChange={(e) => setAlt(e.target.value)}
+          />
+        </FieldShell>
+
+        <FieldShell
+          id={captionId}
+          label="Caption"
+          optional
+          extra={
+            <p
+              id={`${captionId}-count`}
+              className="text-right text-xs text-muted-foreground tabular-nums"
+            >
+              {caption.length}/{MEDIA_CAPTION_MAX}
+            </p>
+          }
+        >
+          <Textarea
+            id={captionId}
+            className={ADMIN_TEXTAREA}
+            value={caption}
+            maxLength={MEDIA_CAPTION_MAX}
+            readOnly={!canDescribe}
+            rows={2}
+            aria-describedby={`${captionId}-count`}
+            onChange={(e) => setCaption(e.target.value)}
           />
         </FieldShell>
         {save.isError ? (

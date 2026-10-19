@@ -23,6 +23,8 @@ type PinnedMedia = {
   driver: "static" | "disk" | "r2"
   focalX: number | null
   focalY: number | null
+  isDecorative: boolean
+  caption: string
   createdBy: string | null
 }
 
@@ -30,13 +32,22 @@ const media = (
   n: number,
   fields: Omit<
     PinnedMedia,
-    "id" | "createdAt" | "updatedAt" | "focalX" | "focalY" | "createdBy"
+    | "id"
+    | "createdAt"
+    | "updatedAt"
+    | "focalX"
+    | "focalY"
+    | "isDecorative"
+    | "caption"
+    | "createdBy"
   > &
     Partial<PinnedMedia>
 ): PinnedMedia => ({
   id: `0190f0e0-0000-7000-8000-0000000000c${n}`,
   focalX: null,
   focalY: null,
+  isDecorative: false,
+  caption: "",
   createdBy: null,
   ...STAMP,
   ...fields,

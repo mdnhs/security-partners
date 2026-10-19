@@ -33,6 +33,8 @@ const uploaded: MediaItem = {
   driver: "disk",
   focalX: null,
   focalY: null,
+  isDecorative: false,
+  caption: "",
   createdBy: null,
 }
 
