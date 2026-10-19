@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react"
 import type { ComponentProps } from "react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/link", () => ({
   default: ({ href, ...props }: ComponentProps<"a"> & { href: string }) => (
@@ -9,6 +9,10 @@ vi.mock("next/link", () => ({
 }))
 
 import { Showcase } from "@/components/admin/design/showcase"
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 // MK-parity A7: /admin/design renders every admin component on fixed
 // sample data, in the brief's order, without touching the API.

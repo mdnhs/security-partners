@@ -216,6 +216,12 @@ describe("collection screen + data table (master 4.6)", () => {
       "bg-card"
     )
     expect(table.closest('[data-slot="table-card"]')).not.toHaveClass("border")
+    // One scroll container (the Table primitive's); headers wrap as before.
+    expect(table.closest('[data-slot="table-card"]')).not.toHaveClass(
+      "overflow-x-auto"
+    )
+    for (const th of within(table).getAllByRole("columnheader"))
+      expect(th).toHaveClass("whitespace-normal")
   })
 })
 

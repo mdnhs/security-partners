@@ -426,4 +426,16 @@ describe("SchemaForm choice widgets (shadcn Select / RadioGroup / Checkbox)", ()
     await user.click(within(fieldset).getByRole("checkbox", { name: "Admin" }))
     await waitFor(() => expect(last().roles).toEqual(["viewer"]))
   })
+
+  it("checkboxes: the group carries the help text, not every box", () => {
+    renderChoices(
+      z.object({ roles: z.array(z.enum(["admin", "editor"])) }),
+      { roles: [] },
+      { fields: { roles: { label: "Roles", help: "Pick at least one." } } }
+    )
+    const fieldset = screen.getByRole("group", { name: "Roles" })
+    expect(fieldset).toHaveAccessibleDescription("Pick at least one.")
+    for (const box of within(fieldset).getAllByRole("checkbox"))
+      expect(box).not.toHaveAttribute("aria-describedby")
+  })
 })

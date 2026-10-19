@@ -349,6 +349,8 @@ describe("leads inbox (master 7.4)", () => {
     expect(select).toBeEnabled()
     expect(select).toHaveFocus()
     expect(card).toHaveAttribute("aria-busy", "true")
+    // The busy card shows a progress cursor over its selects.
+    expect(select).toHaveClass("in-aria-busy:cursor-progress")
     // Scoped: the second PATCH waits for the first.
     expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1)
     release()
