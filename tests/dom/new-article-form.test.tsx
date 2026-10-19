@@ -14,6 +14,8 @@ import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { Role } from "@/lib/auth/roles"
 
+import { pickOption } from "./select-helper"
+
 const CATEGORY = "0190f0e0-0000-7000-8000-0000000000c1"
 const IMAGE = {
   id: "0190f0e0-0000-7000-8000-0000000000e1",
@@ -116,8 +118,14 @@ describe("new article (master 5.3)", () => {
     expect(await screen.findByText("Choose a category")).toBeInTheDocument()
     expect(posted).toEqual([])
 
-    await user.selectOptions(screen.getByLabelText("Category"), CATEGORY)
-    expect(screen.getByLabelText("Byline")).toHaveValue("u1")
+    await pickOption(
+      user,
+      screen.getByRole("combobox", { name: "Category" }),
+      "Mobile Patrols"
+    )
+    expect(screen.getByRole("combobox", { name: "Byline" })).toHaveTextContent(
+      "Edith Editor"
+    )
     await user.click(screen.getByRole("button", { name: "Create draft" }))
     await waitFor(() => expect(posted).toHaveLength(1))
     expect(posted[0]).toEqual({
@@ -228,12 +236,10 @@ async function fillBasics(user: ReturnType<typeof userEvent.setup>) {
   await user.click(
     within(picker).getByRole("button", { name: "Use this image" })
   )
-  await waitFor(() =>
-    expect(
-      within(screen.getByLabelText("Category")).getByRole("option", {
-        name: "Mobile Patrols",
-      })
-    ).toBeInTheDocument()
+  // The categories load before the pick (shadcn Select, MK parity A6).
+  await pickOption(
+    user,
+    screen.getByRole("combobox", { name: "Category" }),
+    "Mobile Patrols"
   )
-  await user.selectOptions(screen.getByLabelText("Category"), CATEGORY)
 }

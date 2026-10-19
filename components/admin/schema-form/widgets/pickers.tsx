@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 import type { OptionCollection, OptionItem } from "@/lib/schemas/api/search"
 
 import { fieldId, useSchemaForm, type WidgetProps } from "../context"
-import { NativeSelect } from "./basic"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
   deepErrorText,
   describedBy,
@@ -275,26 +275,26 @@ export function CollectionWidget({ field, path }: WidgetProps) {
       error={error}
       optional={field.optional || field.nullable}
     >
-      <NativeSelect
+      <OptionSelect
         id={id}
         value={value}
+        options={[
+          { value: "", label: options.isPending ? "Loading…" : "— None —" },
+          // A stored slug the list no longer has stays visible (and chosen).
+          ...(value &&
+          !options.isPending &&
+          !items.some((i) => i.value === value)
+            ? [{ value, label: value }]
+            : []),
+          ...items,
+        ]}
         disabled={disabled || options.isPending}
-        invalid={!!error}
-        describedBy={describedBy(id, { help, error })}
-        selectRef={f.ref}
+        aria-invalid={!!error}
+        aria-describedby={describedBy(id, { help, error })}
+        triggerRef={f.ref}
         onChange={(next) => f.onChange(next === "" ? null : next)}
         onBlur={f.onBlur}
-      >
-        <option value="">{options.isPending ? "Loading…" : "— None —"}</option>
-        {value && !items.some((i) => i.value === value) ? (
-          <option value={value}>{value}</option>
-        ) : null}
-        {items.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </NativeSelect>
+      />
     </FieldShell>
   )
 }

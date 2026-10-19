@@ -230,7 +230,9 @@ describe("IntegrationForm (master 7.1)", () => {
   it("never set up: defaults, no secret saved, no test or disconnect", async () => {
     respond = () => json(notSetUp)
     renderForm(["owner"], "integrations.r2")
-    expect(await screen.findByLabelText("Location")).toHaveValue("default")
+    expect(
+      await screen.findByRole("combobox", { name: "Location" })
+    ).toHaveTextContent("Default")
     expect(screen.getByText("Not set up")).toBeVisible()
     expect(screen.getAllByText("Not saved yet")).toHaveLength(2)
     expect(screen.queryByRole("button", { name: "Test connection" })).toBeNull()

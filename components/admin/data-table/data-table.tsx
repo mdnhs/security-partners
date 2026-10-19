@@ -19,10 +19,21 @@ import { DataTablePagination } from "@/components/admin/data-table/data-table-pa
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { NowProvider } from "@/components/admin/kit/relative-time"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
+import { FILTER_SELECT_TRIGGER } from "@/components/admin/filter-field"
+import { OptionSelect } from "@/components/admin/option-select"
 import { FORM_ACTION } from "@/components/admin/page-header"
 import { useInSectionTabs } from "@/components/admin/section-tabs/section-tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { errorMessage } from "@/lib/api-client"
 import type { Paginated } from "@/lib/schemas/api/list"
@@ -273,7 +284,7 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
 
   const sortId = useId()
   // Phones get a select instead of sortable headers (cards have no headers).
-  const sortOptions = table.getAllLeafColumns().flatMap((column) => {
+  const columnSorts = table.getAllLeafColumns().flatMap((column) => {
     if (!column.getCanSort()) return []
     const name =
       typeof column.columnDef.header === "string"
@@ -284,6 +295,9 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
       { value: `${column.id}:desc`, label: `${name} (descending)` },
     ]
   })
+  const sortOptions = columnSorts.length
+    ? [{ value: "", label: "Default order" }, ...columnSorts]
+    : []
 
   const total = query.data?.total ?? 0
   // On a section tab's white card a second white card would vanish: outline it.
@@ -317,23 +331,17 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
             <label htmlFor={sortId} className="text-muted-foreground">
               Sort by
             </label>
-            <select
+            <OptionSelect
               id={sortId}
               value={sort ?? ""}
-              onChange={(event) => {
-                const [id, dir] = event.target.value.split(":")
+              options={sortOptions}
+              onChange={(value) => {
+                const [id, dir] = value.split(":")
                 setSorting(id ? [{ id, desc: dir === "desc" }] : [])
                 setPagination((p) => ({ ...p, pageIndex: 0 }))
               }}
-              className="h-10 min-w-0 flex-1 rounded-xl border border-input bg-card px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-11"
-            >
-              <option value="">Default order</option>
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              className={cn(FILTER_SELECT_TRIGGER, "min-w-0 flex-1")}
+            />
           </div>
         ) : null}
         {toolbar}
@@ -399,16 +407,16 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
                 onCard && "border"
               )}
             >
-              <table className="w-full text-sm">
-                <caption className="sr-only">{label}</caption>
-                <thead className="border-b text-left text-muted-foreground">
+              <Table>
+                <TableCaption className="sr-only">{label}</TableCaption>
+                <TableHeader className="text-left">
                   {table.getHeaderGroups().map((group) => (
-                    <tr key={group.id}>
+                    <TableRow key={group.id} className="hover:bg-transparent">
                       {group.headers.map((header) => {
                         const sortable = header.column.getCanSort()
                         const dir = header.column.getIsSorted()
                         return (
-                          <th
+                          <TableHead
                             key={header.id}
                             scope="col"
                             aria-sort={
@@ -420,7 +428,7 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
                                     ? "none"
                                     : undefined
                             }
-                            className="h-12 px-4 font-medium"
+                            className="text-muted-foreground"
                           >
                             {header.isPlaceholder ? null : sortable ? (
                               <button
@@ -443,24 +451,25 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
                             ) : (
                               <table.FlexRender header={header} />
                             )}
-                          </th>
+                          </TableHead>
                         )
                       })}
-                    </tr>
+                    </TableRow>
                   ))}
-                </thead>
-                <tbody className="divide-y">
+                </TableHeader>
+                <TableBody>
                   {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="hover:bg-muted/40">
+                    <TableRow key={row.id} className="hover:bg-muted/40">
                       {row.getAllCells().map((cell) => (
-                        <td key={cell.id} className="px-4 py-3 align-middle">
+                        // Cells wrap (titles, excerpts) as before the primitive.
+                        <TableCell key={cell.id} className="whitespace-normal">
                           <table.FlexRender cell={cell} />
-                        </td>
+                        </TableCell>
                       ))}
-                    </tr>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
             <ul aria-label={label} className="flex flex-col gap-3 sm:hidden">
               {rows.map((row) => (

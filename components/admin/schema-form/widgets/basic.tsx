@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  ChevronDown,
   Clock,
   Globe,
   type LucideIcon,
@@ -285,95 +284,6 @@ export function ToggleWidget({ field, path }: WidgetProps) {
         aria-describedby={describedBy(id, { help, error })}
         onCheckedChange={(checked) => onChange(checked)}
         onBlur={onBlur}
-      />
-    </div>
-  )
-}
-
-export function SelectWidget({ field, path }: WidgetProps) {
-  const { idPrefix, disabled } = useSchemaForm()
-  const {
-    field: { value, onChange, onBlur, ref },
-    fieldState,
-  } = useController({ name: path })
-  const id = fieldId(idPrefix, path)
-  const error = errorText(fieldState.error)
-  const help = field.meta.help
-  const values = (field.schema as z.ZodEnum).options as string[]
-  const labelOf = (value: string) =>
-    field.meta.options?.find((o) => o.value === value)?.label ?? value
-  return (
-    <FieldShell
-      id={id}
-      label={field.label}
-      help={help}
-      error={error}
-      optional={field.optional || field.nullable}
-    >
-      <NativeSelect
-        id={id}
-        value={(value as string | null | undefined) ?? ""}
-        disabled={disabled}
-        invalid={!!error}
-        describedBy={describedBy(id, { help, error })}
-        selectRef={ref}
-        onChange={(value) => onChange(value === "" ? null : value)}
-        onBlur={onBlur}
-      >
-        {field.optional || field.nullable ? (
-          <option value="">— None —</option>
-        ) : null}
-        {values.map((value) => (
-          <option key={value} value={value}>
-            {labelOf(value)}
-          </option>
-        ))}
-      </NativeSelect>
-    </FieldShell>
-  )
-}
-
-/** Styled native <select>: accessible and keyboard-friendly everywhere. */
-export function NativeSelect({
-  id,
-  value,
-  onChange,
-  onBlur,
-  disabled,
-  invalid,
-  describedBy: ariaDescribedBy,
-  selectRef,
-  children,
-}: {
-  id: string
-  value: string
-  onChange: (value: string) => void
-  onBlur?: () => void
-  disabled?: boolean
-  invalid?: boolean
-  describedBy?: string
-  /** react-hook-form field ref (focus on error). */
-  selectRef?: React.Ref<HTMLSelectElement>
-  children: React.ReactNode
-}) {
-  return (
-    <div className="relative">
-      <select
-        id={id}
-        ref={selectRef}
-        value={value}
-        disabled={disabled}
-        aria-invalid={invalid || undefined}
-        aria-describedby={ariaDescribedBy}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-        className="h-10 w-full appearance-none rounded-lg border border-input bg-background py-0 pr-9 pl-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30"
-      >
-        {children}
-      </select>
-      <ChevronDown
-        aria-hidden
-        className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
       />
     </div>
   )

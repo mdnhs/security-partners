@@ -13,6 +13,10 @@ export const WIDGET_KINDS = [
   "list",
   "group",
   "collection",
+  /** enum with ≤ 4 options as a radio group (more: falls back to select). */
+  "radio",
+  /** array of an enum (e.g. roles) as a checkbox group; chosen by default. */
+  "checkboxes",
 ] as const
 export type WidgetKind = (typeof WIDGET_KINDS)[number]
 
@@ -32,7 +36,7 @@ export type FieldMeta = {
   rows?: number
   /** Counter maximum shown under a textarea (default: the schema's max). */
   maxLength?: number
-  /** select: labels for enum values. */
+  /** select / radio / checkboxes: labels for enum values. */
   options?: { value: string; label: string }[]
   /** collection: where the choices come from. */
   collection?: OptionCollection

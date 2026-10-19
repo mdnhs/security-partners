@@ -4,6 +4,15 @@ import { useId } from "react"
 import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts"
 
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { cn } from "@/lib/utils"
 
@@ -120,23 +129,25 @@ export function Gauge({
           <p className="text-sm text-muted-foreground">{centerLabel}</p>
         </div>
       </div>
-      <table className="sr-only">
-        <caption>{title}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Part</th>
-            <th scope="col">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {summary.parts.map((part) => (
-            <tr key={part.key}>
-              <th scope="row">{part.label}</th>
-              <td>{part.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="sr-only">
+        <Table>
+          <TableCaption>{title}</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">Part</TableHead>
+              <TableHead scope="col">Count</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {summary.parts.map((part) => (
+              <TableRow key={part.key}>
+                <TableHead scope="row">{part.label}</TableHead>
+                <TableCell>{part.value}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       <figcaption>
         <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-medium">
           {summary.parts.map((part) => (

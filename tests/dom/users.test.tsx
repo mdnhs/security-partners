@@ -19,6 +19,8 @@ import { UserDetail } from "@/components/admin/users/user-detail"
 import { UsersScreen } from "@/components/admin/users/users-screen"
 import type { Role } from "@/lib/auth/roles"
 
+import { pickOption } from "./select-helper"
+
 const ME = "0190f0e0-0000-7000-8000-000000000000"
 const OWNER = "0190f0e0-0000-7000-8000-000000000001"
 const EDITOR = "0190f0e0-0000-7000-8000-000000000002"
@@ -200,12 +202,12 @@ describe("users list (spec §8.1 Users)", () => {
       "olive@example.test"
     )
 
-    await user.selectOptions(screen.getByLabelText("Role"), "editor")
+    await pickOption(user, screen.getByLabelText("Role"), "Editor")
     await waitFor(() =>
       expect(lastListUrl().searchParams.get("role")).toBe("editor")
     )
     expect(lastListUrl().searchParams.get("page")).toBe("1")
-    await user.selectOptions(screen.getByLabelText("Status"), "invited")
+    await pickOption(user, screen.getByLabelText("Status"), "Invited")
     await waitFor(() =>
       expect(lastListUrl().searchParams.get("status")).toBe("invited")
     )
@@ -225,7 +227,7 @@ describe("users list (spec §8.1 Users)", () => {
     const user = userEvent.setup()
     renderAs(["admin"], <UsersScreen />)
     expect(await screen.findByText("No users yet")).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText("Status"), "banned")
+    await pickOption(user, screen.getByLabelText("Status"), "Banned")
     expect(
       await screen.findByText("Nobody matches these filters")
     ).toBeInTheDocument()
@@ -375,7 +377,7 @@ describe("user detail", () => {
       await screen.findByRole("textbox", { name: /Reason/ }),
       "Left the company"
     )
-    await user.selectOptions(screen.getByLabelText("Duration"), "7")
+    await pickOption(user, screen.getByLabelText("Duration"), "7 days")
     await user.click(screen.getByRole("button", { name: "Ban user" }))
     const confirm = await screen.findByRole("alertdialog", {
       name: "Ban Edith Editor?",
@@ -564,8 +566,8 @@ describe("user detail", () => {
     const user = userEvent.setup()
     window.history.replaceState(null, "", "/admin/users")
     renderAs(["owner"], <UsersScreen />)
-    await user.selectOptions(await screen.findByLabelText("Role"), "editor")
-    await user.selectOptions(screen.getByLabelText("Status"), "invited")
+    await pickOption(user, await screen.findByLabelText("Role"), "Editor")
+    await pickOption(user, screen.getByLabelText("Status"), "Invited")
     expect(window.location.search).toBe("?role=editor&status=invited")
   })
 

@@ -77,6 +77,16 @@ export function arrayBounds(schema: z.ZodType): { min: number; max: number } {
   return { min, max }
 }
 
+/** meta.widget "radio" with more options than this renders a select. */
+export const MAX_RADIOS = 4
+
+/** The values of an enum schema (wrappers unwrapped), else null. */
+export function enumValues(schema: z.ZodType): string[] | null {
+  const { inner } = unwrapSchema(schema)
+  if (defOf(inner).type !== "enum") return null
+  return (inner as z.ZodEnum).options as string[]
+}
+
 /** Long copy gets a textarea unless meta says otherwise. */
 const LONG_TEXT = new Set([
   "description",
@@ -100,6 +110,7 @@ const HALF_KINDS = new Set<WidgetKind>([
   "text",
   "number",
   "select",
+  "radio",
   "toggle",
   "collection",
 ])
@@ -180,6 +191,11 @@ export function resolveWidget(
     defOf(inner).type === "string"
       ? ((inner as unknown as { format?: string | null }).format ?? null)
       : null
+  // A radio group only reads well with a few options (spec: ≤ 4).
+  if (meta.widget === "radio")
+    return of(
+      (enumValues(inner)?.length ?? 0) <= MAX_RADIOS ? "radio" : "select"
+    )
   if (meta.widget) return of(meta.widget, { format })
   if (inner === mediaRef) return of("media")
   if (inner === richText) return of("richText")
@@ -189,8 +205,10 @@ export function resolveWidget(
   switch (defOf(inner).type) {
     case "object":
       return of("group")
-    case "array":
-      return of("list")
+    case "array": {
+      const element = (defOf(inner) as Def & { element?: z.ZodType }).element
+      return of(element && enumValues(element) ? "checkboxes" : "list")
+    }
     case "boolean":
       return of("toggle")
     case "number":

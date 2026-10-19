@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 
 import { Button, buttonClassName } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { safeNext } from "@/lib/auth/redirect"
@@ -84,12 +85,8 @@ export function TwoFactorForm() {
                 : "Enter one of the backup codes you saved when you turned on two-factor authentication. Each code works once."}
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="trustDevice"
-              className="size-4 accent-primary"
-            />
+          <label className="flex min-h-8 items-center gap-2 text-sm pointer-coarse:min-h-11">
+            <Checkbox name="trustDevice" />
             Trust this device for 30 days
           </label>
           <Button type="submit" size="lg" disabled={pending}>

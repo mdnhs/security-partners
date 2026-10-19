@@ -176,38 +176,38 @@ export function LeadsScreen() {
               onChange={(value) =>
                 changeFilters({ status: value as LeadInboxFilters["status"] })
               }
-            >
-              <option value="">Inbox (all but spam)</option>
-              <option value="open">Open</option>
-              {LEAD_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {LEAD_STATUS_LABELS[s]}
-                </option>
-              ))}
-              <option value="all">Everything</option>
-            </FilterSelect>
+              options={[
+                { value: "", label: "Inbox (all but spam)" },
+                { value: "open", label: "Open" },
+                ...LEAD_STATUSES.map((s) => ({
+                  value: s,
+                  label: LEAD_STATUS_LABELS[s],
+                })),
+                { value: "all", label: "Everything" },
+              ]}
+            />
             <FilterSelect
               id="leads-assignee"
               label="Assignee"
               value={filters.assignee}
               onChange={(value) => changeFilters({ assignee: value })}
-            >
-              <option value="">Anyone</option>
-              <option value="me">Me</option>
-              <option value="none">Unassigned</option>
-              {/* A filtered-for user who can no longer take leads (link from an email). */}
-              {filters.assignee &&
-              filters.assignee !== "me" &&
-              filters.assignee !== "none" &&
-              !(assignees.data ?? []).some((u) => u.id === filters.assignee) ? (
-                <option value={filters.assignee}>Someone else</option>
-              ) : null}
-              {(assignees.data ?? []).map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </FilterSelect>
+              options={[
+                { value: "", label: "Anyone" },
+                { value: "me", label: "Me" },
+                { value: "none", label: "Unassigned" },
+                // A filtered-for user who can no longer take leads (link from an email).
+                ...(filters.assignee &&
+                filters.assignee !== "me" &&
+                filters.assignee !== "none" &&
+                !(assignees.data ?? []).some((u) => u.id === filters.assignee)
+                  ? [{ value: filters.assignee, label: "Someone else" }]
+                  : []),
+                ...(assignees.data ?? []).map((u) => ({
+                  value: u.id,
+                  label: u.name,
+                })),
+              ]}
+            />
           </>
         }
         fetchPage={async (p) => {

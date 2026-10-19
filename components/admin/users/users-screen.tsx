@@ -113,27 +113,24 @@ export function UsersScreen() {
               label="Role"
               value={role}
               onChange={(value) => setParams({ role: value })}
-            >
-              <option value="">All roles</option>
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_INFO[r].label}
-                </option>
-              ))}
-            </FilterSelect>
+              options={[
+                { value: "", label: "All roles" },
+                ...ROLES.map((r) => ({ value: r, label: ROLE_INFO[r].label })),
+              ]}
+            />
             <FilterSelect
               id="users-status"
               label="Status"
               value={status}
               onChange={(value) => setParams({ status: value })}
-            >
-              <option value="">All statuses</option>
-              {USER_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_INFO[s].label}
-                </option>
-              ))}
-            </FilterSelect>
+              options={[
+                { value: "", label: "All statuses" },
+                ...USER_STATUSES.map((s) => ({
+                  value: s,
+                  label: STATUS_INFO[s].label,
+                })),
+              ]}
+            />
           </>
         }
         fetchPage={async (params) =>

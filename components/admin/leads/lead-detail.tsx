@@ -9,15 +9,12 @@ import { toast } from "sonner"
 
 import { useAssistantScreen } from "@/components/admin/ai/assistant-context"
 import { leadAssistantScreen } from "@/components/admin/ai/screens"
-import {
-  ADMIN_CONTROL,
-  ADMIN_TEXTAREA,
-  FormCard,
-} from "@/components/admin/form/form-ui"
+import { ADMIN_TEXTAREA, FormCard } from "@/components/admin/form/form-ui"
 import { useListHref } from "@/components/admin/data-table/list-url"
 import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
   FORM_ACTION,
   LINK_FORM,
@@ -59,10 +56,7 @@ import { cn } from "@/lib/utils"
 import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
 
-const SELECT = cn(
-  ADMIN_CONTROL,
-  "w-full border border-input outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 aria-busy:cursor-progress pointer-coarse:h-11"
-)
+const SELECT = "disabled:opacity-60"
 
 const leadKey = (id: string) => ["leads", "detail", id] as const
 
@@ -399,44 +393,36 @@ export function LeadDetail({ id }: { id: string }) {
               aria-busy={update.isPending || undefined}
             >
               <FieldShell id={statusId} label="Lead status">
-                <select
+                <OptionSelect
                   id={statusId}
                   className={SELECT}
                   value={data.status}
                   disabled={!canUpdate}
-                  onChange={(event) =>
-                    change({ status: event.target.value as LeadStatus })
-                  }
-                >
-                  {LEAD_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {LEAD_STATUS_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => change({ status: value as LeadStatus })}
+                  options={LEAD_STATUSES.map((s) => ({
+                    value: s,
+                    label: LEAD_STATUS_LABELS[s],
+                  }))}
+                />
               </FieldShell>
               <FieldShell id={assigneeId} label="Assigned to">
-                <select
+                <OptionSelect
                   id={assigneeId}
                   className={SELECT}
                   value={data.assignee?.id ?? ""}
                   disabled={!canUpdate}
-                  onChange={(event) =>
-                    change({ assigneeId: event.target.value || null })
-                  }
-                >
-                  <option value="">Unassigned</option>
-                  {data.assignee && !knownAssignee ? (
-                    <option value={data.assignee.id}>
-                      {data.assignee.name}
-                    </option>
-                  ) : null}
-                  {(assignees.data ?? []).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => change({ assigneeId: value || null })}
+                  options={[
+                    { value: "", label: "Unassigned" },
+                    ...(data.assignee && !knownAssignee
+                      ? [{ value: data.assignee.id, label: data.assignee.name }]
+                      : []),
+                    ...(assignees.data ?? []).map((u) => ({
+                      value: u.id,
+                      label: u.name,
+                    })),
+                  ]}
+                />
               </FieldShell>
             </FormCard>
           </div>

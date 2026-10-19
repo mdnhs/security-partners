@@ -10,7 +10,7 @@ import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
 import { PageHeader, PRIMARY_ACTION } from "@/components/admin/page-header"
 import { emptyValue } from "@/components/admin/schema-form/empty-value"
 import { SchemaForm } from "@/components/admin/schema-form/schema-form"
-import { NativeSelect } from "@/components/admin/schema-form/widgets/basic"
+import { OptionSelect } from "@/components/admin/option-select"
 import {
   describedBy,
   FieldShell,
@@ -159,25 +159,24 @@ export function NewArticleForm() {
             label="Category"
             error={categoryError}
           >
-            <NativeSelect
+            <OptionSelect
               id="new-article-category"
               value={categoryId}
-              invalid={!!categoryError}
-              describedBy={describedBy("new-article-category", {
+              options={(options.data?.categories ?? []).map((c) => ({
+                value: c.id,
+                label: c.name,
+              }))}
+              placeholder="Choose…"
+              aria-required
+              aria-invalid={!!categoryError}
+              aria-describedby={describedBy("new-article-category", {
                 error: categoryError,
               })}
               onChange={(value) => {
                 setCategoryId(value)
                 setErrors((e) => (e ? { ...e, categoryId: [] } : e))
               }}
-            >
-              <option value="">Choose…</option>
-              {(options.data?.categories ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </NativeSelect>
+            />
           </FieldShell>
           {authors.length > 0 ? (
             <FieldShell
@@ -185,21 +184,18 @@ export function NewArticleForm() {
               label="Byline"
               help={BYLINE_HELP}
             >
-              <NativeSelect
+              <OptionSelect
                 id="new-article-author"
                 value={authorId}
-                describedBy={describedBy("new-article-author", {
+                options={[
+                  { value: "", label: "No byline" },
+                  ...authors.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                aria-describedby={describedBy("new-article-author", {
                   help: BYLINE_HELP,
                 })}
                 onChange={setAuthorId}
-              >
-                <option value="">No byline</option>
-                {authors.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </NativeSelect>
+              />
             </FieldShell>
           ) : null}
         </div>

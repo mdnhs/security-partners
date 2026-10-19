@@ -22,6 +22,8 @@ import type {
   ArticleOptions,
 } from "@/lib/schemas/api/articles"
 
+import { optionLabels, pickOption } from "./select-helper"
+
 const item = (
   over: Partial<ArticleListItem> & Pick<ArticleListItem, "id" | "title">
 ): ArticleListItem => ({
@@ -145,30 +147,29 @@ describe("articles list (master 5.3)", () => {
     await waitFor(() =>
       expect(listCalls.at(-1)?.searchParams.get("page")).toBe("2")
     )
-    await waitFor(() =>
-      expect(
-        within(screen.getByLabelText("Category")).getByRole("option", {
-          name: "Company News",
-        })
-      ).toBeInTheDocument()
-    )
-    await user.selectOptions(screen.getByLabelText("Category"), "c2")
+    const category = screen.getByRole("combobox", { name: "Category" })
+    // The trigger shows the label once the options have loaded.
+    await waitFor(() => expect(category).toHaveTextContent("All categories"))
+    await pickOption(user, category, "Company News")
+    expect(category).toHaveTextContent("Company News")
     await waitFor(() =>
       expect(listCalls.at(-1)?.searchParams.get("category")).toBe("c2")
     )
     expect(listCalls.at(-1)?.searchParams.get("page")).toBe("1")
-    expect(
-      within(screen.getByLabelText("Byline"))
-        .getAllByRole("option")
-        .map((o) => o.textContent)
-    ).toEqual(["Anyone", "Me", "Edith Editor"])
-    await user.selectOptions(screen.getByLabelText("Byline"), "me")
+    const byline = screen.getByRole("combobox", { name: "Byline" })
+    expect(await optionLabels(user, byline)).toEqual([
+      "Anyone",
+      "Me",
+      "Edith Editor",
+    ])
+    await pickOption(user, byline, "Me")
     await waitFor(() =>
       expect(listCalls.at(-1)?.searchParams.get("author")).toBe("me")
     )
   })
 
   it("authors get New article and their own filter; viewers only read", async () => {
+    const user = userEvent.setup()
     options = { ...options, authors: [] }
     const { unmount } = renderScreen(["author"])
     await screen.findByRole("table", { name: "Articles" })
@@ -181,9 +182,7 @@ describe("articles list (master 5.3)", () => {
       screen.getByRole("button", { name: "In review" })
     ).toBeInTheDocument()
     expect(
-      within(screen.getByLabelText("Byline"))
-        .getAllByRole("option")
-        .map((o) => o.textContent)
+      await optionLabels(user, screen.getByRole("combobox", { name: "Byline" }))
     ).toEqual(["Anyone", "Me"])
     unmount()
     renderScreen(["viewer"])
