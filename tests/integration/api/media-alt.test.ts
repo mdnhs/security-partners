@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm"
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
@@ -38,7 +38,10 @@ const row = async (values: Partial<typeof media.$inferInsert>) =>
       .returning()
   )[0]
 
-beforeAll(async () => {
+let authorId: string
+
+// Fresh rows and users per test: no test depends on another's changes (review M5).
+beforeEach(async () => {
   await resetDb()
   noAltImage = await row({ originalName: "no-alt.png" })
   describedImage = await row({ alt: "Patrol car", originalName: "car.png" })
@@ -48,7 +51,9 @@ beforeAll(async () => {
   })
   pdf = await row({ mime: "application/pdf", originalName: "prices.pdf" })
   editor = (await signedInUser(["editor"])).cookie
-  author = (await signedInUser(["author"])).cookie
+  const signedInAuthor = await signedInUser(["author"])
+  author = signedInAuthor.cookie
+  authorId = signedInAuthor.user.id
 })
 
 async function list(qs: string) {
@@ -145,12 +150,48 @@ describe("media alt text: decorative flag, caption, missing-alt filter", () => {
     expect(res.status).toBe(403)
   })
 
+  it("an uploader describes their own file", async () => {
+    const own = await row({ originalName: "mine.png", createdBy: authorId })
+    const res = await adminRequest(`/media/${own.id}`, {
+      cookie: author,
+      method: "PATCH",
+      json: { isDecorative: true, caption: "Night\nshift" },
+    })
+    expect(res.status).toBe(200)
+    // Line breaks become a space, so words never merge (review M1).
+    expect(await res.json()).toMatchObject({
+      id: own.id,
+      isDecorative: true,
+      caption: "Night shift",
+    })
+  })
+
+  it("the audit diff lists only fields that changed (review M3)", async () => {
+    const res = await adminRequest(`/media/${describedImage.id}`, {
+      cookie: editor,
+      method: "PATCH",
+      // What the form sends: every field, only the alt text changed.
+      json: {
+        alt: "Patrol car at night",
+        isDecorative: false,
+        caption: "",
+        focal: null,
+      },
+    })
+    expect(res.status).toBe(200)
+    const [audit] = await getDb()
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.entityId, describedImage.id))
+    expect(audit.diff).toHaveProperty("alt", {
+      from: "Patrol car",
+      to: "Patrol car at night",
+    })
+    expect(audit.diff).not.toHaveProperty("isDecorative")
+    expect(audit.diff).not.toHaveProperty("caption")
+  })
+
   it("altSummary counts", async () => {
-    // Reset the round-trip test's changes: described = alt, not decorative.
-    await getDb()
-      .update(media)
-      .set({ isDecorative: false })
-      .where(eq(media.id, describedImage.id))
     expect(await altSummary(getDb())).toEqual({
       images: 3,
       described: 1,

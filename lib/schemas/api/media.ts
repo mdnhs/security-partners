@@ -50,8 +50,12 @@ export type MediaItem = {
 export const MEDIA_ALT_MAX = 500
 export const MEDIA_CAPTION_MAX = 300
 
-/** Alt text as stored: hidden characters (lib/hidden-chars) removed, trimmed. */
-export const cleanAltText = (value: string) => stripHiddenChars(value).trim()
+/**
+ * Alt text / caption as stored: line breaks and tabs become one space (so
+ * words never merge), hidden characters (lib/hidden-chars) removed, trimmed.
+ */
+export const cleanAltText = (value: string) =>
+  stripHiddenChars(value.replace(/[^\S\r\n\t]*[\r\n\t]+\s*/g, " ")).trim()
 
 /** PATCH /media/:id. caption: cleaned like alt text. focal: point to keep in view when cropped (0..1 from the left/top); null resets. */
 export const mediaUpdateInput = z

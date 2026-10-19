@@ -8,7 +8,12 @@ import { api, unwrap } from "@/lib/api-client"
 export function useMediaItem(mediaId: string | null | undefined) {
   return useQuery({
     queryKey: ["media", "item", mediaId],
-    queryFn: () => unwrap(api.media[":id"].$get({ param: { id: mediaId! } })),
+    // The Hono client does not encode path params: encode, so an id can
+    // never reach another API path (review I1).
+    queryFn: () =>
+      unwrap(
+        api.media[":id"].$get({ param: { id: encodeURIComponent(mediaId!) } })
+      ),
     enabled: !!mediaId,
     staleTime: 5 * 60_000,
   })

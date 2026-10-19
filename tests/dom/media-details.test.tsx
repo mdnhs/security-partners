@@ -78,14 +78,26 @@ beforeEach(() => {
           ...(calls.at(-1)!.body as object),
           updatedAt: "2026-10-16T11:00:00.000Z",
         })
-      if (id) return json(library.find((i) => i.id === id))
-      const missingAlt =
-        new URL(url, "http://x").searchParams.get("missingAlt") === "true"
-      const items = missingAlt
-        ? library.filter(
-            (i) => i.mime.startsWith("image/") && !i.alt && !i.isDecorative
-          )
-        : library
+      if (id) {
+        const found = library.find((i) => i.id === id)
+        return found
+          ? json(found)
+          : json(
+              { error: { code: "NOT_FOUND", message: "Media not found." } },
+              404
+            )
+      }
+      const params = new URL(url, "http://x").searchParams
+      const kind = params.get("kind")
+      const items = library
+        .filter(
+          (i) => !kind || i.mime.startsWith("image/") === (kind === "image")
+        )
+        .filter(
+          (i) =>
+            params.get("missingAlt") !== "true" ||
+            (i.mime.startsWith("image/") && !i.alt && !i.isDecorative)
+        )
       return json({ items, page: 1, pageSize: 24, total: items.length })
     })
   )
@@ -211,5 +223,71 @@ describe("Media details: decorative flag, caption, missing alt text (D1.1)", () 
       screen.getByRole("button", { name: "Missing alt text" })
     ).toHaveAttribute("aria-pressed", "true")
     expect(calls[0].url).toContain("missingAlt=true")
+  })
+  it("?open must be a file id: a path is ignored, never fetched and dropped from the URL (review I1)", async () => {
+    for (const payload of [
+      "../../admin/users",
+      "..%2F..%2Fusers%2Fx",
+      "x?role=admin",
+    ]) {
+      calls = []
+      window.history.replaceState(
+        null,
+        "",
+        `/?open=${encodeURIComponent(payload)}`
+      )
+      const { unmount } = renderLibrary()
+      await screen.findByRole("button", { name: /photo-1\.png/ })
+      expect(screen.queryByRole("dialog")).toBeNull()
+      // Only the list request; nothing outside /media?… was asked for.
+      expect(calls.length).toBeGreaterThan(0)
+      for (const c of calls) {
+        expect(c.url).toMatch(/\/api\/v1\/admin\/media\?/)
+        expect(c.url).not.toContain("..")
+        expect(c.url).not.toContain("users")
+      }
+      await waitFor(() =>
+        expect(new URLSearchParams(window.location.search).has("open")).toBe(
+          false
+        )
+      )
+      unmount()
+    }
+  })
+
+  it("?open=<unknown id> shows File not found", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?open=0190a6e0-0000-7000-8000-0000000000ff"
+    )
+    renderLibrary()
+    expect(
+      await screen.findByRole("dialog", { name: "File not found" })
+    ).toBeVisible()
+  })
+
+  it("closing a sheet opened from ?open= puts focus on the search, not <body> (review M2)", async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, "", `/?open=${item(2).id}`)
+    renderLibrary()
+    await screen.findByRole("dialog", { name: "photo-2.png" })
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() =>
+      expect(
+        screen.getByRole("searchbox", { name: "Search media" })
+      ).toHaveFocus()
+    )
+  })
+
+  it("documents + Missing alt text explains the empty list (review M4)", async () => {
+    window.history.replaceState(null, "", "/?kind=document&missingAlt=true")
+    renderLibrary()
+    expect(
+      await screen.findByText(
+        "Documents don't need alt text. Turn off Missing alt text to see them."
+      )
+    ).toBeVisible()
   })
 })

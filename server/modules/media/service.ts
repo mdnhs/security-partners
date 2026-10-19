@@ -458,11 +458,12 @@ export async function updateMedia(
       action: "media.updated",
       entityType: "media",
       entityId: id,
+      // Only fields that changed (review M3): the form always sends them all.
       diff: {
-        ...(input.alt !== undefined
+        ...(existing.alt !== updated.alt
           ? { alt: { from: existing.alt, to: updated.alt } }
           : {}),
-        ...(input.isDecorative !== undefined
+        ...(existing.isDecorative !== updated.isDecorative
           ? {
               isDecorative: {
                 from: existing.isDecorative,
@@ -470,7 +471,7 @@ export async function updateMedia(
               },
             }
           : {}),
-        ...(input.caption !== undefined
+        ...(existing.caption !== updated.caption
           ? { caption: { from: existing.caption, to: updated.caption } }
           : {}),
         ...(input.focal !== undefined

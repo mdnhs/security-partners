@@ -72,8 +72,8 @@ const focalOf = (item: MediaItem): Point | null =>
 
 /**
  * Right-hand sheet with one file's details (spec §8.1: alt text, decorative
- * flag, caption, focal point, usages, replace, delete). After a delete the file's card is gone,
- * so focus goes to `afterDelete` instead of the opener.
+ * flag, caption, focal point, usages, replace, delete). After a delete, or
+ * when the opener is gone or there was none, focus goes to `afterDelete`.
  */
 export function MediaDetails({
   id,
@@ -91,6 +91,22 @@ export function MediaDetails({
   if (item.data && item.data !== last) setLast(item.data)
   const shown = item.data ?? (id === null ? last : null)
   const deleted = useRef(false)
+  // The element focused when the sheet opened (captured before focus moves
+  // in). Gone (filtered out after a save) or none (opened from `?open=`):
+  // focus goes to `afterDelete` instead of <body> (WCAG 2.4.3).
+  const [openedId, setOpenedId] = useState<string | null>(null)
+  const [opener, setOpener] = useState<HTMLElement | null>(null)
+  if (openedId !== id) {
+    setOpenedId(id)
+    if (id !== null && openedId === null)
+      setOpener(
+        typeof document !== "undefined" &&
+          document.activeElement instanceof HTMLElement &&
+          document.activeElement !== document.body
+          ? document.activeElement
+          : null
+      )
+  }
   // Unsaved details (reported by the body): closing asks.
   const [dirty, setDirty] = useState(false)
   const close = useGuardedClose({
@@ -108,7 +124,8 @@ export function MediaDetails({
         finalFocus={() => {
           const wasDeleted = deleted.current
           deleted.current = false
-          return wasDeleted ? (afterDelete?.current ?? true) : true
+          if (!wasDeleted && opener?.isConnected) return opener
+          return afterDelete?.current ?? true
         }}
       >
         {/* Inside the popup: Esc closes only the confirm. */}

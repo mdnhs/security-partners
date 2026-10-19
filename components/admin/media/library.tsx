@@ -93,6 +93,12 @@ function Thumb({
   )
 }
 
+/** `?open=` accepts only a UUID; anything else is ignored and dropped from the URL. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const openParam = (value: string | null): string | null =>
+  value && UUID_RE.test(value) ? value : null
+
 /**
  * Media library (spec §8.1): grid/list, search, kind and missing-alt filters,
  * drag & drop upload, details sheet (`?open=<id>` opens one file's).
@@ -117,7 +123,8 @@ export function MediaLibrary() {
         params.get("view") === "list" ? ("list" as const) : ("grid" as const),
       page: Number.isInteger(pageParam) && pageParam > 1 ? pageParam : 1,
       missingAlt: params.get("missingAlt") === "true",
-      open: params.get("open") || null,
+      // Only a file id: the value goes into the API path (review I1).
+      open: openParam(params.get("open")),
     }
   })
   const [query, setQuery] = useState(initial.q)
@@ -312,7 +319,9 @@ export function MediaLibrary() {
               ? `Nothing matches “${q}”.`
               : filtered
                 ? missingAlt
-                  ? "Every image has alt text or is marked decorative."
+                  ? kind === "document"
+                    ? "Documents don't need alt text. Turn off Missing alt text to see them."
+                    : "Every image has alt text or is marked decorative."
                   : kind === "image"
                     ? "There are no images in the library."
                     : "There are no documents in the library."
