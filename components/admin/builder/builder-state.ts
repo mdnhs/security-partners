@@ -1,4 +1,4 @@
-import { type DraftDocument, emptyBlock } from "@/blocks/document"
+import { DraftDocument, emptyBlock } from "@/blocks/document"
 import {
   Anchor,
   BLOCK_BY_TYPE,
@@ -328,4 +328,36 @@ export function publishErrors(
       out[block.id] = { summary, data, anchor }
   })
   return out
+}
+
+export type ReadDraft =
+  { ok: true; doc: DraftDocumentValue } | { ok: false; problems: string[] }
+
+/**
+ * A stored draft as the builder edits it. The editor's document and
+ * autosave's saved copy are both read through this one parse. A draft that
+ * no longer parses (e.g. saved before a rule existed) is reported, never
+ * replaced by an empty page (review D5.5 I2).
+ */
+export function readDraft(value: unknown): ReadDraft {
+  const parsed = DraftDocument.safeParse(value)
+  if (parsed.success) return { ok: true, doc: parsed.data }
+  const blocks =
+    isRecord(value) && Array.isArray(value.blocks) ? value.blocks : []
+  const problems: string[] = []
+  for (const issue of parsed.error.issues) {
+    const [root, index, ...rest] = issue.path
+    let line = issue.message
+    if (root === "blocks" && typeof index === "number") {
+      const type = isRecord(blocks[index]) ? blocks[index].type : undefined
+      const label =
+        typeof type === "string" && Object.hasOwn(BLOCK_BY_TYPE, type)
+          ? BLOCK_BY_TYPE[type as BlockType].label
+          : "Block"
+      const field = rest.length ? pathLabel(rest.map(String).join(".")) : ""
+      line = `Block ${index + 1} (${label})${field ? ` › ${field}` : ""}: ${issue.message}`
+    }
+    if (!problems.includes(line)) problems.push(line)
+  }
+  return { ok: false, problems }
 }

@@ -3,8 +3,10 @@
 import { CopyPlus } from "lucide-react"
 import { useState } from "react"
 
-import type { BuilderDocument } from "@/blocks/document"
-import { NewPageDialog } from "@/components/admin/builder/new-page-dialog"
+import {
+  type CopySeed,
+  NewPageDialog,
+} from "@/components/admin/builder/new-page-dialog"
 import { EDITOR_ACTION } from "@/components/admin/editor/editor-layout"
 import {
   type EditorActionContext,
@@ -17,7 +19,7 @@ import { PAGE_LABELS } from "@/lib/admin/page-labels"
 import { api, unwrap } from "@/lib/api-client"
 import { previewHref } from "@/lib/schemas/api/preview"
 import {
-  blocksFromTemplate,
+  copyFromTemplate,
   copySlug,
   copyTitle,
 } from "@/templates/builder/from-template"
@@ -42,11 +44,7 @@ function CopyToNewPage({
   pageKey: PageKey
   ctx: Pick<EditorActionContext<unknown>, "draft" | "showAllErrors">
 }) {
-  const [seed, setSeed] = useState<{
-    title: string
-    slug: string
-    doc: BuilderDocument
-  } | null>(null)
+  const [seed, setSeed] = useState<CopySeed | null>(null)
   return (
     <>
       <Button
@@ -60,10 +58,12 @@ function CopyToNewPage({
             ctx.showAllErrors()
             return
           }
+          const copy = copyFromTemplate(pageKey, parsed.data)
           setSeed({
             title: copyTitle(PAGE_LABELS[pageKey]),
             slug: copySlug(pageKey),
-            doc: blocksFromTemplate(pageKey, parsed.data),
+            doc: copy.doc,
+            notes: copy.notes,
           })
         }}
       >

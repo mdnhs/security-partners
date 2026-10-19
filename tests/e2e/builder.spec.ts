@@ -202,22 +202,58 @@ test("changing the address of a published page leaves a 301 from the old one", a
 }) => {
   const { editor } = readFixtures()
   await signIn(page, editor.email)
-  const list = await page.request.get("/api/v1/admin/builder-pages")
-  const { items } = (await list.json()) as { items: Dto[] }
-  const spring = items.find((i) => i.slug === "spring-campaign")
-  expect(spring, "created by the first test").toBeDefined()
-  await page.goto(`/admin/pages/custom/${spring!.id}?tab=seo`)
-  const address = page.getByRole("textbox", { name: "Address" })
-  await address.fill("spring-offers")
-  await page.getByRole("button", { name: "Save title and address" }).click()
-  await expect(page.getByText("/p/spring-offers").first()).toBeVisible()
+  // Its own published page: independent of the other tests' order.
+  await removeBySlug(page, "move-check", "move-check-2")
+  const created = await page.request.post("/api/v1/admin/builder-pages", {
+    headers: SAME_ORIGIN,
+    data: { title: "Move check", slug: "move-check" },
+  })
+  expect(created.status()).toBe(201)
+  const dto = (await created.json()) as Dto
+  const saved = await page.request.put(
+    `/api/v1/admin/builder-pages/${dto.id}/draft`,
+    {
+      headers: SAME_ORIGIN,
+      data: {
+        version: dto.version,
+        draft: {
+          blocks: [
+            {
+              id: "move-stats-1",
+              type: "stats",
+              anchor: "stats",
+              hidden: false,
+              data: {
+                items: [{ value: "1", label: "One", description: "First" }],
+              },
+            },
+          ],
+        },
+      },
+    }
+  )
+  expect(saved.status()).toBe(200)
+  const published = await page.request.post(
+    `/api/v1/admin/builder-pages/${dto.id}/publish`,
+    {
+      headers: SAME_ORIGIN,
+      data: { version: ((await saved.json()) as Dto).version },
+    }
+  )
+  expect(published.status()).toBe(200)
 
-  const res = await request.get("/p/spring-campaign", { maxRedirects: 0 })
+  await page.goto(`/admin/pages/custom/${dto.id}?tab=seo`)
+  const address = page.getByRole("textbox", { name: "Address" })
+  await address.fill("move-check-2")
+  await page.getByRole("button", { name: "Save title and address" }).click()
+  await expect(page.getByText("/p/move-check-2").first()).toBeVisible()
+
+  const res = await request.get("/p/move-check", { maxRedirects: 0 })
   expect(res.status()).toBe(301)
   expect(new URL(res.headers().location, BASE_URL).pathname).toBe(
-    "/p/spring-offers"
+    "/p/move-check-2"
   )
-  await removeBySlug(page, "spring-offers")
+  await removeBySlug(page, "move-check-2")
 })
 
 test("a marketer sees the pages list read-only, without New page", async ({
@@ -265,9 +301,28 @@ test("builder at 320 px on a touch screen: no horizontal scroll, 44 px targets",
     viewport: window.innerWidth,
   }))
   expect(scroll.width).toBeLessThanOrEqual(scroll.viewport)
-  for (const button of await outline(page).getByRole("button").all()) {
-    const box = await button.boundingBox()
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+  // Every target on a coarse pointer: outline rows, header actions, tabs.
+  const targets = [
+    ...(await outline(page).getByRole("button").all()),
+    // The header's action row (the breadcrumb is inline text, exempt).
+    ...(await page
+      .locator("main header > div:last-child")
+      .getByRole("button")
+      .all()),
+    ...(await page
+      .locator("main header > div:last-child")
+      .getByRole("link")
+      .all()),
+    ...(await page.getByRole("tab").all()),
+  ]
+  expect(targets.length).toBeGreaterThan(10)
+  for (const target of targets) {
+    if (!(await target.isVisible())) continue
+    const box = await target.boundingBox()
+    const name =
+      (await target.getAttribute("aria-label")) ?? (await target.textContent())
+    expect(box?.height ?? 0, name ?? "").toBeGreaterThanOrEqual(44)
+    expect(box?.width ?? 0, name ?? "").toBeGreaterThanOrEqual(44)
   }
   await removeBySlug(page, "reflow-check")
   await context.close()

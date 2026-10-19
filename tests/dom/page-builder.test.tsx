@@ -15,7 +15,11 @@ vi.mock("next/navigation", () => ({
 }))
 
 import { NewPageDialog } from "@/components/admin/builder/new-page-dialog"
-import { PageBuilder } from "@/components/admin/builder/page-builder"
+import {
+  KEEPALIVE_MAX_BYTES,
+  PageBuilder,
+  putBuilderDraft,
+} from "@/components/admin/builder/page-builder"
 import { BUILDER_AUTOSAVE_MS } from "@/components/admin/builder/use-builder-autosave"
 import { PageEditor } from "@/components/admin/pages/page-editor"
 import { NewPageButton, PagesList } from "@/components/admin/pages/pages-list"
@@ -146,7 +150,9 @@ describe("PageBuilder (D5.5)", () => {
     expect(screen.getByText("/p/spring-campaign")).toBeInTheDocument()
     expect(screen.getByText("Draft")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "History" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /^Preview.*opens in a new tab/ })
+    ).toHaveAttribute(
       "href",
       `/api/v1/admin/preview?entity=builder-page&id=${ID}`
     )
@@ -331,6 +337,139 @@ describe("PageBuilder (D5.5)", () => {
   })
 })
 
+describe("PageBuilder: overwrite and unreadable drafts (review D5.5)", () => {
+  it("Overwrite after a publish 409 saves my draft on their version; the server ends up with mine", async () => {
+    const user = userEvent.setup()
+    const theirs = page({
+      version: 9,
+      draft: {
+        blocks: [{ ...hero, data: { ...hero.data, title: "Their title" } }],
+      },
+      updatedBy: { id: "u2", name: "Other Editor" },
+    })
+    // The server: their save already landed.
+    let server = { version: 9, draft: theirs.draft as unknown }
+    routes[`POST /api/v1/admin/builder-pages/${ID}/publish`] = () =>
+      json(409, {
+        error: { code: "CONFLICT", message: "Changed", current: theirs },
+      })
+    routes[`PUT /api/v1/admin/builder-pages/${ID}/draft`] = (init) => {
+      const body = bodyOf(init)
+      if (body.version !== server.version)
+        return json(409, {
+          error: { code: "CONFLICT", message: "Changed", current: theirs },
+        })
+      server = { version: server.version + 1, draft: body.draft }
+      return json(
+        200,
+        page({ version: server.version, draft: body.draft as never })
+      )
+    }
+    renderWith(<PageBuilder id={ID} />)
+    // Nothing pending: mine is the loaded draft (hero + stats).
+    await user.click(await screen.findByRole("button", { name: "Publish" }))
+    await user.click(
+      within(
+        await screen.findByRole("dialog", { name: "Publish changes?" })
+      ).getByRole("button", { name: "Publish now" })
+    )
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Someone else changed this",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Overwrite with mine" })
+    )
+    expect(
+      await screen.findByText("Your version replaced theirs")
+    ).toBeInTheDocument()
+    expect(server).toEqual({ version: 10, draft: { blocks: [hero, stats] } })
+    const put = calls.filter((c) => c.key.endsWith("/draft"))
+    expect(put).toHaveLength(1)
+    expect(put[0].body).toMatchObject({ version: 9 })
+  })
+
+  it("a stored draft that no longer parses is shown as a problem list, never saved over", async () => {
+    routes[`GET /api/v1/admin/builder-pages/${ID}`] = () =>
+      json(
+        200,
+        page({
+          draft: {
+            blocks: [hero, { ...stats, type: "richtext", anchor: "services" }],
+          } as never,
+        })
+      )
+    renderWith(<PageBuilder id={ID} />)
+    const alert = await screen.findByRole("alert", {
+      name: "This draft cannot be opened in the builder",
+    })
+    expect(
+      within(alert).getByRole("list", { name: "Problems" })
+    ).toHaveTextContent('"services" is kept for the Services section')
+    expect(
+      screen.queryByRole("navigation", { name: "Page outline" })
+    ).toBeNull()
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled()
+    await new Promise((r) => setTimeout(r, BUILDER_AUTOSAVE_MS + 300))
+    expect(keysCalled().some((k) => k.startsWith("PUT"))).toBe(false)
+  })
+
+  it("reloading their unparsable draft after a conflict shows the problems and stops autosave", async () => {
+    const user = userEvent.setup()
+    const theirs = page({
+      version: 7,
+      draft: { blocks: [{ ...hero, anchor: "team" }] } as never,
+    })
+    routes[`PUT /api/v1/admin/builder-pages/${ID}/draft`] = () =>
+      json(409, {
+        error: { code: "CONFLICT", message: "Changed", current: theirs },
+      })
+    renderWith(<PageBuilder id={ID} />)
+    await user.type(await screen.findByRole("textbox", { name: "Title" }), "!")
+    const dialog = await screen.findByRole(
+      "alertdialog",
+      { name: "Someone else changed this" },
+      { timeout: BUILDER_AUTOSAVE_MS + 2000 }
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Reload their version" })
+    )
+    expect(
+      await screen.findByRole("alert", {
+        name: "This draft cannot be opened in the builder",
+      })
+    ).toHaveTextContent('"team" is kept for the Team section')
+    await new Promise((r) => setTimeout(r, BUILDER_AUTOSAVE_MS + 300))
+    expect(calls.filter((c) => c.key.startsWith("PUT"))).toHaveLength(1)
+  })
+})
+
+describe("putBuilderDraft keepalive (review D5.5 M6)", () => {
+  it("a closing-tab save under 64 KB is a keepalive fetch; a larger one uses the normal client", async () => {
+    routes[`PUT /api/v1/admin/builder-pages/${ID}/draft`] = () =>
+      json(200, page())
+    await putBuilderDraft(ID, { blocks: [hero] }, 2, true)
+    const small = fetchMock.mock.calls.at(-1)!
+    expect(small[1]).toMatchObject({ method: "PUT", keepalive: true })
+
+    const big = {
+      blocks: [
+        {
+          ...hero,
+          data: { ...hero.data, description: "x".repeat(KEEPALIVE_MAX_BYTES) },
+        },
+      ],
+    }
+    await putBuilderDraft(ID, big, 2, true)
+    const large = fetchMock.mock.calls.at(-1)!
+    expect((large[1] as RequestInit | undefined)?.keepalive).toBeUndefined()
+
+    await putBuilderDraft(ID, { blocks: [hero] }, 2)
+    expect(
+      (fetchMock.mock.calls.at(-1)![1] as RequestInit | undefined)?.keepalive
+    ).toBeUndefined()
+  })
+})
+
 describe("NewPageDialog", () => {
   it("fills the address from the title, creates the page and opens it", async () => {
     const user = userEvent.setup()
@@ -386,6 +525,23 @@ describe("NewPageDialog", () => {
       )
     )
     expect(nav.push).not.toHaveBeenCalled()
+  })
+
+  it("a copy's cut notes are shown before creating it", async () => {
+    renderWith(
+      <NewPageDialog
+        open
+        onOpenChange={() => {}}
+        seed={{
+          title: "Privacy copy",
+          slug: "privacy-copy",
+          doc: { blocks: [hero] },
+          notes: ["The text is longer than one Text block holds."],
+        }}
+      />
+    )
+    const note = await screen.findByRole("note", { name: "Before you copy" })
+    expect(note).toHaveTextContent("longer than one Text block holds")
   })
 
   it("with a seed (Copy to new page) sends the copied blocks", async () => {

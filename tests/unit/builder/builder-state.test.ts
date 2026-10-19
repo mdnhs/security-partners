@@ -11,6 +11,7 @@ import {
   errorsByBlock,
   MAX_BLOCKS,
   publishErrors,
+  readDraft,
   RESERVED_ANCHORS,
   selectAfterRemove,
   unavailableReason,
@@ -248,5 +249,32 @@ describe("publish errors", () => {
     })
     expect(errors["hero-1"].data).toEqual({ title: ["Required"] })
     expect(Object.keys(errors).sort()).toEqual(["aaaa", "hero-1"])
+  })
+})
+
+describe("readDraft (review D5.5 I2)", () => {
+  it("parses a valid draft", () => {
+    const d = doc(block("aaaa", "stats", "stats"))
+    expect(readDraft(d)).toEqual({ ok: true, doc: d })
+  })
+
+  it("reports an unparsable draft with readable problems instead of an empty page", () => {
+    const r = readDraft({
+      blocks: [
+        block("aaaa", "stats", "stats"),
+        block("bbbb", "richtext", "services"),
+      ],
+    })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.problems).toEqual([
+      'Block 2 (Text) › Anchor: "services" is kept for the Services section',
+    ])
+  })
+
+  it("reports a draft that is not a document at all", () => {
+    const r = readDraft({ nope: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.problems.length).toBeGreaterThan(0)
   })
 })

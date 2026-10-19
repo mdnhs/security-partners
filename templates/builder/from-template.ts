@@ -1,11 +1,20 @@
 import { type BuilderDocument, emptyBlock } from "@/blocks/document"
+import type { z } from "zod"
+
 import {
   BLOCK_BY_TYPE,
   type BlockData,
   type BlockInstance,
   type BlockType,
+  RICH_TEXT_MAX_CHARS,
+  RICH_TEXT_MAX_NODES,
 } from "@/blocks/registry"
-import type { IconCard, MediaRef, PageHero } from "@/lib/schemas/common"
+import type {
+  IconCard,
+  MediaRef,
+  PageHero,
+  RichTextDoc,
+} from "@/lib/schemas/common"
 import { type PageData, type PageKey, PAGES } from "@/templates/registry"
 
 // "Copy to new page" (spec §7.5): a fixed page's sections as builder blocks,
@@ -14,24 +23,74 @@ import { type PageData, type PageKey, PAGES } from "@/templates/registry"
 // Copy longer than a block allows is cut to fit and lists are cut to the
 // block's maximum, so every copy publishes as is.
 
-/** Block caps (blocks/registry.ts) the copy is cut to. */
-const HERO = { crumb: 40, title: 80, description: 240 }
-const SECTION = { eyebrow: 40, heading: 80, intro: 240 }
-const CARDS = { eyebrow: 40, title: 80, description: 240, items: 6 }
-const STAT = { value: 12, label: 40, description: 160, items: 4 }
-const DEPARTMENT = {
-  title: 40,
-  name: 80,
-  role: 80,
-  line: 120,
-  lines: 4,
-  items: 6,
-}
-const MAX_SERVICES = 12
-const MAX_POSTS = 6
+// Block caps, read from the block schemas (blocks/registry.ts) so a cap
+// changed there is the cap the copy is cut to (review D5.5 M2).
+type Shape = Record<string, z.ZodType>
+const shapeOf = (type: BlockType): Shape =>
+  (BLOCK_BY_TYPE[type].schema as unknown as z.ZodObject).shape as Shape
+const elementOf = (list: z.ZodType): Shape =>
+  ((list as z.ZodArray<z.ZodObject>).element as z.ZodObject).shape as Shape
+const maxLength = (schema: z.ZodType): number =>
+  (schema as z.ZodString).maxLength ?? Number.POSITIVE_INFINITY
+const maxValue = (schema: z.ZodType): number =>
+  (schema as z.ZodNumber).maxValue ?? Number.POSITIVE_INFINITY
+const capsOf = (shape: Shape) =>
+  Object.fromEntries(
+    Object.entries(shape).map(([key, schema]) => [key, maxLength(schema)])
+  ) as Record<string, number>
 
-const clip = (value: string, max: number) =>
-  value.length > max ? value.slice(0, max) : value
+const HERO = capsOf(shapeOf("hero.page"))
+const SECTION = capsOf(shapeOf("services"))
+const TEAM = capsOf(shapeOf("team"))
+const BLOG = capsOf(shapeOf("blog"))
+const CARDS = capsOf(shapeOf("iconCards"))
+const CARD = capsOf(elementOf(shapeOf("iconCards").items))
+const STAT = capsOf(elementOf(shapeOf("stats").items))
+const DEPARTMENTS = capsOf(shapeOf("departments"))
+const DEPARTMENT = capsOf(elementOf(shapeOf("departments").items))
+const LINE = capsOf(elementOf(elementOf(shapeOf("departments").items).lines))
+/**
+ * List maxima of the blocks. zod keeps no readable array maximum, so these
+ * are pinned against the schemas by tests/unit/builder/from-template.test.
+ */
+export const COPY_LIST_MAX = {
+  iconCards: 6,
+  stats: 4,
+  departments: 6,
+  departmentLines: 4,
+} as const
+const MAX_SERVICES = maxValue(shapeOf("services").count)
+const MAX_POSTS = maxValue(shapeOf("blog").count)
+
+/** What a copy had to leave out (shown in the copy dialog). */
+let cutCopy = false
+let cutLists = false
+let cutText = false
+
+const clip = (value: string, max: number) => {
+  if (value.length <= max) return value
+  cutCopy = true
+  return value.slice(0, max)
+}
+const take = <T>(list: T[], max: number): T[] => {
+  if (list.length > max) cutLists = true
+  return list.slice(0, max)
+}
+
+/**
+ * A legal body cut to one Text block (RICH_TEXT_MAX_NODES top-level nodes,
+ * RICH_TEXT_MAX_CHARS of JSON): its first part (review D5.5 M3).
+ */
+function capRichText(doc: RichTextDoc): RichTextDoc {
+  let content = doc.content.slice(0, RICH_TEXT_MAX_NODES)
+  while (
+    content.length > 1 &&
+    JSON.stringify({ ...doc, content }).length > RICH_TEXT_MAX_CHARS
+  )
+    content = content.slice(0, -1)
+  if (content.length < doc.content.length) cutText = true
+  return { ...doc, content }
+}
 
 const media = (ref: MediaRef): MediaRef => ({ ...ref })
 
@@ -62,11 +121,11 @@ function iconCardsOf(section: {
     eyebrow: clip(section.eyebrow, CARDS.eyebrow),
     title: clip(section.title, CARDS.title),
     description: clip(section.description, CARDS.description),
-    items: section.items.slice(0, CARDS.items).map((item) => ({
+    items: take(section.items, COPY_LIST_MAX.iconCards).map((item) => ({
       ...item,
       icon: media(item.icon),
-      title: clip(item.title, CARDS.title),
-      description: clip(item.description, CARDS.description),
+      title: clip(item.title, CARD.title),
+      description: clip(item.description, CARD.description),
     })),
   })
 }
@@ -105,12 +164,12 @@ function partsOf(key: PageKey, data: PageData<PageKey>): Part[] {
         shared("enquireBanner"),
         shared("clients"),
         part("team", {
-          heading: clip(page.team.heading, SECTION.heading),
-          intro: clip(page.team.intro, SECTION.intro),
+          heading: clip(page.team.heading, TEAM.heading),
+          intro: clip(page.team.intro, TEAM.intro),
         }),
         part("blog", {
-          heading: clip(page.blog.heading, SECTION.heading),
-          intro: clip(page.blog.intro, SECTION.intro),
+          heading: clip(page.blog.heading, BLOG.heading),
+          intro: clip(page.blog.intro, BLOG.intro),
           count: Math.min(page.blog.count, MAX_POSTS),
         }),
         shared("contact"),
@@ -123,7 +182,7 @@ function partsOf(key: PageKey, data: PageData<PageKey>): Part[] {
         heroOf(page.hero),
         part("about", { useShared: true }),
         part("stats", {
-          items: page.stats.slice(0, STAT.items).map((stat) => ({
+          items: take(page.stats, COPY_LIST_MAX.stats).map((stat) => ({
             value: clip(stat.value, STAT.value),
             label: clip(stat.label, STAT.label),
             description: clip(stat.description, STAT.description),
@@ -149,8 +208,8 @@ function partsOf(key: PageKey, data: PageData<PageKey>): Part[] {
       return [
         heroOf(page.hero),
         part("team", {
-          heading: clip(page.leadership.heading, SECTION.heading),
-          intro: clip(page.leadership.intro, SECTION.intro),
+          heading: clip(page.leadership.heading, TEAM.heading),
+          intro: clip(page.leadership.intro, TEAM.intro),
         }),
         iconCardsOf({ ...page.officers, items: page.officers.qualities }),
         shared("enquireBanner"),
@@ -162,8 +221,8 @@ function partsOf(key: PageKey, data: PageData<PageKey>): Part[] {
       return [
         heroOf(page.hero),
         part("blog", {
-          heading: clip(page.hero.title, SECTION.heading),
-          intro: clip(page.hero.description, SECTION.intro),
+          heading: clip(page.hero.title, BLOG.heading),
+          intro: clip(page.hero.description, BLOG.intro),
           count: Math.min(page.pageSize, MAX_POSTS),
         }),
         shared("enquireBanner"),
@@ -176,38 +235,49 @@ function partsOf(key: PageKey, data: PageData<PageKey>): Part[] {
         heroOf(page.hero),
         shared("contact"),
         part("departments", {
-          eyebrow: clip(departments.eyebrow, SECTION.eyebrow),
-          heading: clip(departments.heading, SECTION.heading),
-          intro: clip(departments.intro, SECTION.intro),
-          items: departments.items.slice(0, DEPARTMENT.items).map((item) => ({
-            title: clip(item.title, DEPARTMENT.title),
-            icon: media(item.icon),
-            name: clip(item.name, DEPARTMENT.name),
-            role: clip(item.role, DEPARTMENT.role),
-            lines: item.lines.slice(0, DEPARTMENT.lines).map((line) => ({
-              text: clip(line.text, DEPARTMENT.line),
-              href: line.href,
-            })),
-          })),
+          eyebrow: clip(departments.eyebrow, DEPARTMENTS.eyebrow),
+          heading: clip(departments.heading, DEPARTMENTS.heading),
+          intro: clip(departments.intro, DEPARTMENTS.intro),
+          items: take(departments.items, COPY_LIST_MAX.departments).map(
+            (item) => ({
+              title: clip(item.title, DEPARTMENT.title),
+              icon: media(item.icon),
+              name: clip(item.name, DEPARTMENT.name),
+              role: clip(item.role, DEPARTMENT.role),
+              lines: take(item.lines, COPY_LIST_MAX.departmentLines).map(
+                (line) => ({
+                  text: clip(line.text, LINE.text),
+                  href: line.href,
+                })
+              ),
+            })
+          ),
         }),
         shared("map"),
       ]
     }
     case "legal": {
       const page = data as PageData<"privacy">
-      return [heroOf(page.hero), part("richtext", { doc: page.body })]
+      return [
+        heroOf(page.hero),
+        part("richtext", { doc: capRichText(page.body) }),
+      ]
     }
   }
 }
 
+export type TemplateCopy = { doc: BuilderDocument; notes: string[] }
+
 /**
  * A fixed page as a builder document: fresh block ids, each block's own
- * anchor (owning blocks keep their section id: #about, #services …).
+ * anchor (owning blocks keep their section id: #about, #services …), and
+ * notes on anything that had to be cut to fit the blocks.
  */
-export function blocksFromTemplate<K extends PageKey>(
+export function copyFromTemplate<K extends PageKey>(
   key: K,
   data: PageData<K>
-): BuilderDocument {
+): TemplateCopy {
+  cutCopy = cutLists = cutText = false
   const blocks: BlockInstance[] = []
   for (const { type, data: blockData } of partsOf(key, data)) {
     const block = emptyBlock(type, { blocks })
@@ -216,7 +286,26 @@ export function blocksFromTemplate<K extends PageKey>(
       data: structuredClone(blockData),
     } as BlockInstance)
   }
-  return { blocks }
+  const notes = [
+    cutText
+      ? "The text is longer than one Text block holds: only its first part is copied. Add another Text block for the rest."
+      : null,
+    cutCopy
+      ? "Some copy is longer than its block allows and is shortened."
+      : null,
+    cutLists
+      ? "Some lists have more items than their block shows: the extra items are left out."
+      : null,
+  ].filter((note): note is string => note !== null)
+  return { doc: { blocks }, notes }
+}
+
+/** copyFromTemplate without the notes. */
+export function blocksFromTemplate<K extends PageKey>(
+  key: K,
+  data: PageData<K>
+): BuilderDocument {
+  return copyFromTemplate(key, data).doc
 }
 
 /** The suggested title and address of a copy ("About copy", about-copy). */

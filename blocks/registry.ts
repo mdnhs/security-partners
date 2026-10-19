@@ -192,8 +192,8 @@ const map = defineBlock({
 })
 
 /** Text-block budget: the shared richText has no node or length caps. */
-const RICH_TEXT_MAX_NODES = 200
-const RICH_TEXT_MAX_CHARS = 50_000
+export const RICH_TEXT_MAX_NODES = 200
+export const RICH_TEXT_MAX_CHARS = 50_000
 const cappedRichText = richText
   .extend({ content: richText.shape.content.max(RICH_TEXT_MAX_NODES) })
   .refine(

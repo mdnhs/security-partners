@@ -9,12 +9,12 @@ import {
   Lock,
   RotateCcw,
   Send,
+  TriangleAlert,
 } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { DraftDocument } from "@/blocks/document"
 import { BLOCK_BY_TYPE, type BlockType } from "@/blocks/registry"
 import { ConflictDialog } from "@/components/admin/editor/conflict-dialog"
 import { PreviewPane } from "@/components/admin/editor/preview-pane"
@@ -48,6 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { usePermission } from "@/hooks/use-permission"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
+import { isDeepEqual } from "@/lib/json"
 import {
   type BuilderPageDto,
   builderPath,
@@ -68,6 +69,7 @@ import {
   docReducer,
   type DraftDocumentValue,
   publishErrors,
+  readDraft,
 } from "./builder-state"
 import {
   BUILDER_PAGES_KEY,
@@ -82,10 +84,37 @@ type Tab = "content" | "seo"
 const isTab = (value: string | null): value is Tab =>
   value === "content" || value === "seo"
 
-/** The draft as stored, or no blocks when it no longer parses. */
-const toDraft = (value: unknown): DraftDocumentValue => {
-  const parsed = DraftDocument.safeParse(value)
-  return parsed.success ? parsed.data : { blocks: [] }
+/** PUT bodies a keepalive request may carry (browsers cap them at 64 KB). */
+export const KEEPALIVE_MAX_BYTES = 64 * 1024
+
+/**
+ * PUT /builder-pages/:id/draft. When the tab is closing (`keepalive`) and
+ * the body fits, a keepalive fetch, which may outlive the page; otherwise
+ * the typed client.
+ */
+export async function putBuilderDraft(
+  id: string,
+  draft: DraftDocumentValue,
+  version: number,
+  keepalive = false
+): Promise<BuilderPageDto> {
+  const body = JSON.stringify({ version, draft })
+  if (keepalive && new TextEncoder().encode(body).length < KEEPALIVE_MAX_BYTES)
+    return unwrap(
+      fetch(`/api/v1/admin/builder-pages/${encodeURIComponent(id)}/draft`, {
+        method: "PUT",
+        keepalive: true,
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body,
+      }) as Promise<Response & { json(): Promise<BuilderPageDto> }>
+    )
+  return unwrap(
+    api["builder-pages"][":id"].draft.$put({
+      param: { id },
+      json: { version, draft },
+    })
+  )
 }
 
 /** No keys and no diff noise: the publish dialog lists block paths. */
@@ -154,7 +183,15 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
   const id = initial.id
 
   const [record, setRecord] = useState(initial)
-  const [doc, setDoc] = useState(() => toDraft(initial.draft))
+  const [initialRead] = useState(() => readDraft(initial.draft))
+  // A stored draft that no longer parses: its problems, shown instead of
+  // the editor; autosave stays off so it is never overwritten (D5.5 I2).
+  const [broken, setBroken] = useState<string[] | null>(
+    initialRead.ok ? null : initialRead.problems
+  )
+  const [doc, setDoc] = useState<DraftDocumentValue>(() =>
+    initialRead.ok ? initialRead.doc : { blocks: [] }
+  )
   const docRef = useRef(doc)
   const [selectedId, setSelectedId] = useState<string | null>(
     doc.blocks[0]?.id ?? null
@@ -187,14 +224,9 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
     id,
     version: initial.version,
     doc,
-    enabled: canEdit,
-    save: async (value, version) => {
-      const dto = await unwrap(
-        api["builder-pages"][":id"].draft.$put({
-          param: { id },
-          json: { version, draft: value },
-        })
-      )
+    enabled: canEdit && broken === null,
+    save: async (value, version, options) => {
+      const dto = await putBuilderDraft(id, value, version, options?.keepalive)
       syncRecord(dto)
       return dto
     },
@@ -222,18 +254,24 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
   /** Their document (restore, conflict reload, discard) replaces mine. */
   const replaceDoc = useCallback(
     (dto: BuilderPageDto) => {
-      const next = toDraft(dto.draft)
+      const read = readDraft(dto.draft)
       autosave.accept(dto)
+      syncRecord(dto)
+      setBlockErrors({})
+      if (!read.ok) {
+        setBroken(read.problems)
+        return
+      }
+      setBroken(null)
+      const next = read.doc
       docRef.current = next
       setDoc(next)
-      setBlockErrors({})
       setResetKey((k) => k + 1)
       setSelectedId((current) =>
         next.blocks.some((b) => b.id === current)
           ? current
           : (next.blocks[0]?.id ?? null)
       )
-      syncRecord(dto)
     },
     [autosave, syncRecord]
   )
@@ -316,13 +354,10 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
     mutationFn: () => {
       const published = record.published
       if (!published) throw new Error("Nothing published to go back to.")
-      return autosave.exclusive((version) =>
-        unwrap(
-          api["builder-pages"][":id"].draft.$put({
-            param: { id },
-            json: { version, draft: published },
-          })
-        )
+      // Pending edits are about to be thrown away: not sent first (M8).
+      return autosave.exclusive(
+        (version) => putBuilderDraft(id, published, version),
+        { discardPending: true }
       )
     },
     onSuccess: (dto) => {
@@ -412,6 +447,7 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
             >
               <Eye aria-hidden />
               <span className="max-sm:sr-only">Preview</span>
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
             {canEdit && published ? (
               <Button
@@ -430,7 +466,9 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
                 type="button"
                 className={FORM_ACTION}
                 // Resolve an open conflict first (its dialog says how).
-                disabled={conflict !== null || publish.isPending}
+                disabled={
+                  conflict !== null || broken !== null || publish.isPending
+                }
                 onClick={() => setPublishOpen(true)}
               >
                 <Send aria-hidden />
@@ -457,173 +495,207 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
           </span>
         </p>
       ) : null}
-      <Tabs
-        value={tab}
-        onValueChange={(value) => setTab(value as Tab)}
-        className="gap-5"
-      >
-        <TabsList className="w-full sm:w-fit">
-          <TabsTrigger value="content" className={COARSE_HEIGHT}>
-            Content
-          </TabsTrigger>
-          <TabsTrigger value="seo" className={COARSE_HEIGHT}>
-            SEO
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="content">
-          <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[288px_minmax(0,1fr)_minmax(0,1fr)]">
-            <nav
-              aria-label="Page outline"
-              className="rounded-card flex min-w-0 flex-col gap-4 bg-card p-4"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-card-title">Blocks</h2>
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
-                  <span className="sr-only">Blocks on the page: </span>
-                  {doc.blocks.length}
-                </span>
-              </div>
-              <BlockOutline
-                doc={doc}
-                selectedId={selectedId}
-                errors={outlineErrors}
-                readOnly={readOnly}
-                onSelect={setSelectedId}
-                dispatch={apply}
-              />
-              {canEdit ? (
-                <BlockLibrary
-                  available={addableTypes(doc)}
+      {broken !== null ? (
+        <section
+          role="alert"
+          aria-labelledby="builder-unreadable"
+          className="rounded-card flex flex-col gap-3 border border-destructive/40 bg-card p-5 text-sm"
+        >
+          <h2
+            id="builder-unreadable"
+            className="flex items-center gap-2 font-semibold text-destructive"
+          >
+            <TriangleAlert aria-hidden className="size-4 shrink-0" />
+            This draft cannot be opened in the builder
+          </h2>
+          <p>
+            The saved draft breaks rules the builder now enforces. Autosave is
+            off, so nothing here changes it. Restore a version from History
+            {published ? ", or discard the unpublished changes," : ""} to carry
+            on editing.
+          </p>
+          <ul aria-label="Problems" className="list-disc pl-5">
+            {broken.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as Tab)}
+          className="gap-5"
+        >
+          <TabsList className="w-full sm:w-fit">
+            <TabsTrigger value="content" className={COARSE_HEIGHT}>
+              Content
+            </TabsTrigger>
+            <TabsTrigger value="seo" className={COARSE_HEIGHT}>
+              SEO
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="content">
+            <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[288px_minmax(0,1fr)_minmax(0,1fr)]">
+              <nav
+                aria-label="Page outline"
+                className="rounded-card flex min-w-0 flex-col gap-4 bg-card p-4"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-card-title">Blocks</h2>
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+                    <span className="sr-only">Blocks on the page: </span>
+                    {doc.blocks.length}
+                  </span>
+                </div>
+                <BlockOutline
                   doc={doc}
-                  onAdd={onAdd}
+                  selectedId={selectedId}
+                  errors={outlineErrors}
+                  readOnly={readOnly}
+                  onSelect={setSelectedId}
+                  dispatch={apply}
                 />
-              ) : null}
-            </nav>
-            <section
-              aria-label="Block settings"
-              className="flex min-w-0 flex-col gap-5"
-            >
-              {selected ? (
-                <>
-                  <div className="rounded-card flex items-center gap-3 bg-card p-4">
+                {canEdit ? (
+                  <BlockLibrary
+                    available={addableTypes(doc)}
+                    doc={doc}
+                    onAdd={onAdd}
+                  />
+                ) : null}
+              </nav>
+              <section
+                aria-label="Block settings"
+                className="flex min-w-0 flex-col gap-5"
+              >
+                {selected ? (
+                  <>
+                    <div className="rounded-card flex items-center gap-3 bg-card p-4">
+                      <span
+                        aria-hidden
+                        className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"
+                      >
+                        {SelectedIcon ? (
+                          <SelectedIcon className="size-5" />
+                        ) : null}
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-card-title truncate">
+                          {BLOCK_BY_TYPE[selected.type].label}
+                        </h2>
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          #{selected.anchor}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedErrors?.summary.length ? (
+                      // A static region: an alert would re-announce on every
+                      // selection of the block (the publish toast announces).
+                      <section
+                        aria-labelledby="builder-block-problems"
+                        className="rounded-card border border-destructive/40 bg-destructive/5 p-4 text-sm"
+                      >
+                        <h3
+                          id="builder-block-problems"
+                          className="font-semibold text-destructive"
+                        >
+                          Fix this block before publishing:
+                        </h3>
+                        <ul className="mt-1 list-disc pl-5">
+                          {selectedErrors.summary.map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
+                    <BlockForm
+                      key={selected.id}
+                      block={selected}
+                      resetKey={resetKey}
+                      errors={selectedErrors?.data ?? {}}
+                      readOnly={readOnly}
+                      onChange={(data) =>
+                        apply({ type: "data", id: selected.id, data })
+                      }
+                    />
+                    <BlockMeta
+                      block={selected}
+                      doc={doc}
+                      errors={selectedErrors?.anchor}
+                      readOnly={readOnly}
+                      onChange={(patch) =>
+                        apply({ type: "meta", id: selected.id, patch })
+                      }
+                    />
+                  </>
+                ) : (
+                  <div className="rounded-card flex flex-col items-center gap-3 bg-card px-4 py-16 text-center">
                     <span
                       aria-hidden
-                      className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"
+                      className="flex size-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground"
                     >
-                      {SelectedIcon ? (
-                        <SelectedIcon className="size-5" />
-                      ) : null}
+                      <Layers className="size-6" />
                     </span>
-                    <div className="min-w-0">
-                      <h2 className="text-card-title truncate">
-                        {BLOCK_BY_TYPE[selected.type].label}
-                      </h2>
-                      <p className="truncate font-mono text-xs text-muted-foreground">
-                        #{selected.anchor}
-                      </p>
-                    </div>
+                    <p className="font-semibold">
+                      {doc.blocks.length === 0
+                        ? "Start with a block"
+                        : "Choose a block to edit it"}
+                    </p>
+                    <p className="max-w-xs text-sm text-muted-foreground">
+                      {doc.blocks.length === 0
+                        ? "Pages are built from the site's sections: a hero, stats, cards, text and more."
+                        : "Pick one in the outline to change its content."}
+                    </p>
                   </div>
-                  {selectedErrors?.summary.length ? (
-                    <div
-                      role="alert"
-                      className="rounded-card border border-destructive/40 bg-destructive/5 p-4 text-sm"
-                    >
-                      <p className="font-semibold text-destructive">
-                        Fix this block before publishing:
-                      </p>
-                      <ul className="mt-1 list-disc pl-5">
-                        {selectedErrors.summary.map((line) => (
-                          <li key={line}>{line}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <BlockForm
-                    key={selected.id}
-                    block={selected}
-                    resetKey={resetKey}
-                    errors={selectedErrors?.data ?? {}}
-                    readOnly={readOnly}
-                    onChange={(data) =>
-                      apply({ type: "data", id: selected.id, data })
-                    }
-                  />
-                  <BlockMeta
-                    block={selected}
-                    doc={doc}
-                    errors={selectedErrors?.anchor}
-                    readOnly={readOnly}
-                    onChange={(patch) =>
-                      apply({ type: "meta", id: selected.id, patch })
-                    }
-                  />
-                </>
+                )}
+              </section>
+              {wide ? (
+                <PreviewPane
+                  src={preview}
+                  refreshKey={autosave.savedCount}
+                  className="h-[calc(100svh-12rem)] xl:sticky xl:top-4"
+                />
               ) : (
-                <div className="rounded-card flex flex-col items-center gap-3 bg-card px-4 py-16 text-center">
-                  <span
-                    aria-hidden
-                    className="flex size-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground"
+                <div className="flex min-w-0 flex-col gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(FORM_ACTION, "self-start")}
+                    aria-expanded={showPreview}
+                    aria-controls="builder-preview"
+                    onClick={() => setShowPreview((v) => !v)}
                   >
-                    <Layers className="size-6" />
-                  </span>
-                  <p className="font-semibold">
-                    {doc.blocks.length === 0
-                      ? "Start with a block"
-                      : "Choose a block to edit it"}
-                  </p>
-                  <p className="max-w-xs text-sm text-muted-foreground">
-                    {doc.blocks.length === 0
-                      ? "Pages are built from the site's sections: a hero, stats, cards, text and more."
-                      : "Pick one in the outline to change its content."}
-                  </p>
+                    {showPreview ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                    {showPreview ? "Hide preview" : "Show preview"}
+                  </Button>
+                  <div id="builder-preview">
+                    {showPreview ? (
+                      <PreviewPane
+                        src={preview}
+                        refreshKey={autosave.savedCount}
+                        className="h-[75svh]"
+                      />
+                    ) : null}
+                  </div>
                 </div>
               )}
-            </section>
-            {wide ? (
-              <PreviewPane
-                src={preview}
-                refreshKey={autosave.savedCount}
-                className="h-[calc(100svh-12rem)] xl:sticky xl:top-4"
-              />
-            ) : (
-              <div className="flex min-w-0 flex-col gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={cn(FORM_ACTION, "self-start")}
-                  aria-expanded={showPreview}
-                  aria-controls="builder-preview"
-                  onClick={() => setShowPreview((v) => !v)}
-                >
-                  {showPreview ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
-                  {showPreview ? "Hide preview" : "Show preview"}
-                </Button>
-                <div id="builder-preview">
-                  {showPreview ? (
-                    <PreviewPane
-                      src={preview}
-                      refreshKey={autosave.savedCount}
-                      className="h-[75svh]"
-                    />
-                  ) : null}
-                </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-        <TabsContent value="seo" className="flex flex-col gap-6">
-          <AddressCard
-            record={record}
-            readOnly={readOnly}
-            exclusive={autosave.exclusive}
-            onChanged={(dto) => {
-              autosave.accept(dto)
-              syncRecord(dto)
-            }}
-          />
-          <SeoCard record={record} doc={doc} onSaved={syncRecord} />
-        </TabsContent>
-      </Tabs>
+            </div>
+          </TabsContent>
+          <TabsContent value="seo" className="flex flex-col gap-6">
+            <AddressCard
+              // A reload / restore that changed them starts the form afresh.
+              key={`${record.title}\u0000${record.slug}`}
+              record={record}
+              readOnly={readOnly}
+              exclusive={autosave.exclusive}
+              onChanged={(dto) => {
+                autosave.accept(dto)
+                syncRecord(dto)
+              }}
+            />
+            <SeoCard record={record} doc={doc} onSaved={syncRecord} />
+          </TabsContent>
+        </Tabs>
+      )}
       <PublishDialog
         open={publishOpen}
         onOpenChange={setPublishOpen}
@@ -698,15 +770,33 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
             })
             return
           }
-          // Their version, my document: the next save sends mine.
+          // No editable document of mine (an unreadable draft): nothing to
+          // put over theirs, so take theirs.
+          if (broken !== null) {
+            replaceDoc(conflict)
+            return
+          }
+          // Their version and draft become the saved copy; mine stays on
+          // screen, so the flush sends it on their version (D5.5 I1).
           autosave.accept(conflict, { keepMine: true })
-          syncRecord({ ...conflict, draft: docRef.current })
+          syncRecord(conflict)
+          const theirs = readDraft(conflict.draft)
+          if (theirs.ok && isDeepEqual(theirs.doc, docRef.current)) {
+            toast.success("Their version is the same as yours", {
+              description: "Nothing needed replacing.",
+            })
+            return
+          }
           void autosave.flush().then((ok) => {
             if (ok)
               toast.success("Your version replaced theirs", {
                 description: published
                   ? "Publish to put it on the site."
                   : undefined,
+              })
+            else
+              toast.error("Your version was not saved", {
+                description: "Try again, or reload their version.",
               })
           })
         }}

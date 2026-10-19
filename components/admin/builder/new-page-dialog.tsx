@@ -29,6 +29,15 @@ import { BUILDER_SLUG_MAX } from "@/lib/builder-slug"
 import { builderSlug } from "@/lib/schemas/api/builder-pages"
 import { cn } from "@/lib/utils"
 
+/** A copied fixed page: its blocks, suggested title/address, and cut notes. */
+export type CopySeed = {
+  title: string
+  doc: BuilderDocument
+  slug?: string
+  /** What had to be cut to fit the blocks (from-template copyFromTemplate). */
+  notes?: string[]
+}
+
 /** Query key of the custom pages list (Pages › Custom pages). */
 export const BUILDER_PAGES_KEY = ["builder-pages"] as const
 
@@ -123,7 +132,7 @@ export function NewPageDialog({
 }: {
   open: boolean
   onOpenChange(o: boolean): void
-  seed?: { title: string; doc: BuilderDocument; slug?: string }
+  seed?: CopySeed
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,7 +150,7 @@ function NewPageForm({
   seed,
   onCancel,
 }: {
-  seed?: { title: string; doc: BuilderDocument; slug?: string }
+  seed?: CopySeed
   onCancel(): void
 }) {
   const router = useRouter()
@@ -215,6 +224,20 @@ function NewPageForm({
             : "A draft page built from blocks. Nobody sees it until you publish it."}
         </DialogDescription>
       </DialogHeader>
+      {seed?.notes?.length ? (
+        <div
+          role="note"
+          aria-label="Before you copy"
+          className="border-warning/40 bg-warning-soft flex flex-col gap-1 rounded-lg border p-3 text-sm"
+        >
+          <p className="font-medium">Not everything fits the blocks:</p>
+          <ul className="list-disc pl-5">
+            {seed.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <TitleSlugFields
         value={{ title, slug: effectiveSlug }}
         errors={errors}

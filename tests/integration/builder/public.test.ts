@@ -13,8 +13,16 @@ vi.mock("next/headers", async (importOriginal) => ({
   draftMode: async () => ({ isEnabled: false, enable, disable: vi.fn() }),
 }))
 
-import type { BuilderDocument } from "@/blocks/document"
-import { BLOCK_TYPES, type BlockType } from "@/blocks/registry"
+import {
+  type BuilderDocument,
+  DraftDocument,
+  validateDocument,
+} from "@/blocks/document"
+import {
+  BLOCK_TYPES,
+  type BlockType,
+  RESERVED_ANCHORS,
+} from "@/blocks/registry"
 import type { BuilderPageDto } from "@/lib/schemas/api/builder-pages"
 import { buildSitemap } from "@/lib/seo/sitemap"
 import { app } from "@/server/api/app"
@@ -253,6 +261,21 @@ describe("visual fixture /p/visual-fixture (tests/visual/seed.ts)", () => {
     expect(await resolvePublicPath(`/p/${VISUAL_BUILDER_SLUG}`, live)).toEqual({
       kind: "pass",
     })
+  })
+
+  it("stores no reserved anchor: its draft opens in the builder (review D5.5 I2)", async () => {
+    await seedVisualBuilderPage(getDb())
+    const [row] = await getDb()
+      .select()
+      .from(builderPages)
+      .where(eq(builderPages.slug, VISUAL_BUILDER_SLUG))
+    for (const stored of [row.draft, row.published]) {
+      expect(DraftDocument.safeParse(stored).success).toBe(true)
+      expect(validateDocument(stored).ok).toBe(true)
+      for (const block of (stored as BuilderDocument).blocks)
+        if (Object.hasOwn(RESERVED_ANCHORS, block.anchor))
+          expect(RESERVED_ANCHORS[block.anchor]).toBe(block.type)
+    }
   })
 })
 

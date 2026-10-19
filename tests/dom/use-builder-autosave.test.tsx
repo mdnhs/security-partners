@@ -204,6 +204,59 @@ describe("useBuilderAutosave", () => {
     expect(result.current.conflict).toEqual(theirs)
   })
 
+  it("Overwrite after a 409 from an exclusive request (publish) really sends mine on their version (review D5.5 I1)", async () => {
+    const save = vi.fn(async (_d: DraftDocumentValue, v: number) => dto(v + 1))
+    const { result, rerender } = setup(save)
+    // Mine is saved (nothing pending) when publish meets their newer save.
+    rerender({ doc: docWith("mine") })
+    await tick(BUILDER_AUTOSAVE_MS)
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(result.current.state).toBe("saved")
+    const theirs = dto(9, docWith("theirs"))
+    await expect(
+      act(() =>
+        result.current.exclusive(async () => {
+          throw conflictError(theirs)
+        })
+      )
+    ).rejects.toBeInstanceOf(ApiError)
+    await act(async () => {})
+    expect(result.current.state).toBe("conflict")
+
+    act(() => result.current.accept(theirs, { keepMine: true }))
+    // The saved copy is now theirs, so mine is a pending change…
+    expect(result.current.state).toBe("unsaved")
+    expect(await act(() => result.current.flush())).toBe(true)
+    // …and it is sent, on their version.
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith(docWith("mine"), 9)
+    expect(result.current.state).toBe("saved")
+  })
+
+  it("accept reads the saved copy through readDraft (same parse as the editor)", async () => {
+    const save = vi.fn()
+    const { result, rerender } = setup(save)
+    // Their draft carries an extra key the parse strips: still "saved".
+    const theirs = dto(9, {
+      blocks: [{ ...docWith("x").blocks[0], extra: 1 } as never],
+    })
+    act(() => result.current.accept(theirs))
+    rerender({ doc: docWith("x") })
+    expect(result.current.state).toBe("saved")
+    await tick(BUILDER_AUTOSAVE_MS * 2)
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it("exclusive with discardPending sends nothing pending first (Discard)", async () => {
+    const save = vi.fn(async (_d: DraftDocumentValue, v: number) => dto(v + 1))
+    const { result, rerender } = setup(save)
+    rerender({ doc: docWith("about-to-go") })
+    const request = vi.fn(async (v: number) => dto(v + 1, docWith("a")))
+    await act(() => result.current.exclusive(request, { discardPending: true }))
+    expect(save).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledWith(3)
+  })
+
   it("flushes when the tab is hidden", async () => {
     const save = vi.fn(async (_d: DraftDocumentValue, v: number) => dto(v + 1))
     const { rerender } = setup(save)
@@ -215,11 +268,24 @@ describe("useBuilderAutosave", () => {
     await act(async () => {
       document.dispatchEvent(new Event("visibilitychange"))
     })
-    expect(save).toHaveBeenCalledWith(docWith("b"), 3)
+    // keepalive: the request may outlive a closing tab (review D5.5 M6).
+    expect(save).toHaveBeenCalledWith(docWith("b"), 3, { keepalive: true })
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
       get: () => "visible",
     })
+  })
+
+  it("switching saving off (an unreadable draft) sends nothing: not on the switch, a flush or unmount", async () => {
+    const save = vi.fn(async (_d: DraftDocumentValue, v: number) => dto(v + 1))
+    const { result, rerender, unmount } = setup(save)
+    rerender({ doc: docWith("pending") })
+    rerender({ doc: docWith("pending"), enabled: false })
+    await tick(BUILDER_AUTOSAVE_MS * 2)
+    expect(await act(() => result.current.flush())).toBe(true)
+    unmount()
+    await tick(10)
+    expect(save).not.toHaveBeenCalled()
   })
 
   it("read-only (enabled false) never saves", async () => {
