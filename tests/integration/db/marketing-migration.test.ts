@@ -4,6 +4,11 @@ import { join } from "node:path"
 import { eq, sql } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
+import { convertLegacyCustomCode } from "@/lib/analytics/snippets"
+import {
+  type CustomCodeSettings,
+  customCodeSettings,
+} from "@/lib/schemas/settings/custom-code"
 import { getDb } from "@/server/db/client"
 import { revisions, settings } from "@/server/db/schema"
 
@@ -174,5 +179,98 @@ describe("marketing migration — consent version and interval (D2.2)", () => {
     const row = await consentRow()
     expect(row.draft).toBe("broken")
     expect(row.published).toBeNull()
+  })
+})
+
+describe("marketing migration — custom code becomes snippets (D2.3)", () => {
+  const codeRow = async () =>
+    (
+      await getDb()
+        .select()
+        .from(settings)
+        .where(eq(settings.key, "customCode"))
+    )[0]!
+  const UUID =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  const withoutIds = (v: unknown) => {
+    const value = v as CustomCodeSettings
+    return {
+      ...value,
+      snippets: value.snippets.map(({ id: _id, ...rest }) => rest),
+    }
+  }
+
+  it("legacy head HTML becomes one necessary snippet, as convertLegacyCustomCode does", async () => {
+    const legacy = { headHtml: '<meta name="v">', bodyEndHtml: "" }
+    await getDb()
+      .insert(settings)
+      .values({ key: "customCode", draft: legacy, published: legacy })
+    await migrate()
+    const row = await codeRow()
+    const expected = withoutIds(convertLegacyCustomCode(legacy))
+    expect(withoutIds(row.draft)).toEqual(expected)
+    expect(withoutIds(row.published)).toEqual(expected)
+    const draft = row.draft as CustomCodeSettings
+    expect(draft.snippets).toHaveLength(1)
+    expect(draft.snippets[0]!.id).toMatch(UUID)
+    // Draft and published share ids, so the editor shows no change.
+    expect(row.published).toEqual(row.draft)
+    expect(customCodeSettings.safeParse(row.published).success).toBe(true)
+  })
+
+  it("head and body; blank code is dropped; re-running is harmless", async () => {
+    const legacy = {
+      headHtml: "  \n",
+      bodyEndHtml: "<script>window.x=1</script>",
+    }
+    await getDb()
+      .insert(settings)
+      .values({
+        key: "customCode",
+        draft: { headHtml: "<b>h</b>", bodyEndHtml: "<i>b</i>" },
+        published: legacy,
+      })
+    await migrate()
+    const first = await codeRow()
+    expect(withoutIds(first.published)).toEqual(
+      withoutIds(convertLegacyCustomCode(legacy))
+    )
+    expect(withoutIds(first.draft)).toEqual(
+      withoutIds(
+        convertLegacyCustomCode({
+          headHtml: "<b>h</b>",
+          bodyEndHtml: "<i>b</i>",
+        })
+      )
+    )
+    await migrate()
+    expect(await codeRow()).toEqual(first)
+  })
+
+  it("null published stays null; non-objects and revisions are handled", async () => {
+    await getDb()
+      .insert(settings)
+      .values({ key: "customCode", draft: "broken", published: null })
+    await getDb()
+      .insert(revisions)
+      .values({
+        entityType: "settings",
+        entityId: "customCode",
+        version: 1,
+        data: { headHtml: "", bodyEndHtml: "<p>r</p>" },
+      })
+    await migrate()
+    const row = await codeRow()
+    expect(row.draft).toBe("broken")
+    expect(row.published).toBeNull()
+    const [rev] = await getDb()
+      .select()
+      .from(revisions)
+      .where(eq(revisions.entityId, "customCode"))
+    expect(withoutIds(rev!.data)).toEqual(
+      withoutIds(
+        convertLegacyCustomCode({ headHtml: "", bodyEndHtml: "<p>r</p>" })
+      )
+    )
   })
 })
