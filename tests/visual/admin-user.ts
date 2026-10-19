@@ -13,6 +13,14 @@ export const VISUAL_EDITOR = {
   password: "visual-password-0123456789",
 } as const
 
+// The owner (MK-parity A7): owner-only screens such as /admin/design. Also a
+// row on the Users screen (that baseline is re-shot in A8).
+export const VISUAL_OWNER = {
+  email: "olive@visual.test",
+  name: "Olive Visual",
+  password: "visual-password-0123456789",
+} as const
+
 // An author (Phase 5): the article editor as they see it (no publishing).
 export const VISUAL_AUTHOR = {
   email: "arthur@visual.test",

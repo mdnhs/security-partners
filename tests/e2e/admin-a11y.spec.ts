@@ -434,6 +434,24 @@ for (const colorScheme of ["light", "dark"] as const) {
       expect(failures).toEqual([])
     })
 
+    test(`design system gallery in ${colorScheme}`, async ({ page }) => {
+      // MK-parity A7: every admin component on sample data (owner only),
+      // then with the Select's list open.
+      await signIn(page, E2E_OWNER)
+      await page.goto("/admin/design")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Design system" })
+      ).toBeVisible()
+      const failures: string[] = []
+      for (const violation of await blocking(page))
+        failures.push(`/admin/design → ${violation}`)
+      await page.getByRole("combobox", { name: "Region" }).click()
+      await expect(page.getByRole("option", { name: "Cork" })).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`/admin/design + open select → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
     test(`growth screens in ${colorScheme}`, async ({ page }) => {
       // SEO (Phase 8): overview with the health gauge, defaults, the
       // record SEO sheet.
