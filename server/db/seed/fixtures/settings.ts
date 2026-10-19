@@ -335,6 +335,11 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
         body: "Please confirm that you would like to receive the Security Partners newsletter. If you did not ask for this, ignore this email and you will not hear from us again.",
       },
       pages: {
+        confirm: {
+          title: "Confirm your subscription",
+          body: "Press the button below to confirm that you would like to receive our newsletter.",
+          button: "Confirm subscription",
+        },
         confirmed: {
           title: "You're subscribed",
           body: "Thanks for confirming. Our next newsletter will arrive in your inbox.",

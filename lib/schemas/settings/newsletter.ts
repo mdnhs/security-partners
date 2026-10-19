@@ -40,6 +40,8 @@ export const newsletterSettings = z
       body: z.string().max(2000),
     }),
     pages: z.object({
+      /** The view the confirmation mail links to: its button POSTs the token. */
+      confirm: statePage.extend({ button: z.string().max(40) }),
       confirmed: statePage,
       invalid: statePage,
       unsubscribe: statePage.extend({ button: z.string().max(40) }),

@@ -85,6 +85,12 @@ describe("newsletter migration (0017)", () => {
       button: "Subscribe",
       success: "Check your inbox to confirm your subscription.",
     })
+    // Copy for the confirm view, whose button POSTs the token (a GET never confirms).
+    expect(parsed.pages.confirm).toEqual({
+      title: "Confirm your subscription",
+      body: expect.any(String),
+      button: "Confirm subscription",
+    })
 
     // ON CONFLICT DO NOTHING: an admin's edits survive a re-run.
     const edited = { ...parsed, placement: "blog" }

@@ -1,6 +1,18 @@
 import "server-only"
 
-import { and, count, desc, eq, ilike, lt, ne, type SQL, sql } from "drizzle-orm"
+import {
+  and,
+  count,
+  desc,
+  eq,
+  ilike,
+  isNull,
+  lt,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm"
 
 import type { NewsletterStatus } from "@/lib/schemas/api/newsletter"
 import type { DbOrTx } from "@/server/db/client"
@@ -20,23 +32,38 @@ const notConfirmed = ne(newsletterSubscribers.status, "confirmed")
 
 /**
  * New address → pending row; pending or unsubscribed → back to pending with
- * the new token (unsubscribed_at stays as history). Confirmed → no change,
- * returns null.
+ * the new token (unsubscribed_at stays as history, confirmed_at is cleared).
+ * Returns null — so no mail goes out — when the row is confirmed, or is
+ * pending and was last mailed after `resendAfter` (resend cooldown: the
+ * earlier link stays valid).
  */
 export async function upsertPending(
   db: DbOrTx,
   email: string,
-  pending: SignupMeta & { tokenHash: string; tokenExpiresAt: Date; now: Date }
+  pending: SignupMeta & {
+    tokenHash: string
+    tokenExpiresAt: Date
+    now: Date
+    resendAfter: Date
+  }
 ): Promise<{ id: string } | null> {
-  const { now, ...rest } = pending
-  const values = { status: "pending" as const, updatedAt: now, ...rest }
+  const { now, resendAfter, ...rest } = pending
+  const values = {
+    status: "pending" as const,
+    confirmedAt: null,
+    updatedAt: now,
+    ...rest,
+  }
   const [row] = await db
     .insert(newsletterSubscribers)
     .values({ email, createdAt: now, ...values })
     .onConflictDoUpdate({
       target: newsletterSubscribers.email,
       set: values,
-      setWhere: notConfirmed,
+      setWhere: and(
+        notConfirmed,
+        sql`not (${newsletterSubscribers.status} = 'pending' and ${newsletterSubscribers.updatedAt} > ${resendAfter.toISOString()})`
+      ),
     })
     .returning({ id: newsletterSubscribers.id })
   return row ?? null
@@ -67,7 +94,11 @@ export async function upsertConfirmed(
     })
 }
 
-/** Single use: the hash is cleared on success. Expired or unknown → false, row untouched. */
+/**
+ * Single use: the hash is cleared on success. Expired or unknown → false, row
+ * untouched. The IP hash is only abuse evidence for the pending window, so
+ * it is dropped on confirm.
+ */
 export async function confirmByTokenHash(
   db: DbOrTx,
   tokenHash: string,
@@ -80,6 +111,7 @@ export async function confirmByTokenHash(
       confirmedAt: now,
       tokenHash: null,
       tokenExpiresAt: null,
+      ipHash: null,
       updatedAt: now,
     })
     .where(
@@ -105,6 +137,7 @@ export async function markUnsubscribed(
       unsubscribedAt: now,
       tokenHash: null,
       tokenExpiresAt: null,
+      ipHash: null,
       updatedAt: now,
     })
     .where(
@@ -173,21 +206,26 @@ export async function deleteSubscriberRow(
 }
 
 /**
- * Pending rows whose last activity is before `cutoff`: the token's expiry
- * when there is one, else updated_at.
+ * Pending rows created before `cutoff` whose latest link was also issued
+ * before it (issued = token_expires_at − `tokenTtlMs`). A row re-pended after
+ * an unsubscribe keeps its old created_at; the issued-at check keeps its
+ * fresh link alive.
  */
 export async function deletePendingBefore(
   db: DbOrTx,
-  cutoff: Date
+  cutoff: Date,
+  tokenTtlMs: number
 ): Promise<number> {
+  const issuedCutoff = new Date(cutoff.getTime() + tokenTtlMs)
   const rows = await db
     .delete(newsletterSubscribers)
     .where(
       and(
         eq(newsletterSubscribers.status, "pending"),
-        lt(
-          sql`coalesce(${newsletterSubscribers.tokenExpiresAt}, ${newsletterSubscribers.updatedAt})`,
-          cutoff.toISOString()
+        lt(newsletterSubscribers.createdAt, cutoff),
+        or(
+          isNull(newsletterSubscribers.tokenExpiresAt),
+          lt(newsletterSubscribers.tokenExpiresAt, issuedCutoff)
         )
       )
     )

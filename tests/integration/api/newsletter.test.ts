@@ -13,10 +13,15 @@ import {
 
 // Confirmation mail runs after the response (next/server `after`): collect
 // the deferred tasks so a test can wait for them.
-const deferred = vi.hoisted(() => ({ tasks: [] as Promise<unknown>[] }))
+const deferred = vi.hoisted(() => ({
+  tasks: [] as Promise<unknown>[],
+  outside: false,
+}))
 vi.mock("next/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/server")>()),
   after: (task: () => unknown) => {
+    if (deferred.outside)
+      throw new Error("`after` was called outside a request scope")
     deferred.tasks.push(Promise.resolve().then(task))
   },
 }))
@@ -31,10 +36,14 @@ import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
 import { auditLog, newsletterSubscribers, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
+import type { Actor } from "@/server/lib/actor"
 import { mailer } from "@/server/lib/mailer"
 import {
+  CONFIRM_TTL_MS,
+  findSubscriberByEmail,
   purgeStalePending,
   readUnsubscribeToken,
+  RESEND_COOLDOWN_MS,
   unsubscribeToken,
 } from "@/server/modules/newsletter/service"
 
@@ -58,20 +67,37 @@ function publicGet(path: string) {
   })
 }
 
-function unsubscribePost(token: string, form = false) {
-  return app.request("/api/v1/public/newsletter/unsubscribe", {
+function tokenPost(
+  path: "/confirm" | "/unsubscribe",
+  token: string,
+  form = false,
+  ip = freshIp()
+) {
+  return app.request(`/api/v1/public/newsletter${path}`, {
     method: "POST",
     headers: {
       "content-type": form
         ? "application/x-www-form-urlencoded"
         : "application/json",
-      "x-forwarded-for": freshIp(),
+      "x-forwarded-for": ip,
     },
     body: form
       ? new URLSearchParams({ token }).toString()
       : JSON.stringify({ token }),
   })
 }
+const unsubscribePost = (token: string, form = false) =>
+  tokenPost("/unsubscribe", token, form)
+const confirmPost = (token: string, form = false) =>
+  tokenPost("/confirm", token, form)
+
+const actorWith = (roles: Role[]): Actor => ({
+  userId: "00000000-0000-7000-8000-000000000000",
+  roles,
+  ip: null,
+  userAgent: null,
+  impersonatorId: null,
+})
 
 async function patchNewsletter(patch: Partial<NewsletterSettings>) {
   const [row] = await getDb()
@@ -130,7 +156,9 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
       template: "newsletter-confirmation",
     })
     const { confirmUrl, unsubscribeUrl } = props(mail)
-    expect(confirmUrl).toContain("/api/v1/public/newsletter/confirm?token=")
+    // The mail opens the confirm view (a page with a POST button), never an
+    // endpoint that changes state.
+    expect(new URL(confirmUrl).pathname).toBe("/newsletter/confirm")
     expect(unsubscribeUrl).toContain("/newsletter/unsubscribe?token=")
     const token = tokenOf(mail)
     expect(Buffer.from(token, "base64url")).toHaveLength(32)
@@ -140,17 +168,42 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
       7 * 86_400_000,
       -4
     )
+    expect(row.ipHash).toEqual(expect.any(String))
+  })
 
-    const url = new URL(confirmUrl)
-    const ok = await app.request(url.pathname + url.search)
+  it("confirms by POST only: GET is side-effect free, POST confirms once", async () => {
+    await subscribe({ email: "click@example.ie" })
+    await drain()
+    const token = tokenOf(sent()[0])
+
+    // A link scanner pre-fetching the API GET changes nothing: it only
+    // redirects to the confirm view.
+    const get = await publicGet(`/confirm?token=${token}`)
+    expect(get.status).toBe(303)
+    const location = new URL(get.headers.get("location")!, "http://x")
+    expect(location.pathname).toBe("/newsletter/confirm")
+    expect(location.searchParams.get("token")).toBe(token)
+    expect(get.headers.get("referrer-policy")).toBe("no-referrer")
+    const [stillPending] = await rows()
+    expect(stillPending).toMatchObject({ status: "pending", confirmedAt: null })
+    expect(stillPending.tokenHash).not.toBeNull()
+
+    // The view's button POSTs the token (form), or JSON.
+    const ok = await confirmPost(token, true)
     expect(ok.status).toBe(303)
     expect(ok.headers.get("location")).toBe("/newsletter/confirmed")
     const [after] = await rows()
-    expect(after).toMatchObject({ status: "confirmed", tokenHash: null })
+    expect(after).toMatchObject({
+      status: "confirmed",
+      tokenHash: null,
+      tokenExpiresAt: null,
+      ipHash: null,
+    })
     expect(after.confirmedAt).toBeInstanceOf(Date)
 
-    // Single use: a second click is invalid.
-    const again = await app.request(url.pathname + url.search)
+    // Replay: single use.
+    const again = await confirmPost(token)
+    expect(again.status).toBe(303)
     expect(again.headers.get("location")).toBe("/newsletter/invalid")
   })
 
@@ -177,9 +230,42 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
       [201, { ok: true }],
     ])
     await drain()
-    expect(sent().map((m) => m.to)).toEqual(["wait@example.ie", "x@example.ie"])
+    // wait@ is inside the resend cooldown, so only the new address is mailed.
+    expect(sent().map((m) => m.to)).toEqual(["x@example.ie"])
     const done = (await rows()).find((r) => r.email === "done@example.ie")!
     expect(done).toMatchObject({ status: "confirmed", tokenHash: null })
+  })
+
+  it("does not re-mail a pending address inside the resend cooldown", async () => {
+    const t0 = Date.now()
+    await subscribe({ email: "bomb@example.ie" })
+    await drain()
+    const [first] = await rows()
+    expect(sent()).toHaveLength(1)
+
+    vi.useFakeTimers({
+      now: t0 + RESEND_COOLDOWN_MS - 60_000,
+      toFake: ["Date"],
+    })
+    const res = await subscribe({ email: "bomb@example.ie" })
+    expect(res.status).toBe(201)
+    expect(await res.json()).toEqual({ ok: true })
+    await drain()
+    expect(sent()).toHaveLength(1)
+    const [same] = await rows()
+    // The first link still works: the token was not rotated.
+    expect(same.tokenHash).toBe(first.tokenHash)
+    expect(same.updatedAt).toEqual(first.updatedAt)
+
+    vi.useFakeTimers({
+      now: t0 + RESEND_COOLDOWN_MS + 60_000,
+      toFake: ["Date"],
+    })
+    expect((await subscribe({ email: "bomb@example.ie" })).status).toBe(201)
+    await drain()
+    expect(sent()).toHaveLength(2)
+    const [rotated] = await rows()
+    expect(rotated.tokenHash).not.toBe(first.tokenHash)
   })
 
   it("expires confirm tokens after 7 days (row stays pending)", async () => {
@@ -187,29 +273,49 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
     await drain()
     const token = tokenOf(sent()[0])
     vi.useFakeTimers({ now: Date.now() + 8 * 86_400_000, toFake: ["Date"] })
-    const res = await publicGet(`/confirm?token=${token}`)
+    const res = await confirmPost(token)
     expect(res.status).toBe(303)
     expect(res.headers.get("location")).toBe("/newsletter/invalid")
     expect((await rows())[0].status).toBe("pending")
   })
 
   it("rejects missing, junk and oversized confirm tokens", async () => {
-    for (const query of [
-      "",
-      "?token=",
-      "?token=junk",
-      `?token=${"a".repeat(500)}`,
-    ]) {
+    for (const query of ["", "?token=", `?token=${"a".repeat(500)}`]) {
       const res = await publicGet(`/confirm${query}`)
       expect(res.status).toBe(303)
       expect(res.headers.get("location")).toBe("/newsletter/invalid")
+    }
+    for (const token of ["", "junk", "a".repeat(500)]) {
+      const res = await confirmPost(token)
+      expect(res.status).toBe(303)
+      expect(res.headers.get("location")).toBe("/newsletter/invalid")
+    }
+    const malformed = await app.request("/api/v1/public/newsletter/confirm", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": freshIp(),
+      },
+      body: "{not json",
+    })
+    expect(malformed.headers.get("location")).toBe("/newsletter/invalid")
+  })
+
+  it("rate limits confirm and unsubscribe per IP (30 per 10 minutes)", async () => {
+    for (const path of ["/confirm", "/unsubscribe"] as const) {
+      const ip = path === "/confirm" ? "198.18.1.1" : "198.18.1.2"
+      for (let i = 0; i < 30; i++)
+        expect((await tokenPost(path, "junk", false, ip)).status).toBe(303)
+      const limited = await tokenPost(path, "junk", false, ip)
+      expect(limited.status).toBe(429)
+      expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0)
     }
   })
 
   it("unsubscribes by POST only; a forged token answers the same", async () => {
     const [row] = await getDb()
       .insert(newsletterSubscribers)
-      .values({ email: "bye@example.ie", status: "confirmed" })
+      .values({ email: "bye@example.ie", status: "confirmed", ipHash: "h" })
       .returning()
     const token = unsubscribeToken(row.id)
     expect(token).toMatch(/^[0-9a-f-]{36}\.[A-Za-z0-9_-]{32}$/)
@@ -233,6 +339,7 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
     const [after] = await rows()
     expect(after.status).toBe("unsubscribed")
     expect(after.unsubscribedAt).toBeInstanceOf(Date)
+    expect(after.ipHash).toBeNull()
   })
 
   it("confirms directly when doubleOptIn is off; honeypot is silent", async () => {
@@ -240,7 +347,11 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
     expect((await subscribe({ email: "direct@example.ie" })).status).toBe(201)
     await drain()
     const [row] = await rows()
-    expect(row).toMatchObject({ status: "confirmed", tokenHash: null })
+    expect(row).toMatchObject({
+      status: "confirmed",
+      tokenHash: null,
+      ipHash: null,
+    })
     expect(send).not.toHaveBeenCalled()
 
     const bot = await subscribe({ email: "bot@example.ie", website: "x" })
@@ -271,6 +382,7 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
       .values({
         email: "back@example.ie",
         status: "unsubscribed",
+        confirmedAt: new Date("2025-06-01T00:00:00Z"),
         unsubscribedAt,
       })
       .returning()
@@ -279,6 +391,8 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
     const [after] = await rows()
     expect(after.id).toBe(row.id)
     expect(after.status).toBe("pending")
+    // Re-pending: no stale confirmation date on an unconsented row.
+    expect(after.confirmedAt).toBeNull()
     expect(after.tokenHash).toBe(
       createHash("sha256").update(tokenOf(sent()[0])).digest("hex")
     )
@@ -336,21 +450,46 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
 
     for (let i = 0; i < 5; i++)
       expect((await subscribe({ email: "same@example.ie" })).status).toBe(201)
-    expect((await subscribe({ email: "SAME@example.ie" })).status).toBe(429)
+    const byEmail = await subscribe({ email: "SAME@example.ie" })
+    expect(byEmail.status).toBe(429)
+    expect(byEmail.headers.get("cache-control")).toBe("no-store")
+    const retryAfter = Number(byEmail.headers.get("retry-after"))
+    expect(retryAfter).toBeGreaterThan(0)
+    expect(retryAfter).toBeLessThanOrEqual(600)
+    expect((await byEmail.json()).error.code).toBe("RATE_LIMITED")
     await drain()
+  })
+
+  it("warns when the post-response hook is unavailable and the mail runs detached", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    // Outside a request scope next/server's `after` throws.
+    deferred.outside = true
+    try {
+      expect((await subscribe({ email: "detached@example.ie" })).status).toBe(
+        201
+      )
+    } finally {
+      deferred.outside = false
+    }
+    await vi.waitFor(() => expect(sent()).toHaveLength(1))
+    expect(warn.mock.calls.flat().join("\n")).toMatch(
+      /\[newsletter\].*after\(\).*detached/
+    )
+    expect(warn.mock.calls.flat().join("\n")).not.toContain("detached@")
   })
 })
 
 describe("admin /api/v1/admin/newsletter", () => {
-  // [GET /, GET /export.csv, DELETE /:id]
-  const MATRIX: Record<Role, [number, number, number]> = {
-    owner: [200, 200, 200],
-    admin: [200, 200, 200],
-    marketer: [200, 200, 403],
-    editor: [403, 403, 403],
-    author: [403, 403, 403],
-    intake: [403, 403, 403],
-    viewer: [403, 403, 403],
+  // [GET /, GET /export.csv (confirmed), GET /export.csv?status=all, DELETE /:id]
+  // "all" includes pending (unconsented) and unsubscribed addresses: owner/admin only.
+  const MATRIX: Record<Role, [number, number, number, number]> = {
+    owner: [200, 200, 200, 200],
+    admin: [200, 200, 200, 200],
+    marketer: [200, 200, 403, 403],
+    editor: [403, 403, 403, 403],
+    author: [403, 403, 403, 403],
+    intake: [403, 403, 403, 403],
+    viewer: [403, 403, 403, 403],
   }
 
   it.each(ROLES)("RBAC for %s", async (role) => {
@@ -362,6 +501,8 @@ describe("admin /api/v1/admin/newsletter", () => {
     expect([
       (await adminRequest("/newsletter", { cookie })).status,
       (await adminRequest("/newsletter/export.csv", { cookie })).status,
+      (await adminRequest("/newsletter/export.csv?status=all", { cookie }))
+        .status,
       (
         await adminRequest(`/newsletter/${row.id}`, {
           cookie,
@@ -431,7 +572,7 @@ describe("admin /api/v1/admin/newsletter", () => {
       ).toBe(422)
     })
 
-    it("exports confirmed by default, all on request; guards formulas; audits", async () => {
+    it("exports confirmed by default (marketer), all only for owner/admin; guards formulas; audits", async () => {
       const res = await adminRequest("/newsletter/export.csv", {
         cookie: marketer,
       })
@@ -447,9 +588,15 @@ describe("admin /api/v1/admin/newsletter", () => {
       expect(csv).not.toContain("b@example.ie")
       expect(csv).not.toContain("c@other.ie")
 
+      const denied = await adminRequest("/newsletter/export.csv?status=all", {
+        cookie: marketer,
+      })
+      expect(denied.status).toBe(403)
+      expect(await denied.text()).not.toContain("b@example.ie")
+
       const allCsv = await (
         await adminRequest("/newsletter/export.csv?status=all", {
-          cookie: marketer,
+          cookie: admin,
         })
       ).text()
       expect(allCsv).toContain("b@example.ie")
@@ -459,8 +606,21 @@ describe("admin /api/v1/admin/newsletter", () => {
         .select()
         .from(auditLog)
         .where(eq(auditLog.action, "newsletter.exported"))
+      // The refused export is not audited as an export.
       expect(audits).toHaveLength(2)
       expect(JSON.stringify(audits)).not.toContain("@example.ie")
+    })
+
+    it("findSubscriberByEmail requires newsletter:read", async () => {
+      await expect(
+        findSubscriberByEmail(actorWith(["editor"]), "a@example.ie")
+      ).rejects.toMatchObject({ code: "FORBIDDEN" })
+      await expect(
+        findSubscriberByEmail(actorWith(["marketer"]), " A@Example.ie ")
+      ).resolves.toMatchObject({ email: "a@example.ie", status: "confirmed" })
+      await expect(
+        findSubscriberByEmail(actorWith(["owner"]), "nobody@example.ie")
+      ).resolves.toBeNull()
     })
 
     it("admin deletes (audited); unknown id 404", async () => {
@@ -521,6 +681,33 @@ describe("retention", () => {
     expect((await rows()).map((r) => r.email).sort()).toEqual([
       "fresh@example.ie",
       "kept@example.ie",
+    ])
+  })
+
+  it("measures pendingDays from created_at (not token expiry); a re-pended row counts from its new link", async () => {
+    const now = new Date("2026-10-19T12:00:00Z")
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000)
+    const pending = (email: string, createdAt: Date, issuedAt = createdAt) => ({
+      email,
+      status: "pending" as const,
+      tokenHash: `hash-${email}`,
+      tokenExpiresAt: new Date(issuedAt.getTime() + CONFIRM_TTL_MS),
+      createdAt,
+      updatedAt: issuedAt,
+    })
+    await getDb()
+      .insert(newsletterSubscribers)
+      .values([
+        // Token expired 24 days ago, created 31 days ago: stale.
+        pending("stale@example.ie", ago(31)),
+        pending("young@example.ie", ago(29)),
+        // Unsubscribed long ago, re-subscribed yesterday: its link is live.
+        pending("again@example.ie", ago(400), ago(1)),
+      ])
+    expect(await purgeStalePending(now)).toBe(1)
+    expect((await rows()).map((r) => r.email).sort()).toEqual([
+      "again@example.ie",
+      "young@example.ie",
     ])
   })
 })

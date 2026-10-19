@@ -42,10 +42,24 @@ export const NEWSLETTER_LIMIT = {
   windowMs: 600_000,
 } as const
 export const CONFIRM_TTL_MS = 7 * 86_400_000
+/**
+ * A pending address is re-mailed at most once per hour (mail-bombing guard);
+ * a re-signup inside the window answers the same 201 and the earlier link
+ * stays valid.
+ */
+export const RESEND_COOLDOWN_MS = 3_600_000
+/** Per IP on the token endpoints (confirm, unsubscribe): only DB-load hygiene. */
+export const NEWSLETTER_TOKEN_LIMIT = {
+  bucket: "newsletter-token",
+  max: 30,
+  windowMs: 600_000,
+} as const
 const TOKEN_MAX_LENGTH = 200
 const UNSUBSCRIBE_MAC_LENGTH = 32
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DEFAULT_SUBJECT = "Confirm your subscription"
+/** Public confirm view; renders a button that POSTs `{ token }` to the API. */
+export const CONFIRM_VIEW_PATH = "/newsletter/confirm"
 
 const sha256 = (value: string) =>
   createHash("sha256").update(value).digest("hex")
@@ -100,7 +114,8 @@ export async function newsletterAcceptsSignups(
 /**
  * Runs after the response (next/server `after`) so a new address and a
  * confirmed one answer in the same time. Outside a request scope (scripts)
- * it runs detached.
+ * it runs detached, with a warning: on serverless a detached promise can be
+ * dropped when the function freezes.
  */
 function defer(task: () => Promise<void>): void {
   const run = () =>
@@ -109,8 +124,20 @@ function defer(task: () => Promise<void>): void {
     )
   try {
     after(run)
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[newsletter] after() unavailable (${errorName(err)}); running the mail task detached`
+    )
     void run()
+  }
+}
+
+/** Per-address 429; carries the window's Retry-After for the route. */
+export class NewsletterRateLimitedError extends AppError {
+  readonly retryAfterSeconds: number
+  constructor(retryAfterSeconds: number) {
+    super("RATE_LIMITED", "Too many requests. Try again later.")
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -137,7 +164,7 @@ export async function subscribe(
     now,
   })
   if (!byEmail.allowed)
-    throw new AppError("RATE_LIMITED", "Too many requests. Try again later.")
+    throw new NewsletterRateLimitedError(byEmail.retryAfterSeconds)
 
   const db = getDb()
   const meta = {
@@ -145,18 +172,20 @@ export async function subscribe(
     consentText: [settings.subtitle, settings.button]
       .filter(Boolean)
       .join(" — "),
-    ipHash: ctx.ip ? hashIp(ctx.ip) : null,
   }
   if (!settings.doubleOptIn) {
-    await repo.upsertConfirmed(db, input.email, { ...meta, now })
+    // Confirmed at once: the IP hash is not kept past confirmation.
+    await repo.upsertConfirmed(db, input.email, { ...meta, ipHash: null, now })
     return { ok: true }
   }
   const token = randomBytes(32).toString("base64url")
   const row = await repo.upsertPending(db, input.email, {
     ...meta,
+    ipHash: ctx.ip ? hashIp(ctx.ip) : null,
     tokenHash: sha256(token),
     tokenExpiresAt: new Date(now.getTime() + CONFIRM_TTL_MS),
     now,
+    resendAfter: new Date(now.getTime() - RESEND_COOLDOWN_MS),
   })
   if (row) defer(() => sendConfirmation(row.id, input.email, token, settings))
   return { ok: true }
@@ -170,7 +199,9 @@ async function sendConfirmation(
 ): Promise<void> {
   const site = await readPublishedSettings("site")
   const origin = getEnv().BETTER_AUTH_URL
-  const confirmUrl = new URL("/api/v1/public/newsletter/confirm", origin)
+  // The confirm view (D4.2 page): its button POSTs the token, so a mail
+  // gateway pre-fetching the link cannot confirm on the person's behalf.
+  const confirmUrl = new URL(CONFIRM_VIEW_PATH, origin)
   confirmUrl.searchParams.set("token", token)
   const unsubscribeUrl = new URL("/newsletter/unsubscribe", origin)
   unsubscribeUrl.searchParams.set("token", unsubscribeToken(id))
@@ -190,7 +221,10 @@ async function sendConfirmation(
   })
 }
 
-/** Single use, 7-day TTL. Only the sha256 is stored, so the lookup leaks nothing. */
+/**
+ * Single use, 7-day TTL. Only the sha256 is stored, so the lookup leaks
+ * nothing. State-changing: only ever called from the POST route.
+ */
 export async function confirm(
   token: string,
   now: Date = new Date()
@@ -243,12 +277,27 @@ export async function listSubscribers(
   }
 }
 
+/**
+ * Who may export which statuses. "confirmed" needs newsletter:export
+ * (owner, admin, marketer). "all" also hands out pending (never consented)
+ * and unsubscribed (opted out) addresses, which must never be imported into
+ * a mailing tool, so it additionally needs newsletter:delete — the
+ * owner/admin-only grant over the whole list.
+ */
+export function exportPermission(
+  status: "all" | "confirmed"
+): PermissionRequest {
+  return status === "all"
+    ? { newsletter: ["export", "delete"] }
+    : { newsletter: ["export"] }
+}
+
 /** CSV (formula-guarded, BOM for Excel). Audits the count only, never addresses. */
 export async function exportSubscribers(
   actor: Actor,
   status: "all" | "confirmed"
 ): Promise<string> {
-  assertCan(actor, { newsletter: ["export"] })
+  assertCan(actor, exportPermission(status))
   const db = getDb()
   const rows = await repo.exportSubscriberRows(db, status)
   const iso = (d: Date | null) => d?.toISOString() ?? null
@@ -291,9 +340,10 @@ export async function deleteSubscriber(
 }
 
 /**
- * Retention: pending rows idle for longer than settings.newsletter
- * .pendingDays (measured from the token's expiry, else updated_at).
- * Confirmed and unsubscribed rows are never purged here.
+ * Retention: pending rows older than settings.newsletter.pendingDays,
+ * measured from created_at (a row re-pended after an unsubscribe counts from
+ * its latest link instead). Confirmed and unsubscribed rows are never purged
+ * here.
  */
 export async function purgeStalePending(
   now: Date = new Date()
@@ -303,7 +353,7 @@ export async function purgeStalePending(
   if (!settings) return 0
   const cutoff = new Date(now.getTime() - settings.pendingDays * 86_400_000)
   return db.transaction(async (tx) => {
-    const count = await repo.deletePendingBefore(tx, cutoff)
+    const count = await repo.deletePendingBefore(tx, cutoff, CONFIRM_TTL_MS)
     if (count > 0)
       await writeAudit(tx, null, {
         action: "newsletter.purged",
@@ -321,10 +371,12 @@ export async function countSubscribers(
   return repo.countConfirmed(getDb(), new Date(now.getTime() - 30 * 86_400_000))
 }
 
-/** DSAR helper (lead CSV-by-email). The caller checks permissions. */
+/** DSAR helper (lead CSV-by-email): needs newsletter:read, like the list. */
 export async function findSubscriberByEmail(
+  actor: Actor,
   email: string
 ): Promise<SubscriberDto | null> {
+  assertCan(actor, { newsletter: ["read"] })
   const row = await repo.findByEmail(getDb(), email.trim().toLowerCase())
   return row ? toDto(row) : null
 }
