@@ -179,6 +179,8 @@ export type LeadListItem = {
   email: string
   phone: string | null
   company: string | null
+  /** The service picked on the form (board cards, D3.3). */
+  service: string | null
   status: LeadStatus
   assignee: LeadPerson | null
   sourcePage: string | null
@@ -193,7 +195,6 @@ export type LeadEventItem = {
   createdAt: string
 }
 export type LeadDto = LeadListItem & {
-  service: string | null
   message: string
   consent: boolean
   /** null = not recorded (older lead, blocked storage, or not sent). */

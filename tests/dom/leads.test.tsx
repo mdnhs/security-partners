@@ -71,6 +71,8 @@ const onClose = vi.fn()
 const drawer = (id: string) => <LeadDrawer id={id} onClose={onClose} />
 const at = (url: string) => window.history.replaceState(null, "", url)
 beforeEach(() => {
+  // These tests drive the table view (the board is the default, D3.3).
+  window.localStorage.setItem("sp-leads-view", "table")
   calls.length = 0
   onClose.mockClear()
   holdPatch = null

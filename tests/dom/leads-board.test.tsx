@@ -5,10 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock("sonner", () => ({ toast }))
 
-import {
-  BOARD_COLUMNS,
-  LeadsBoard,
-} from "@/components/admin/leads/leads-board"
+import { BOARD_COLUMNS, LeadsBoard } from "@/components/admin/leads/leads-board"
 import type { LeadListItem, LeadStatus } from "@/lib/schemas/api/leads"
 
 const lead = (
@@ -46,9 +43,7 @@ const card = (name: string) =>
 /** dnd-kit attaches its keydown listener on the next tick after pick-up. */
 const tick = () => act(() => new Promise((r) => setTimeout(r, 0)))
 
-function setup(
-  props: Partial<Parameters<typeof LeadsBoard>[0]> = {}
-): {
+function setup(props: Partial<Parameters<typeof LeadsBoard>[0]> = {}): {
   onOpen: ReturnType<typeof vi.fn>
   onMove: ReturnType<typeof vi.fn>
   user: ReturnType<typeof userEvent.setup>

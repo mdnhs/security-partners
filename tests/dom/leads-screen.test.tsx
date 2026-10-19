@@ -58,11 +58,8 @@ beforeEach(() => {
   replace.mockClear()
   refresh.mockClear()
   window.history.replaceState(null, "", "/admin/leads")
-  try {
-    window.localStorage.removeItem("sp-leads-view")
-  } catch {
-    // jsdom always has storage
-  }
+  // Most tests here drive the table; the board is the default (D3.3).
+  window.localStorage.setItem("sp-leads-view", "table")
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -301,6 +298,19 @@ describe("leads screen: Inbox/Spam tabs, view toggle, drawer (D3.2)", () => {
 })
 
 describe("leads screen: board view (D3.3)", () => {
+  it("the board is the default view (MK)", async () => {
+    window.localStorage.removeItem("sp-leads-view")
+    renderAs()
+    expect(
+      await screen.findByRole("region", { name: "Qualified" })
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole("group", { name: "View" })).getByRole("button", {
+        name: "Board",
+      })
+    ).toHaveAttribute("aria-pressed", "true")
+  })
+
   it("?view=board shows the board from the latest 100 open, won and lost", async () => {
     window.history.replaceState(null, "", "/admin/leads?view=board")
     listTotal = 101

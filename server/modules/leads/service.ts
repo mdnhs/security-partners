@@ -245,6 +245,7 @@ function toListItem(row: repo.LeadWithAssignee): LeadListItem {
     email: row.email,
     phone: row.phone,
     company: row.company,
+    service: row.service,
     status: row.status,
     assignee: row.assigneeId
       ? { id: row.assigneeId, name: row.assigneeName ?? "Deleted user" }
@@ -298,7 +299,6 @@ export async function getLead(actor: Actor, id: string): Promise<LeadDto> {
   const events = await repo.listLeadEventRows(db, id)
   return {
     ...toListItem(row),
-    service: row.service,
     message: row.message,
     consent: row.consent,
     attribution: row.attribution,

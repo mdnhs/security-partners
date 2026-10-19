@@ -31,8 +31,8 @@ export type LeadsParams = {
 
 /** localStorage key of the last chosen view (this browser only). */
 export const LEADS_VIEW_KEY = "sp-leads-view"
-/** Until the board lands (D3.3) and is chosen, the table is the default. */
-const DEFAULT_VIEW: LeadsView = "table"
+/** The board is the inbox's default view, as in MK (D3.3). */
+const DEFAULT_VIEW: LeadsView = "board"
 
 const isView = (value: string | null): value is LeadsView =>
   value === "board" || value === "table"
