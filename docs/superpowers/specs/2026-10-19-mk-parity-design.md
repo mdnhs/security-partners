@@ -85,7 +85,7 @@ Same token names as MK `lib/theme/tokens.ts` `ADMIN_TOKENS` (48 tokens) plus `--
 |---|---|---|
 | background | #ffffff | #0b0e13 |
 | foreground / card-fg / popover-fg / secondary-fg / sidebar-fg | #0f1726 | #eceff3 |
-| card / popover | #ffffff | #1a1f28 |
+| card / popover | #ffffff | #1c212a (A1 nudge, was #1a1f28) |
 | primary / sidebar-primary | #367318 | #7cc84a |
 | primary-fg / sidebar-primary-fg | #ffffff | #0a1408 |
 | secondary | #eceff3 | #1b2029 |
@@ -98,12 +98,12 @@ Same token names as MK `lib/theme/tokens.ts` `ADMIN_TOKENS` (48 tokens) plus `--
 | input | #7b8494 | #6b7382 |
 | ring / sidebar-ring | #4e9a22 | #7cc84a |
 | chart-1..5 | #2f6a15 #4e9a22 #67bd31 #0d1b36 #a7d98a | #7cc84a #67bd31 #a7d98a #c7d3ea #3f6b25 |
-| sidebar (panel + topbar fill) | #f2f3f5 | #13171e |
+| sidebar (panel + topbar fill) | #f2f3f5 | #151920 (A1 nudge, was #13171e) |
 | success / success-soft | #15803d / #dcfce7 | inherit light |
 | warning (ruling 6) / warning-soft | #92400e / #fef3c7 | inherit light |
 | danger / danger-soft | #b91c1c / #fee2e2 | inherit light |
 | skeleton | #e1e4e9 | #29303b |
-| hatch | #a7d98a | #3f6b25 |
+| hatch | #709f53 (A1 nudge, was #a7d98a) | #4a7731 (A1 nudge, was #3f6b25) |
 | hero-from / hero-to | #0d1b36 / #1b3566 | inherit |
 | hero-fg / hero-chip / hero-chip-fg / hero-delta | #ffffff / #ffffff / #0d1b36 / #b7e892 | inherit |
 | promo-from / promo-to / promo-fg | #071022 / #13284d / #ffffff | inherit |

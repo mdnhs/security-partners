@@ -15,7 +15,8 @@ const jakarta = Plus_Jakarta_Sans({
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-geist-mono",
+  display: "swap",
 })
 
 export const metadata: Metadata = {

@@ -1,10 +1,13 @@
 "use client"
 
+import { SP_ADMIN_DARK, SP_ADMIN_LIGHT } from "@/lib/theme/sp-admin"
+
 /**
  * Last-resort boundary for a failing root layout (final review I7; Next's
  * `global-error`): it replaces the whole document, so no app stylesheet or
  * font is loaded. The admin kit's card is reproduced with inline styles and
- * the admin tokens (light, and dark under prefers-color-scheme). Kept
+ * the admin tokens from lib/theme/sp-admin.ts (light, and dark under
+ * prefers-color-scheme). Kept
  * self-contained on purpose: importing admin.css here would put it on
  * every page, public site included.
  */
@@ -45,22 +48,25 @@ export default function GlobalError({
   )
 }
 
+const L = SP_ADMIN_LIGHT
+const D = { ...SP_ADMIN_LIGHT, ...SP_ADMIN_DARK }
+
 const CSS = `
 :root {
   color-scheme: light dark;
-  --canvas: #f1f4f9; --card: #ffffff; --fg: #0d1b36; --muted: #5a6478;
-  --primary: #367318; --on-primary: #ffffff; --ring: #4e9a22;
+  --canvas: ${L.sidebar}; --card: ${L.card}; --fg: ${L["card-foreground"]}; --muted: ${L["muted-foreground"]};
+  --primary: ${L.primary}; --on-primary: ${L["primary-foreground"]}; --ring: ${L.ring};
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #141c2e; --card: #1d2840; --fg: #e6ebf3; --muted: #9aa6bb;
-    --primary: #7cc84a; --on-primary: #0a1408; --ring: #7cc84a;
+    --canvas: ${D.sidebar}; --card: ${D.card}; --fg: ${D["card-foreground"]}; --muted: ${D["muted-foreground"]};
+    --primary: ${D.primary}; --on-primary: ${D["primary-foreground"]}; --ring: ${D.ring};
   }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0; min-height: 100svh; background: var(--canvas); color: var(--fg);
-  font-family: Lato, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 main { display: flex; min-height: 100svh; align-items: center; justify-content: center; padding: 16px; }
 section {
