@@ -170,7 +170,11 @@ const ACCENT_FAMILY = [
 
 // MK Ruling R6: move the coloured side, never a page surface. On the site a
 // brand-family surface (the consent button's green) is the coloured side,
-// so it moves rather than the navy text drawn on it.
+// so it moves rather than the navy text drawn on it. Every candidate is
+// re-checked: when the preferred side cannot clear the pair (a locked
+// brand-green outranks `site.brand`), the other side moves instead, unless
+// it is a page surface; failing both, the issue is unfixable (null). A
+// config that still fails the pair is never returned.
 export function fixIssue(
   config: ThemeConfigValue,
   issue: ContrastIssue
@@ -182,16 +186,30 @@ export function fixIssue(
     const moveSurface =
       SITE_SURFACES.includes(text) ||
       (BRAND_FAMILY.includes(surface) && !SITE_SURFACES.includes(surface))
-    const moving = moveSurface ? surface : text
-    const fixedToken = moveSurface ? text : surface
-    const next = nudge(tokens[moving], tokens[fixedToken], issue.min)
-    if (!next) return null
-    const value = formatOklch(next)
-    const site =
-      moving === "brand-green"
-        ? { ...config.site, brand: value }
-        : { ...config.site, tokens: { ...config.site.tokens, [moving]: value } }
-    return { ...config, site }
+    const preferred = moveSurface ? surface : text
+    const other = moveSurface ? text : surface
+    const sides = SITE_SURFACES.includes(other)
+      ? [preferred]
+      : [preferred, other]
+    for (const moving of sides) {
+      const fixedToken = moving === preferred ? other : preferred
+      const next = nudge(tokens[moving], tokens[fixedToken], issue.min)
+      if (!next) continue
+      const value = formatOklch(next)
+      // brand-green moves through `site.brand`; a locked brand-green is the
+      // user's explicit choice and outranks it, so that candidate fails the
+      // re-check and the navy text moves instead.
+      const site =
+        moving === "brand-green"
+          ? { ...config.site, brand: value }
+          : {
+              ...config.site,
+              tokens: { ...config.site.tokens, [moving]: value },
+            }
+      const candidate = { ...config, site }
+      if (!stillFails(candidate, issue)) return candidate
+    }
+    return null
   }
   const touches = (names: string[]) =>
     names.includes(issue.text) || names.includes(issue.surface)
@@ -201,18 +219,23 @@ export function fixIssue(
       ? "accent"
       : null
   if (!field) return null
-  const mode = issue.scope === "admin-light" ? "light" : "dark"
   const start =
     (config.admin[field] && parseColor(config.admin[field]!)) ||
     buildAdminTokens(config.admin, "light")[field]
-  // Darken for a light-mode failure, lighten for a dark one.
-  const step = mode === "light" ? -0.01 : 0.01
+  // Light: darken the colour. Dark: its lightness has no effect there (the
+  // dark primary keeps SP's tuned lightness, see anchor() in admin.ts, and
+  // the dark accent is a fixed ramp step), so chroma is the one lever the
+  // config has on dark tokens; desaturate step by step towards grey. No
+  // dark failure occurs for any primary/accent today (safe by
+  // construction); this path exists so a future one is still repairable.
+  const light = issue.scope === "admin-light"
   for (let i = 1; i <= 60; i++) {
-    const l = start.l + step * i
-    if (l < 0 || l > 1) break
+    const l = light ? start.l - 0.01 * i : start.l
+    if (l < 0) break
+    const c = light ? start.c : start.c * (1 - i / 60)
     const candidate = {
       ...config,
-      admin: { ...config.admin, [field]: formatOklch({ ...start, l }) },
+      admin: { ...config.admin, [field]: formatOklch({ ...start, l, c }) },
     }
     if (!stillFails(candidate, issue)) return candidate
   }

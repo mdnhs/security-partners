@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { ADMIN_DEFAULT } from "@/lib/theme/admin"
+import { ADMIN_DEFAULT, buildAdminTokens } from "@/lib/theme/admin"
 import { parseColor, sameColor, toHex } from "@/lib/theme/color"
 import { PRESET_IDS, PRESETS, SP_SITE } from "@/lib/theme/presets"
 import { DEFAULT_THEME } from "@/lib/theme/schema"
@@ -98,5 +98,51 @@ describe("presets", () => {
       tokens: { "brand-navy": "oklch(0.2 0.05 260)" },
     })
     expect(tokens["brand-navy"]).toEqual({ l: 0.2, c: 0.05, h: 260 })
+  })
+})
+
+describe("shared tables are never handed out", () => {
+  it("defaults, presets and the default theme are frozen all the way down", () => {
+    for (const shared of [
+      ADMIN_DEFAULT.light.primary,
+      ADMIN_DEFAULT.dark.foreground,
+      SITE_DEFAULT["brand-green"],
+      SITE_DEFAULT,
+      PRESETS.ocean.site,
+      SP_SITE,
+      DEFAULT_THEME.site.tokens,
+      DEFAULT_THEME.admin,
+    ])
+      expect(Object.isFrozen(shared)).toBe(true)
+    expect(() => {
+      ;(SITE_DEFAULT["brand-green"] as { l: number }).l = 0.1
+    }).toThrow(TypeError)
+  })
+
+  it("resolved tokens are fresh objects a caller may edit", () => {
+    for (const id of PRESET_IDS) {
+      const site = resolveSiteTokens(presetSiteTheme(id))
+      const admin = buildAdminTokens(
+        { ...DEFAULT_THEME.admin, preset: id, accent: "#3366cc" },
+        "dark"
+      )
+      for (const t of SITE_TOKENS) {
+        expect(Object.isFrozen(site[t])).toBe(false)
+        site[t].l = 0.5
+      }
+      for (const t of ADMIN_TOKENS) {
+        expect(Object.isFrozen(admin[t])).toBe(false)
+        admin[t].l = 0.5
+      }
+      // One token never aliases another.
+      expect(admin.accent).not.toBe(admin["sidebar-accent"])
+    }
+    expect(toHex(resolveSiteTokens(DEFAULT_THEME.site)["brand-green"])).toBe(
+      "#67bd31"
+    )
+    expect(buildAdminTokens(DEFAULT_THEME.admin, "dark").foreground).toEqual(
+      ADMIN_DEFAULT.dark.foreground
+    )
+    expect(SITE_DEFAULT["brand-green"].l).not.toBe(0.5)
   })
 })

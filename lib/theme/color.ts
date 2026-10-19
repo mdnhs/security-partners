@@ -16,8 +16,8 @@ const HEX_INPUT = /^#[0-9a-f]{6}$/i
 const OKLCH_INPUT =
   /^oklch\(\s*\d*\.?\d+%?\s+\d*\.?\d+\s+\d*\.?\d+(?:deg)?\s*\)$/i
 
-export const WHITE: Oklch = { l: 1, c: 0, h: 0 }
-export const BLACK: Oklch = { l: 0, c: 0, h: 0 }
+export const WHITE: Readonly<Oklch> = Object.freeze({ l: 1, c: 0, h: 0 })
+export const BLACK: Readonly<Oklch> = Object.freeze({ l: 0, c: 0, h: 0 })
 
 const round = (value: number, places: number) => {
   const factor = 10 ** places
