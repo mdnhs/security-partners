@@ -41,6 +41,9 @@ describe("Gauge (kit)", () => {
         .slice(1)
         .map((row) => row.textContent)
     ).toEqual(["Passing checks41", "Needs work59"])
+    // A visually hidden table has nothing to scroll: no scroll container
+    // (axe scrollable-region-focusable).
+    expect(table.closest('[data-slot="table-container"]')).toBeNull()
   })
 
   it("an empty gauge shows a dash, never NaN", () => {

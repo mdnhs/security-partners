@@ -181,6 +181,22 @@ describe("shadcn primitives", () => {
     }
   })
 
+  it("Table without scroll renders the table alone (no scroll container)", () => {
+    render(
+      <Table scroll={false}>
+        <TableCaption>Hidden figures</TableCaption>
+        <TableBody>
+          <TableRow>
+            <TableCell>1</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    )
+    const table = screen.getByRole("table", { name: "Hidden figures" })
+    expect(table).toHaveAttribute("data-slot", "table")
+    expect(table.closest('[data-slot="table-container"]')).toBeNull()
+  })
+
   it("Table renders semantic table roles with roomy cells", () => {
     render(
       <Table scrollLabel="Leads">

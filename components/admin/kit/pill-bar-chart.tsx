@@ -82,7 +82,8 @@ export function PillBarChart({
   return (
     <figure
       aria-label={labelFigure ? ariaLabel : undefined}
-      className="flex flex-col gap-4">
+      className="flex flex-col gap-4"
+    >
       <div className="relative">
         <ChartContainer
           config={config}
@@ -150,7 +151,7 @@ export function PillBarChart({
         ) : null}
       </div>
       <div className="sr-only">
-        <Table>
+        <Table scroll={false}>
           <TableCaption>{ariaLabel}</TableCaption>
           <TableHeader>
             <TableRow>

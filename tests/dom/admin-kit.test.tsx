@@ -144,6 +144,8 @@ describe("admin kit", () => {
         .getAllByRole("columnheader")
         .map((c) => c.textContent)
     ).toEqual(["Week", "Enquiries"])
+    // Hidden table, no scroll container (axe scrollable-region-focusable).
+    expect(table.closest('[data-slot="table-container"]')).toBeNull()
     expect(
       within(table).getByRole("rowheader", { name: "13 Oct" })
     ).toBeInTheDocument()
