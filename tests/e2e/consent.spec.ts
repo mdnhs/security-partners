@@ -11,6 +11,15 @@ import { clientIpFor, E2E_PASSWORD } from "./fixtures"
 
 const SAME_ORIGIN = { origin: BASE_URL }
 const TRACKER = /googletagmanager\.com|connect\.facebook\.net/
+const TRACKING_OFF = {
+  enabled: false,
+  gtmEnabled: false,
+  gtmId: null,
+  ga4Enabled: false,
+  ga4Id: null,
+  metaEnabled: false,
+  metaPixelId: null,
+}
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
@@ -67,10 +76,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     await signIn(page, E2E_OWNER.email)
     await publishSetting(page, "tracking", (d) => ({
       ...d,
-      enabled: false,
-      gtmId: null,
-      ga4Id: null,
-      metaPixelId: null,
+      ...TRACKING_OFF,
     }))
     await publishSetting(page, "customCode", () => ({
       headHtml: "",
@@ -105,8 +111,11 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     await publishSetting(page, "tracking", (d) => ({
       ...d,
       enabled: true,
+      gtmEnabled: true,
       gtmId: "GTM-E2ETEST",
+      ga4Enabled: true,
       ga4Id: "G-E2ETEST1",
+      metaEnabled: true,
       metaPixelId: "1234567890",
     }))
     try {
@@ -169,10 +178,65 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
     } finally {
       await publishSetting(page, "tracking", (d) => ({
         ...d,
-        enabled: false,
-        gtmId: null,
-        ga4Id: null,
-        metaPixelId: null,
+        ...TRACKING_OFF,
+      }))
+    }
+  })
+
+  test("channel switches, status panel and the test event (D2.1)", async ({
+    page,
+    browser,
+  }) => {
+    await signIn(page, E2E_OWNER.email)
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      enabled: true,
+      gtmEnabled: false,
+      gtmId: "GTM-E2ETEST",
+      ga4Enabled: true,
+      ga4Id: "G-E2ETEST1",
+      metaEnabled: false,
+      metaPixelId: null,
+    }))
+    try {
+      await page.goto("/admin/marketing")
+      const status = page.getByRole("region", { name: "Status" })
+      const rows = status.getByRole("listitem")
+      await expect(rows.nth(0)).toContainText("Off")
+      await expect(rows.nth(1)).toContainText("Ready")
+      await expect(rows.nth(2)).toContainText("Off")
+      await expect(
+        status.getByRole("button", { name: "Send test event" })
+      ).toBeVisible()
+
+      const visitor = await browser.newContext()
+      const site = await visitor.newPage()
+      const requested = await stubTrackers(site)
+      await site.goto("/?sp_tracking_test=abcdefgh-1")
+      const banner = site.locator("[data-consent-banner]")
+      await expect(banner).toBeVisible()
+      await site.waitForLoadState("networkidle")
+      const testEvents = () =>
+        site.evaluate(() =>
+          (
+            ((window as unknown as { dataLayer?: unknown[] }).dataLayer ??
+              []) as { event?: string; test_id?: string }[]
+          )
+            .filter((e) => e.event === "tracking_test")
+            .map((e) => e.test_id)
+        )
+      expect(await testEvents()).toEqual([])
+      await banner.getByRole("button", { name: "Accept all" }).click()
+      await expect.poll(testEvents).toEqual(["abcdefgh-1"])
+      // GTM is switched off even though its ID is still saved.
+      await expect
+        .poll(() => requested.map((u) => new URL(u).pathname))
+        .toEqual(["/gtag/js"])
+      await visitor.close()
+    } finally {
+      await publishSetting(page, "tracking", (d) => ({
+        ...d,
+        ...TRACKING_OFF,
       }))
     }
   })
