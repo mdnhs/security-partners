@@ -1,6 +1,7 @@
 import "server-only"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
+import { isDeepEqual } from "@/lib/json"
 import type {
   ThemeDraftInput,
   ThemeDto,
@@ -16,7 +17,6 @@ import {
   type ThemeConfigValue,
 } from "@/lib/theme/schema"
 import { presetSiteTheme } from "@/lib/theme/site"
-import { isDeepEqual } from "@/lib/json"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { tag } from "@/server/lib/cache-tags"
