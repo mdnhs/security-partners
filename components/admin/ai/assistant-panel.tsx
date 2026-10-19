@@ -19,8 +19,10 @@ import {
   useRef,
   useState,
 } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 
+import { LINK_FORM } from "@/components/admin/page-header"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -134,6 +136,16 @@ export function AssistantPanel({
     assistant.screen,
     assistant.field?.label ?? null
   )
+
+  if (!status.available)
+    return (
+      <UnavailablePanel
+        open={open}
+        onOpenChange={onOpenChange}
+        canManage={status.canManage}
+        trigger={trigger}
+      />
+    )
 
   return (
     <Sheet open={open} onOpenChange={(next) => onOpenChange(next)}>
@@ -277,6 +289,82 @@ export function AssistantPanel({
             composer.current?.focus()
           }}
         />
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/** Set-up path while the assistant is off or not set up (MK parity C7). */
+const AI_SETTINGS_HREF = "/admin/settings/ai-assistant"
+
+/**
+ * The panel while the assistant is off, not set up or not allowed: only
+ * managers see the button then (AssistantButton), and they get a link to
+ * the settings. No conversation is loaded or sent.
+ */
+function UnavailablePanel({
+  open,
+  onOpenChange,
+  canManage,
+  trigger,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  canManage: boolean
+  trigger: RefObject<HTMLButtonElement | null>
+}) {
+  const closeButton = useRef<HTMLButtonElement>(null)
+  const setUp = useRef<HTMLAnchorElement>(null)
+  return (
+    <Sheet open={open} onOpenChange={(next) => onOpenChange(next)}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        initialFocus={canManage ? setUp : closeButton}
+        data-assistant-panel=""
+        finalFocus={() => trigger.current ?? true}
+        className="w-full gap-0 overflow-hidden bg-sidebar p-0 data-[side=right]:w-full sm:data-[side=right]:max-w-[33rem]"
+      >
+        <SheetHeader className="flex-row items-center gap-3 border-b px-4 py-3 sm:px-5">
+          <span
+            aria-hidden
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+          >
+            <Sparkles className="size-4" />
+          </span>
+          <SheetTitle className="flex-1 text-[0.9375rem] leading-tight font-semibold">
+            AI assistant
+          </SheetTitle>
+          <SheetClose
+            render={
+              <Button
+                ref={closeButton}
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-full pointer-coarse:size-11"
+                aria-label="Close"
+              />
+            }
+          >
+            <X />
+          </SheetClose>
+        </SheetHeader>
+        <div className="flex flex-col items-start gap-4 px-4 py-6 sm:px-6">
+          <SheetDescription className="text-sm text-muted-foreground">
+            The AI assistant is turned off or not set up yet.
+          </SheetDescription>
+          {canManage ? (
+            <Link
+              ref={setUp}
+              href={AI_SETTINGS_HREF}
+              className={LINK_FORM}
+              onClick={() => onOpenChange(false)}
+            >
+              Set up AI assistant
+            </Link>
+          ) : null}
+        </div>
       </SheetContent>
     </Sheet>
   )

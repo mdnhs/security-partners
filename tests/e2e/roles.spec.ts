@@ -27,7 +27,10 @@ async function signIn(page: Page, email: string) {
   await expect(page).toHaveURL(/\/admin$/)
 }
 
-/** Screens guarded by requirePermission (forbidden page otherwise). */
+/**
+ * Screens guarded by requirePage (forbidden page otherwise). The permissions
+ * are spelled out, not read from the registry, so they check it.
+ */
 const SCREENS: { path: string; permission: PermissionRequest }[] = [
   { path: "/admin/pages", permission: { page: ["read"] } },
   { path: "/admin/settings/site", permission: { settings: ["read"] } },
@@ -42,6 +45,8 @@ const SCREENS: { path: string; permission: PermissionRequest }[] = [
   { path: "/admin/leads", permission: { lead: ["read"] } },
   { path: "/admin/users", permission: { user: ["read"] } },
   { path: "/admin/activity", permission: { audit: ["read"] } },
+  { path: "/admin/marketing/code", permission: { customCode: ["read"] } },
+  { path: "/admin/design", permission: { customCode: ["update"] } },
 ]
 
 for (const role of ROLES) {
@@ -60,10 +65,7 @@ for (const role of ROLES) {
         nav.getByRole("link", { name: new RegExp(`^${escape(label)}`) })
       ).toBeVisible()
     const dock = page.getByRole("navigation", { name: "Administration" })
-    // Account holds Help's place in the dock until /admin/help (B7).
-    const docked = dockLinks([role]).map((link) =>
-      link.id === "help" ? "Account" : link.label
-    )
+    const docked = dockLinks([role]).map((link) => link.label)
     await expect(dock.getByRole("link")).toHaveCount(docked.length)
     for (const label of docked)
       await expect(

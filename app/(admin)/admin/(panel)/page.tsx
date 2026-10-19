@@ -5,7 +5,7 @@ import { Suspense } from "react"
 import { Dashboard } from "@/components/admin/dashboard/dashboard"
 import { DashboardSkeleton } from "@/components/admin/dashboard/dashboard-skeleton"
 import { firstName } from "@/components/admin/dashboard/present"
-import { requireSession } from "@/server/auth/session"
+import { requirePage, requireSession } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Dashboard" }
 
@@ -30,6 +30,7 @@ export default function DashboardPage() {
 // The greeting depends on the time of day: request time, never the static
 // shell; the client renders the same words from `renderedAt`.
 async function Welcome() {
+  await requirePage("/admin")
   const { user } = await requireSession()
   await connection()
   return (

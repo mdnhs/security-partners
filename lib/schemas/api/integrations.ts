@@ -16,6 +16,11 @@ export const integrationKeyParam = z.object({ key: z.enum(INTEGRATION_KEYS) })
 export const saveIntegrationInput = z.object({
   version: z.number().int().min(0),
   values: z.record(z.string(), z.unknown()),
+  /**
+   * Secret fields to delete ("Remove key"). An empty secret in `values`
+   * keeps the stored one, so clearing must be asked for explicitly.
+   */
+  clearSecrets: z.array(z.string().max(64)).max(10).optional(),
 })
 export type SaveIntegrationInput = z.output<typeof saveIntegrationInput>
 

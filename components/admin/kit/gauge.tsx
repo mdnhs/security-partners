@@ -130,7 +130,7 @@ export function Gauge({
         </div>
       </div>
       <div className="sr-only">
-        <Table>
+        <Table scroll={false}>
           <TableCaption>{title}</TableCaption>
           <TableHeader>
             <TableRow>

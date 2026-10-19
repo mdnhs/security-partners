@@ -2,9 +2,10 @@ import "server-only"
 
 import { getSessionCookie } from "better-auth/cookies"
 import { headers } from "next/headers"
-import { forbidden, redirect } from "next/navigation"
+import { forbidden, notFound, redirect } from "next/navigation"
 import { cache } from "react"
 
+import { permissionFor } from "@/lib/admin/nav"
 import {
   hasPermission,
   parseRoles,
@@ -106,4 +107,21 @@ export async function requirePermission(
   const actor = await requireActor()
   if (!hasPermission(actor.roles, req)) forbidden()
   return actor
+}
+
+/**
+ * Every panel page's guard: the permission the nav registry lists for
+ * `href` (lib/admin/nav.ts `permissionFor`), so a page opens exactly when
+ * its link is shown. Not in the registry → 404 (before the session is read);
+ * `null` → any signed-in user. Dynamic routes pass their static parent href.
+ * Pages whose action needs more (New article, an editable settings key)
+ * add that finer check after this one.
+ * tests/unit/admin/b3-panel-pages.test.tsx mocks this with a copy of its
+ * logic: change both together.
+ */
+export async function requirePage(href: string): Promise<Actor> {
+  const permission = permissionFor(href)
+  if (permission === undefined) notFound()
+  if (permission === null) return requireActor()
+  return requirePermission(permission)
 }

@@ -11,17 +11,11 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  dockLinks,
-  EXTRA_LINKS,
-  HELP_LINK,
-  type NavBadges,
-} from "@/lib/admin/nav"
-import type { Role } from "@/lib/auth/roles"
+import type { NavBadges } from "@/lib/admin/nav"
 
 import { BrandMark } from "./brand-mark"
 import type { SiteInfo } from "./constants"
-import { type DockLink, type DockProps, FooterDock } from "./footer-dock"
+import { type DockProps, FooterDock } from "./footer-dock"
 import { NavMain } from "./nav-main"
 import { useShellSignOut } from "./sign-out-context"
 import { WebsiteCard } from "./website-card"
@@ -47,7 +41,7 @@ export function AppSidebar({
     if (isMobile) setOpenMobile(false)
   }
   const dockProps: DockProps = {
-    links: shellDock(roles),
+    roles,
     pathname,
     onNavigate,
     onSignOut: () => signOut("dock"),
@@ -89,18 +83,4 @@ export function AppSidebar({
       </SidebarFooter>
     </Sidebar>
   )
-}
-
-const ACCOUNT = EXTRA_LINKS.find((link) => link.id === "account")!
-
-/**
- * The registry's dock (Users & roles, Activity log, Help). /admin/help is
- * built in B7; until then Account keeps Help's place so the dock never
- * links a 404.
- */
-function shellDock(roles: readonly Role[]): DockLink[] {
-  return dockLinks(roles).map((link) => {
-    const shown = link.id === HELP_LINK.id ? ACCOUNT : link
-    return { ...shown, icon: shown.icon! }
-  })
 }

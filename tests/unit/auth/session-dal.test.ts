@@ -22,6 +22,9 @@ vi.mock("next/navigation", () => ({
   forbidden: () => {
     throw new Error("NEXT_FORBIDDEN")
   },
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND")
+  },
 }))
 
 vi.mock("@/server/auth/auth", () => ({
@@ -31,6 +34,7 @@ vi.mock("@/server/auth/auth", () => ({
 import {
   getActor,
   requireActor,
+  requirePage,
   requirePermission,
 } from "@/server/auth/session"
 
@@ -117,5 +121,26 @@ describe("session DAL", () => {
     expect((await requirePermission({ lead: ["read"] })).roles).toEqual([
       "intake",
     ])
+  })
+
+  it("requirePage 404s an unregistered href before reading the session", async () => {
+    state.session = sessionFor({ role: "owner" })
+    await expect(requirePage("/admin/nope")).rejects.toThrow("NEXT_NOT_FOUND")
+    expect(state.getSession).not.toHaveBeenCalled()
+  })
+
+  it("requirePage applies the registry permission (dynamic child by prefix)", async () => {
+    state.session = sessionFor({ role: "editor" })
+    await expect(requirePage("/admin/leads")).rejects.toThrow("NEXT_FORBIDDEN")
+    state.session = sessionFor({ role: "marketer" })
+    await expect(requirePage("/admin/marketing/code")).rejects.toThrow(
+      "NEXT_FORBIDDEN"
+    )
+    state.session = sessionFor({ role: "viewer" })
+    expect((await requirePage("/admin/account")).roles).toEqual(["viewer"])
+    state.cookie = ""
+    await expect(requirePage("/admin/account")).rejects.toThrow(
+      "NEXT_REDIRECT /admin/sign-in"
+    )
   })
 })

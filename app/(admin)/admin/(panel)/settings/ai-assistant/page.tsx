@@ -1,18 +1,17 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
-import { IntegrationForm } from "@/components/admin/integrations/integration-form"
-import { INTEGRATIONS } from "@/lib/schemas/integrations"
-import { requirePermission } from "@/server/auth/session"
+import { AiSettingsView } from "@/components/admin/ai/ai-settings-view"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = {
-  title: INTEGRATIONS["integrations.ai"].label,
+  title: "AI assistant",
 }
 
 /**
- * Site settings › AI assistant (MK parity §5.1): the AI integration's form,
- * moved from /admin/settings/integrations/ai (which redirects here). Phase C
- * (C7) replaces it with the full AI assistant settings screen.
+ * Site settings › AI assistant (MK parity §5.1, §6.3): provider, key,
+ * model, who can use it and the owner's enquiry-details switch. Moved from
+ * /admin/settings/integrations/ai (which redirects here).
  */
 export default function AiAssistantPage() {
   return (
@@ -23,6 +22,6 @@ export default function AiAssistantPage() {
 }
 
 async function Editor() {
-  await requirePermission({ integration: ["read"] })
-  return <IntegrationForm integrationKey="integrations.ai" />
+  await requirePage("/admin/settings/ai-assistant")
+  return <AiSettingsView />
 }

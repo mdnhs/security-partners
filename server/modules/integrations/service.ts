@@ -51,8 +51,19 @@ import { runIntegrationTest, type TestResult } from "./testers"
 
 type Values = Record<string, unknown>
 
-const sameValue = (a: unknown, b: unknown) =>
-  JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+/** JSON with object keys sorted: jsonb does not keep the key order. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value ?? null, (_, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0
+          )
+        )
+      : v
+  )
+
+const sameValue = (a: unknown, b: unknown) => canonical(a) === canonical(b)
 
 /** AAD binding each ciphertext to its settings key and field (spec §4). */
 export const secretAad = (key: IntegrationKey, field: string) =>
@@ -401,6 +412,25 @@ export async function saveIntegration(
     const opened = row ? openRow(key, row) : null
     const previous = opened?.values ?? null
     const merged = mergeValues(key, input.values, previous)
+    // "Remove key": only this integration's secrets, never with a new value.
+    const clearErrors: Record<string, string[]> = {}
+    for (const field of input.clearSecrets ?? []) {
+      if (!isSecretField(key, field))
+        throw new AppError(
+          "VALIDATION_FAILED",
+          "Only a secret can be removed",
+          {
+            fieldErrors: { clearSecrets: ["Only a secret can be removed"] },
+          }
+        )
+      if (isEntered(input.values[field]))
+        clearErrors[field] = ["Either enter a new value or remove it, not both"]
+      else merged[field] = ""
+    }
+    if (Object.keys(clearErrors).length > 0)
+      throw new AppError("VALIDATION_FAILED", "Check the highlighted fields", {
+        fieldErrors: clearErrors,
+      })
     if (key === "integrations.r2" && previous) {
       // Before field validation: re-entering the keys cannot help here.
       const candidate = INTEGRATIONS[key].schema.safeParse(merged)

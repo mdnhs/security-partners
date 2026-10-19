@@ -8,7 +8,7 @@ import {
   INTEGRATIONS,
   integrationKeyFromSlug,
 } from "@/lib/schemas/integrations"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export async function generateMetadata({
   params,
@@ -35,7 +35,7 @@ async function Integration({
   // The AI assistant moved to Site settings (MK §5.1). next.config's legacy
   // redirect normally answers first; this keeps the page from rendering it.
   if (key === "integrations.ai") redirect("/admin/settings/ai-assistant")
-  await requirePermission({ integration: ["read"] })
+  await requirePage("/admin/settings/integrations")
   return (
     <IntegrationForm integrationKey={key}>
       {key === "integrations.r2" ? <MigrateMediaPanel /> : null}

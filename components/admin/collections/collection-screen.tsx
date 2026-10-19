@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { usePermission } from "@/hooks/use-permission"
 import { cn } from "@/lib/utils"
 import { api, unwrap } from "@/lib/api-client"
+import { isUuid } from "@/lib/ids"
 import type { CollectionName } from "@/lib/schemas/api/collections"
 import type { Paginated } from "@/lib/schemas/api/list"
 
@@ -46,11 +47,17 @@ function client(name: CollectionName) {
   return {
     list: (query: ApiParams) => unwrap<Paginated<AnyItem>>(c.$get({ query })),
     create: (json: unknown) => unwrap<AnyItem>(c.$post({ json })),
+    // Every id is encoded: the Hono client puts params into the path as-is.
     update: (id: string, json: unknown) =>
-      unwrap<AnyItem>(c[":id"].$put({ param: { id }, json })),
+      unwrap<AnyItem>(
+        c[":id"].$put({ param: { id: encodeURIComponent(id) }, json })
+      ),
     remove: (id: string) =>
-      unwrap<{ ok: true }>(c[":id"].$delete({ param: { id } })),
-    get: (id: string) => unwrap<AnyItem>(c[":id"].$get({ param: { id } })),
+      unwrap<{ ok: true }>(
+        c[":id"].$delete({ param: { id: encodeURIComponent(id) } })
+      ),
+    get: (id: string) =>
+      unwrap<AnyItem>(c[":id"].$get({ param: { id: encodeURIComponent(id) } })),
   }
 }
 
@@ -72,7 +79,10 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
   const card = "rounded-card bg-card p-4"
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<AnyItem | null>(null)
-  const editId = searchParams.get("edit")
+  // Only a record id: the value goes into the API path (SEC1).
+  const rawEditId = searchParams.get("edit")
+  const editId = isUuid(rawEditId) ? rawEditId : null
+  const badEditId = rawEditId !== null && editId === null
   const api = client(name)
   const queryKey = ["collections", name] as const
 
@@ -104,6 +114,12 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
     router.replace(withoutEdit())
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per ?edit
   }, [readOnlyEdit, router, pathname])
+  // Anything but an id is ignored and dropped from the URL; keyed on the raw
+  // value so a second bad ?edit (soft navigation) is dropped too.
+  useEffect(() => {
+    if (badEditId) router.replace(withoutEdit())
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per ?edit
+  }, [badEditId, rawEditId, router, pathname])
 
   // Stable per collection + permission (TanStack Table v9 wants stable columns).
   const columns = useMemo<DataTableColumns<AnyItem>>(

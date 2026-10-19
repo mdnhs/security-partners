@@ -460,6 +460,47 @@ describe("PUT /api/v1/admin/integrations/:key", () => {
   })
 })
 
+describe("PUT clearSecrets on other integrations (MK C7 Remove key)", () => {
+  const clear = (
+    cookie: string,
+    version: number,
+    values: Record<string, unknown>,
+    fields: string[]
+  ) =>
+    adminRequest("/integrations/integrations.smtp", {
+      cookie,
+      method: "PUT",
+      json: { version, values, clearSecrets: fields },
+    })
+
+  it("SMTP with a sign-in user cannot lose its password; without one it can", async () => {
+    expect(
+      (await put(owner, "integrations.smtp", 0, smtpValues())).status
+    ).toBe(200)
+    const refused = await clear(admin, 1, {}, ["password"])
+    expect(refused.status).toBe(422)
+    expect(
+      (
+        (await refused.json()) as {
+          error: { fieldErrors: Record<string, string[]> }
+        }
+      ).error.fieldErrors
+    ).toHaveProperty("password")
+    expect((await rawDraft("integrations.smtp"))!.version).toBe(1)
+
+    expect((await clear(editor, 1, {}, ["password"])).status).toBe(403)
+    // A name of another integration's secret is not a secret here.
+    expect((await clear(owner, 1, {}, ["apiKey"])).status).toBe(422)
+
+    const cleared = await clear(owner, 1, { user: "" }, ["password"])
+    expect(cleared.status).toBe(200)
+    expect(dto(await cleared.text()).secrets.password).toEqual({
+      set: false,
+      hint: null,
+    })
+  })
+})
+
 describe("DELETE /api/v1/admin/integrations/:key (Disconnect)", () => {
   it("removes the row with the current version; stale → 409", async () => {
     await put(owner, "integrations.smtp", 0, smtpValues())

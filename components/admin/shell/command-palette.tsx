@@ -6,15 +6,21 @@ import {
   ExternalLink,
   FileText,
   Inbox,
+  LogOut,
+  type LucideIcon,
+  Monitor,
+  Moon,
   Newspaper,
   Plus,
   ShieldCheck,
+  Sun,
   Tags,
   UserCog,
   Users,
   Wrench,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { useCallback, useEffect, useState } from "react"
 
 import { useUnsavedRegistry } from "@/components/admin/editor/unsaved-guard"
@@ -30,11 +36,14 @@ import {
 } from "@/components/ui/command"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
-import { HELP_LINK, reachableLinks } from "@/lib/admin/nav"
+import { reachableLinks } from "@/lib/admin/nav"
 import { api, unwrap } from "@/lib/api-client"
+import { hasPermission } from "@/lib/auth/permissions"
 import type { SearchType } from "@/lib/schemas/api/search"
 
+import { buildActions, matchesQuery } from "./palette-actions"
 import { useCommandPalette } from "./palette-context"
+import { useShellSignOut } from "./sign-out-context"
 
 const TYPE_ICONS: Record<SearchType, typeof FileText> = {
   page: FileText,
@@ -56,6 +65,16 @@ const TYPE_LABELS: Record<SearchType, string> = {
   groupCompany: "Group company",
   category: "Category",
   lead: "Lead",
+}
+
+const ACTION_ICONS: Record<string, LucideIcon> = {
+  "new-article": Plus,
+  "new-service": Plus,
+  "open-site": ExternalLink,
+  "theme-light": Sun,
+  "theme-dark": Moon,
+  "theme-system": Monitor,
+  "sign-out": LogOut,
 }
 
 /** True for ⌘K (macOS) / Ctrl+K (elsewhere). */
@@ -82,10 +101,9 @@ export function CommandPalette() {
     else router.push(href)
   }
   const { roles } = useAdminSession()
-  const canCreateService = usePermission({ service: ["create"] })
-  const canCreateArticle = usePermission({ article: ["create"] })
-  const canEditPages = usePermission({ page: ["update"] })
   const canReadUsers = usePermission({ user: ["read"] })
+  const { theme, setTheme } = useTheme()
+  const { signOut, pending: signingOut } = useShellSignOut()
   const { open, setOpen } = useCommandPalette()
   const [query, setQuery] = useState("")
   const trimmed = query.trim()
@@ -136,45 +154,25 @@ export function CommandPalette() {
     staleTime: 10_000,
   })
 
-  const needle = trimmed.toLowerCase()
-  // /admin/help is built in B7; until then ⌘K leaves it out (no 404).
-  const sections = reachableLinks(roles)
-    .filter((item) => item.href !== HELP_LINK.href)
-    .filter(
-      (item) =>
-        !needle ||
-        item.label.toLowerCase().includes(needle) ||
-        item.parent?.toLowerCase().includes(needle)
-    )
-  const actions = [
-    canEditPages && {
-      id: "edit-home",
-      label: "Edit the home page",
-      icon: FileText,
-      run: () => navigate("/admin/pages/home"),
-    },
-    canCreateService && {
-      id: "new-service",
-      label: "New service",
-      icon: Plus,
-      run: () => navigate("/admin/services/new"),
-    },
-    canCreateArticle && {
-      id: "new-article",
-      label: "New article",
-      icon: Plus,
-      run: () => navigate("/admin/insights/new"),
-    },
-    {
-      id: "open-site",
-      label: "Open the public site",
-      icon: ExternalLink,
-      run: () => window.open("/", "_blank", "noopener"),
-    },
-  ].filter(
-    (a): a is Exclude<typeof a, false> =>
-      !!a && (!needle || a.label.toLowerCase().includes(needle))
+  const sections = reachableLinks(roles).filter((item) =>
+    matchesQuery(trimmed, item.label, [
+      ...(item.keywords ?? []),
+      // A sub-page answers to its section's name and search terms too.
+      ...(item.parent ? [item.parent] : []),
+      ...item.parentKeywords,
+    ])
   )
+  const actions = buildActions({
+    setTheme,
+    theme,
+    signingOut,
+    // From the menu: a failure shows in the user menu. Asks first while
+    // something is unsaved (the shell's sign-out goes through confirmLeave).
+    signOut: () => signOut("menu"),
+    open: (href) => window.open(href, "_blank", "noopener,noreferrer"),
+    can: (permission) => hasPermission(roles, permission),
+    navigate,
+  }).filter((action) => matchesQuery(trimmed, action.label, action.keywords))
 
   function go(run: () => void) {
     setPaletteOpen(false)
@@ -208,7 +206,7 @@ export function CommandPalette() {
           <CommandInput
             value={query}
             onValueChange={setQuery}
-            placeholder="Search pages, services, articles… or type a section"
+            placeholder="Search pages and actions…"
           />
           {/* Outside the listbox: a listbox may only own options and groups. */}
           {failed ? (
@@ -225,6 +223,36 @@ export function CommandPalette() {
                 {searching ? "Searching…" : `No results for “${trimmed}”.`}
               </CommandEmpty>
             )}
+            {sections.length > 0 ? (
+              <CommandGroup heading="Go to">
+                {sections.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <CommandItem
+                      key={item.href}
+                      value={`nav:${item.href}`}
+                      // Label and section read as one run of text otherwise
+                      // ("CategoriesInsights"); an sr-only ", in " loses its
+                      // trailing space in the computed name.
+                      aria-label={
+                        item.parent
+                          ? `${item.label}, in ${item.parent}`
+                          : undefined
+                      }
+                      onSelect={() => go(() => navigate(item.href))}
+                    >
+                      <Icon aria-hidden />
+                      {item.label}
+                      {item.parent ? (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {item.parent}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            ) : null}
             {records.length > 0 ? (
               <CommandGroup heading="Records">
                 {records.map((record) => {
@@ -265,38 +293,17 @@ export function CommandPalette() {
                 ))}
               </CommandGroup>
             ) : null}
-            {sections.length > 0 ? (
-              <CommandGroup heading="Go to">
-                {sections.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <CommandItem
-                      key={item.href}
-                      value={`nav:${item.href}`}
-                      onSelect={() => go(() => navigate(item.href))}
-                    >
-                      <Icon aria-hidden />
-                      {item.label}
-                      {item.parent ? (
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          {item.parent}
-                        </span>
-                      ) : null}
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            ) : null}
             {actions.length > 0 ? (
               // A rule above, not a CommandSeparator: a role="separator" is
               // not an allowed child of the listbox (axe aria-required-children).
               <CommandGroup heading="Actions" className="border-t">
                 {actions.map((action) => {
-                  const Icon = action.icon
+                  const Icon = ACTION_ICONS[action.id] ?? Plus
                   return (
                     <CommandItem
                       key={action.id}
                       value={`action:${action.id}`}
+                      disabled={action.disabled}
                       onSelect={() => go(action.run)}
                     >
                       <Icon aria-hidden />

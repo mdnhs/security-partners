@@ -36,7 +36,7 @@ export function Topbar({
   return (
     <header
       data-slot="topbar"
-      className="rounded-card flex h-[72px] shrink-0 items-center gap-2 bg-sidebar px-3 sm:gap-3 sm:px-5"
+      className="rounded-card flex h-[72px] shrink-0 items-center gap-1.5 bg-sidebar px-3 sm:gap-3 sm:px-5"
     >
       <SidebarTrigger className="size-10 rounded-full" />
       <div className="flex min-w-0 flex-1">
@@ -51,9 +51,10 @@ export function Topbar({
 }
 
 /**
- * The leads inbox as a circular icon link; the count matches the sidebar.
- * Hidden on phones (the sidebar's Leads badge covers it) so the search pill
- * keeps its room at 320-360 px.
+ * The leads inbox as a circular 44 px icon link; the count matches the
+ * sidebar. Shown on phones too (MK) from 360 px: below that, with the AI
+ * button on, six 44 px controls cannot fit the 296 px topbar, and the
+ * sidebar's Enquiries badge covers it.
  */
 function EnquiriesLink({ count }: { count: number }) {
   return (
@@ -64,7 +65,7 @@ function EnquiriesLink({ count }: { count: number }) {
       className={cn(
         buttonVariants({ variant: "outline", size: "icon-lg" }),
         ICON_BUTTON,
-        "relative hidden sm:inline-flex"
+        "relative hidden shrink-0 min-[360px]:inline-flex"
       )}
     >
       <MailIcon aria-hidden />

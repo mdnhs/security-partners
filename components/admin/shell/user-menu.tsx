@@ -67,27 +67,30 @@ export function UserMenu() {
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
+          {/* At lg (1024 px: a 688 px topbar beside the 20rem sidebar) the
+              identity caps at 144 px so search, AI, mail, bell, avatar and
+              the role chip still fit; xl gives it 224 px. Name and email
+              truncate inside. */}
           <span
             data-slot="user-identity"
-            className="hidden max-w-56 min-w-0 flex-col lg:flex"
+            className="hidden max-w-36 min-w-0 flex-col lg:flex xl:max-w-56"
           >
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-semibold text-foreground">
-                {user.name}
-              </span>
-              {primaryRole ? (
-                <span
-                  data-slot="role-pill"
-                  className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[11px] leading-none font-semibold text-accent-foreground"
-                >
-                  {ROLE_INFO[primaryRole].label}
-                </span>
-              ) : null}
+            <span className="truncate text-sm font-semibold text-foreground">
+              {user.name}
             </span>
             <span className="truncate text-xs text-muted-foreground">
               {user.email}
             </span>
           </span>
+          {primaryRole ? (
+            // MK: a grey chip of its own at the far right of the identity.
+            <span
+              data-slot="role-pill"
+              className="hidden shrink-0 items-center rounded-full bg-muted px-2.5 py-1 text-xs leading-none font-medium text-foreground lg:inline-flex"
+            >
+              {ROLE_INFO[primaryRole].label}
+            </span>
+          ) : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuGroup>

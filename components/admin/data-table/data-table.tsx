@@ -403,7 +403,8 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
             <div
               data-slot="table-card"
               className={cn(
-                "rounded-card hidden overflow-x-auto bg-card sm:block",
+                // The Table primitive scrolls; this only clips its corners.
+                "rounded-card hidden overflow-hidden bg-card sm:block",
                 onCard && "border"
               )}
             >
@@ -428,7 +429,7 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
                                     ? "none"
                                     : undefined
                             }
-                            className="text-muted-foreground"
+                            className="whitespace-normal text-muted-foreground"
                           >
                             {header.isPlaceholder ? null : sortable ? (
                               <button
