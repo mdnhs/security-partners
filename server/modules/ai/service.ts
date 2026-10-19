@@ -1,10 +1,11 @@
 import "server-only"
 
-import { type ModelMessage, streamText } from "ai"
+import { isStepCount, type ModelMessage, streamText } from "ai"
 
 import { baseUrlProblem, normaliseBaseUrl } from "@/lib/ai/base-url"
 import { type ChatStreamEvent, encodeChatEvent } from "@/lib/ai/chat-stream"
 import { hasPermission } from "@/lib/auth/permissions"
+import { SITE_LOCALE, SITE_TIME_ZONE } from "@/lib/format"
 import type {
   AiConversationDto,
   AiConversationSummary,
@@ -37,8 +38,10 @@ import {
 import { consumeRateLimit } from "@/server/lib/rate-limit"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 
+import { readPublishedSettings } from "@/server/modules/settings/service"
+
 import {
-  ASSISTANT_RULES,
+  buildSystemPrompt,
   contextMessage,
   conversationContext,
   conversationTitle,
@@ -48,6 +51,7 @@ import {
   type ConversationRow,
   deleteConversationRow,
   findConversation,
+  findUserName,
   insertConversation,
   insertMessage,
   listConversationRows,
@@ -56,6 +60,7 @@ import {
   recentMessageRows,
   touchConversation,
 } from "./repo"
+import { buildTools } from "./tools"
 
 /** Messages of a conversation sent to the model with each new one. */
 export const AI_HISTORY_LIMIT = 20
@@ -67,6 +72,18 @@ export const AI_HISTORY_LIMIT = 20
 export const AI_RATE_LIMIT = { max: 30, windowMs: 10 * 60 * 1000 } as const
 /** Provider call limits: whole answer, and silence between chunks. */
 export const AI_TIMEOUT = { totalMs: 120_000, chunkMs: 30_000 } as const
+
+/** Model calls per chat turn (tool calls plus the answer), spec §6.3. */
+export const AI_MAX_STEPS = 5
+
+/** "Monday 20 October 2026" in Irish time, for the instructions. */
+const todayInDublin = new Intl.DateTimeFormat(SITE_LOCALE, {
+  timeZone: SITE_TIME_ZONE,
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+})
 
 export const aiRateLimitKey = (userId: string) => `ai:chat:${userId}`
 /** "List models" per user (it spends a provider call with the saved key). */
@@ -367,10 +384,29 @@ export async function chat(
     ? AbortSignal.any([opts.signal, cancelled.signal])
     : cancelled.signal
 
+  // Read-only tools, offered by the user's roles and run as the user.
+  const tools = buildTools({ actor, config })
+  const [userName, site] = await Promise.all([
+    findUserName(getDb(), actor.userId),
+    readPublishedSettings("site"),
+  ])
+  const instructions = buildSystemPrompt({
+    siteName: site?.name ?? "Security Partners",
+    firstName: (userName ?? "").trim().split(/\s+/)[0] ?? "",
+    roles: actor.roles,
+    today: todayInDublin.format(new Date()),
+    toolNames: Object.keys(tools),
+    extra: config.extraInstructions,
+    screen: input.context?.screen ?? null,
+  })
+
   const result = streamText({
     model: createLanguageModel(config),
-    instructions: ASSISTANT_RULES,
+    instructions,
     messages,
+    tools,
+    // At most 5 model calls per turn (tool calls and the answer).
+    stopWhen: isStepCount(AI_MAX_STEPS),
     maxOutputTokens: config.maxOutputTokens,
     maxRetries: 1,
     timeout: AI_TIMEOUT,

@@ -276,13 +276,15 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     ])
     expect(list.at(-1)).toEqual({ type: "done", messageId: expect.any(String) })
 
-    // What the model received: the static rules, then the screen as a
+    // What the model received: the rules first (then who is asking, the
+    // tools and the screen name, MK parity C8), then the screen as a
     // user-role context message right before the question.
     const call = modelOf(0).doStreamCalls[0]
-    expect(call.prompt[0]).toEqual({
-      role: "system",
-      content: ASSISTANT_RULES,
-    })
+    const system = call.prompt[0] as { role: string; content: string }
+    expect(system.role).toBe("system")
+    expect(system.content.startsWith(ASSISTANT_RULES)).toBe(true)
+    // The record never goes into the instructions.
+    expect(system.content).not.toContain("Old heading")
     const [screen, question] = call.prompt.slice(1) as {
       role: string
       content: { type: string; text: string }[]
