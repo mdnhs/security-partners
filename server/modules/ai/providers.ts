@@ -7,6 +7,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { APICallError, type LanguageModel, RetryError } from "ai"
 
 import type { AiConfig } from "@/lib/schemas/integrations"
+import { guardedFetch } from "@/server/lib/ai-target"
 
 /**
  * The chat model for the saved settings. Always a provider instance: a bare
@@ -23,11 +24,14 @@ export function createLanguageModel(
     case "google":
       return createGoogleGenerativeAI({ apiKey: config.apiKey })(config.model)
     case "openai-compatible":
-      // The base URL passed the SSRF check when it was saved (lib/ai/base-url).
+      // The base URL passed the literal SSRF check when it was saved
+      // (lib/ai/base-url); the guarded fetch checks every resolved address,
+      // pins the connection to it and refuses redirects (server/lib/ai-target).
       return createOpenAICompatible({
         baseURL: config.baseUrl,
         apiKey: config.apiKey,
         name: "custom",
+        fetch: guardedFetch,
       })(config.model)
     default: {
       const unknown: never = config.provider

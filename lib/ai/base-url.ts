@@ -1,7 +1,9 @@
 /**
  * SSRF guard for the OpenAI-compatible base URL (the saved API key is sent
  * there). Isomorphic: the settings form shows the same message the API
- * returns. A literal check only: host names are not resolved here.
+ * returns. A literal check only: host names are resolved, every address
+ * checked with `isBlockedIpAddress` and the connection pinned to it by the
+ * server's guarded fetch (server/lib/ai-target.ts).
  */
 
 export const AI_BASE_URL_MAX = 500
@@ -14,7 +16,13 @@ const BLOCKED_V4: readonly (readonly [string, number])[] = [
   ["127.0.0.0", 8],
   ["169.254.0.0", 16], // link-local, incl. cloud metadata 169.254.169.254
   ["172.16.0.0", 12],
+  ["192.0.0.0", 24], // IETF protocol assignments
+  ["192.0.2.0", 24], // documentation
   ["192.168.0.0", 16],
+  ["198.18.0.0", 15], // benchmarking
+  ["198.51.100.0", 24], // documentation
+  ["203.0.113.0", 24], // documentation
+  ["224.0.0.0", 3], // multicast 224/4, reserved 240/4, broadcast
 ]
 
 const v4Number = (ip: string): number | null => {
@@ -59,15 +67,49 @@ function v6Groups(ip: string): number[] | null {
   return groups.map((g) => parseInt(g, 16))
 }
 
+const embeddedV4 = (groups: number[]) => groups[6] * 65536 + groups[7]
+
 function blockedV6(groups: number[]): boolean {
-  if (groups.slice(0, 7).every((g) => g === 0))
-    return groups[7] === 0 || groups[7] === 1 // :: and ::1
-  // IPv4-mapped ::ffff:a.b.c.d
-  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff)
-    return blockedV4(groups[6] * 65536 + groups[7])
-  if ((groups[0] & 0xfe00) === 0xfc00) return true // fc00::/7 unique local
-  if ((groups[0] & 0xffc0) === 0xfe80) return true // fe80::/10 link-local
+  const zero = (from: number, to: number) =>
+    groups.slice(from, to).every((g) => g === 0)
+  // ::/96: unspecified, loopback and deprecated IPv4-compatible ::a.b.c.d
+  if (zero(0, 6)) return true
+  // IPv4-mapped ::ffff:a.b.c.d: the embedded IPv4 address decides
+  if (zero(0, 5) && groups[5] === 0xffff) return blockedV4(embeddedV4(groups))
+  // IPv4-translated ::ffff:0:a.b.c.d
+  if (zero(0, 4) && groups[4] === 0xffff && groups[5] === 0)
+    return blockedV4(embeddedV4(groups))
+  const [g0, g1] = groups
+  // NAT64 64:ff9b::/96 and local-use 64:ff9b:1::/48 reach IPv4 through a
+  // gateway: refused whatever the embedded address
+  if (g0 === 0x64 && g1 === 0xff9b) return true
+  if (g0 === 0x2002) return true // 6to4
+  if (g0 === 0x2001 && g1 === 0) return true // Teredo
+  if (g0 === 0x2001 && g1 === 0x0db8) return true // documentation
+  if (g0 === 0x0100 && zero(1, 4)) return true // discard-only 100::/64
+  if ((g0 & 0xfe00) === 0xfc00) return true // fc00::/7 unique local
+  if ((g0 & 0xffc0) === 0xfe80) return true // fe80::/10 link-local
+  if ((g0 & 0xffc0) === 0xfec0) return true // fec0::/10 site-local
+  if ((g0 & 0xff00) === 0xff00) return true // ff00::/8 multicast
   return false
+}
+
+/**
+ * Whether a resolved (or literal) IP address is refused as an AI provider
+ * target: private, loopback, link-local, metadata, special-purpose, or any
+ * IPv6 form that embeds or reaches one. Anything that is not an IP address
+ * is refused too (fail closed). Accepts "[v6]" and a "%zone" suffix.
+ */
+export function isBlockedIpAddress(address: string): boolean {
+  const bare = address
+    .trim()
+    .replace(/^\[|\]$/g, "")
+    .replace(/%.*$/, "")
+  const v4 = v4Number(bare)
+  if (v4 !== null) return blockedV4(v4)
+  if (!bare.includes(":")) return true
+  const groups = v6Groups(bare)
+  return groups === null || blockedV6(groups)
 }
 
 const LOCAL_NAME = /(^|\.)(localhost|local|internal)$/
@@ -112,13 +154,8 @@ export function baseUrlProblem(
 
   const blocked =
     "This address is not allowed (private, local or metadata address)"
-  if (host.startsWith("[")) {
-    const groups = v6Groups(host.slice(1, -1))
-    if (!groups || blockedV6(groups)) return blocked
-    return null
-  }
-  const v4 = v4Number(host)
-  if (v4 !== null) return blockedV4(v4) ? blocked : null
+  if (host.startsWith("[") || v4Number(host) !== null)
+    return isBlockedIpAddress(host) ? blocked : null
   if (LOCAL_NAME.test(host) || !host.includes(".")) return blocked
   return null
 }

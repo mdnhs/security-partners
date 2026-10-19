@@ -7,10 +7,9 @@ import {
 } from "@aws-sdk/client-s3"
 import nodemailer from "nodemailer"
 
-import { baseUrlProblem, normaliseBaseUrl } from "@/lib/ai/base-url"
+import { baseUrlProblem } from "@/lib/ai/base-url"
 import {
   type AiConfig,
-  type AiProvider,
   allowLocalAiHttp,
   type IntegrationConfig,
   type IntegrationKey,
@@ -18,6 +17,12 @@ import {
   type SmtpConfig,
   type TurnstileConfig,
 } from "@/lib/schemas/integrations"
+import {
+  aiAuthHeaders,
+  aiFetchFor,
+  aiModelsUrl,
+} from "@/server/lib/ai-endpoints"
+import { isAiTargetBlocked } from "@/server/lib/ai-target"
 import { isTimeoutError } from "@/server/lib/errors"
 import { createR2Client, r2Failure } from "@/server/lib/r2-client"
 import { isLoopbackHost } from "@/server/lib/smtp-target"
@@ -170,46 +175,6 @@ export async function testTurnstile(
   }
 }
 
-const GOOGLE_API = "https://generativelanguage.googleapis.com/v1beta"
-
-/** How each provider takes the API key (sent only to the saved target). */
-export function aiAuthHeaders(
-  provider: AiProvider,
-  apiKey: string
-): Record<string, string> {
-  switch (provider) {
-    case "anthropic":
-      return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
-    case "google":
-      return { "x-goog-api-key": apiKey }
-    case "openai":
-    case "openai-compatible":
-      return { authorization: `Bearer ${apiKey}` }
-    default: {
-      const unknown: never = provider
-      throw new Error(`Unknown AI provider ${String(unknown)}`)
-    }
-  }
-}
-
-/** The provider's model-list endpoint (a compatible base URL is checked by the caller). */
-export function aiModelsUrl(provider: AiProvider, baseUrl: string): string {
-  switch (provider) {
-    case "anthropic":
-      return "https://api.anthropic.com/v1/models"
-    case "openai":
-      return "https://api.openai.com/v1/models"
-    case "google":
-      return `${GOOGLE_API}/models`
-    case "openai-compatible":
-      return `${normaliseBaseUrl(baseUrl)}/models`
-    default: {
-      const unknown: never = provider
-      throw new Error(`Unknown AI provider ${String(unknown)}`)
-    }
-  }
-}
-
 /** The provider's "retrieve model" endpoint: proves the key and the model, spends no tokens. */
 export function aiModelRequest(c: AiConfig): {
   url: string
@@ -221,9 +186,13 @@ export function aiModelRequest(c: AiConfig): {
   }
 }
 
+/**
+ * AI: retrieve the saved model with the saved key. A user-set base URL is
+ * fetched through the SSRF guard (resolved, checked, pinned, no redirects).
+ */
 export async function testAi(
   c: AiConfig,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = aiFetchFor(c.provider)
 ): Promise<TestResult> {
   if (c.apiKey === "") return fail("Enter the API key first.")
   if (c.model === "") return fail("Enter the model first.")
@@ -247,6 +216,7 @@ export async function testAi(
       return fail(`The key works, but model “${c.model}” was not found.`)
     return fail(`The provider answered ${res.status}.`)
   } catch (err) {
+    if (isAiTargetBlocked(err)) return fail("The base URL is not allowed.")
     return fail(
       isTimeoutError(err)
         ? "The provider did not respond in time."

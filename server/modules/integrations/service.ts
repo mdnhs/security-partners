@@ -33,6 +33,7 @@ import {
   forbidden,
   notFound,
 } from "@/server/lib/errors"
+import { consumeRateLimit } from "@/server/lib/rate-limit"
 import { resetR2Client } from "@/server/lib/r2-client"
 import { resolveSmtpTarget, type SmtpTarget } from "@/server/lib/smtp-target"
 import { countMediaByDriver } from "@/server/modules/media/repo"
@@ -255,14 +256,21 @@ const isEntered = (value: unknown) =>
  * on needs owner:manage (403) and the acknowledgement (422), and stamps who
  * and when; turning it off (anyone who may save) clears the stamp; an
  * unchanged "on" keeps the owner's stamp.
+ *
+ * `retargeted` (a new provider or OpenAI-compatible base URL): the details
+ * would go to a processor the owner never acknowledged, so the switch is
+ * reset to off. A switch re-sent as it was (no `acknowledge`) is reset
+ * silently; only an owner re-acknowledging in the same save keeps it on.
  */
 function nextShareEnquiryDetails(
   actor: Actor,
   input: Values,
-  previous: Values | null
+  previous: Values | null,
+  retargeted: boolean
 ): AiShareEnquiryDetails {
   const stored = aiShareEnquiryDetails.safeParse(previous?.shareEnquiryDetails)
-  const current = stored.success ? stored.data : AI_SHARE_ENQUIRY_OFF
+  const current =
+    stored.success && !retargeted ? stored.data : AI_SHARE_ENQUIRY_OFF
   if (!("shareEnquiryDetails" in input)) return current
   const parsed = aiShareEnquiryDetailsInput.safeParse(input.shareEnquiryDetails)
   if (!parsed.success)
@@ -271,6 +279,8 @@ function nextShareEnquiryDetails(
     })
   if (!parsed.data.enabled) return AI_SHARE_ENQUIRY_OFF
   if (current.enabled) return current
+  if (retargeted && parsed.data.acknowledge !== true)
+    return AI_SHARE_ENQUIRY_OFF
   if (
     actor.impersonatorId ||
     !hasPermission(actor.roles, { owner: ["manage"] })
@@ -407,14 +417,16 @@ export async function saveIntegration(
     if (key === "integrations.ai") {
       // Only an OpenAI-compatible provider has a base URL.
       if (merged.provider !== "openai-compatible") merged.baseUrl = ""
+      const retargeted =
+        previous !== null && aiTarget(merged) !== aiTarget(previous)
       merged.shareEnquiryDetails = nextShareEnquiryDetails(
         actor,
         input.values,
-        previous
+        previous,
+        retargeted
       )
       if (
-        previous &&
-        aiTarget(merged) !== aiTarget(previous) &&
+        retargeted &&
         !isEntered(input.values.apiKey) &&
         merged.apiKey !== ""
       ) {
@@ -566,11 +578,24 @@ export async function integrationReadState(
 }
 
 /** "Test connection" with the saved settings. A failed test is a result (200), not an error. */
+/** Spec §6.3: "Test connection" at most 5 a minute per user. */
+export const INTEGRATION_TEST_RATE_LIMIT = { max: 5, windowMs: 60_000 } as const
+
 export async function testIntegration(
   actor: Actor,
   key: IntegrationKey
 ): Promise<IntegrationTestResult> {
   assertCan(actor, { integration: ["test"] })
+  // Each test reaches an outside service with the saved secrets.
+  const limit = await consumeRateLimit(
+    `integrations:test:${actor.userId}`,
+    INTEGRATION_TEST_RATE_LIMIT
+  )
+  if (!limit.allowed)
+    throw new AppError(
+      "RATE_LIMITED",
+      "You have run a lot of connection tests. Wait a minute, then try again."
+    )
   const db = getDb()
   const loaded = await loadConfig(db, key)
   if (!loaded)

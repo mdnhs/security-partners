@@ -1,6 +1,12 @@
 import { S3ServiceException, type S3Client } from "@aws-sdk/client-s3"
 import { describe, expect, it, vi } from "vitest"
 
+const dnsLookup = vi.hoisted(() => vi.fn())
+vi.mock("node:dns/promises", () => ({
+  default: { lookup: dnsLookup },
+  lookup: dnsLookup,
+}))
+
 import type {
   AiConfig,
   R2Config,
@@ -354,5 +360,34 @@ describe("testAi (GET the model)", () => {
         )
       ).message
     ).toBe("Could not reach Cloudflare.")
+  })
+})
+
+describe("testAi: OpenAI-compatible goes through the SSRF-guarded fetch", () => {
+  it("refuses a base URL host that resolves to a private address", async () => {
+    dnsLookup.mockResolvedValue([{ address: "169.254.169.254", family: 4 }])
+    const result = await testAi({
+      enabled: false,
+      provider: "openai-compatible",
+      model: "llama",
+      apiKey: "c-key-123456",
+      baseUrl: "https://llm.rebind.example/v1",
+      allowedRoles: ["owner"],
+      extraInstructions: "",
+      maxOutputTokens: 1024,
+      shareEnquiryDetails: {
+        enabled: false,
+        acknowledgedBy: null,
+        acknowledgedAt: null,
+      },
+    })
+    expect(result).toEqual({
+      ok: false,
+      message: "The base URL is not allowed.",
+    })
+    expect(dnsLookup).toHaveBeenCalledWith("llm.rebind.example", {
+      all: true,
+      verbatim: true,
+    })
   })
 })

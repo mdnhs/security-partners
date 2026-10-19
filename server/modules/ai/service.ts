@@ -23,6 +23,12 @@ import {
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import {
+  aiAuthHeaders,
+  aiFetchFor,
+  aiModelsUrl,
+} from "@/server/lib/ai-endpoints"
+import { isAiTargetBlocked } from "@/server/lib/ai-target"
+import {
   AppError,
   forbidden,
   isTimeoutError,
@@ -30,10 +36,6 @@ import {
 } from "@/server/lib/errors"
 import { consumeRateLimit } from "@/server/lib/rate-limit"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
-import {
-  aiAuthHeaders,
-  aiModelsUrl,
-} from "@/server/modules/integrations/testers"
 
 import {
   ASSISTANT_RULES,
@@ -252,10 +254,11 @@ export async function listModels(
   try {
     config = await readIntegrationConfig("integrations.ai")
   } catch (error) {
+    // A key that no longer decrypts, or stored values that no longer
+    // validate (e.g. a development-only base URL read in production).
     if (error instanceof AppError)
       throw invalid(
-        "The saved API key can no longer be read. Enter it again and save.",
-        "apiKey"
+        "The saved settings can't be used. Check them, enter the API key again and save."
       )
     throw error
   }
@@ -267,7 +270,8 @@ export async function listModels(
     )
   let res: Response
   try {
-    res = await fetch(
+    // A user-set base URL goes through the SSRF guard (server/lib/ai-target).
+    res = await aiFetchFor(config.provider)(
       `${aiModelsUrl(config.provider, config.baseUrl)}${listQueryFor(config.provider)}`,
       {
         headers: aiAuthHeaders(config.provider, config.apiKey),
@@ -276,6 +280,11 @@ export async function listModels(
       }
     )
   } catch (error) {
+    if (isAiTargetBlocked(error))
+      throw invalid(
+        "This address is not allowed (private, local or metadata address)",
+        "baseUrl"
+      )
     throw invalid(
       isTimeoutError(error)
         ? "The provider did not respond in time."

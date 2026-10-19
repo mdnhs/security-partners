@@ -6,6 +6,17 @@ import { MockLanguageModelV4 } from "ai/test"
 import { eq, sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+// Host names of a saved OpenAI-compatible base URL resolve through this.
+const dnsLookup = vi.hoisted(() => vi.fn())
+vi.mock("node:dns/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:dns/promises")>()
+  return {
+    ...actual,
+    default: { ...actual, lookup: dnsLookup },
+    lookup: dnsLookup,
+  }
+})
+
 vi.mock("@/server/modules/ai/providers", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/server/modules/ai/providers")>()
@@ -20,7 +31,7 @@ import { revisions, settings } from "@/server/db/schema"
 import { createLanguageModel } from "@/server/modules/ai/providers"
 
 import { resetDb } from "../db"
-import { adminRequest, signedInUser } from "../helpers/auth"
+import { adminRequest, mergeCookies, signedInUser } from "../helpers/auth"
 
 const API_KEY = "sk-ant-settings-key-4321"
 
@@ -236,6 +247,85 @@ describe("PUT integrations.ai (MK fields)", () => {
     expect(JSON.stringify(row.draft)).not.toContain('acknowledge"')
   })
 
+  it("an owner cannot turn enquiry sharing on while viewing as another owner (403)", async () => {
+    expect((await put(owner, 0, base)).status).toBe(200)
+    const other = await person(["owner"])
+    const start = await adminRequest(`/users/${other.id}/impersonate`, {
+      cookie: owner.cookie,
+      method: "POST",
+    })
+    expect(start.status).toBe(200)
+    const asOther = { id: other.id, cookie: mergeCookies(owner.cookie, start) }
+    const refused = await put(asOther, 1, {
+      shareEnquiryDetails: { enabled: true, acknowledge: true },
+    })
+    expect(refused.status).toBe(403)
+    // The refusal is the switch, not the save: the same person may save the rest.
+    expect((await put(asOther, 1, { model: "claude-opus-5-5" })).status).toBe(
+      200
+    )
+    const res = await adminRequest(KEY, { cookie: owner.cookie })
+    expect(dto(await res.json()).values.shareEnquiryDetails).toMatchObject({
+      enabled: false,
+    })
+  })
+
+  it("a new provider or base URL resets the owner's acknowledgement", async () => {
+    const OFF = { enabled: false, acknowledgedBy: null, acknowledgedAt: null }
+    const turnOn = { shareEnquiryDetails: { enabled: true, acknowledge: true } }
+    expect((await put(owner, 0, base)).status).toBe(200)
+    expect((await put(owner, 1, turnOn)).status).toBe(200)
+
+    // An admin moves the assistant to another provider with their own key:
+    // the form re-sends the switch as it was, but it is off afterwards.
+    const moved = await put(admin, 2, {
+      provider: "openai",
+      model: "gpt-5",
+      apiKey: "sk-admin-own-key-123456",
+      shareEnquiryDetails: { enabled: true },
+    })
+    expect(moved.status).toBe(200)
+    expect(dto(moved.body).values.shareEnquiryDetails).toEqual(OFF)
+
+    // OpenAI-compatible: another base URL resets it too.
+    const compat = await put(owner, 3, {
+      provider: "openai-compatible",
+      baseUrl: "https://api.groq.com/openai/v1",
+      model: "llama",
+      apiKey: "gsk-key-1234567890",
+      ...turnOn,
+    })
+    expect(compat.status).toBe(200)
+    // The owner re-acknowledged in the same save: on, stamped for the new target.
+    expect(dto(compat.body).values.shareEnquiryDetails).toMatchObject({
+      enabled: true,
+      acknowledgedBy: owner.id,
+    })
+    const otherUrl = await put(admin, 4, {
+      baseUrl: "https://api.together.xyz/v1",
+      apiKey: "tg-key-1234567890",
+      shareEnquiryDetails: { enabled: true },
+    })
+    expect(otherUrl.status).toBe(200)
+    expect(dto(otherUrl.body).values.shareEnquiryDetails).toEqual(OFF)
+
+    // An admin cannot re-acknowledge for the new target.
+    expect((await put(admin, 5, turnOn)).status).toBe(403)
+
+    // Same provider and base URL: the switch is kept (no reset).
+    expect((await put(owner, 5, turnOn)).status).toBe(200)
+    const same = await put(admin, 6, {
+      baseUrl: "https://api.together.xyz/v1/",
+      model: "llama-2",
+      shareEnquiryDetails: { enabled: true },
+    })
+    expect(same.status).toBe(200)
+    expect(dto(same.body).values.shareEnquiryDetails).toMatchObject({
+      enabled: true,
+      acknowledgedBy: owner.id,
+    })
+  })
+
   it("an invalid shareEnquiryDetails input → 422", async () => {
     const bad = await put(owner, 0, {
       ...base,
@@ -436,6 +526,53 @@ describe("POST /ai/models", () => {
     const text = await res.text()
     expect(text).toContain("The API key was rejected.")
     expect(text).not.toContain(API_KEY)
+  })
+
+  it("refuses a saved base URL whose host resolves to a private address", async () => {
+    await put(owner, 0, {
+      ...base,
+      provider: "openai-compatible",
+      baseUrl: "https://llm.rebind.example/v1",
+      model: "llama",
+      apiKey: "gsk-key-1234567890",
+    })
+    dnsLookup.mockResolvedValue([{ address: "10.0.0.7", family: 4 }])
+    const res = await models(owner, {
+      provider: "openai-compatible",
+      baseUrl: "https://llm.rebind.example/v1",
+    })
+    expect(res.status).toBe(422)
+    const text = await res.text()
+    expect(text).toContain("This address is not allowed")
+    expect(text).not.toContain("gsk-key-1234567890")
+    expect(dnsLookup).toHaveBeenCalledWith("llm.rebind.example", {
+      all: true,
+      verbatim: true,
+    })
+
+    // "Test connection" uses the same guard.
+    const tested = await adminRequest(`${KEY}/test`, {
+      cookie: owner.cookie,
+      method: "POST",
+    })
+    expect(JSON.stringify(await tested.json())).toContain(
+      "The base URL is not allowed."
+    )
+  })
+
+  it("stored settings that no longer validate get a neutral message", async () => {
+    await getDb()
+      .insert(settings)
+      .values({
+        key: "integrations.ai",
+        draft: { ...base, apiKey: "", maxOutputTokens: 99_999 },
+        version: 1,
+      })
+    const res = await models(owner, { provider: "anthropic", baseUrl: "" })
+    expect(res.status).toBe(422)
+    const text = await res.text()
+    expect(text).toContain("The saved settings can't be used.")
+    expect(text).not.toContain("can no longer be read")
   })
 
   it("is rate-limited to 10 a minute per user", async () => {

@@ -569,6 +569,18 @@ describe("POST /api/v1/admin/integrations/:key/test", () => {
   const test = (cookie: string, key: string) =>
     adminRequest(`/integrations/${key}/test`, { cookie, method: "POST" })
 
+  it("is rate-limited to 5 a minute per user (spec §6.3)", async () => {
+    for (let i = 0; i < 5; i++)
+      expect((await test(owner, "integrations.smtp")).status).toBe(422)
+    const sixth = await test(owner, "integrations.turnstile")
+    expect(sixth.status).toBe(429)
+    expect(
+      ((await sixth.json()) as { error: { code: string } }).error.code
+    ).toBe("RATE_LIMITED")
+    // Per user: another manager is not affected.
+    expect((await test(admin, "integrations.smtp")).status).toBe(422)
+  })
+
   it("422 before anything is saved; editor 403", async () => {
     expect((await test(owner, "integrations.smtp")).status).toBe(422)
     expect((await test(editor, "integrations.smtp")).status).toBe(403)
