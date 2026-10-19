@@ -411,6 +411,50 @@ describe("collection screen: empty state, paging edge, stale ?edit (fix round 1)
     )
   })
 
+  it("?edit must be a record id: a path is ignored, never fetched and dropped from the URL (SEC1)", async () => {
+    for (const payload of [
+      "../../admin/users",
+      "..%2F..%2Fusers%2Fx",
+      "x?role=admin",
+    ]) {
+      fetchMock.mockClear()
+      replace.mockReset()
+      const params = new URLSearchParams()
+      params.set("edit", payload)
+      search.current = params
+      const { unmount } = renderScreen()
+      await screen.findByRole("table", { name: "Categories" })
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
+      )
+      expect(screen.queryByRole("dialog")).toBeNull()
+      // Only list requests; no item request, nothing outside /categories?….
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(0)
+      for (const [input] of fetchMock.mock.calls) {
+        const raw = String(input)
+        expect(raw).toMatch(/\/api\/v1\/admin\/categories\?/)
+        expect(raw).not.toContain("..")
+        expect(raw).not.toContain("users")
+        expect(raw).not.toContain("role")
+      }
+      unmount()
+    }
+  })
+
+  it("?edit=<unknown id> asks for that id only and says not found (SEC1)", async () => {
+    const unknown = "0190a6e0-0000-7000-8000-0000000000ff"
+    search.current = new URLSearchParams(`edit=${unknown}`)
+    renderScreen()
+    expect(await screen.findByText("Category not found")).toBeInTheDocument()
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContainEqual(
+      expect.stringMatching(`/api/v1/admin/categories/${unknown}$`)
+    )
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/admin/insights/categories")
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
   it("a viewer following ?edit gets the list without the param or an editor", async () => {
     search.current = new URLSearchParams(`edit=${category(1).id}`)
     renderScreen(["viewer"])
