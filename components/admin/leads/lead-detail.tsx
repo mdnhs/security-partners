@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils"
 
 import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
+import { leadGuardScope } from "./use-leads-params"
 
 const SELECT = "w-full disabled:opacity-60"
 
@@ -522,7 +523,10 @@ export function LeadDetailBody({
               }}
             >
               {/* A note typed but not added is not dropped silently. */}
-              <UnsavedGuard when={note.trim() !== ""} scope={`lead:${id}`} />
+              <UnsavedGuard
+                when={note.trim() !== ""}
+                scope={leadGuardScope(id)}
+              />
               <FieldShell id={noteId} label="Add a note">
                 <Textarea
                   ref={noteRef}

@@ -36,6 +36,16 @@ const OWN_KEY = "__spUnsavedOwn"
  * first unsaved edit happened)? Code that steps back off its own entry
  * (the lead drawer's close) steps over it too.
  */
+/** Is `state` this guard's own entry or its guard entry above it? */
+function isOwnGuardEntry(
+  state: unknown,
+  current: { own: string } | null
+): boolean {
+  if (!current || typeof state !== "object" || state === null) return false
+  const record = state as Record<string, unknown>
+  return record[OWN_KEY] === current.own || record[SENTINEL_KEY] === current.own
+}
+
 export function isUnsavedGuardEntry(state: unknown): boolean {
   return (
     typeof state === "object" &&
@@ -51,7 +61,7 @@ type UnsavedRegistry = {
    * the Back guard is armed for it on its own entry.
    */
   register(scope?: string): () => void
-  /** A scoped surface is gone: its Back guard no longer applies. */
+  /** A scoped surface is closing: its Back guard no longer applies. */
   release(scope: string): void
   isDirty(): boolean
   /** Resolves true when nothing is dirty or the person chose to leave. */
@@ -199,18 +209,15 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     if (dirty) leavingRef.current = false
   }, [dirty])
 
-  // The guard entry: pushed on the first unsaved edit and kept for the
-  // page's visit (autosave flips dirty every few seconds; consuming and
-  // re-pushing it each time would churn the router). A scoped surface (a
-  // drawer) gets its own guard on its own entry: one for an earlier
-  // surface would sit below it and never ask (D3.2 review I1).
+  // The guard entry: pushed on the first unsaved edit and kept while the
+  // person stays on it (autosave flips dirty every few seconds; consuming
+  // and re-pushing it each time would churn the router). An edit made on
+  // any other entry (a drawer opened since, Forward onto an old entry)
+  // arms again there: a guard sitting below or above it would never ask
+  // (D3.2 review I1, D3.3 review m2/m3).
   useEffect(() => {
     if (!dirty) return
-    if (
-      guard.current === null ||
-      (scope !== undefined && guard.current.scope !== scope)
-    )
-      arm(scope)
+    if (!isOwnGuardEntry(window.history.state, guard.current)) arm(scope)
   }, [dirty, scope, arm])
 
   useEffect(() => {
@@ -380,8 +387,9 @@ export function UnsavedGuard({
   when: boolean
   /**
    * For a surface that opens and closes within one page (a lead's drawer):
-   * its Back guard is armed on its own history entry and released when it
-   * unmounts.
+   * its owner releases the Back guard when it closes the surface itself
+   * (`registry.release(scope)`), and a confirmed Back does not guard the
+   * page again for it.
    */
   scope?: string
 }) {
@@ -390,10 +398,6 @@ export function UnsavedGuard({
     if (!when || !registry) return
     return registry.register(scope)
   }, [when, registry, scope])
-  useEffect(() => {
-    if (!registry || scope === undefined) return
-    return () => registry.release(scope)
-  }, [registry, scope])
   useEffect(() => {
     if (!when || registry) return
     function onBeforeUnload(event: BeforeUnloadEvent) {

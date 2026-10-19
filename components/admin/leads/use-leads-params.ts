@@ -1,15 +1,19 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 
 import {
   LIST_PAGE,
   LIST_QUERY,
   mergeListSearch,
+  ownHistoryState,
   replaceListSearch,
 } from "@/components/admin/data-table/list-url"
-import { isUnsavedGuardEntry } from "@/components/admin/editor/unsaved-guard"
+import {
+  isUnsavedGuardEntry,
+  useUnsavedRegistry,
+} from "@/components/admin/editor/unsaved-guard"
 import { isLeadId, parseLeadFilters } from "@/lib/admin/leads"
 import type { LeadStatus } from "@/lib/schemas/api/leads"
 
@@ -32,6 +36,50 @@ export type LeadsParams = {
 
 /** History-state key on the entry pushed when a lead's drawer opens. */
 const DRAWER_KEY = "spLeadDrawer"
+/**
+ * History-state key naming the document that wrote an entry. After a reload
+ * the old entries name another document: stepping back onto them would be a
+ * full page load, so a drawer then closes by replacing its entry.
+ */
+const DOC_KEY = "spLeadsDoc"
+const DOC =
+  typeof window === "undefined"
+    ? ""
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+/** The unsaved-changes scope of a lead drawer's note. */
+export const leadGuardScope = (id: string) => `lead:${id}`
+
+/** At most this many entries are stepped over when a drawer closes. */
+const MAX_CLOSE_STEPS = 4
+
+const historyState = (): Record<string, unknown> =>
+  (window.history.state as Record<string, unknown> | null) ?? {}
+
+/**
+ * Is the current entry one this document wrote for lead `id`'s drawer: the
+ * entry its opening pushed, or an unsaved-changes guard entry above an
+ * entry of this document? Stepping back off it stays on this page.
+ */
+function isDrawerEntry(id: string): boolean {
+  const state = historyState()
+  return (
+    state[DOC_KEY] === DOC &&
+    (state[DRAWER_KEY] === id || isUnsavedGuardEntry(state))
+  )
+}
+
+/**
+ * Stamps a new current entry as this document's. An entry that already
+ * names a document keeps it (after a reload it names the old one).
+ */
+function stampEntry() {
+  if (DOC_KEY in historyState()) return
+  window.history.replaceState(
+    { ...ownHistoryState(), [DOC_KEY]: DOC },
+    "",
+    window.location.href
+  )
+}
 
 /** localStorage key of the last chosen view (this browser only). */
 export const LEADS_VIEW_KEY = "sp-leads-view"
@@ -143,6 +191,7 @@ export function useLeadsParams(): [
   (patch: Partial<LeadsParams>) => void,
 ] {
   const searchParams = useSearchParams()
+  const registry = useUnsavedRegistry()
   const url = searchParams?.toString() ?? ""
   const storedView = useSyncExternalStore(
     subscribeView,
@@ -153,9 +202,59 @@ export function useLeadsParams(): [
   // is followed (adjusted during render).
   const [search, setSearch] = useState(url)
   const [seenUrl, setSeenUrl] = useState(url)
+  // A drawer closing by stepping back: the `?lead=` entries it passes are
+  // not shown (no flash of the drawer).
+  const [closing, setClosing] = useState(false)
   if (seenUrl !== url) {
     setSeenUrl(url)
-    setSearch(url)
+    if (!closing) setSearch(url)
+  }
+  // Every entry this screen shows is marked as this document's.
+  useEffect(() => {
+    stampEntry()
+  }, [url])
+
+  /**
+   * Closes lead `id`'s drawer by stepping back over the entries this
+   * document wrote for it (its opening, a note's guard entry), checking the
+   * state of each landing entry instead of counting. Where one still shows
+   * the lead (opened by URL), it is replaced with the list. `rest`: the
+   * patch's other changes, applied on the landing entry.
+   */
+  const closeByBack = (
+    id: string,
+    rest: Record<string, string | undefined>,
+    keepPage: boolean
+  ) => {
+    setClosing(true)
+    // Closing was confirmed (or nothing was typed): the note's Back guard
+    // must not ask, nor step back itself, on the entries passed here.
+    registry?.release(leadGuardScope(id))
+    let steps = 1
+    const onPopState = () => {
+      if (
+        parseLeadsParams(window.location.search).lead === id &&
+        steps < MAX_CLOSE_STEPS &&
+        isDrawerEntry(id)
+      ) {
+        steps += 1
+        window.history.back()
+        return
+      }
+      window.removeEventListener("popstate", onPopState)
+      const final = mergeListSearch(
+        window.location.search,
+        parseLeadsParams(window.location.search).lead === id
+          ? { ...rest, lead: undefined }
+          : rest,
+        { keepPage }
+      )
+      setClosing(false)
+      setSearch(final)
+      replaceListSearch(final)
+    }
+    window.addEventListener("popstate", onPopState)
+    window.history.back()
   }
 
   const update = (patch: Partial<LeadsParams>) => {
@@ -163,8 +262,9 @@ export function useLeadsParams(): [
     // A new folder or filter starts at page 1 (unless a page is given).
     const filterChange =
       "folder" in patch || "status" in patch || "assignee" in patch
+    const keepPage = !filterChange || "page" in patch
     const next = mergeListSearch(window.location.search, changes, {
-      keepPage: !filterChange || "page" in patch,
+      keepPage,
     })
     if (patch.view) storeView(patch.view)
     setSearch(next)
@@ -172,25 +272,25 @@ export function useLeadsParams(): [
       const { pathname, hash } = window.location
       // Marked, so closing can step back off it (D3.2 review I1).
       window.history.pushState(
-        { [DRAWER_KEY]: changes.lead },
+        { [DRAWER_KEY]: changes.lead, [DOC_KEY]: DOC },
         "",
         `${pathname}${next ? `?${next}` : ""}${hash}`
       )
       return
     }
-    const openLead = (window.history.state as Record<string, unknown> | null)?.[
-      DRAWER_KEY
-    ]
+    const openLead = parseLeadsParams(window.location.search).lead
     if (
       "lead" in patch &&
       !changes.lead &&
-      typeof openLead === "string" &&
-      openLead === parseLeadsParams(window.location.search).lead
+      openLead &&
+      isDrawerEntry(openLead)
     ) {
-      // Closing a drawer this screen opened: go back to the list's entry,
-      // so no `?lead=` entry is left behind for Back to reopen. A note's
-      // unsaved-changes guard entry sits above the drawer's: step over both.
-      window.history.go(isUnsavedGuardEntry(window.history.state) ? -2 : -1)
+      // Closing a drawer this document opened: back to the list's entry, so
+      // no `?lead=` entry is left behind for Back to reopen. After a reload
+      // (entries of another document) it is replaced instead.
+      const rest = { ...changes }
+      delete rest.lead
+      closeByBack(openLead, rest, keepPage)
       return
     }
     replaceListSearch(next)

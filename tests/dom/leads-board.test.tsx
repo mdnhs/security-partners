@@ -201,4 +201,51 @@ describe("LeadsBoard (D3.3)", () => {
     await user.click(card("Brid Ní"))
     expect(onOpen).toHaveBeenLastCalledWith("b")
   })
+
+  it("focus stays on the moved card, by keyboard and by the Move menu (review n4)", async () => {
+    const { user } = setup()
+    card("Dinn Rí").focus()
+    await user.keyboard(" ")
+    await tick()
+    await user.keyboard("{ArrowRight}")
+    await user.keyboard(" ")
+    await waitFor(() =>
+      expect(
+        within(column("Contacted")).getByRole("button", { name: /^Dinn Rí/ })
+      ).toHaveFocus()
+    )
+
+    await user.click(
+      screen.getByRole("button", { name: "Move Brid Ní to another column" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Lost" }))
+    await waitFor(() =>
+      expect(
+        within(column("Lost")).getByRole("button", { name: /^Brid Ní/ })
+      ).toHaveFocus()
+    )
+  })
+
+  it("a card whose move is still saving cannot move again (review n6)", async () => {
+    const onMove = vi.fn(() => new Promise<void>(() => {}))
+    const { user } = setup({ onMove })
+    await user.click(
+      screen.getByRole("button", { name: "Move Dinn Rí to another column" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Won" }))
+    const moved = within(column("Won")).getByRole("button", {
+      name: /^Dinn Rí/,
+    })
+    expect(moved).toHaveAttribute("aria-busy", "true")
+    expect(
+      screen.getByRole("button", { name: "Move Dinn Rí to another column" })
+    ).toBeDisabled()
+    moved.focus()
+    await user.keyboard(" ")
+    await tick()
+    await user.keyboard("{ArrowRight}")
+    await user.keyboard(" ")
+    expect(onMove).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/Picked up enquiry from Dinn Rí/)).toBeNull()
+  })
 })

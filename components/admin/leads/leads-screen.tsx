@@ -191,12 +191,24 @@ function BoardView({
       )) as Paginated<LeadListItem>,
   })
 
+  // The PATCH has no version/If-Match: a move overwrites a concurrent status
+  // change by another user (last write wins, the same as the drawer's
+  // select; pre-existing and accepted). Moves are serialised per card, and
+  // the board re-syncs from the response.
   const onMove = async (id: string, status: LeadStatus) => {
     // Earlier fetches must not overwrite the move.
     await queryClient.cancelQueries({ queryKey: key })
-    const dto = (await unwrap(
-      api.leads[":id"].$patch({ param: { id }, json: { status } })
-    )) as LeadDto
+    let dto: LeadDto
+    try {
+      dto = (await unwrap(
+        api.leads[":id"].$patch({ param: { id }, json: { status } })
+      )) as LeadDto
+    } catch (error) {
+      // The cancelled refetch is not left undone: fetch the board again
+      // (D3.3 review n5). The board puts the card back meanwhile.
+      void queryClient.invalidateQueries({ queryKey: key })
+      throw error
+    }
     queryClient.setQueryData<Paginated<LeadListItem>>(key, (prev) =>
       prev
         ? {
@@ -427,7 +439,15 @@ export function LeadsScreen() {
         description="Messages from the contact form."
         actions={
           canExport ? (
-            <CsvDownloadButton href={leadExportHref({ ...query, q: search })}>
+            <CsvDownloadButton
+              href={
+                // What the list shows: the board takes only the assignee
+                // filter (no status, no search; D3.3 review n2).
+                board
+                  ? leadExportHref({ assignee: filters.assignee })
+                  : leadExportHref({ ...query, q: search })
+              }
+            >
               Export CSV
             </CsvDownloadButton>
           ) : null
