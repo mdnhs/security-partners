@@ -1,7 +1,15 @@
 import "server-only"
 
 import { sql } from "drizzle-orm"
-import { check, index, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core"
+import {
+  boolean,
+  check,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 import { id, timestamps, tsz } from "./_shared"
 import { users } from "./auth"
@@ -32,6 +40,12 @@ export const aiMessages = pgTable(
       .references(() => aiConversations.id, { onDelete: "cascade" }),
     role: text("role").$type<AiMessageRole>().notNull(),
     content: text("content").notNull(),
+    /**
+     * An answer written while enquiry details were shared with the model
+     * (the owner switch was on and it read them). Left out of the model's
+     * history once the switch is off.
+     */
+    enquiryDetails: boolean("enquiry_details").notNull().default(false),
     createdAt: tsz("created_at").notNull().defaultNow(),
   },
   (t) => [

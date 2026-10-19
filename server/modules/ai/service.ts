@@ -47,9 +47,11 @@ import {
   conversationTitle,
 } from "./prompt"
 import { aiErrorMessage, createLanguageModel, logAiError } from "./providers"
+import { screenContextFor } from "./screen-context"
 import {
   type ConversationRow,
   deleteConversationRow,
+  dropLastReply,
   findConversation,
   findUserName,
   insertConversation,
@@ -58,6 +60,7 @@ import {
   listMessageRows,
   type MessageRow,
   recentMessageRows,
+  replaceFrom,
   touchConversation,
 } from "./repo"
 import { buildTools } from "./tools"
@@ -75,6 +78,12 @@ export const AI_TIMEOUT = { totalMs: 120_000, chunkMs: 30_000 } as const
 
 /** Model calls per chat turn (tool calls plus the answer), spec §6.3. */
 export const AI_MAX_STEPS = 5
+
+/** Stands in for an answer that used enquiry details no longer shared. */
+export const WITHHELD_QUESTION =
+  "[This earlier message may hold enquiry details that are no longer shared with the assistant. It is left out.]"
+export const WITHHELD_ANSWER =
+  "[This earlier answer used enquiry details that are no longer shared with the assistant. It is left out.]"
 
 /** "Monday 20 October 2026" in Irish time, for the instructions. */
 const todayInDublin = new Intl.DateTimeFormat(SITE_LOCALE, {
@@ -333,49 +342,92 @@ export async function chat(
 ): Promise<{ conversationId: string; stream: ReadableStream<Uint8Array> }> {
   const config = await requireAssistant(actor)
   assertNotImpersonating(actor)
-  const { conversationId, history } = await getDb().transaction(async (tx) => {
-    // Atomic upsert: its row lock serialises a burst until this commits; a
-    // rejected or failed request rolls its count back.
-    const limit = await consumeRateLimit(
-      aiRateLimitKey(actor.userId),
-      AI_RATE_LIMIT,
-      tx
-    )
-    if (!limit.allowed)
-      throw new AppError(
-        "RATE_LIMITED",
-        "You have sent a lot of messages. Wait a few minutes, then try again."
+  const sharing = config.shareEnquiryDetails.enabled
+  // A lead screen's record is rebuilt here, never taken from the browser.
+  const screenContext = await screenContextFor(actor, config, input.context)
+  const { conversationId, userMessageId, history, replacing } =
+    await getDb().transaction(async (tx) => {
+      // Atomic upsert: its row lock serialises a burst until this commits; a
+      // rejected or failed request rolls its count back.
+      const limit = await consumeRateLimit(
+        aiRateLimitKey(actor.userId),
+        AI_RATE_LIMIT,
+        tx
       )
-    let id = input.conversationId
-    if (id) {
-      if (!(await findConversation(tx, id, actor.userId)))
-        throw notFound("Conversation")
-      await touchConversation(tx, id)
-    } else {
-      const created = await insertConversation(tx, {
-        userId: actor.userId,
-        title: conversationTitle(input.message),
-        context: conversationContext(input.context),
-      })
-      id = created.id
-    }
-    await insertMessage(tx, {
-      conversationId: id,
-      role: "user",
-      content: input.message,
+      if (!limit.allowed)
+        throw new AppError(
+          "RATE_LIMITED",
+          "You have sent a lot of messages. Wait a few minutes, then try again."
+        )
+      let id = input.conversationId
+      // Ownership first: another user's conversation reads as missing.
+      if (id) {
+        if (!(await findConversation(tx, id, actor.userId)))
+          throw notFound("Conversation")
+        await touchConversation(tx, id)
+      }
+      if (input.regenerate) {
+        // Answer the last question again. Its current reply stays until a
+        // new one is saved (C9 review M2): see `replacing` below.
+      } else if (input.editMessageId) {
+        const replaced = await replaceFrom(
+          tx,
+          id!,
+          input.editMessageId,
+          input.message!
+        )
+        if (replaced === "missing") throw notFound("Message")
+        if (replaced === "not-user")
+          throw invalid("Only your own messages can be edited", "editMessageId")
+      } else {
+        if (!id) {
+          const created = await insertConversation(tx, {
+            userId: actor.userId,
+            title: conversationTitle(input.message!),
+            context: conversationContext(input.context),
+          })
+          id = created.id
+        }
+        await insertMessage(tx, {
+          conversationId: id,
+          role: "user",
+          content: input.message!,
+        })
+      }
+      const history = await recentMessageRows(tx, id!, AI_HISTORY_LIMIT)
+      // Regenerate: the model does not see the reply it replaces (a
+      // stopped or failed turn has none).
+      const replacing =
+        input.regenerate === true && history.at(-1)?.role === "assistant"
+      if (replacing) history.pop()
+      const question = history.at(-1)
+      if (question?.role !== "user")
+        throw new AppError("CONFLICT", "There is no question to answer yet.")
+      return {
+        conversationId: id!,
+        userMessageId: question.id,
+        history,
+        replacing,
+      }
     })
-    return {
-      conversationId: id,
-      history: await recentMessageRows(tx, id, AI_HISTORY_LIMIT),
-    }
-  })
   // The model must see a user message first.
   while (history[0]?.role === "assistant") history.shift()
 
-  const messages = history.map(modelMessage)
+  // Messages that may hold enquiry details stay out of the model's history
+  // once the owner has turned sharing off (C8 review M8, C9 review I1):
+  // answers that used them, and every message from before the flag
+  // existed (migration 0012). While sharing is on, a new answer built on
+  // them carries the same mark.
+  const historyShared = history.some((row) => row.enquiryDetails)
+  const messages = history.map((row): ModelMessage => {
+    if (sharing || !row.enquiryDetails) return modelMessage(row)
+    return row.role === "user"
+      ? { role: "user", content: WITHHELD_QUESTION }
+      : { role: "assistant", content: WITHHELD_ANSWER }
+  })
   // The screen goes in a user-role message right before the question, never
   // in the (static) instructions.
-  const screen = contextMessage(input.context)
+  const screen = contextMessage(screenContext.context)
   if (screen) messages.splice(-1, 0, { role: "user", content: screen })
 
   // Stopped by the request (client gone) or by the stream being cancelled.
@@ -397,7 +449,6 @@ export async function chat(
     today: todayInDublin.format(new Date()),
     toolNames: Object.keys(tools),
     extra: config.extraInstructions,
-    screen: input.context?.screen ?? null,
   })
 
   const result = streamText({
@@ -407,6 +458,9 @@ export async function chat(
     tools,
     // At most 5 model calls per turn (tool calls and the answer).
     stopWhen: isStepCount(AI_MAX_STEPS),
+    // The last step must answer in words, not call another tool.
+    prepareStep: ({ stepNumber }) =>
+      stepNumber >= AI_MAX_STEPS - 1 ? { toolChoice: "none" } : undefined,
     maxOutputTokens: config.maxOutputTokens,
     maxRetries: 1,
     timeout: AI_TIMEOUT,
@@ -430,14 +484,22 @@ export async function chat(
           open = false // the client went away
         }
       }
-      send({ type: "start", conversationId })
+      send({ type: "start", conversationId, userMessageId })
       let answer = ""
       let failed = false
+      // Enquiry details reached the model in this turn (switch on only).
+      let enquiryDetails =
+        sharing && (screenContext.enquiryDetails || historyShared)
       try {
         for await (const part of result.stream) {
           if (part.type === "text-delta") {
             answer += part.text
             send({ type: "text", text: part.text })
+          } else if (
+            part.type === "tool-call" &&
+            part.toolName === "getEnquiryStats"
+          ) {
+            if (sharing) enquiryDetails = true
           } else if (part.type === "error") {
             failed = true
             logAiError(part.error)
@@ -447,10 +509,15 @@ export async function chat(
         }
         if (!failed && !signal.aborted) {
           if (answer.trim()) {
-            const saved = await insertMessage(getDb(), {
-              conversationId,
-              role: "assistant",
-              content: answer,
+            const saved = await getDb().transaction(async (tx) => {
+              // Regenerate: the old reply goes only now, with the new one.
+              if (replacing) await dropLastReply(tx, conversationId)
+              return insertMessage(tx, {
+                conversationId,
+                role: "assistant",
+                content: answer,
+                enquiryDetails,
+              })
             })
             send({ type: "done", messageId: saved.id })
           } else {

@@ -426,7 +426,7 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
     )
   }
 
-  it("shares the loaded lead without contact details", async () => {
+  it("shares which lead is open, no personal data (C9 review M5)", async () => {
     renderAs(
       ["intake"],
       <>
@@ -437,17 +437,14 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
     const shared = screen.getByTestId("shared")
     await waitFor(() => expect(shared).not.toHaveTextContent("nothing"))
     const sent = JSON.parse(shared.textContent!)
-    expect(sent).toMatchObject({
+    // The server reads the lead itself and applies the owner's switch.
+    expect(sent).toEqual({
       title: "Lead details",
       entityType: "lead",
       entityId: ID,
-      record: { name: "Dinn Rí", message: "Line one\nLine two" },
     })
-    expect(sent.record.notes).toEqual([
-      { at: "2026-10-16T10:00:00.000Z", by: "Ian Intake", text: "Rang back" },
-    ])
-    expect(shared.textContent).not.toContain("dinn@example.ie")
-    expect(shared.textContent).not.toContain("085 000 0000")
+    for (const pii of ["dinn@example.ie", "085 000 0000", "Dinn", "Line one"])
+      expect(shared.textContent).not.toContain(pii)
   })
 
   it("shares nothing for a lead that does not load", async () => {

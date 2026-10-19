@@ -115,32 +115,23 @@ describe("leadAssistantScreen (summarise a lead, spec §8.3)", () => {
     ],
   } as LeadDto
 
-  it("shares what was asked and the notes, not the contact details", () => {
+  it("names the lead only: the server rebuilds what the model may see (C9 review M5)", () => {
     const shared = leadAssistantScreen(lead)
-    expect(shared).toMatchObject({
+    expect(shared).toEqual({
       title: "Lead details",
       entityType: "lead",
       entityId: lead.id,
     })
-    expect(shared.record).toEqual({
-      name: "Jane Murphy",
-      company: "Murphy Retail",
-      service: "Static guarding",
-      message: "We need guards for two shops from November.",
-      status: "new",
-      sourcePage: "/contact",
-      receivedAt: "2026-10-16T09:00:00.000Z",
-      notes: [
-        {
-          at: "2026-10-16T09:05:00.000Z",
-          by: "Ivy Intake",
-          text: "Called back, wants a quote",
-        },
-      ],
-    })
     const json = JSON.stringify(shared)
-    expect(json).not.toContain("jane@example.ie")
-    expect(json).not.toContain("555 0100")
+    for (const pii of [
+      "jane@example.ie",
+      "555 0100",
+      "Jane",
+      "Murphy",
+      "two shops",
+      "Called back",
+    ])
+      expect(json).not.toContain(pii)
   })
 })
 

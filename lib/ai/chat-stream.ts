@@ -1,12 +1,18 @@
 /**
  * POST /api/v1/admin/ai/chat answers with one JSON event per line
- * (NDJSON): "start" (the conversation id), "text" pieces of the answer,
+ * (NDJSON): "start" (the conversation id and the id of the user message
+ * being answered), "text" pieces of the answer,
  * then "done" (the saved message id) or "error" (a message for the panel).
  */
 export const CHAT_STREAM_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
 
 export type ChatStreamEvent =
-  | { type: "start"; conversationId: string }
+  | {
+      type: "start"
+      conversationId: string
+      /** The saved user message this turn answers (edit needs its id). */
+      userMessageId?: string
+    }
   | { type: "text"; text: string }
   | { type: "error"; message: string }
   | { type: "done"; messageId: string }
@@ -28,9 +34,14 @@ export function parseChatEvent(line: string): ChatStreamEvent | null {
   const event = value as Record<string, unknown>
   switch (event.type) {
     case "start":
-      return typeof event.conversationId === "string"
-        ? { type: "start", conversationId: event.conversationId }
-        : null
+      if (typeof event.conversationId !== "string") return null
+      return typeof event.userMessageId === "string"
+        ? {
+            type: "start",
+            conversationId: event.conversationId,
+            userMessageId: event.userMessageId,
+          }
+        : { type: "start", conversationId: event.conversationId }
     case "text":
       return typeof event.text === "string"
         ? { type: "text", text: event.text }

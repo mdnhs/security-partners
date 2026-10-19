@@ -28,6 +28,8 @@ export type MessageRow = {
   id: string
   role: ChatRole
   content: string
+  /** Written while enquiry details were shared (owner switch on). */
+  enquiryDetails: boolean
   createdAt: Date
 }
 
@@ -45,6 +47,7 @@ const messageColumns = {
   id: aiMessages.id,
   role: aiMessages.role,
   content: aiMessages.content,
+  enquiryDetails: aiMessages.enquiryDetails,
   createdAt: aiMessages.createdAt,
 }
 
@@ -115,13 +118,71 @@ export async function deleteConversationRow(
 
 export async function insertMessage(
   db: DbOrTx,
-  row: { conversationId: string; role: ChatRole; content: string }
+  row: {
+    conversationId: string
+    role: ChatRole
+    content: string
+    enquiryDetails?: boolean
+  }
 ): Promise<MessageRow> {
   const [created] = await db
     .insert(aiMessages)
     .values(row)
     .returning(messageColumns)
   return created as MessageRow
+}
+
+/**
+ * Regenerate: deletes the conversation's last message only if it is an
+ * assistant reply. The caller checks ownership first.
+ */
+export async function dropLastReply(
+  db: DbOrTx,
+  conversationId: string
+): Promise<boolean> {
+  const [last] = await db
+    .select({ id: aiMessages.id, role: aiMessages.role })
+    .from(aiMessages)
+    .where(eq(aiMessages.conversationId, conversationId))
+    .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
+    .limit(1)
+  if (last?.role !== "assistant") return false
+  await db.delete(aiMessages).where(eq(aiMessages.id, last.id))
+  return true
+}
+
+/**
+ * Edit: deletes the message and every later one (created at or after it),
+ * then stores the new text as a user message. "missing" when the id is
+ * not in this conversation, "not-user" for a reply. The caller checks
+ * ownership of the conversation first.
+ */
+export async function replaceFrom(
+  db: DbOrTx,
+  conversationId: string,
+  messageId: string,
+  newText: string
+): Promise<"missing" | "not-user" | MessageRow> {
+  const [from] = await db
+    .select({ role: aiMessages.role, createdAt: aiMessages.createdAt })
+    .from(aiMessages)
+    .where(
+      and(
+        eq(aiMessages.id, messageId),
+        eq(aiMessages.conversationId, conversationId)
+      )
+    )
+  if (!from) return "missing"
+  if (from.role !== "user") return "not-user"
+  await db
+    .delete(aiMessages)
+    .where(
+      and(
+        eq(aiMessages.conversationId, conversationId),
+        gte(aiMessages.createdAt, from.createdAt)
+      )
+    )
+  return insertMessage(db, { conversationId, role: "user", content: newText })
 }
 
 /** Every user/assistant message of a conversation, oldest first. */
@@ -199,19 +260,23 @@ export function contentStatuses(
 
 const leadDay = sql<string>`to_char(${leads.createdAt} at time zone 'Europe/Dublin', 'YYYY-MM-DD')`
 
-/** Lead counts since `since`: per status (all), per service and per day (no spam). */
+/**
+ * Lead counts since `since`, per Irish calendar day (the caller keeps the
+ * exact days of its range): per status (all), per service and per day (no
+ * spam).
+ */
 export async function leadCounts(db: DbOrTx, since: Date) {
   const [byStatus, byService, byDay] = await Promise.all([
     db
-      .select({ status: leads.status, n: count() })
+      .select({ status: leads.status, date: leadDay, n: count() })
       .from(leads)
       .where(gte(leads.createdAt, since))
-      .groupBy(leads.status),
+      .groupBy(leads.status, leadDay),
     db
-      .select({ service: leads.service, n: count() })
+      .select({ service: leads.service, date: leadDay, n: count() })
       .from(leads)
       .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
-      .groupBy(leads.service),
+      .groupBy(leads.service, leadDay),
     db
       .select({ date: leadDay, n: count() })
       .from(leads)
