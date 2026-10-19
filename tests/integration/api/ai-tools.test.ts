@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { simulateReadableStream } from "ai"
 import { MockLanguageModelV4 } from "ai/test"
 import { eq } from "drizzle-orm"
@@ -28,7 +30,12 @@ import { ROLES, type Role } from "@/lib/auth/roles"
 import type { AiConfig } from "@/lib/schemas/integrations"
 import { AI_DEFAULTS } from "@/lib/schemas/integrations/ai"
 import { getDb } from "@/server/db/client"
-import { articles, leads } from "@/server/db/schema"
+import {
+  aiConversations,
+  aiMessages,
+  articles,
+  leads,
+} from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import type { Actor } from "@/server/lib/actor"
 import { createLanguageModel } from "@/server/modules/ai/providers"
@@ -499,6 +506,81 @@ describe("enquiry details on a lead screen (C8 review: privacy)", () => {
     const seen = promptText(0)
     expect(seen).not.toContain("Quartzfield")
     expect(seen).not.toContain('\\"status\\"')
+  })
+
+  it("messages from before the flag existed are withheld while the switch is off (C9 review I1)", async () => {
+    // Migration 0012 flags every message that existed before it.
+    const migration = readFileSync(
+      "server/db/migrations/0012_ai_enquiry_details.sql",
+      "utf8"
+    )
+    expect(migration).toContain(
+      'UPDATE "ai_messages" SET "enquiry_details" = true;'
+    )
+    await configureAi()
+    // A conversation from the C6/C7 era, flagged by migration 0012.
+    const [legacy] = await getDb()
+      .insert(aiConversations)
+      .values({ userId: owner.id, title: "Old lead chat", context: null })
+      .returning({ id: aiConversations.id })
+    await getDb()
+      .insert(aiMessages)
+      .values([
+        {
+          conversationId: legacy.id,
+          role: "user",
+          content: "Summarise Siobhan Quartzfield's enquiry",
+          enquiryDetails: true,
+          createdAt: new Date(Date.now() - 60_000),
+        },
+        {
+          conversationId: legacy.id,
+          role: "assistant",
+          content:
+            "Siobhan Quartzfield of Quartzfield Logistics wants patrols.",
+          enquiryDetails: true,
+          createdAt: new Date(Date.now() - 50_000),
+        },
+      ])
+    await events(
+      await chat(owner.cookie, {
+        conversationId: legacy.id,
+        message: "Draft a reply",
+      })
+    )
+    const seen = promptText(0)
+    expect(seen).not.toContain("Siobhan")
+    expect(seen).not.toContain("Quartzfield")
+    expect(seen.match(/no longer shared/g)).toHaveLength(2)
+    expect(seen).toContain("Draft a reply")
+  })
+
+  it("other screens' records: site copy passes, anything else is dropped (C9 review M6)", async () => {
+    await configureAi()
+    await events(
+      await chat(owner.cookie, {
+        message: "Hi",
+        context: {
+          screen: "Users",
+          entityType: "user",
+          entityId: "x",
+          record: { email: "someone@example.ie" },
+        },
+      })
+    )
+    expect(promptText(0)).not.toContain("someone")
+    await events(
+      await chat(owner.cookie, {
+        message: "Hi",
+        context: {
+          screen: "Home page",
+          entityType: "page",
+          entityId: "home",
+          record: { hero: { heading: "Safer nights" } },
+        },
+      })
+    )
+    expect(promptText(0, 1)).toContain("Safer nights")
   })
 
   it("turning the switch off removes earlier detailed answers from the history (review M8)", async () => {

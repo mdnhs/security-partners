@@ -43,6 +43,8 @@ export function MessageList({
               message={message}
               canEdit={canAct && !message.local}
               onEdit={(text) => onEdit(message.id, text)}
+              canRetry={canAct && !message.local && message === last}
+              onRetry={onRegenerate}
             />
           ) : (
             <Reply
@@ -63,10 +65,15 @@ function UserMessage({
   message,
   canEdit,
   onEdit,
+  canRetry,
+  onRetry,
 }: {
   message: ChatMessage
   canEdit: boolean
   onEdit: (text: string) => void
+  /** The last message has no answer (failed): ask again. */
+  canRetry: boolean
+  onRetry: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const editButton = useRef<HTMLButtonElement>(null)
@@ -98,18 +105,34 @@ function UserMessage({
         <span className="sr-only">You: </span>
         {message.content}
       </p>
-      {canEdit ? (
-        <Button
-          ref={editButton}
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="rounded-full text-muted-foreground pointer-coarse:h-11"
-          onClick={() => setEditing(true)}
-        >
-          <Pencil data-icon="inline-start" />
-          Edit
-        </Button>
+      {canEdit || canRetry ? (
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          {canRetry ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-full text-muted-foreground pointer-coarse:h-11"
+              onClick={onRetry}
+            >
+              <RefreshCw data-icon="inline-start" />
+              Try again
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button
+              ref={editButton}
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-full text-muted-foreground pointer-coarse:h-11"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil data-icon="inline-start" />
+              Edit
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

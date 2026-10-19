@@ -420,6 +420,29 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     ).toEqual(["user"])
   })
 
+  it("a failed regenerate keeps the old answer (C9 review M2)", async () => {
+    await configureAi()
+    const first = await events(await chat(editor.cookie, { message: "One" }))
+    const conversationId = startedId(first)
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    vi.mocked(createLanguageModel).mockImplementation(() => rejecting(500))
+    const failed = await events(
+      await chat(editor.cookie, { conversationId, regenerate: true })
+    )
+    expect(failed.at(-1)).toMatchObject({ type: "error" })
+    expect(await messagesOf(conversationId)).toEqual([
+      { role: "user", content: "One" },
+      { role: "assistant", content: "Hello world" },
+    ])
+    // The old answer is not shown to the model it is replaced by.
+    expect(
+      modelOf(1)
+        .doStreamCalls.at(-1)!
+        .prompt.slice(1)
+        .map((m) => m.role)
+    ).toEqual(["user"])
+  })
+
   it("regenerating someone else's conversation returns 404", async () => {
     await configureAi()
     const first = await events(await chat(editor.cookie, { message: "One" }))

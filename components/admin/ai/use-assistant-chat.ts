@@ -143,17 +143,20 @@ export function useAssistantChat(): AssistantChat {
 
   /**
    * One turn. `next` is the conversation shown while it runs (without the
-   * reply); `userId` is the local id of the new user message, if any. When
-   * the request is refused before anything is streamed, regenerate and
-   * edit put the conversation back as it was (the server changed nothing).
+   * reply); `userId` is the local id of the new user message, if any.
+   * Restoring puts the conversation back as it was: edit when the request
+   * is refused (the server changed nothing), regenerate whenever no new
+   * answer was saved (refused, failed or stopped: the server keeps the old
+   * answer until a new one is saved, C9 review M2).
    */
   const run = useCallback(
     async (
       json: TurnBody,
       next: ChatMessage[],
       userId: string | null,
-      restoreOnRefusal: boolean
+      restore: "never" | "on-refusal" | "unless-answered"
     ) => {
+      const restoreOnRefusal = restore !== "never"
       if (controller.current) return
       const before = current.current
       const mine = epoch.current
@@ -231,10 +234,12 @@ export function useAssistantChat(): AssistantChat {
           setError(errorMessage(err))
       } finally {
         if (epoch.current === mine) {
+          if (restore === "unless-answered" && !answered) setMessages(before)
           // What arrived stays (stopped or failed mid-way); an empty reply goes.
-          patch(replyId, (m) =>
-            m.content.trim() ? { ...m, pending: false } : null
-          )
+          else
+            patch(replyId, (m) =>
+              m.content.trim() ? { ...m, pending: false } : null
+            )
           setBusy(false)
           setOutcome(
             answered ? "answered" : abort.signal.aborted ? "stopped" : "failed"
@@ -265,7 +270,7 @@ export function useAssistantChat(): AssistantChat {
           },
         ],
         userId,
-        false
+        "never"
       )
     },
     [run]
@@ -276,14 +281,14 @@ export function useAssistantChat(): AssistantChat {
       const id = conversation.current
       if (!id || controller.current) return
       const all = current.current
-      // The last reply goes (a stopped, unsaved one too); the server drops
-      // its saved copy and answers the last question again.
+      // The last reply is hidden while the new one streams; it comes back
+      // if no new answer is saved (the server keeps it until then).
       const next = all.at(-1)?.role === "assistant" ? all.slice(0, -1) : all
       await run(
         { conversationId: id, regenerate: true, context },
         next,
         null,
-        true
+        "unless-answered"
       )
     },
     [run]
@@ -311,7 +316,7 @@ export function useAssistantChat(): AssistantChat {
           },
         ],
         userId,
-        true
+        "on-refusal"
       )
     },
     [run]

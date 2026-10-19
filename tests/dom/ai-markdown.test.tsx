@@ -181,4 +181,39 @@ describe("Markdown for assistant replies (no raw HTML, ever)", () => {
     expect(writeText).toHaveBeenCalledWith('{ "a": 1 }')
     expect(toast.success).toHaveBeenCalledWith("Copied")
   })
+
+  it("strips a heading's closing hashes only after a space", () => {
+    expect(parseBlocks("## Title ##\n# C#")).toEqual([
+      { kind: "h", level: 2, text: "Title" },
+      { kind: "h", level: 1, text: "C#" },
+    ])
+  })
+
+  it("shows where an external link goes (C9 review M7)", () => {
+    const { container } = render(
+      <Markdown text="[the report](https://evil.example/?q=Jane)" />
+    )
+    const link = container.querySelector("a")!
+    expect(link.textContent).toContain("the report (evil.example)")
+  })
+
+  it("parses 20k-character adversarial replies in linear time (C9 review M4)", () => {
+    const inputs = [
+      `# ${"a ".repeat(10_000)}x`,
+      `# ${" ".repeat(20_000)}x`,
+      "[".repeat(20_000),
+      `[${"a".repeat(20_000)}`,
+      `[a](${"b".repeat(20_000)}`,
+      `# a${" ".repeat(20_000)}b`,
+      "| a ".repeat(5_000),
+      `${"- ".repeat(10_000)}x`,
+    ]
+    for (const input of inputs) {
+      const started = performance.now()
+      const { unmount } = render(<Markdown text={input} />)
+      unmount()
+      // Quadratic patterns took ~400 ms here; linear ones a few ms.
+      expect(performance.now() - started, input.slice(0, 12)).toBeLessThan(100)
+    }
+  })
 })

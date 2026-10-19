@@ -80,6 +80,8 @@ export const AI_TIMEOUT = { totalMs: 120_000, chunkMs: 30_000 } as const
 export const AI_MAX_STEPS = 5
 
 /** Stands in for an answer that used enquiry details no longer shared. */
+export const WITHHELD_QUESTION =
+  "[This earlier message may hold enquiry details that are no longer shared with the assistant. It is left out.]"
 export const WITHHELD_ANSWER =
   "[This earlier answer used enquiry details that are no longer shared with the assistant. It is left out.]"
 
@@ -343,8 +345,8 @@ export async function chat(
   const sharing = config.shareEnquiryDetails.enabled
   // A lead screen's record is rebuilt here, never taken from the browser.
   const screenContext = await screenContextFor(actor, config, input.context)
-  const { conversationId, userMessageId, history } = await getDb().transaction(
-    async (tx) => {
+  const { conversationId, userMessageId, history, replacing } =
+    await getDb().transaction(async (tx) => {
       // Atomic upsert: its row lock serialises a burst until this commits; a
       // rejected or failed request rolls its count back.
       const limit = await consumeRateLimit(
@@ -365,9 +367,8 @@ export async function chat(
         await touchConversation(tx, id)
       }
       if (input.regenerate) {
-        // Answer the last question again (a stopped or failed turn has no
-        // saved reply: nothing is dropped then).
-        await dropLastReply(tx, id!)
+        // Answer the last question again. Its current reply stays until a
+        // new one is saved (C9 review M2): see `replacing` below.
       } else if (input.editMessageId) {
         const replaced = await replaceFrom(
           tx,
@@ -394,26 +395,36 @@ export async function chat(
         })
       }
       const history = await recentMessageRows(tx, id!, AI_HISTORY_LIMIT)
+      // Regenerate: the model does not see the reply it replaces (a
+      // stopped or failed turn has none).
+      const replacing =
+        input.regenerate === true && history.at(-1)?.role === "assistant"
+      if (replacing) history.pop()
       const question = history.at(-1)
       if (question?.role !== "user")
         throw new AppError("CONFLICT", "There is no question to answer yet.")
-      return { conversationId: id!, userMessageId: question.id, history }
-    }
-  )
+      return {
+        conversationId: id!,
+        userMessageId: question.id,
+        history,
+        replacing,
+      }
+    })
   // The model must see a user message first.
   while (history[0]?.role === "assistant") history.shift()
 
-  // Answers that used enquiry details stay out of the model's history once
-  // the owner has turned sharing off (C8 review M8); while it is on, a new
-  // answer built on them carries the same mark.
-  const historyShared = history.some(
-    (row) => row.role === "assistant" && row.enquiryDetails
-  )
-  const messages = history.map((row) =>
-    !sharing && row.role === "assistant" && row.enquiryDetails
-      ? ({ role: "assistant", content: WITHHELD_ANSWER } as const)
-      : modelMessage(row)
-  )
+  // Messages that may hold enquiry details stay out of the model's history
+  // once the owner has turned sharing off (C8 review M8, C9 review I1):
+  // answers that used them, and every message from before the flag
+  // existed (migration 0012). While sharing is on, a new answer built on
+  // them carries the same mark.
+  const historyShared = history.some((row) => row.enquiryDetails)
+  const messages = history.map((row): ModelMessage => {
+    if (sharing || !row.enquiryDetails) return modelMessage(row)
+    return row.role === "user"
+      ? { role: "user", content: WITHHELD_QUESTION }
+      : { role: "assistant", content: WITHHELD_ANSWER }
+  })
   // The screen goes in a user-role message right before the question, never
   // in the (static) instructions.
   const screen = contextMessage(screenContext.context)
@@ -498,11 +509,15 @@ export async function chat(
         }
         if (!failed && !signal.aborted) {
           if (answer.trim()) {
-            const saved = await insertMessage(getDb(), {
-              conversationId,
-              role: "assistant",
-              content: answer,
-              enquiryDetails,
+            const saved = await getDb().transaction(async (tx) => {
+              // Regenerate: the old reply goes only now, with the new one.
+              if (replacing) await dropLastReply(tx, conversationId)
+              return insertMessage(tx, {
+                conversationId,
+                role: "assistant",
+                content: answer,
+                enquiryDetails,
+              })
             })
             send({ type: "done", messageId: saved.id })
           } else {

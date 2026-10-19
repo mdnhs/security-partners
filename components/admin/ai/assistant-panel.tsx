@@ -112,14 +112,20 @@ export function AssistantPanel({
     setDraft("")
   }
 
+  // The control used goes away with the turn it replaces: focus moves to
+  // the conversation, where the new turn appears (C9 review M3, WCAG 2.4.3).
+  const focusConversation = () => scroller.current?.focus()
+
   const regenerate = () => {
     if (chat.busy || readOnly) return
     void chat.regenerate(takeContext())
+    focusConversation()
   }
 
   const edit = (messageId: string, text: string) => {
     if (chat.busy || readOnly) return
     void chat.edit(messageId, text, takeContext())
+    focusConversation()
   }
 
   // One short line for screen readers instead of every streamed piece.
@@ -248,7 +254,9 @@ export function AssistantPanel({
           // The status line below announces a summary instead.
           aria-label="Conversation"
           aria-busy={chat.busy}
-          className="min-h-0 flex-1 overflow-y-auto"
+          // Focused after Regenerate and Save & resend.
+          tabIndex={-1}
+          className="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
         >
           <div className="flex flex-col gap-5 px-4 py-5 sm:px-6">
             {chat.messages.length === 0 ? (

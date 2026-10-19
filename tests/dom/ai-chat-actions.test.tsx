@@ -52,6 +52,12 @@ beforeEach(() => {
         chatBodies.push(JSON.parse(String(init!.body)))
         turn++
         const text = replies[Math.min(turn - 1, replies.length - 1)]!
+        // "!" = the provider fails before any text.
+        if (text === "!")
+          return ndjson(
+            { type: "start", conversationId: "c1", userMessageId: `u${turn}` },
+            { type: "error", message: "The AI provider is unavailable." }
+          )
         return ndjson(
           { type: "start", conversationId: "c1", userMessageId: `u${turn}` },
           { type: "text", text },
@@ -123,6 +129,42 @@ describe("Chat actions (MK parity C9)", () => {
     expect(within(dialog).getByText("One")).toBeInTheDocument()
   })
 
+  it("a failed regenerate brings the old answer back, with Regenerate (review M2)", async () => {
+    replies = ["Hello world", "!", "Third"]
+    const user = userEvent.setup()
+    renderAssistant()
+    const dialog = await openPanel(user)
+    await send(user, dialog, "One")
+    await within(dialog).findByText("Hello world")
+    await user.click(within(dialog).getByRole("button", { name: "Regenerate" }))
+    // Focus moves to the conversation, where the new turn appears (M3).
+    expect(
+      within(dialog).getByRole("region", { name: "Conversation" })
+    ).toHaveFocus()
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "The AI provider is unavailable."
+    )
+    expect(within(dialog).getByText("Hello world")).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Regenerate" }))
+    expect(await within(dialog).findByText("Third")).toBeInTheDocument()
+    expect(chatBodies.slice(1)).toEqual([
+      { conversationId: "c1", regenerate: true },
+      { conversationId: "c1", regenerate: true },
+    ])
+  })
+
+  it("a question left without an answer offers Try again", async () => {
+    replies = ["!", "Late answer"]
+    const user = userEvent.setup()
+    renderAssistant()
+    const dialog = await openPanel(user)
+    await send(user, dialog, "One")
+    await within(dialog).findByRole("alert")
+    await user.click(within(dialog).getByRole("button", { name: "Try again" }))
+    expect(await within(dialog).findByText("Late answer")).toBeInTheDocument()
+    expect(chatBodies[1]).toEqual({ conversationId: "c1", regenerate: true })
+  })
+
   it("edit trims later messages and resends", async () => {
     replies = ["First answer", "Second answer", "Edited answer"]
     const user = userEvent.setup()
@@ -149,6 +191,9 @@ describe("Chat actions (MK parity C9)", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Save & resend" })
     )
+    expect(
+      within(dialog).getByRole("region", { name: "Conversation" })
+    ).toHaveFocus()
     expect(await within(dialog).findByText("Edited answer")).toBeInTheDocument()
     expect(chatBodies[2]).toEqual({
       conversationId: "c1",

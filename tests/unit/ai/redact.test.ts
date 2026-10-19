@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import { redactContacts } from "@/server/modules/ai/redact"
 
-describe("redactContacts (C8 review M1: best-effort, no known bypasses)", () => {
+describe("redactContacts (best-effort; C8 review M1, C9 review I2/M1)", () => {
   it.each([
     ["plain email", "write to john@gmail.com please"],
+    ["space before @", "write to john @gmail.com please"],
+    ["space after @", "write to john@ gmail.com please"],
+    ["spaces around @", "write to john @ gmail.com please"],
+    ["fullwidth at with spaces", "write to john ＠ gmail.com please"],
     ["fullwidth at", "write to john＠gmail.com please"],
     ["small at", "write to john﹫gmail.com please"],
     ["spelled email", "write to john at gmail dot com please"],
@@ -32,6 +36,11 @@ describe("redactContacts (C8 review M1: best-effort, no known bypasses)", () => 
     ["fullwidth digits", "call ０８７１２３４５６７"],
     ["fullwidth with dashes", "call ０８７－１２３－４５６７"],
     ["no-break spaces", "call 087 123 4567"],
+    ["commas", "call 087,123,4567"],
+    ["underscores", "call 087_123_4567"],
+    ["Arabic-Indic digits", "call ٠٨٧١٢٣٤٥٦٧"],
+    ["Devanagari digits", "call ०८७ १२३ ४५६७"],
+    ["mixed scripts", "call 08٧-123-४567"],
   ])("removes a phone number: %s", (_name, text) => {
     const out = redactContacts(text)
     expect(out).toBe("call [number removed]")

@@ -12,6 +12,13 @@ import { oneLine } from "./prompt"
 import { redactContacts } from "./redact"
 import { knownServices, serviceBucket } from "./tool-data"
 
+/**
+ * Screens whose record is website copy (the versioned editors), passed to
+ * the model as the browser sends it. Settings editors share their record
+ * too (site name, contact details shown on the site).
+ */
+const SITE_COPY = new Set(["page", "service", "article", "settings"])
+
 /** Longest enquiry message or note put into the screen context. */
 const LEAD_TEXT_MAX = 2000
 
@@ -35,15 +42,24 @@ export type ScreenContext = {
  *   and the focused field (a note being written) is left out;
  * - with it on, name, company, message and notes go too, with contact
  *   details typed into them removed (best effort).
- * Other screens (pages, services, articles: site copy) pass unchanged.
+ * Site-copy screens (SITE_COPY) pass unchanged; any other screen sends no
+ * record.
  */
 export async function screenContextFor(
   actor: Actor,
   config: AiConfig,
   context: ChatContext | undefined
 ): Promise<ScreenContext> {
-  if (!context || context.entityType !== "lead")
-    return { context, enquiryDetails: false }
+  if (!context) return { context, enquiryDetails: false }
+  if (context.entityType !== "lead") {
+    // Site copy only: any other entity type (or none) sends no record
+    // (C9 review M6). The field the user focused stays: it is their text.
+    if (context.entityType && SITE_COPY.has(context.entityType))
+      return { context, enquiryDetails: false }
+    const rest: ChatContext = { ...context }
+    delete rest.record
+    return { context: rest, enquiryDetails: false }
+  }
   const share = config.shareEnquiryDetails.enabled
   const leadId =
     context.entityId && isUuid(context.entityId as unknown)

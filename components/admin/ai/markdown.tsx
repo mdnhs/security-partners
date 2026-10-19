@@ -2,7 +2,7 @@
 
 import { Copy } from "lucide-react"
 import Link from "next/link"
-import type { JSX, ReactNode } from "react"
+import { type JSX, type ReactNode, useMemo } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,10 @@ export type MdBlock =
   | { kind: "hr" }
 
 const FENCE = /^\s{0,3}(`{3,}|~{3,})\s*([^\s`]*)/
-const HEADING = /^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/
+// Every pattern here runs in linear time on one line, whatever a reply
+// holds (C9 review M4): no lazy groups before optional tails, and bounded
+// link parts.
+const HEADING = /^\s{0,3}(#{1,6})\s+(.*)$/
 const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/
 const ITEM = /^\s*([-*+]|\d{1,9}[.)])\s+(.*)$/
 const QUOTE = /^\s{0,3}>\s?(.*)$/
@@ -33,6 +36,17 @@ const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
 
 /** A label like "ts" or "c++"; anything stranger is just "Code". */
 const langOf = (raw: string) => (/^[\w+#.-]{1,20}$/.test(raw) ? raw : "")
+
+/** A heading's text without its optional closing "#"s ("## Title ##"). */
+function headingText(raw: string): string {
+  const text = raw.trimEnd()
+  let end = text.length
+  while (end > 0 && text[end - 1] === "#") end--
+  if (end === text.length) return text
+  return end === 0 || /\s/.test(text[end - 1]!)
+    ? text.slice(0, end).trimEnd()
+    : text
+}
 
 function cells(line: string): string[] {
   let row = line.trim()
@@ -78,7 +92,11 @@ export function parseBlocks(source: string): MdBlock[] {
     const heading = HEADING.exec(line)
     if (heading) {
       flush()
-      blocks.push({ kind: "h", level: heading[1]!.length, text: heading[2]! })
+      blocks.push({
+        kind: "h",
+        level: heading[1]!.length,
+        text: headingText(heading[2]!),
+      })
       continue
     }
     if (RULE.test(line)) {
@@ -173,7 +191,8 @@ export function safeHref(raw: string): string | null {
 }
 
 const INLINE =
-  /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(\[[^\]]+\]\([^)\s]+\))/g
+  /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(\[[^\]\n]{1,200}\]\([^)\s]{1,2000}\))/g
+const LINK_PARTS = /^\[([^\]\n]{1,200})\]\(([^)\s]{1,2000})\)$/
 const LINK =
   "font-medium text-primary underline underline-offset-2 outline-none focus-visible:rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50"
 
@@ -201,8 +220,11 @@ function inline(text: string): ReactNode[] {
       )
     else if (m[3]) out.push(<em key={key++}>{inline(t.slice(1, -1))}</em>)
     else {
-      const [, label, href] = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(t)!
+      const [, label, href] = LINK_PARTS.exec(t)!
       const safe = safeHref(href!)
+      // Where an external link goes, visible before the click (a reply's
+      // links can be steered by text the model read; C9 review M7).
+      const host = safe?.startsWith("https:") ? new URL(safe).hostname : null
       out.push(
         !safe ? (
           `${label} (${href})`
@@ -220,6 +242,12 @@ function inline(text: string): ReactNode[] {
             className={LINK}
           >
             {label}
+            {host ? (
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                ({host})
+              </span>
+            ) : null}
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )
@@ -316,9 +344,12 @@ const HEADING_CLASS = [
 
 /** A reply as safe Markdown (see the module comment). */
 export function Markdown({ text }: { text: string }): JSX.Element {
+  // Parsed again only when this reply's text changes, not on every
+  // re-render of the conversation.
+  const blocks = useMemo(() => parseBlocks(text), [text])
   return (
     <div className="flex min-w-0 flex-col gap-3 leading-relaxed wrap-break-word">
-      {parseBlocks(text).map((block, i) => {
+      {blocks.map((block, i) => {
         switch (block.kind) {
           case "h":
             return (
