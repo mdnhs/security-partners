@@ -4,7 +4,7 @@ import { Suspense } from "react"
 
 import { LeadDetail } from "@/components/admin/leads/lead-detail"
 import { idParam } from "@/lib/schemas/api/params"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Lead" }
 
@@ -21,7 +21,7 @@ async function Screen({
 }: Pick<PageProps<"/admin/leads/[id]">, "params">) {
   const { id } = await params
   // Permission first: a 403 never leaks whether an id exists.
-  await requirePermission({ lead: ["read"] })
+  await requirePage("/admin/leads")
   if (!idParam.safeParse({ id }).success) notFound()
   return <LeadDetail id={id} />
 }

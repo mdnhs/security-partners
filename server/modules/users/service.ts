@@ -128,6 +128,16 @@ export async function listUsers(
   }
 }
 
+/**
+ * Who to contact (the Help page): every active owner's name and email. Any
+ * signed-in user may see these, so nothing else about the owners is read.
+ */
+export async function listOwnerContacts(): Promise<
+  { name: string; email: string }[]
+> {
+  return repo.listActiveOwnerContacts(getDb())
+}
+
 export async function getUser(actor: Actor, id: string): Promise<UserItem> {
   need(actor, { user: ["read"] })
   return toUserItem(await loadTarget(getDb(), id))

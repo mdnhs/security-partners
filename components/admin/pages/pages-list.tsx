@@ -82,22 +82,34 @@ export function PagesList() {
     <>
       <div
         data-slot="table-card"
-        className="rounded-card hidden overflow-x-auto bg-card sm:block"
+        className="rounded-card hidden overflow-hidden bg-card sm:block"
       >
         <Table>
           <TableCaption className="sr-only">Pages</TableCaption>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead scope="col" className="text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="whitespace-normal text-muted-foreground"
+              >
                 Title
               </TableHead>
-              <TableHead scope="col" className="text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="whitespace-normal text-muted-foreground"
+              >
                 Address
               </TableHead>
-              <TableHead scope="col" className="text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="whitespace-normal text-muted-foreground"
+              >
                 Status
               </TableHead>
-              <TableHead scope="col" className="text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="whitespace-normal text-muted-foreground"
+              >
                 Updated
               </TableHead>
             </TableRow>

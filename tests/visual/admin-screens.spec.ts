@@ -731,8 +731,11 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("heading", { level: 1, name: "New article" })
       ).toBeVisible()
+      // A shadcn Select shows only its value, not the option list: the
+      // Byline default proves the options query (categories too) has loaded.
+      await expect(page.getByLabel("Byline")).toContainText("Vera Visual")
       await expect(page.getByLabel("Category", { exact: true })).toContainText(
-        "Mobile Patrols"
+        "Choose…"
       )
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("new-article"), {
@@ -1033,7 +1036,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await pinIntegrations(page)
       await signIn(page)
       await page.goto("/admin/settings/integrations/r2")
-      await expect(page.getByLabel("Location")).toHaveValue("default")
+      await expect(page.getByLabel("Location")).toContainText("Default")
       await expect(
         page.getByText("12 files on the server disk · 0 in R2")
       ).toBeVisible()
@@ -1079,11 +1082,12 @@ for (const colorScheme of ["light", "dark"] as const) {
     for (const tab of [
       { id: "profile", label: "Profile" },
       { id: "security", label: "Security" },
-      { id: "sessions", label: "Devices" },
-    ]) {
+      // The snapshot keeps its "sessions" name; the URL is MK's ?tab=devices.
+      { id: "sessions", param: "devices", label: "Devices" },
+    ] as { id: string; param?: string; label: string }[]) {
       test(`admin account ${tab.id} ${colorScheme}`, async ({ page }) => {
         await signIn(page)
-        await page.goto(`/admin/account?tab=${tab.id}`)
+        await page.goto(`/admin/account?tab=${tab.param ?? tab.id}`)
         const tabs = page.getByRole("tablist", { name: "Account sections" })
         await expect(
           tabs.getByRole("tab", { name: tab.label })
@@ -1321,12 +1325,12 @@ for (const colorScheme of ["light", "dark"] as const) {
             .getByRole("tablist", { name: "Lead sections" })
             .getByRole("tab", { selected: true })
         ).toContainText(tab, { ignoreCase: true })
-        // Only waits for the assignee list to load (its option text), so
-        // the shot never catches the select half-filled; the pinned lead
-        // itself is unassigned.
+        // The pinned lead is unassigned. A shadcn Select shows only its
+        // value (full width, whatever the options), so the assignee list
+        // loading never changes the shot.
         if (tab === "details")
           await expect(page.getByLabel("Assigned to")).toContainText(
-            "Vera Visual"
+            "Unassigned"
           )
         await page.evaluate(() => document.fonts.ready)
         await expect(page).toHaveScreenshot(shot(`lead-${tab}`), {

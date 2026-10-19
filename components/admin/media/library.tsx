@@ -334,35 +334,44 @@ export function MediaLibrary() {
                 ))}
               </ul>
             ) : (
-              <div className="rounded-card overflow-x-auto bg-card">
+              <div className="rounded-card overflow-hidden bg-card">
                 <Table>
                   <TableCaption className="sr-only">Files</TableCaption>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead
                         scope="col"
-                        className="w-16 text-muted-foreground"
+                        className="w-16 whitespace-normal text-muted-foreground"
                       >
                         <span className="sr-only">Preview</span>
                       </TableHead>
-                      <TableHead scope="col" className="text-muted-foreground">
+                      <TableHead
+                        scope="col"
+                        className="whitespace-normal text-muted-foreground"
+                      >
                         Name
                       </TableHead>
-                      <TableHead scope="col" className="text-muted-foreground">
+                      <TableHead
+                        scope="col"
+                        className="whitespace-normal text-muted-foreground"
+                      >
                         Type
                       </TableHead>
-                      <TableHead scope="col" className="text-muted-foreground">
+                      <TableHead
+                        scope="col"
+                        className="whitespace-normal text-muted-foreground"
+                      >
                         Size
                       </TableHead>
                       <TableHead
                         scope="col"
-                        className="hidden text-muted-foreground sm:table-cell"
+                        className="hidden whitespace-normal text-muted-foreground sm:table-cell"
                       >
                         Dimensions
                       </TableHead>
                       <TableHead
                         scope="col"
-                        className="hidden text-muted-foreground sm:table-cell"
+                        className="hidden whitespace-normal text-muted-foreground sm:table-cell"
                       >
                         Added
                       </TableHead>

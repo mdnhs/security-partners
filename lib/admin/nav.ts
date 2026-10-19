@@ -76,6 +76,8 @@ export type NavItem = NavLink &
 export type ReachableLink = NavLink & {
   /** The section's label for a sub-page (⌘K context); null for a section. */
   parent: string | null
+  /** The section's own search terms for a sub-page; empty for a section. */
+  parentKeywords: readonly string[]
   icon: LucideIcon
 }
 
@@ -412,18 +414,23 @@ export function dockLinks(roles: readonly Role[]): NavLink[] {
 export function reachableLinks(roles: readonly Role[]): ReachableLink[] {
   const seen = new Set<string>()
   const out: ReachableLink[] = []
-  const add = (link: NavLink, parent: string | null, icon: LucideIcon) => {
+  const add = (link: NavLink, icon: LucideIcon, section?: NavItem) => {
     if (seen.has(link.href)) return
     seen.add(link.href)
-    out.push({ ...link, parent, icon: link.icon ?? icon })
+    out.push({
+      ...link,
+      parent: section?.label ?? null,
+      parentKeywords: section?.keywords ?? [],
+      icon: link.icon ?? icon,
+    })
   }
   for (const item of visibleItems(roles)) {
     if (item.children)
-      for (const child of item.children) add(child, item.label, item.icon)
-    else add(item, null, item.icon)
+      for (const child of item.children) add(child, item.icon, item)
+    else add(item, item.icon)
   }
   for (const link of [HELP_LINK, ...EXTRA_LINKS])
-    if (allowed(roles, link)) add(link, null, link.icon ?? CircleHelp)
+    if (allowed(roles, link)) add(link, link.icon ?? CircleHelp)
   return out
 }
 

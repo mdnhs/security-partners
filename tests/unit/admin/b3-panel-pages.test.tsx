@@ -21,9 +21,11 @@ vi.mock("next/navigation", () => nav)
 const session = vi.hoisted(() => ({
   roles: ["owner"] as string[],
   requirePermission: vi.fn(),
+  requirePage: vi.fn(),
 }))
 vi.mock("@/server/auth/session", () => ({
   requirePermission: session.requirePermission,
+  requirePage: session.requirePage,
 }))
 
 vi.mock("@/components/admin/settings/settings-editor", () => ({
@@ -63,6 +65,16 @@ beforeEach(() => {
       return { roles: session.roles }
     }
   )
+  // A copy of requirePage (server/auth/session.ts) over the mocked
+  // requirePermission. Keep the two in step: vi.importActual can't stand in,
+  // because the real requirePage calls its module's own requirePermission
+  // (bypassing this mock) and loads the database and Better Auth.
+  session.requirePage.mockImplementation(async (href: string) => {
+    const permission = permissionFor(href)
+    if (permission === undefined) nav.notFound()
+    if (permission === null) return { roles: session.roles }
+    return session.requirePermission(permission)
+  })
 })
 
 type Props = Record<string, unknown>

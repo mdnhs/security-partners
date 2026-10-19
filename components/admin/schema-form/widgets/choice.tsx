@@ -78,6 +78,7 @@ function ChoiceFieldset({
   help,
   error,
   optional,
+  describeGroup,
   children,
 }: {
   id: string
@@ -85,11 +86,16 @@ function ChoiceFieldset({
   help?: string
   error?: string
   optional?: boolean
+  /** The fieldset itself is described by the hint and error (checkbox groups). */
+  describeGroup?: boolean
   children: React.ReactNode
 }) {
   return (
     <fieldset
       data-invalid={error ? true : undefined}
+      aria-describedby={
+        describeGroup ? describedBy(id, { help, error }) : undefined
+      }
       className="flex min-w-0 flex-col gap-2"
     >
       <legend id={`${id}-legend`} className={cn(LABEL_CLASS, "mb-0.5")}>
@@ -198,6 +204,7 @@ export function CheckboxesWidget({ field, path }: WidgetProps) {
       help={help}
       error={error}
       optional={field.optional || field.nullable}
+      describeGroup
     >
       <div className="grid gap-1 sm:grid-cols-2">
         {items.map((item, index) => (
@@ -207,7 +214,6 @@ export function CheckboxesWidget({ field, path }: WidgetProps) {
               checked={chosen.includes(item.value)}
               disabled={disabled}
               aria-invalid={error ? true : undefined}
-              aria-describedby={describedBy(id, { help, error })}
               onCheckedChange={(checked) => toggle(item.value, checked)}
               onBlur={onBlur}
             />
