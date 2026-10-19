@@ -6,6 +6,7 @@ import { ConsentProvider } from "@/components/consent/consent-provider"
 import { CustomCode } from "@/components/consent/custom-code"
 import { TrackingScripts } from "@/components/consent/tracking-scripts"
 import { JsonLd } from "@/components/seo/json-ld"
+import { consentMaxAgeSeconds } from "@/lib/analytics/consent"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadPublicMarketing } from "@/server/modules/marketing/public"
 import { loadSiteSources } from "@/server/modules/pages/sources"
@@ -38,14 +39,19 @@ export async function SiteExtras() {
   const marketing = loaded.status === "fulfilled" ? loaded.value : null
   const tracking = marketing?.tracking
   const consent = marketing?.consent
+  const copy =
+    tracking?.enabled && consent ? consentBannerCopy(s, consent) : null
   return (
     <>
       <JsonLd
         data={siteJsonLd(s, publicOrigin(s.settings.site.productionUrl))}
       />
-      {tracking?.enabled && consent ? (
-        <ConsentProvider>
-          <ConsentBanner copy={consentBannerCopy(s, consent)} />
+      {marketing && copy ? (
+        <ConsentProvider
+          version={copy.version}
+          maxAgeSeconds={consentMaxAgeSeconds(copy.reconsentMonths)}
+        >
+          <ConsentBanner copy={copy} />
           <TrackingScripts ids={marketing.ids} />
         </ConsentProvider>
       ) : null}

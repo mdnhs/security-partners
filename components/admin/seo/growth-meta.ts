@@ -136,6 +136,14 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
       "categories.necessary": { label: "Necessary (always on)" },
       "categories.analytics": { label: "Analytics" },
       "categories.marketing": { label: "Marketing" },
+      version: {
+        label: "Consent version",
+        help: "Raise it by 1 when what you ask consent for changes: every visitor sees the banner again, and nothing loads until they choose.",
+      },
+      reconsentMonths: {
+        label: "Ask again after (months)",
+        help: "How long a visitor's choice is kept before the banner asks again. 1 to 6 months.",
+      },
     },
   },
   customCode: {

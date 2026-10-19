@@ -41,6 +41,9 @@ vi.mock("@/components/admin/seo/growth-settings-editor", () => ({
 vi.mock("@/components/admin/marketing/tracking-editor", () => ({
   TrackingEditor: () => null,
 }))
+vi.mock("@/components/admin/marketing/consent-editor", () => ({
+  ConsentEditor: () => null,
+}))
 vi.mock("@/components/admin/audit/audit-screen", () => ({
   AuditScreen: () => null,
 }))
@@ -48,11 +51,13 @@ vi.mock("@/components/admin/audit/audit-screen", () => ({
 import CollectionsPage from "@/app/(admin)/admin/(panel)/collections/page"
 import ActivityPage from "@/app/(admin)/admin/(panel)/activity/page"
 import MarketingCodePage from "@/app/(admin)/admin/(panel)/marketing/code/page"
+import MarketingConsentPage from "@/app/(admin)/admin/(panel)/marketing/consent/page"
 import MarketingPage from "@/app/(admin)/admin/(panel)/marketing/page"
 import SettingsKeyPage from "@/app/(admin)/admin/(panel)/settings/[key]/page"
 import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/page"
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
+import { ConsentEditor } from "@/components/admin/marketing/consent-editor"
 import { TrackingEditor } from "@/components/admin/marketing/tracking-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
@@ -130,6 +135,15 @@ describe("moved pages", () => {
       GROWTH_SETTINGS.tracking.read
     )
     expect(out!.type).toBe(TrackingEditor)
+    expect(out!.props).not.toHaveProperty("backHref")
+  })
+
+  it("/admin/marketing/consent is the Consent editor with its live preview (D2.2)", async () => {
+    const out = await inner(MarketingConsentPage())
+    expect(session.requirePermission).toHaveBeenCalledWith(
+      GROWTH_SETTINGS.consent.read
+    )
+    expect(out!.type).toBe(ConsentEditor)
     expect(out!.props).not.toHaveProperty("backHref")
   })
 

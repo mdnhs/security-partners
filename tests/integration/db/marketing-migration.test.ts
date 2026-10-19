@@ -115,6 +115,64 @@ describe("marketing migration — tracking channel switches", () => {
     const revs = await getDb().select().from(revisions)
     const byId = Object.fromEntries(revs.map((r) => [r.entityId, r.data]))
     expect(byId.tracking).toMatchObject({ metaEnabled: true })
-    expect(byId.consent).toEqual(data)
+    expect(byId.consent).not.toHaveProperty("metaEnabled")
+  })
+})
+
+const consentRow = async () =>
+  (await getDb().select().from(settings).where(eq(settings.key, "consent")))[0]!
+
+describe("marketing migration — consent version and interval (D2.2)", () => {
+  it("backfills version 1 and 6 months; existing values win; null and non-objects are skipped", async () => {
+    await getDb()
+      .insert(settings)
+      .values({
+        key: "consent",
+        draft: { title: "T", version: 3 },
+        published: { title: "T" },
+      })
+    await getDb()
+      .insert(revisions)
+      .values([
+        {
+          entityType: "settings",
+          entityId: "consent",
+          version: 1,
+          data: { title: "Old", reconsentMonths: 2 },
+        },
+        {
+          entityType: "settings",
+          entityId: "tracking",
+          version: 1,
+          data: "broken",
+        },
+      ])
+    await migrate()
+    await migrate()
+    const row = await consentRow()
+    expect(row.draft).toEqual({ title: "T", version: 3, reconsentMonths: 6 })
+    expect(row.published).toEqual({
+      title: "T",
+      version: 1,
+      reconsentMonths: 6,
+    })
+    const revs = await getDb().select().from(revisions)
+    const byId = Object.fromEntries(revs.map((r) => [r.entityId, r.data]))
+    expect(byId.consent).toEqual({
+      title: "Old",
+      version: 1,
+      reconsentMonths: 2,
+    })
+    expect(byId.tracking).toBe("broken")
+  })
+
+  it("a null published consent stays null", async () => {
+    await getDb()
+      .insert(settings)
+      .values({ key: "consent", draft: "broken", published: null })
+    await migrate()
+    const row = await consentRow()
+    expect(row.draft).toBe("broken")
+    expect(row.published).toBeNull()
   })
 })

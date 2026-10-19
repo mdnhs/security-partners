@@ -222,6 +222,8 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
           description: "Lets us measure our advertising.",
         },
       },
+      version: 1,
+      reconsentMonths: 6,
     },
     tracking: {
       enabled: false,

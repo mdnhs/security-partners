@@ -7,6 +7,7 @@ import {
   type ConsentBannerCopy,
 } from "@/components/consent/consent-banner"
 import { ConsentProvider } from "@/components/consent/consent-provider"
+import { consentMaxAgeSeconds } from "@/lib/analytics/consent"
 import type { AnalyticsWindow } from "@/lib/analytics/events"
 
 const COPY: ConsentBannerCopy = {
@@ -24,6 +25,8 @@ const COPY: ConsentBannerCopy = {
     analytics: { label: "Analytics", description: "How the site is used." },
     marketing: { label: "Marketing", description: "Our advertising." },
   },
+  version: 1,
+  reconsentMonths: 6,
 }
 
 const clearCookies = () => {
@@ -45,7 +48,11 @@ beforeEach(() => {
 
 function renderBanner(reload = vi.fn(), copy: ConsentBannerCopy = COPY) {
   render(
-    <ConsentProvider reload={reload}>
+    <ConsentProvider
+      reload={reload}
+      version={copy.version}
+      maxAgeSeconds={consentMaxAgeSeconds(copy.reconsentMonths)}
+    >
       <ConsentBanner copy={copy} />
     </ConsentProvider>
   )
@@ -108,6 +115,40 @@ describe("consent banner (spec §10)", () => {
     await user.click(screen.getByRole("button", { name: "Save choices" }))
     expect(consentCookie()).toMatch(/^1\.1\.0\./)
     expect(reload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("consent version and re-consent interval (D2.2)", () => {
+  const now = () => Math.floor(Date.now() / 1000)
+
+  it("a choice made under an older version counts as no choice: the banner asks again", async () => {
+    document.cookie = `sp_consent=1.1.1.${now()}; Path=/`
+    const user = userEvent.setup()
+    renderBanner(vi.fn(), { ...COPY, version: 2 })
+    expect(
+      screen.getByRole("region", { name: "We use cookies" })
+    ).toBeInTheDocument()
+    expect((window as AnalyticsWindow).__spConsent).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Accept all" }))
+    expect(consentCookie()).toMatch(/^2\.1\.1\.\d+$/)
+  })
+
+  it("the current version's choice is kept", () => {
+    document.cookie = `sp_consent=2.1.0.${now()}; Path=/`
+    renderBanner(vi.fn(), { ...COPY, version: 2 })
+    expect(screen.queryByRole("region", { name: "We use cookies" })).toBeNull()
+    expect((window as AnalyticsWindow).__spConsent).toEqual({
+      analytics: true,
+      marketing: false,
+    })
+  })
+
+  it("a choice older than the re-consent interval asks again", () => {
+    document.cookie = `sp_consent=1.1.1.${now() - 61 * 86_400}; Path=/`
+    renderBanner(vi.fn(), { ...COPY, reconsentMonths: 2 })
+    expect(
+      screen.getByRole("region", { name: "We use cookies" })
+    ).toBeInTheDocument()
   })
 })
 

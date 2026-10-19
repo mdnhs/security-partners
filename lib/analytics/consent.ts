@@ -1,37 +1,56 @@
 // The consent cookie and Google Consent Mode values (spec §10: own
-// lightweight manager, choice kept 6 months). Isomorphic, no React.
+// lightweight manager). The choice is kept for the re-consent interval
+// (settings.consent.reconsentMonths, 1–6 months) and only under the current
+// consent version (settings.consent.version). Isomorphic, no React.
 
 export const CONSENT_COOKIE = "sp_consent"
-export const CONSENT_VERSION = 1
-/** 180 days ≈ 6 months, in seconds (cookie Max-Age). */
-export const CONSENT_MAX_AGE = 180 * 86_400
 const SKEW_MS = 5 * 60_000
+/** The longest re-consent interval (settings.consent.reconsentMonths max). */
+export const MAX_RECONSENT_MONTHS = 6
 
 export type ConsentChoice = { analytics: boolean; marketing: boolean }
 
+/** Cookie Max-Age for a re-consent interval: a month counts as 30 days. */
+export const consentMaxAgeSeconds = (reconsentMonths: number) =>
+  reconsentMonths * 30 * 86_400
+
 /** "<version>.<analytics 0|1>.<marketing 0|1>.<unix seconds>" */
-export function encodeConsent(choice: ConsentChoice, nowMs: number): string {
-  return `${CONSENT_VERSION}.${choice.analytics ? 1 : 0}.${choice.marketing ? 1 : 0}.${Math.floor(nowMs / 1000)}`
+export function encodeConsent(
+  choice: ConsentChoice,
+  nowMs: number,
+  version: number
+): string {
+  return `${version}.${choice.analytics ? 1 : 0}.${choice.marketing ? 1 : 0}.${Math.floor(nowMs / 1000)}`
 }
 
-/** The stored choice, or null when missing, malformed, of another version, from the future or older than 6 months. */
+/**
+ * The stored choice, or null when missing, malformed, from the future,
+ * older than the re-consent interval, or of another consent version (the
+ * owner published a new version: everyone is asked again).
+ */
 export function readConsent(
   raw: string | null | undefined,
-  nowMs: number
+  nowMs: number,
+  version: number,
+  maxAgeSeconds = consentMaxAgeSeconds(MAX_RECONSENT_MONTHS)
 ): ConsentChoice | null {
   const match = /^(\d+)\.([01])\.([01])\.(\d+)$/.exec(raw ?? "")
-  if (!match || Number(match[1]) !== CONSENT_VERSION) return null
+  if (!match || Number(match[1]) !== version) return null
   const age = nowMs - Number(match[4]) * 1000
-  if (age < -SKEW_MS || age > CONSENT_MAX_AGE * 1000) return null
+  if (age < -SKEW_MS || age > maxAgeSeconds * 1000) return null
   return { analytics: match[2] === "1", marketing: match[3] === "1" }
 }
 
 export function consentCookie(
   choice: ConsentChoice,
   nowMs: number,
-  secure: boolean
+  {
+    version,
+    maxAgeSeconds,
+    secure = false,
+  }: { version: number; maxAgeSeconds: number; secure?: boolean }
 ): string {
-  return `${CONSENT_COOKIE}=${encodeConsent(choice, nowMs)}; Max-Age=${CONSENT_MAX_AGE}; Path=/; SameSite=Lax${secure ? "; Secure" : ""}`
+  return `${CONSENT_COOKIE}=${encodeConsent(choice, nowMs, version)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Lax${secure ? "; Secure" : ""}`
 }
 
 export function cookieValue(

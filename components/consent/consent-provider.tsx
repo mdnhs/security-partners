@@ -46,7 +46,7 @@ export function useConsent(): ConsentContextValue {
 }
 
 /** The visitor's choice: read once from the cookie, then kept in memory. */
-function createStore() {
+function createStore(version: number, maxAgeSeconds: number) {
   let value: ConsentChoice | null | undefined
   const listeners = new Set<() => void>()
   const publish = (next: ConsentChoice | null) => {
@@ -63,7 +63,12 @@ function createStore() {
     get(): ConsentChoice | null {
       if (value === undefined)
         publish(
-          readConsent(cookieValue(document.cookie, CONSENT_COOKIE), Date.now())
+          readConsent(
+            cookieValue(document.cookie, CONSENT_COOKIE),
+            Date.now(),
+            version,
+            maxAgeSeconds
+          )
         )
       return value ?? null
     },
@@ -78,18 +83,26 @@ const serverSnapshot = (): ConsentState => PENDING
 
 /**
  * Rendered only when tracking is enabled (components/site-extras.tsx).
- * Stores the choice in the sp_consent cookie for 6 months, mirrors it to
+ * Stores the choice in the sp_consent cookie for the re-consent interval,
+ * under the published consent version (a cookie of another version counts
+ * as no choice, so the banner asks again and nothing loads), mirrors it to
  * Google Consent Mode, and reloads after a withdrawal (running tags cannot
  * be unloaded; their cookies are cleared first).
  */
 export function ConsentProvider({
   children,
+  version,
+  maxAgeSeconds,
   reload = () => window.location.reload(),
 }: {
   children: ReactNode
+  /** settings.consent.version (published). */
+  version: number
+  /** consentMaxAgeSeconds(settings.consent.reconsentMonths). */
+  maxAgeSeconds: number
   reload?: () => void
 }) {
-  const [store] = useState(createStore)
+  const [store] = useState(() => createStore(version, maxAgeSeconds))
   const choice = useSyncExternalStore<ConsentState>(
     store.subscribe,
     store.get,
@@ -99,11 +112,11 @@ export function ConsentProvider({
   const save = useCallback(
     (next: ConsentChoice) => {
       const previous = store.get()
-      document.cookie = consentCookie(
-        next,
-        Date.now(),
-        window.location.protocol === "https:"
-      )
+      document.cookie = consentCookie(next, Date.now(), {
+        version,
+        maxAgeSeconds,
+        secure: window.location.protocol === "https:",
+      })
       store.set(next)
       ;(window as AnalyticsWindow).gtag?.(
         "consent",
@@ -116,7 +129,7 @@ export function ConsentProvider({
         reload()
       }
     },
-    [store, reload]
+    [store, reload, version, maxAgeSeconds]
   )
   const value = useMemo<ConsentContextValue>(
     () => ({

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
-import { GrowthSettingsEditor } from "@/components/admin/seo/growth-settings-editor"
+import { ConsentEditor } from "@/components/admin/marketing/consent-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { requirePermission } from "@/server/auth/session"
 
@@ -17,5 +17,7 @@ export default function ConsentPage() {
 
 async function Editor() {
   await requirePermission(GROWTH_SETTINGS.consent.read)
-  return <GrowthSettingsEditor settingsKey="consent" />
+  return (
+    <ConsentEditor description="The cookie banner visitors see while tracking is on. Changes stay in a draft until you publish." />
+  )
 }

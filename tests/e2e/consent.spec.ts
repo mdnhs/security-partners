@@ -6,7 +6,8 @@ import { BASE_URL } from "./env"
 import { clientIpFor, E2E_PASSWORD } from "./fixtures"
 
 // Master 8.3: no banner/scripts while tracking is off; with tracking on the
-// banner gates GTM, GA4 and the Meta pixel; consent cookie 6 months;
+// banner gates GTM, GA4 and the Meta pixel; consent cookie 6 months (the
+// re-consent interval), versioned;
 // custom code owner-only. Trackers are stubbed (no network to Google/Meta).
 
 const SAME_ORIGIN = { origin: BASE_URL }
@@ -20,6 +21,8 @@ const TRACKING_OFF = {
   metaEnabled: false,
   metaPixelId: null,
 }
+
+const CONSENT_V1 = { version: 1, reconsentMonths: 6 }
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
@@ -82,6 +85,7 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       headHtml: "",
       bodyEndHtml: "",
     }))
+    await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_V1 }))
     await context.close()
   })
 
@@ -234,6 +238,72 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
         .toEqual(["/gtag/js"])
       await visitor.close()
     } finally {
+      await publishSetting(page, "tracking", (d) => ({
+        ...d,
+        ...TRACKING_OFF,
+      }))
+    }
+  })
+
+  test("a new consent version asks again; the interval sets the cookie's life (D2.2)", async ({
+    page,
+    browser,
+  }) => {
+    await signIn(page, E2E_OWNER.email)
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      enabled: true,
+      gtmEnabled: true,
+      gtmId: "GTM-E2ETEST",
+    }))
+    try {
+      await page.goto("/admin/marketing/consent")
+      const preview = page.getByRole("region", { name: "Preview" })
+      await expect(
+        preview.getByRole("button", { name: "First layer", pressed: true })
+      ).toBeVisible()
+      await expect(
+        preview.getByRole("heading", { name: "We use cookies" })
+      ).toBeVisible()
+
+      const visitor = await browser.newContext()
+      const site = await visitor.newPage()
+      const requested = await stubTrackers(site)
+      await site.goto("/")
+      await site
+        .locator("[data-consent-banner]")
+        .getByRole("button", { name: "Accept all" })
+        .click()
+      const consentCookie = async () =>
+        (await visitor.cookies()).find((c) => c.name === "sp_consent")!
+      await expect
+        .poll(async () => (await consentCookie()).value)
+        .toMatch(/^1\.1\.1\./)
+
+      await publishSetting(page, "consent", (d) => ({
+        ...d,
+        version: 2,
+        reconsentMonths: 2,
+      }))
+      requested.length = 0
+      await site.reload()
+      const banner = site.locator("[data-consent-banner]")
+      await expect(banner).toBeVisible()
+      await site.waitForLoadState("networkidle")
+      expect(requested).toEqual([])
+
+      await banner.getByRole("button", { name: "Accept all" }).click()
+      await expect
+        .poll(async () => (await consentCookie()).value)
+        .toMatch(/^2\.1\.1\.\d+$/)
+      const days =
+        ((await consentCookie()).expires * 1000 - Date.now()) / 86_400_000
+      expect(days).toBeGreaterThan(59)
+      expect(days).toBeLessThanOrEqual(60)
+      await expect.poll(() => requested.length).toBeGreaterThan(0)
+      await visitor.close()
+    } finally {
+      await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_V1 }))
       await publishSetting(page, "tracking", (d) => ({
         ...d,
         ...TRACKING_OFF,
