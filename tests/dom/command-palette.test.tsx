@@ -244,6 +244,7 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(options).toEqual([
       "Dashboard",
       "Enquiries",
+      "Help",
       "Account",
       "Open the live site",
       "Switch to light theme",

@@ -1079,11 +1079,12 @@ for (const colorScheme of ["light", "dark"] as const) {
     for (const tab of [
       { id: "profile", label: "Profile" },
       { id: "security", label: "Security" },
-      { id: "sessions", label: "Devices" },
-    ]) {
+      // The snapshot keeps its "sessions" name; the URL is MK's ?tab=devices.
+      { id: "sessions", param: "devices", label: "Devices" },
+    ] as { id: string; param?: string; label: string }[]) {
       test(`admin account ${tab.id} ${colorScheme}`, async ({ page }) => {
         await signIn(page)
-        await page.goto(`/admin/account?tab=${tab.id}`)
+        await page.goto(`/admin/account?tab=${tab.param ?? tab.id}`)
         const tabs = page.getByRole("tablist", { name: "Account sections" })
         await expect(
           tabs.getByRole("tab", { name: tab.label })

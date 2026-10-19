@@ -68,6 +68,7 @@ const EXPECTED: Record<string, PermissionRequest | null> = {
   "collections/group-companies/page.tsx": { collection: ["read"] },
   "collections/team/page.tsx": { collection: ["read"] },
   "design/page.tsx": { customCode: ["update"] },
+  "help/page.tsx": null,
   "insights/page.tsx": { article: ["read"] },
   "insights/[id]/page.tsx": { article: ["read"] },
   "insights/categories/page.tsx": { collection: ["read"] },

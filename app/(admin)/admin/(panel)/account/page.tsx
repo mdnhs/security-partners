@@ -2,6 +2,7 @@ import { Eye } from "lucide-react"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
+import { AccountTabs } from "@/components/admin/account/account-tabs"
 import { ChangePasswordForm } from "@/components/admin/account/change-password-form"
 import { ProfileForm } from "@/components/admin/account/profile-form"
 import { SessionsList } from "@/components/admin/account/sessions-list"
@@ -10,21 +11,12 @@ import { TwoFactorSettings } from "@/components/admin/account/two-factor-setting
 import { FormCard } from "@/components/admin/form/form-ui"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { PageHeader } from "@/components/admin/page-header"
-import {
-  SectionTabs,
-  SectionTabsPanel,
-} from "@/components/admin/section-tabs/section-tabs"
 import { requirePage, requireSession } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Account" }
 
-// JW account: Profile (+ Appearance), Security (Password + 2FA), Devices.
-const TABS = [
-  { id: "profile", label: "Profile" },
-  { id: "security", label: "Security" },
-  { id: "sessions", label: "Devices" },
-]
-
+// MK account: top tabs Profile (+ Appearance), Security (Password + 2FA),
+// Devices, selected by ?tab=.
 export default function AccountPage() {
   return (
     <Suspense fallback={null}>
@@ -51,8 +43,8 @@ async function Account() {
   return (
     <>
       <PageHeader title="Account" description={user.email} />
-      <SectionTabs ariaLabel="Account sections" heading="Account" items={TABS}>
-        <SectionTabsPanel id="profile">
+      <AccountTabs
+        profile={
           <div className="grid gap-4 xl:grid-cols-2">
             <FormCard
               id="account-profile"
@@ -73,8 +65,8 @@ async function Account() {
               <ThemePreference />
             </FormCard>
           </div>
-        </SectionTabsPanel>
-        <SectionTabsPanel id="security">
+        }
+        security={
           <div className="grid gap-4 xl:grid-cols-2">
             <FormCard
               id="account-password"
@@ -91,8 +83,8 @@ async function Account() {
               <TwoFactorSettings enabled={user.twoFactorEnabled} />
             </FormCard>
           </div>
-        </SectionTabsPanel>
-        <SectionTabsPanel id="sessions">
+        }
+        devices={
           <FormCard
             id="account-sessions"
             title="Signed-in devices"
@@ -100,8 +92,8 @@ async function Account() {
           >
             <SessionsList currentSessionId={session.id} />
           </FormCard>
-        </SectionTabsPanel>
-      </SectionTabs>
+        }
+      />
     </>
   )
 }

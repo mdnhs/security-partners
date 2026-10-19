@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/command"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
-import { HELP_LINK, reachableLinks } from "@/lib/admin/nav"
+import { reachableLinks } from "@/lib/admin/nav"
 import { api, unwrap } from "@/lib/api-client"
 import { hasPermission } from "@/lib/auth/permissions"
 import type { SearchType } from "@/lib/schemas/api/search"
@@ -154,17 +154,14 @@ export function CommandPalette() {
     staleTime: 10_000,
   })
 
-  // /admin/help is built in B7; until then ⌘K leaves it out (no 404).
-  const sections = reachableLinks(roles)
-    .filter((item) => item.href !== HELP_LINK.href)
-    .filter((item) =>
-      matchesQuery(trimmed, item.label, [
-        ...(item.keywords ?? []),
-        // A sub-page answers to its section's name and search terms too.
-        ...(item.parent ? [item.parent] : []),
-        ...item.parentKeywords,
-      ])
-    )
+  const sections = reachableLinks(roles).filter((item) =>
+    matchesQuery(trimmed, item.label, [
+      ...(item.keywords ?? []),
+      // A sub-page answers to its section's name and search terms too.
+      ...(item.parent ? [item.parent] : []),
+      ...item.parentKeywords,
+    ])
+  )
   const actions = buildActions({
     setTheme,
     theme,

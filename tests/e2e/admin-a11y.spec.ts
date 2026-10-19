@@ -92,7 +92,7 @@ const PANEL = [
   "/admin/settings/contact",
   "/admin/account",
   "/admin/account?tab=security",
-  "/admin/account?tab=sessions",
+  "/admin/account?tab=devices",
   "/admin/users", // forbidden (403) for an editor
   "/admin/this-page-does-not-exist", // not found (404)
 ]

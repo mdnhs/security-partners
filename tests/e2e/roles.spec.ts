@@ -65,10 +65,7 @@ for (const role of ROLES) {
         nav.getByRole("link", { name: new RegExp(`^${escape(label)}`) })
       ).toBeVisible()
     const dock = page.getByRole("navigation", { name: "Administration" })
-    // Account holds Help's place in the dock until /admin/help (B7).
-    const docked = dockLinks([role]).map((link) =>
-      link.id === "help" ? "Account" : link.label
-    )
+    const docked = dockLinks([role]).map((link) => link.label)
     await expect(dock.getByRole("link")).toHaveCount(docked.length)
     for (const label of docked)
       await expect(
