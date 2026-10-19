@@ -6,7 +6,11 @@ import { LINK_PRIMARY } from "@/components/admin/page-header"
 import type { NextUpItem } from "@/lib/schemas/api/dashboard"
 import { cn } from "@/lib/utils"
 
-/** JW "Next up": the first open step as a headline, the checklist, one CTA. */
+/**
+ * JW "Next up": the first open step as a headline, the checklist, one CTA.
+ * Checklist rows at MK's 28 px pitch: 24 px links (WCAG 2.2 AA target)
+ * 4 px apart, 44 px on coarse pointers.
+ */
 export function NextUp({
   items,
   headingLevel = 2,
@@ -35,7 +39,7 @@ export function NextUp({
               <li key={item.id}>
                 <Link
                   href={item.href}
-                  className="flex min-h-11 items-center gap-2 rounded-md text-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex min-h-6 items-center gap-2 rounded-md text-sm outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:min-h-11"
                 >
                   {item.done ? (
                     <CircleCheck aria-hidden className="text-success size-4" />

@@ -59,8 +59,13 @@ describe("topbar Enquiries link", () => {
     expect(link).toHaveAttribute("href", "/admin/leads")
     // Same count as the sidebar's Leads badge.
     expect(link).toHaveTextContent("3")
-    // Phones rely on the sidebar's Leads badge: the topbar keeps room for search.
-    expect(link).toHaveClass("hidden", "sm:inline-flex")
+    // MK (A9): shown on phones too (from 360 px, where it fits), a 44 px circle.
+    expect(link).not.toHaveClass("sm:inline-flex")
+    expect(link).toHaveClass(
+      "min-[360px]:inline-flex",
+      "size-11",
+      "rounded-full"
+    )
   })
 
   it("keeps the search pill a 44 px target on narrow phones", () => {
@@ -106,6 +111,28 @@ describe("account trigger identity", () => {
     // Highest role in ROLES order, by its label.
     const role = trigger.querySelector("[data-slot=role-pill]")
     expect(role).toHaveTextContent(/^Owner$/)
+  })
+
+  it("A9: the role is a separate grey chip after name and email (MK)", () => {
+    renderShell({
+      roles: ["owner"],
+      user: { name: "Ann Owner", email: "a@x.ie" },
+    })
+    const trigger = screen.getByRole("button", { name: /Ann Owner/ })
+    const identity = trigger.querySelector("[data-slot=user-identity]")!
+    const role = trigger.querySelector("[data-slot=role-pill]")!
+    // Not inline beside the name: the chip follows the name/email block.
+    expect(identity.contains(role)).toBe(false)
+    expect(identity.compareDocumentPosition(role)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(role).toHaveClass(
+      "bg-muted",
+      "text-foreground",
+      "hidden",
+      "lg:inline-flex"
+    )
+    expect(role).not.toHaveClass("bg-accent")
   })
 
   it("keeps the avatar and hides the text block below lg", () => {

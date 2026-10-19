@@ -100,6 +100,7 @@ export function PageHeader({
   breadcrumbs,
   titleTestId,
   stacked = false,
+  className,
 }: {
   title: ReactNode
   description?: ReactNode
@@ -112,12 +113,15 @@ export function PageHeader({
    * section tab's card, too narrow for title and actions side by side.
    */
   stacked?: boolean
+  /** E.g. `mb-0` inside a parent that spaces its children with a gap. */
+  className?: string
 }) {
   return (
     <header
       className={cn(
         "mb-6 flex flex-col gap-4",
-        !stacked && "lg:flex-row lg:items-end lg:justify-between"
+        !stacked && "lg:flex-row lg:items-end lg:justify-between",
+        className
       )}
     >
       <div className="flex min-w-0 flex-col gap-2">
