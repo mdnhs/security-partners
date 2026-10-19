@@ -38,6 +38,9 @@ vi.mock("@/components/admin/integrations/migrate-media-panel", () => ({
 vi.mock("@/components/admin/seo/growth-settings-editor", () => ({
   GrowthSettingsEditor: () => null,
 }))
+vi.mock("@/components/admin/marketing/tracking-editor", () => ({
+  TrackingEditor: () => null,
+}))
 vi.mock("@/components/admin/audit/audit-screen", () => ({
   AuditScreen: () => null,
 }))
@@ -50,6 +53,7 @@ import SettingsKeyPage from "@/app/(admin)/admin/(panel)/settings/[key]/page"
 import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/page"
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
+import { TrackingEditor } from "@/components/admin/marketing/tracking-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
@@ -125,7 +129,7 @@ describe("moved pages", () => {
     expect(session.requirePermission).toHaveBeenCalledWith(
       GROWTH_SETTINGS.tracking.read
     )
-    expect(out!.props).toMatchObject({ settingsKey: "tracking" })
+    expect(out!.type).toBe(TrackingEditor)
     expect(out!.props).not.toHaveProperty("backHref")
   })
 

@@ -23,6 +23,11 @@ describe("loadPublicMarketing (published values only)", () => {
   it("seeded: tracking off, consent copy, no custom code", async () => {
     const m = await loadPublicMarketing()
     expect(m.tracking.enabled).toBe(false)
+    expect(m.tracking).toMatchObject({
+      gtmEnabled: false,
+      ga4Enabled: false,
+      metaEnabled: false,
+    })
     expect(m.consent?.manageLabel).toBe("Cookie settings")
     expect(m.customCode).toEqual({ headHtml: "", bodyEndHtml: "" })
   })
@@ -54,6 +59,47 @@ describe("loadPublicMarketing (published values only)", () => {
     m = await loadPublicMarketing()
     expect(m.tracking).toEqual({
       enabled: false,
+      gtmEnabled: false,
+      gtmId: null,
+      ga4Enabled: false,
+      ga4Id: null,
+      metaEnabled: false,
+      metaPixelId: null,
+    })
+    expect(m.ids).toEqual({ gtmId: null, ga4Id: null, metaPixelId: null })
+  })
+
+  it("ids: only channels switched on in the published value", async () => {
+    await getDb()
+      .update(settings)
+      .set({
+        published: {
+          enabled: true,
+          gtmEnabled: false,
+          gtmId: "GTM-X1",
+          ga4Enabled: true,
+          ga4Id: "G-X1",
+          metaEnabled: true,
+          metaPixelId: "123",
+        },
+      })
+      .where(eq(settings.key, "tracking"))
+    const m = await loadPublicMarketing()
+    expect(m.ids).toEqual({ gtmId: null, ga4Id: "G-X1", metaPixelId: "123" })
+
+    // Values saved before the switches existed parse with every channel off.
+    await getDb()
+      .update(settings)
+      .set({
+        published: {
+          enabled: true,
+          gtmId: "GTM-X1",
+          ga4Id: null,
+          metaPixelId: null,
+        },
+      })
+      .where(eq(settings.key, "tracking"))
+    expect((await loadPublicMarketing()).ids).toEqual({
       gtmId: null,
       ga4Id: null,
       metaPixelId: null,

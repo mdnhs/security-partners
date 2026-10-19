@@ -240,8 +240,14 @@ describe("tracking tag IDs are owner-only (final review I1)", () => {
     const toggled = await saveAndPublish(marketer, "tracking", (d) => ({
       ...d,
       enabled: true,
+      gtmEnabled: true,
+      ga4Enabled: true,
+      metaEnabled: true,
     }))
     expect(toggled.status).toBe(200)
+    expect(await toggled.json()).toMatchObject({
+      published: { gtmEnabled: true, ga4Enabled: true, metaEnabled: true },
+    })
     const copy = await saveAndPublish(marketer, "consent", (d) => ({
       ...d,
       title: "Cookies on this site",
