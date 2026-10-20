@@ -2,7 +2,11 @@ import "server-only"
 
 import { Hono } from "hono"
 
-import { mediaListQuery, mediaUpdateInput } from "@/lib/schemas/api/media"
+import {
+  isLottieMime,
+  mediaListQuery,
+  mediaUpdateInput,
+} from "@/lib/schemas/api/media"
 import { idParam } from "@/lib/schemas/api/params"
 import type { AppEnv } from "@/server/api/context"
 import { actorOf, can } from "@/server/api/middleware/auth"
@@ -82,6 +86,7 @@ export const mediaRoutes = new Hono<AppEnv>()
 
 const SVG_CSP =
   "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
+const DATA_FILE_CSP = "default-src 'none'; sandbox"
 
 /** RFC 8187 `filename*` value (encodeURIComponent leaves ' ( ) * ! as is). */
 const rfc8187 = (name: string) =>
@@ -109,6 +114,10 @@ function fileHeaders(file: {
   if (file.mime === "image/svg+xml")
     headers["Content-Security-Policy"] = SVG_CSP
   else if (!file.mime.startsWith("image/")) {
+    // Lottie data is only fetched by the player: opened directly it runs
+    // nothing (sandboxed, no sources) and downloads.
+    if (isLottieMime(file.mime))
+      headers["Content-Security-Policy"] = DATA_FILE_CSP
     const disposition =
       file.mime === "application/pdf" ? "inline" : "attachment"
     headers["Content-Disposition"] =

@@ -22,6 +22,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       logo: media("/images/logo.png"),
       logoAlt: "Security Partners Ltd.",
       logoOnDark: null,
+      logoAnimation: null,
       favicon: null,
       productionUrl: null,
       timezone: "Europe/Dublin",

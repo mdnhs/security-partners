@@ -39,6 +39,8 @@ import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
 import {
   ACCEPTED_IMAGE_TYPES,
+  ACCEPTED_LOTTIE_TYPES,
+  isLottieMime,
   MEDIA_ALT_MAX,
   MEDIA_CAPTION_MAX,
   type MediaItem,
@@ -47,6 +49,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { FocalPointPicker } from "./focal-point"
+import { LottieTile } from "./lottie-tile"
 import {
   DRIVER_LABELS,
   formatBytes,
@@ -167,6 +170,12 @@ export function MediaDetails({
 
 /** The image at its own proportions (next/image from the same-origin URL). */
 function Preview({ item }: { item: MediaItem }) {
+  if (isLottieMime(item.mime))
+    return (
+      <span className="flex h-32 items-center justify-center rounded-xl border bg-muted/40">
+        <LottieTile />
+      </span>
+    )
   if (!item.mime.startsWith("image/"))
     return (
       <span className="flex h-32 items-center justify-center rounded-xl border bg-muted/40">
@@ -561,7 +570,13 @@ function DetailsBody({
                     type="file"
                     hidden
                     tabIndex={-1}
-                    accept={image ? ACCEPTED_IMAGE_TYPES : "application/pdf"}
+                    accept={
+                      image
+                        ? ACCEPTED_IMAGE_TYPES
+                        : isLottieMime(item.mime)
+                          ? ACCEPTED_LOTTIE_TYPES
+                          : "application/pdf"
+                    }
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       e.target.value = ""

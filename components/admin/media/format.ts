@@ -35,6 +35,8 @@ const TYPE_NAMES: Record<string, string> = {
   "image/avif": "AVIF image",
   "image/svg+xml": "SVG image",
   "application/pdf": "PDF document",
+  "video/lottie+json": "Lottie animation (JSON)",
+  "application/zip+dotlottie": "Lottie animation (dotLottie)",
 }
 
 export function typeLabel(mime: string): string {

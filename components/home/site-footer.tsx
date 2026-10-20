@@ -1,6 +1,7 @@
 import Image from "next/image"
 import Link from "next/link"
 
+import { LogoAnimation } from "@/components/home/logo-animation"
 import { Container } from "@/components/home/section"
 
 const headingClass = "text-base font-black tracking-[0.04em] text-brand-green"
@@ -9,7 +10,8 @@ const linkClass = "text-[15px] leading-normal text-white/80 hover:text-white"
 type FooterLink = { label: string; href: string }
 
 export type SiteFooterProps = {
-  logo: { src: string; alt: string }
+  /** animation: Lottie file URL (settings.site.logoAnimation), absent = none. */
+  logo: { src: string; alt: string; animation?: string }
   tagline: string
   quickLinks: { heading: string; ariaLabel: string; links: FooterLink[] }
   contact: {
@@ -59,6 +61,7 @@ export function SiteFooter({
                   sizes="110px"
                   className="object-contain"
                 />
+                {logo.animation ? <LogoAnimation src={logo.animation} /> : null}
               </div>
             </div>
             <p className="text-[15px] leading-[1.65] text-white/70">

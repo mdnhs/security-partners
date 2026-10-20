@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import { MenuIcon, XIcon } from "lucide-react"
 
 import { buttonClassName } from "@/components/ui/button"
+import { LogoAnimation } from "@/components/home/logo-animation"
 import { Container } from "@/components/home/section"
 import { cn } from "@/lib/utils"
 
@@ -23,7 +24,8 @@ export type SiteHeaderProps = {
     hoursLabel: string
     hours: string
   }
-  logo: { src: string; alt: string }
+  /** animation: Lottie file URL (settings.site.logoAnimation), absent = none. */
+  logo: { src: string; alt: string; animation?: string }
   links: NavLink[]
   cta: NavLink
   aria: {
@@ -88,6 +90,7 @@ export function SiteHeader({
               className="object-contain"
               priority
             />
+            {logo.animation ? <LogoAnimation src={logo.animation} /> : null}
           </Link>
 
           <nav

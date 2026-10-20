@@ -9,6 +9,12 @@ export const siteSettings = z.object({
   logo: mediaRef,
   logoAlt: text,
   logoOnDark: mediaRef.nullable(),
+  /**
+   * Lottie animation (JSON or dotLottie) played in a loop in place of the
+   * logo in the header and footer; null = the image logo only. Saved values
+   * from before this field read as null.
+   */
+  logoAnimation: mediaRef.nullable().default(null),
   favicon: mediaRef.nullable(),
   productionUrl: httpUrl.nullable(),
   timezone: text,

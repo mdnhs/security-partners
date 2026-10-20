@@ -308,7 +308,7 @@ describe("MediaLibrary (master 6.3)", () => {
     const alerts = await within(uploads).findAllByRole("alert")
     expect(alerts.map((a) => a.textContent)).toEqual([
       "broken.png: This image could not be read.",
-      "bad.gif: This type of file is not supported. Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file.",
+      "bad.gif: This type of file is not supported. Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file, or a Lottie animation (.json or .lottie).",
     ])
     finish(item(4, { originalName: "big.png" }))
     await waitFor(() => expect(live).toHaveTextContent("big.png uploaded."))

@@ -15,6 +15,7 @@ import {
   sql,
 } from "drizzle-orm"
 
+import { LOTTIE_MIMES, type MediaKind } from "@/lib/schemas/api/media"
 import type { DbOrTx } from "@/server/db/client"
 import { containsPattern } from "@/server/db/like"
 import {
@@ -77,6 +78,21 @@ export async function nonImageMediaIds(
     .select({ id: media.id })
     .from(media)
     .where(and(inArray(media.id, ids), notLike(media.mime, "image/%")))
+  return new Set(rows.map((r) => r.id))
+}
+
+/** The subset of `ids` whose stored file is not a Lottie animation. */
+export async function nonLottieMediaIds(
+  db: DbOrTx,
+  ids: string[]
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const rows = await db
+    .select({ id: media.id })
+    .from(media)
+    .where(
+      and(inArray(media.id, ids), notInArray(media.mime, [...LOTTIE_MIMES]))
+    )
   return new Set(rows.map((r) => r.id))
 }
 
@@ -143,7 +159,7 @@ export async function listMediaRows(
   db: DbOrTx,
   opts: {
     q?: string
-    kind?: "image" | "document"
+    kind?: MediaKind
     missingAlt?: boolean
     sort: { field: "createdAt" | "alt"; dir: "asc" | "desc" }
     page: number
@@ -154,9 +170,14 @@ export async function listMediaRows(
   const where = and(
     opts.kind === "image"
       ? like(media.mime, "image/%")
-      : opts.kind === "document"
-        ? notLike(media.mime, "image/%")
-        : undefined,
+      : opts.kind === "lottie"
+        ? inArray(media.mime, [...LOTTIE_MIMES])
+        : opts.kind === "document"
+          ? and(
+              notLike(media.mime, "image/%"),
+              notInArray(media.mime, [...LOTTIE_MIMES])
+            )
+          : undefined,
     opts.missingAlt ? missingAltWhere() : undefined,
     pattern
       ? or(

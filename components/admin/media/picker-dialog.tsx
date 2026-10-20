@@ -26,12 +26,15 @@ import { api, errorMessage, unwrap } from "@/lib/api-client"
 import { hasPermission } from "@/lib/auth/permissions"
 import {
   ACCEPTED_IMAGE_TYPES,
+  ACCEPTED_LOTTIE_TYPES,
+  isLottieMime,
   MEDIA_ALT_MAX,
   type MediaItem,
 } from "@/lib/schemas/api/media"
 import { cn } from "@/lib/utils"
 
 import { mediaName } from "./format"
+import { LottieTile } from "./lottie-tile"
 import { uploadMediaFile } from "./upload-request"
 import { useAnnouncer } from "./uploader"
 
@@ -39,6 +42,43 @@ const PAGE_SIZE = 24
 const IMAGE_TYPES = new Set(ACCEPTED_IMAGE_TYPES.split(","))
 const NOT_AN_IMAGE =
   "This file is not an image this field can use. Upload a JPEG, PNG, WebP, AVIF or SVG image."
+
+/** What a picker offers: images (every image field) or Lottie animations. */
+export type PickerKind = "image" | "lottie"
+
+const PICKER_COPY = {
+  image: {
+    description:
+      "Images in the media library. Upload a new one if it is not there yet.",
+    search: "Search images",
+    upload: "Upload new image",
+    accept: ACCEPTED_IMAGE_TYPES,
+    wrongFile: NOT_AN_IMAGE,
+    noMatch: (q: string) => `No images match “${q}”.`,
+    empty: "The media library has no images yet.",
+    list: "Images",
+    use: "Use this image",
+    // An image field takes images only: anything else is refused here
+    // (the input's accept list is only a hint to the file chooser).
+    fileOk: (file: File) => IMAGE_TYPES.has(file.type),
+    itemOk: (item: MediaItem) => item.mime.startsWith("image/"),
+  },
+  lottie: {
+    description:
+      "Lottie animations in the media library. Upload a new one if it is not there yet.",
+    search: "Search animations",
+    upload: "Upload new animation",
+    accept: ACCEPTED_LOTTIE_TYPES,
+    wrongFile:
+      "This file is not a Lottie animation. Upload a .json or .lottie file.",
+    noMatch: (q: string) => `No animations match “${q}”.`,
+    empty: "The media library has no Lottie animations yet.",
+    list: "Animations",
+    use: "Use this animation",
+    fileOk: (file: File) => /\.(json|lottie)$/i.test(file.name),
+    itemOk: (item: MediaItem) => isLottieMime(item.mime),
+  },
+} as const
 
 /**
  * Buttons that keep focus while unavailable (WCAG 2.4.3): aria-disabled
@@ -55,6 +95,7 @@ type UploadState =
  * Pick an image from the media library, or upload a new one (Phase 6).
  * Upload needs a session granting media:create; outside the admin shell
  * (shared widgets in tests) there is none, so there is no upload.
+ * `kind="lottie"` offers Lottie animations instead (Settings › Logos).
  */
 export function MediaPickerDialog({
   open,
@@ -62,12 +103,14 @@ export function MediaPickerDialog({
   onSelect,
   selectedId,
   title = "Choose an image",
+  kind = "image",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSelect: (item: MediaItem) => void
   selectedId?: string | null
   title?: string
+  kind?: PickerKind
 }) {
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
@@ -113,12 +156,12 @@ export function MediaPickerDialog({
     query.trim() && debounced.startsWith(tag) ? debounced.slice(tag.length) : ""
 
   const result = useQuery({
-    queryKey: ["media", "list", { q, page }],
+    queryKey: ["media", "list", { q, page, kind }],
     queryFn: () =>
       unwrap(
         api.media.$get({
           query: {
-            kind: "image",
+            kind,
             q: q || undefined,
             page: String(page),
             pageSize: String(PAGE_SIZE),
@@ -132,11 +175,10 @@ export function MediaPickerDialog({
   const pages = Math.max(1, Math.ceil((result.data?.total ?? 0) / PAGE_SIZE))
   const current = chosen?.id ?? selectedId ?? null
 
+  const copy = PICKER_COPY[kind]
   const uploadFile = async (file: File) => {
-    // An image field takes images only: anything else is refused here
-    // (the input's accept list is only a hint to the file chooser).
-    if (!IMAGE_TYPES.has(file.type)) {
-      setUpload({ name: file.name, error: NOT_AN_IMAGE })
+    if (!copy.fileOk(file)) {
+      setUpload({ name: file.name, error: copy.wrongFile })
       return
     }
     const opening = session
@@ -155,10 +197,10 @@ export function MediaPickerDialog({
       if (!current()) return
       setUpload(null)
       setUploadAlt("")
-      if (!item.mime.startsWith("image/")) {
+      if (!copy.itemOk(item)) {
         // The server sniffs the bytes: a renamed PDF stays in the library
-        // but never lands in an image field.
-        setUpload({ name: file.name, error: NOT_AN_IMAGE })
+        // but never lands in an image (or animation) field.
+        setUpload({ name: file.name, error: copy.wrongFile })
         return
       }
       // Newest first on page 1 with no search: the new image is in view.
@@ -182,10 +224,7 @@ export function MediaPickerDialog({
       <DialogContent className="flex max-h-[min(90svh,720px)] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Images in the media library. Upload a new one if it is not there
-            yet.
-          </DialogDescription>
+          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <div className="relative">
           <Search
@@ -194,7 +233,7 @@ export function MediaPickerDialog({
           />
           <Input
             type="search"
-            aria-label="Search images"
+            aria-label={copy.search}
             placeholder="Search by description or file name"
             className="pl-8"
             value={query}
@@ -206,7 +245,13 @@ export function MediaPickerDialog({
         </div>
         {canUpload ? (
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex min-w-48 flex-1 flex-col gap-1">
+            {/* Animations play aria-hidden beside the logo's own alt text. */}
+            <div
+              className={cn(
+                "flex min-w-48 flex-1 flex-col gap-1",
+                kind === "lottie" && "hidden"
+              )}
+            >
               <label htmlFor={altId} className="text-xs font-medium">
                 Alternative text for the upload{" "}
                 <span className="font-normal text-muted-foreground">
@@ -235,14 +280,14 @@ export function MediaPickerDialog({
               }}
             >
               <Upload aria-hidden />
-              Upload new image
+              {copy.upload}
             </Button>
             <input
               ref={fileInput}
               type="file"
               hidden
               tabIndex={-1}
-              accept={ACCEPTED_IMAGE_TYPES}
+              accept={copy.accept}
               data-upload-input
               onChange={(event) => {
                 const file = event.target.files?.[0]
@@ -303,13 +348,11 @@ export function MediaPickerDialog({
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
               <ImageOff aria-hidden className="size-6" />
-              {q
-                ? `No images match “${q}”.`
-                : "The media library has no images yet."}
+              {q ? copy.noMatch(q) : copy.empty}
             </div>
           ) : (
             <ul
-              aria-label="Images"
+              aria-label={copy.list}
               className="grid grid-cols-2 gap-3 sm:grid-cols-4"
             >
               {items.map((item) => {
@@ -332,13 +375,17 @@ export function MediaPickerDialog({
                       )}
                     >
                       <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md bg-[repeating-conic-gradient(var(--muted)_0_25%,transparent_0_50%)] bg-size-[16px_16px]">
-                        <Image
-                          src={item.url}
-                          alt=""
-                          fill
-                          sizes="(min-width: 640px) 170px, 45vw"
-                          className="object-contain"
-                        />
+                        {isLottieMime(item.mime) ? (
+                          <LottieTile />
+                        ) : (
+                          <Image
+                            src={item.url}
+                            alt=""
+                            fill
+                            sizes="(min-width: 640px) 170px, 45vw"
+                            className="object-contain"
+                          />
+                        )}
                       </span>
                       <span className="line-clamp-2 min-h-8 text-xs wrap-anywhere">
                         {item.alt || mediaName(item)}
@@ -384,7 +431,7 @@ export function MediaPickerDialog({
               setChosen(null)
             }}
           >
-            Use this image
+            {copy.use}
           </Button>
         </DialogFooter>
       </DialogContent>

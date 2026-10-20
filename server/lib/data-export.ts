@@ -172,6 +172,8 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   gif: "image/gif",
   jpeg: "image/jpeg",
   jpg: "image/jpeg",
+  json: "video/lottie+json",
+  lottie: "application/zip+dotlottie",
   pdf: "application/pdf",
   png: "image/png",
   svg: "image/svg+xml",
