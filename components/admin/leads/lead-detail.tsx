@@ -162,7 +162,13 @@ function LeadSource({
     >
       {attribution ? (
         <dl className="grid gap-4 sm:grid-cols-2">
-          <Fact label="Referrer">{attribution.referrer ?? <None />}</Fact>
+          <Fact label="Referrer">
+            {attribution.referrer ? (
+              <span className="break-all">{attribution.referrer}</span>
+            ) : (
+              <None />
+            )}
+          </Fact>
           <Fact label="Landing page">
             <code className="font-mono text-xs break-all">
               {attribution.landingPath}
