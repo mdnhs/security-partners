@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 /**
  * The player's WebAssembly, self-hosted (public/vendor, copied from
  * node_modules/@lottiefiles/dotlottie-web/dist at the pinned version;
- * tests/unit/lottie-wasm.test.ts keeps the copy identical). The package's
+ * tests/unit/lottie-logo.test.ts keeps the copy identical). The package's
  * default is a CDN (jsDelivr / unpkg).
  */
 export const LOTTIE_WASM_URL =
