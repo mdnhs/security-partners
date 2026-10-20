@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { UsersScreen } from "@/components/admin/users/users-screen"
 import { requirePage } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Users" }
+export const metadata: Metadata = { title: "Users & roles" }
 
 export default function UsersPage() {
   return (
