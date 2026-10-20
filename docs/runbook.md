@@ -586,7 +586,28 @@ max-age=31536000`, and a non-blocking `Content-Security-Policy` (`base-uri
 `/admin`; next.config.ts). API: Hono `secureHeaders()` plus `X-Robots-Tag:
 noindex` (also on `/admin`). Unsafe admin API calls must come from the
 site's own origin (CSRF check). Uploaded SVGs are sanitised and served with
-a sandboxing CSP. What a stricter CSP must allow is in the next section.
+a sandboxing CSP. Uploaded Lottie animations (`.json` / `.lottie`, up to
+2 MB; a `.lottie` may unpack to at most 16 MB) are validated, then served as
+`video/lottie+json` / `application/zip+dotlottie` with `nosniff`,
+`Content-Security-Policy: default-src 'none'; sandbox` and
+`Content-Disposition: attachment`. What a stricter CSP must allow is in the
+next section.
+
+### Animated logo (Lottie)
+
+Settings › Site › Logos › "Animated logo (Lottie)" (`settings.site.logoAnimation`)
+plays a Lottie file in a loop over the logo in the header and footer. The
+image logo is server-rendered as before; on pages with an animation a
+client component loads `@lottiefiles/dotlottie-web` (pinned `0.80.0`) with
+a dynamic import and shows the animation once its first frame is drawn.
+Visitors with "reduce motion" never load the player; a file that fails to
+load leaves the image logo. The player's WebAssembly is self-hosted at
+`/vendor/dotlottie-web/0.80.0/dotlottie-player.wasm` (a copy of the
+package's `dist/dotlottie-player.wasm`; `tests/unit/lottie-logo.test.ts`
+fails if the copy and the installed package differ). When upgrading the
+package, copy the new file to a new versioned folder and update
+`LOTTIE_WASM_URL` in `components/home/logo-animation.tsx`. To switch the
+animation off, clear the field and publish.
 
 ## Custom code and Content-Security-Policy
 
@@ -655,6 +676,12 @@ per page load. Drafts never run on the site; publishing applies at once.
     `https://challenges.cloudflare.com` (Cloudflare Turnstile on the contact
     form), and the hosts the snippets load from; for Tracking also
     `https://www.googletagmanager.com` and `https://connect.facebook.net`.
+    The animated logo's player compiles WebAssembly: `'wasm-unsafe-eval'`
+    (not `'unsafe-eval'`; its wasm-bindgen glue also holds a `new
+    Function` fallback that a strict policy would block — check the logo
+    still animates before shipping such a policy).
+  - `connect-src`: `'self'` for the animated logo (the player fetches the
+    Lottie file from `/api/v1/media/file/…` and its WASM from `/vendor/…`).
   - `connect-src` / `img-src`: `https://*.google-analytics.com`,
     `https://*.analytics.google.com`, `https://*.googletagmanager.com`,
     `https://www.facebook.com` (pixel beacons), plus any snippet endpoints.

@@ -55,6 +55,13 @@ export type ChromeView = {
 export function chromeView(s: SiteSources): ChromeView {
   const { site, contact, navigation, footer, microcopy } = s.settings
   const values = placeholders(s)
+  // `animation` only when set: without one the props (and the RSC payload)
+  // are exactly what they were before the field existed.
+  const logo = {
+    src: site.logo.url,
+    alt: site.logoAlt,
+    ...(site.logoAnimation ? { animation: site.logoAnimation.url } : {}),
+  }
   return {
     locale: site.locale,
     header: {
@@ -66,7 +73,7 @@ export function chromeView(s: SiteSources): ChromeView {
         hoursLabel: microcopy.header.hoursLabel,
         hours: contact.hours,
       },
-      logo: { src: site.logo.url, alt: site.logoAlt },
+      logo,
       links: navigation.headerLinks.map((l) => linkView(s, l)),
       cta: linkView(s, navigation.headerCta),
       aria: {
@@ -77,7 +84,7 @@ export function chromeView(s: SiteSources): ChromeView {
       },
     },
     footer: {
-      logo: { src: site.logo.url, alt: site.logoAlt },
+      logo,
       tagline: footer.tagline,
       quickLinks: {
         heading: footer.quickLinksHeading,
