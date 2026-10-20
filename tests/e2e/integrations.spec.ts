@@ -1,3 +1,4 @@
+import { connect } from "node:net"
 import { networkInterfaces } from "node:os"
 
 import { expect, type Page, test } from "@playwright/test"
@@ -39,6 +40,24 @@ function privateAddress(): string | undefined {
         return entry.address
     }
   return undefined
+}
+
+/**
+ * Whether Mailpit's SMTP port answers on `host`. The dev compose binds it to
+ * 127.0.0.1 only (kept on purpose), so on most machines the LAN address is
+ * closed and the round trip below is skipped rather than failed.
+ */
+function reachable(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port, timeout: 1_500 })
+    const done = (ok: boolean) => {
+      socket.destroy()
+      resolve(ok)
+    }
+    socket.once("connect", () => done(true))
+    socket.once("timeout", () => done(false))
+    socket.once("error", () => done(false))
+  })
 }
 
 test.beforeEach(async ({ context }, testInfo) => {
@@ -160,6 +179,10 @@ test("save SMTP credentials (masked), retarget, test and disconnect", async ({
 test("Test connection reaches the dev Mailpit", async ({ page }) => {
   const host = privateAddress()
   test.skip(!host, "needs an RFC 1918 IPv4 address to reach Mailpit")
+  test.skip(
+    !(await reachable(host!, 1025)),
+    `Mailpit is not reachable on ${host}:1025 (dev compose binds loopback only)`
+  )
   test.setTimeout(60_000)
   await signIn(page, E2E_OWNER)
   await openSmtp(page)
