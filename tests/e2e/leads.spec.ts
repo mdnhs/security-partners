@@ -275,9 +275,10 @@ test("first-touch attribution travels with the enquiry, only with analytics cons
   await page.goto("/admin/leads")
   await showTable(page)
   await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
-  await page.getByRole("link", { name }).first().click()
+  // Exact: the search (and a substring name match) also finds "Unattributed …".
+  await page.getByRole("link", { name, exact: true }).first().click()
   const source = page
-    .getByRole("dialog", { name })
+    .getByRole("dialog", { name, exact: true })
     .getByRole("region", { name: "Source" })
   await expect(
     source.getByText("https://www.example.org/results")
