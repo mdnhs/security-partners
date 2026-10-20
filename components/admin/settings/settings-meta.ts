@@ -34,6 +34,12 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         aspect: "square",
         hidden: true,
       },
+      logoAnimation: {
+        label: "Animated logo (Lottie)",
+        aspect: "square",
+        mediaKind: "lottie",
+        help: "Plays in a loop in the header and footer. The image logo shows while it loads and for visitors who reduce motion.",
+      },
       favicon: { label: "Browser tab icon", aspect: "square" },
     },
     groups: {
@@ -46,7 +52,7 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         {
           title: "Logos",
           description: "Shown in the header, the footer and the browser tab.",
-          fields: ["logo", "logoAlt", "logoOnDark", "favicon"],
+          fields: ["logo", "logoAlt", "logoOnDark", "logoAnimation", "favicon"],
         },
         {
           title: "Production URL",

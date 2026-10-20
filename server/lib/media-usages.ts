@@ -9,6 +9,7 @@ import {
   listMediaUsagesFor,
   lockMediaReferencingEntity,
   nonImageMediaIds,
+  nonLottieMediaIds,
   replaceMediaUsages,
 } from "@/server/modules/media/repo"
 
@@ -39,6 +40,26 @@ function notAnImage(usages: MediaField[]): AppError {
   })
 }
 
+/**
+ * The media fields that take a Lottie animation instead of an image, by
+ * entity ("<entityType>:<entityId>") and field path. Every other media
+ * field is an image field.
+ */
+const LOTTIE_FIELDS: Record<string, ReadonlySet<string>> = {
+  "settings:site": new Set(["logoAnimation"]),
+}
+
+const NOT_LOTTIE_MESSAGE =
+  "This file is not a Lottie animation. Choose a .json or .lottie animation."
+
+function notALottie(usages: MediaField[]): AppError {
+  const fieldErrors: Record<string, string[]> = {}
+  for (const usage of usages) fieldErrors[usage.field] = [NOT_LOTTIE_MESSAGE]
+  return new AppError("VALIDATION_FAILED", "Some files are not animations", {
+    fieldErrors,
+  })
+}
+
 /** The media id named by an FK violation's detail: `Key (media_id)=(<id>) …`. */
 function mediaIdOfFkError(err: unknown): string | undefined {
   const e = err as { detail?: unknown; cause?: { detail?: unknown } } | null
@@ -53,9 +74,10 @@ function mediaIdOfFkError(err: unknown): string | undefined {
  * restricts deleting media in use (ledger ruling), so every save keeps
  * these rows exact. A reference to a missing media row → 422 on its field,
  * also when the row is deleted between the check and the insert (FK 23503).
- * Every media field in the content schemas is an image field, so a new
- * reference to a non-image (a PDF picked through the API) → 422 on its field
- * too; references the entity already had are left alone.
+ * Every media field in the content schemas is an image field except the
+ * LOTTIE_FIELDS, so a new reference of the wrong kind (a PDF or a Lottie
+ * picked through the API for an image, an image for an animation) → 422 on
+ * its field too; references the entity already had are left alone.
  */
 export async function syncMediaUsages(
   tx: DbOrTx,
@@ -88,15 +110,31 @@ async function syncUsages(
     // references NEW to this entity are checked: values stored before this
     // rule (e.g. a published PDF reference) must never block a save, an
     // SEO edit or the publish that replaces them.
+    const lottieFields = LOTTIE_FIELDS[`${entityType}:${entityId}`]
+    const isLottieField = (u: MediaField) => !!lottieFields?.has(u.field)
+    const stored = await listMediaUsagesFor(tx, entityType, entityId)
+    // Image fields: files this entity already used in an image field.
+    // Animation fields: only the same file in the same field.
     const known = new Set(
-      (await listMediaUsagesFor(tx, entityType, entityId)).map((u) => u.mediaId)
+      stored.filter((u) => !isLottieField(u)).map((u) => u.mediaId)
     )
-    const notImages = await nonImageMediaIds(
-      tx,
-      [...found].filter((id) => !known.has(id))
+    const knownInField = new Set(stored.map((u) => `${u.mediaId} ${u.field}`))
+    const imageRefs = usages.filter(
+      (u) => !isLottieField(u) && !known.has(u.mediaId)
     )
-    const wrongKind = usages.filter((u) => notImages.has(u.mediaId))
+    const lottieRefs = usages.filter(
+      (u) => isLottieField(u) && !knownInField.has(`${u.mediaId} ${u.field}`)
+    )
+    const notImages = await nonImageMediaIds(tx, [
+      ...new Set(imageRefs.map((u) => u.mediaId)),
+    ])
+    const wrongKind = imageRefs.filter((u) => notImages.has(u.mediaId))
     if (wrongKind.length > 0) throw notAnImage(wrongKind)
+    const notLottie = await nonLottieMediaIds(tx, [
+      ...new Set(lottieRefs.map((u) => u.mediaId)),
+    ])
+    const wrongLottie = lottieRefs.filter((u) => notLottie.has(u.mediaId))
+    if (wrongLottie.length > 0) throw notALottie(wrongLottie)
   }
   try {
     await replaceMediaUsages(tx, entityType, entityId, usages)

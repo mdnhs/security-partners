@@ -2,11 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query"
 import type { JSONContent } from "@tiptap/react"
-import { ImageIcon, Link2, ListTree } from "lucide-react"
+import { ImageIcon, Link2, ListTree, Sparkles } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useState } from "react"
 import { get, useController, useFormState } from "react-hook-form"
 
+import { LottieTile } from "@/components/admin/media/lottie-tile"
 import { MediaPickerDialog } from "@/components/admin/media/picker-dialog"
 import { useMediaItem } from "@/components/admin/media/use-media-item"
 import { ADMIN_CONTROL } from "@/components/admin/form/form-ui"
@@ -310,13 +311,15 @@ export function MediaWidget({ field, path }: WidgetProps) {
   const chosen = value as { mediaId: string } | null | undefined
   const item = useMediaItem(chosen?.mediaId)
   const id = fieldId(idPrefix, path)
+  const lottie = field.meta.mediaKind === "lottie"
+  const noun = lottie ? "animation" : "image"
   const error = fieldState.error
     ? chosen
       ? deepErrorText(fieldState.error)
-      : "Choose an image"
+      : `Choose an ${noun}`
     : undefined
   const help = field.meta.help
-  const action = chosen ? "Change image" : "Choose image"
+  const action = chosen ? `Change ${noun}` : `Choose ${noun}`
   return (
     <FieldShell
       id={id}
@@ -339,7 +342,13 @@ export function MediaWidget({ field, path }: WidgetProps) {
               : "aspect-video w-full sm:w-44"
           )}
         >
-          {item.data ? (
+          {lottie ? (
+            chosen ? (
+              <LottieTile />
+            ) : (
+              <Sparkles aria-hidden className="size-6 text-muted-foreground" />
+            )
+          ) : item.data ? (
             // eslint-disable-next-line @next/next/no-img-element -- admin thumbnail
             <img
               src={item.data.url}
@@ -355,13 +364,18 @@ export function MediaWidget({ field, path }: WidgetProps) {
             <p className="truncate text-sm font-medium">
               {chosen
                 ? item.data
-                  ? fileName(item.data.url) || item.data.alt || "Image"
+                  ? (lottie && item.data.originalName) ||
+                    fileName(item.data.url) ||
+                    item.data.alt ||
+                    (lottie ? "Animation" : "Image")
                   : item.isError
-                    ? "Image not found"
+                    ? lottie
+                      ? "Animation not found"
+                      : "Image not found"
                     : "Loading…"
-                : "No image chosen"}
+                : `No ${noun} chosen`}
             </p>
-            {item.data ? (
+            {item.data && !lottie ? (
               <p className="truncate text-xs text-muted-foreground">
                 {item.data.alt || "No description"}
               </p>
@@ -381,7 +395,7 @@ export function MediaWidget({ field, path }: WidgetProps) {
               aria-describedby={describedBy(id, { help, error })}
               onClick={() => setOpen(true)}
             >
-              <ImageIcon aria-hidden />
+              {lottie ? <Sparkles aria-hidden /> : <ImageIcon aria-hidden />}
               {action}
             </Button>
             {chosen && (field.nullable || field.optional) ? (
@@ -404,6 +418,7 @@ export function MediaWidget({ field, path }: WidgetProps) {
         onOpenChange={setOpen}
         selectedId={chosen?.mediaId}
         title={`Choose: ${field.label}`}
+        kind={lottie ? "lottie" : "image"}
         onSelect={(picked) => onChange({ mediaId: picked.id })}
       />
     </FieldShell>
