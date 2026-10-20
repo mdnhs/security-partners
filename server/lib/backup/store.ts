@@ -23,7 +23,7 @@ import {
 } from "@aws-sdk/client-s3"
 
 import type { R2Config } from "@/lib/schemas/integrations"
-import { createR2Client } from "@/server/lib/r2-client"
+import { createR2Client, r2ObjectKey } from "@/server/lib/r2-client"
 import { readIntegrationConfig } from "@/server/modules/integrations/service"
 
 /** Backups live beside media in the R2 bucket, under their own prefix. */
@@ -112,10 +112,12 @@ export function r2BackupStore(
   config: R2Config,
   client: S3Client = createR2Client(config)
 ): BackupStore {
-  const key = (name: string) => `${BACKUP_PREFIX}${checkName(name)}`
+  // Under the R2 folder (keyPrefix) when one is set: "<folder>/backups/".
+  const prefix = r2ObjectKey(config, BACKUP_PREFIX)
+  const key = (name: string) => `${prefix}${checkName(name)}`
   return {
     kind: "r2",
-    location: `r2://${config.bucket}/${BACKUP_PREFIX}`,
+    location: `r2://${config.bucket}/${prefix}`,
     async put(name, file) {
       await client.send(
         new PutObjectCommand({
@@ -135,12 +137,12 @@ export function r2BackupStore(
         const page = await client.send(
           new ListObjectsV2Command({
             Bucket: config.bucket,
-            Prefix: BACKUP_PREFIX,
+            Prefix: prefix,
             ContinuationToken: token,
           })
         )
         for (const object of page.Contents ?? []) {
-          const name = (object.Key ?? "").slice(BACKUP_PREFIX.length)
+          const name = (object.Key ?? "").slice(prefix.length)
           if (NAME.test(name))
             items.push({
               name,

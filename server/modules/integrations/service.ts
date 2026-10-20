@@ -256,6 +256,8 @@ const aiTarget = (values: Values) => {
     ? `${provider} ${normaliseBaseUrl(String(values.baseUrl ?? ""))}`
     : provider
 }
+const R2_FOLDER_REQUIRED =
+  "A folder was saved: it cannot be cleared (the bucket may be shared with another site)"
 const AI_KEY_AGAIN = "Enter the API key again for the new provider"
 const ACKNOWLEDGE_FIRST = "Confirm the acknowledgement first"
 
@@ -343,13 +345,20 @@ async function assertR2NotRetargetedWithFiles(
   next: Values
 ): Promise<void> {
   const targets = RETARGET_RULES["integrations.r2"]?.targets ?? []
-  if (targets.every((field) => sameValue(next[field], previous[field]))) return
+  // The folder moves every object key too (stored files are not moved), but
+  // it sends no secret anywhere new, so it is not a RETARGET_RULES target.
+  const sameFolder = (next.keyPrefix ?? "") === (previous.keyPrefix ?? "")
+  if (
+    sameFolder &&
+    targets.every((field) => sameValue(next[field], previous[field]))
+  )
+    return
   const stored = await countMediaByDriver(tx, "r2")
   if (stored === 0) return
   const one = stored === 1
   throw new AppError(
     "CONFLICT",
-    `${stored} uploaded file${one ? " is" : "s are"} stored in the current R2 bucket. The account, location and bucket cannot change while ${one ? "it is" : "they are"} there: delete ${one ? "it" : "them"} from the media library first.`
+    `${stored} uploaded file${one ? " is" : "s are"} stored in the current R2 bucket. The account, location, bucket and folder cannot change while ${one ? "it is" : "they are"} there: delete ${one ? "it" : "them"} from the media library first.`
   )
 }
 
@@ -474,6 +483,15 @@ export async function saveIntegration(
         parsed.success ? (parsed.data as Values) : merged
       ),
     }
+    // A saved folder cannot be cleared: the bucket may be shared, and the
+    // root would mix this site's files with another's.
+    if (
+      key === "integrations.r2" &&
+      parsed.success &&
+      String(previous?.keyPrefix ?? "") !== "" &&
+      String((parsed.data as Values).keyPrefix ?? "") === ""
+    )
+      fieldErrors.keyPrefix = [R2_FOLDER_REQUIRED]
     if (parsed.success && key === "integrations.smtp") {
       const host = String((parsed.data as Values).host)
       const target =
@@ -514,6 +532,44 @@ export async function saveIntegration(
       },
     })
     return toDto(key, await findIntegrationRow(tx, key))
+  })
+}
+
+/**
+ * Operator bootstrap (container start, no signed-in user): saves `values` as
+ * `key`'s settings only when none are saved yet — never overwrites. Same
+ * validation, encryption (AAD "<key>.<field>") and audit row as an admin
+ * save, with no actor and `via` in the diff. Errors name fields, never
+ * values. Returns false when settings already existed.
+ */
+export async function createIntegrationIfAbsent(
+  key: IntegrationKey,
+  values: Values,
+  via: string
+): Promise<boolean> {
+  const parsed = INTEGRATIONS[key].schema.safeParse(values)
+  if (!parsed.success) {
+    const fields = [
+      ...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? "?"))),
+    ]
+    throw new Error(`invalid ${key} values: ${fields.join(", ")}`)
+  }
+  const next = parsed.data as Values
+  return getDb().transaction(async (tx) => {
+    if (await findIntegrationRow(tx, key)) return false
+    const inserted = await insertIntegrationRow(tx, {
+      key,
+      draft: sealValues(key, next, null),
+      updatedBy: null,
+    })
+    if (!inserted) return false
+    await writeAudit(tx, null, {
+      action: "integration.created",
+      entityType: "integration",
+      entityId: key,
+      diff: { changed: changedFields(key, null, next), via },
+    })
+    return true
   })
 }
 

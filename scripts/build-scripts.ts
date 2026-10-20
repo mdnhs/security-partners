@@ -22,6 +22,8 @@ export const SCRIPT_ENTRIES = [
   "db-sync",
   "demo-remove",
   "custom-code-off",
+  "r2-bootstrap",
+  "data-import",
 ] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */

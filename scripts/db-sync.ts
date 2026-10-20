@@ -5,6 +5,9 @@
 //     [--to <target url>] [--to-secret <target secret>]
 //     [--demo-password <12+ chars>] [--verify-url https://staging.example.ie]
 //     [--keep-integrations]
+//   pnpm db:sync --from-dump <file.dump> --from-secret <source secret> --confirm <target db name>
+//     (a pg_dump custom-format file instead of a source URL; the secret is
+//     checked in a scratch "<target>_import_check" database first)
 // The source's R2 and SMTP settings are removed from the target (audited)
 // unless --keep-integrations: kept, the target would share the source's
 // bucket (its backup job prunes the source's backups, its media deletes
@@ -20,11 +23,12 @@ import { dbSync } from "@/server/lib/db-sync"
 import { runScript } from "./lib/run-script"
 
 const USAGE =
-  "Usage: db:sync --from <url> --from-secret <secret> --confirm <target database name> [--to <url>] [--to-secret <secret>] [--demo-password <pw>] [--verify-url <origin>] [--keep-integrations] (--from / --from-secret may come from SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET)"
+  "Usage: db:sync (--from <url> | --from-dump <pg_dump custom-format file>) --from-secret <secret> --confirm <target database name> [--to <url>] [--to-secret <secret>] [--demo-password <pw>] [--verify-url <origin>] [--keep-integrations] (--from / --from-secret may come from SOURCE_DATABASE_URL / SOURCE_BETTER_AUTH_SECRET)"
 
 let values: Partial<
   Record<
     | "from"
+    | "from-dump"
     | "to"
     | "from-secret"
     | "to-secret"
@@ -38,6 +42,7 @@ try {
   ;({ values } = parseArgs({
     options: {
       from: { type: "string" },
+      "from-dump": { type: "string" },
       to: { type: "string" },
       "from-secret": { type: "string" },
       "to-secret": { type: "string" },
@@ -67,9 +72,11 @@ delete process.env.SOURCE_BETTER_AUTH_SECRET
 
 await runScript("db:sync", async () => {
   const confirm = values.confirm
-  if (!from || !fromSecret || !confirm) throw new Error(USAGE)
+  const fromDump = values["from-dump"]
+  if (!(from || fromDump) || (from && fromDump) || !fromSecret || !confirm)
+    throw new Error(USAGE)
   const report = await dbSync({
-    from,
+    ...(fromDump ? { fromDump } : { from }),
     fromSecret,
     confirm,
     demoPassword: values["demo-password"],

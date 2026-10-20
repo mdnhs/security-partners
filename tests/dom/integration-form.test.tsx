@@ -234,6 +234,10 @@ describe("IntegrationForm (master 7.1)", () => {
       await screen.findByRole("combobox", { name: "Location" })
     ).toHaveTextContent("Default")
     expect(screen.getByText("Not set up")).toBeVisible()
+    // Optional folder inside a shared bucket; empty = the bucket root.
+    const folder = screen.getByLabelText(/^Folder/)
+    expect(folder).toHaveValue("")
+    expect(screen.getByText(/does not move files already stored/)).toBeVisible()
     expect(screen.getAllByText("Not saved yet")).toHaveLength(2)
     expect(screen.queryByRole("button", { name: "Test connection" })).toBeNull()
     expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull()

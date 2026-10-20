@@ -135,6 +135,15 @@ export const INTEGRATION_FORMS: Record<IntegrationKey, IntegrationFormMeta> = {
         autoComplete: "off",
       },
       {
+        name: "keyPrefix",
+        kind: "text",
+        label: "Folder",
+        placeholder: "sp",
+        help: "Keeps this site's files in a folder of the bucket, e.g. sp for a bucket shared with another site. Lowercase letters, digits, - and _, folders separated by /. Changing it does not move files already stored, so it cannot change while uploads are stored in R2, and once saved it cannot be cleared.",
+        autoComplete: "off",
+        optional: true,
+      },
+      {
         name: "accessKeyId",
         kind: "secret",
         label: "Access key ID",

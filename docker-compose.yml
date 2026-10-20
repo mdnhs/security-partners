@@ -1,13 +1,24 @@
-# Production stack for security.raynx.ie
-# Handled by Dokploy: Traefik manages reverse proxy, SSL (Let's Encrypt), and routes to port 3000.
-# Postgres 17 runs as a separate Dokploy database service. Set exactly these
-# three variables in the Dokploy environment tab (nothing else is read):
-#   DATABASE_URL        postgres://<user>:<password>@<dokploy-db-host>:5432/<db>
-#   BETTER_AUTH_SECRET  >= 32 random chars (openssl rand -base64 48); also derives the encryption keys
-#   BETTER_AUTH_URL     https://security.raynx.ie
-# The container applies pending migrations on start, and seeds the site
-# content when the database has no pages yet (docker-entrypoint.sh), so a
-# first deploy needs only these variables, the deploy and `admin:create`.
+# Production stack for security.raynx.ie (Dokploy compose app; docs/runbook.md
+# "Deploy" and "First production deploy").
+# Dokploy's Traefik routes the domain to security-web:3000 over the external
+# `dokploy-network` and serves TLS (Let's Encrypt). Postgres 17 runs in this
+# stack (`db`), reachable only on the stack's own network: no published port.
+#
+# Environment (Dokploy ▸ Environment; written by the deploy workflow's
+# `ensure-env` job, which only ever ADDS missing keys — see the runbook):
+#   The app reads exactly these three:
+#     DATABASE_URL        postgres://sp:<POSTGRES_PASSWORD>@security-partners-db:5432/sp
+#     BETTER_AUTH_SECRET  >= 32 random chars (openssl rand -base64 48); also derives the encryption keys
+#     BETTER_AUTH_URL     https://security.raynx.ie
+#   Postgres only:
+#     POSTGRES_PASSWORD   the `sp` role's password (used on the volume's first start only)
+#   Input-only, read by the entrypoint scripts and unset before the app starts:
+#     SP_R2_ACCOUNT_ID, SP_R2_ACCESS_KEY_ID, SP_R2_SECRET_ACCESS_KEY, SP_R2_BUCKET,
+#     SP_R2_PREFIX        save Settings ▸ Integrations ▸ R2 once (folder, default sp)
+#     SP_IMPORT_KEY, SP_IMPORT_SOURCE_SECRET  one-shot import of local data
+# The container applies pending migrations on start, imports SP_IMPORT_KEY
+# once, seeds the site content when the database has no pages yet and saves
+# R2 from SP_R2_* when it is not saved (docker-entrypoint.sh).
 #
 # Run exactly ONE app container (replicas: 1; do not scale this service in
 # Dokploy). The 'use cache' store and the scheduler's cache expiry are per
@@ -17,18 +28,63 @@
 services:
   security-web:
     image: ghcr.io/mdnhs/security-partners:latest
+    # :latest is re-pulled on every deploy (otherwise a cached image is reused).
+    pull_policy: always
     restart: unless-stopped
     deploy:
       replicas: 1
     expose:
       - "3000"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in Dokploy}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in Dokploy}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL in Dokploy}
+      SP_R2_ACCOUNT_ID: ${SP_R2_ACCOUNT_ID:-}
+      SP_R2_ACCESS_KEY_ID: ${SP_R2_ACCESS_KEY_ID:-}
+      SP_R2_SECRET_ACCESS_KEY: ${SP_R2_SECRET_ACCESS_KEY:-}
+      SP_R2_BUCKET: ${SP_R2_BUCKET:-}
+      SP_R2_PREFIX: ${SP_R2_PREFIX:-}
+      SP_IMPORT_KEY: ${SP_IMPORT_KEY:-}
+      SP_IMPORT_SOURCE_SECRET: ${SP_IMPORT_SOURCE_SECRET:-}
     volumes:
-      # Uploads and local backups until R2 is configured in the admin.
+      # Uploads and local backups until R2 is configured.
       - security-data:/data
+    networks:
+      # default: reaches the database; dokploy-network: Traefik reaches the app.
+      - default
+      - dokploy-network
+
+  db:
+    # Same patch release as CI and docker-compose.dev.yml.
+    image: postgres:17.11
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sp
+      POSTGRES_DB: sp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Dokploy}
+    volumes:
+      - security-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U sp -d sp"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks:
+      # Only the stack's own network: never on the shared dokploy-network, so
+      # no other stack can reach it. The alias is unique on purpose: a bare
+      # `db` could resolve to another stack's `db` through dokploy-network.
+      default:
+        aliases:
+          - security-partners-db
 
 volumes:
   security-data:
+  security-pgdata:
+
+networks:
+  dokploy-network:
+    external: true

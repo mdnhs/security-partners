@@ -18,8 +18,8 @@ import { describeDatabase } from "@/server/db/seed/guard"
 import { getEnv } from "@/server/env"
 import { writeAudit } from "@/server/lib/audit"
 import { type BackupResult, runBackup } from "@/server/lib/backup"
-import { dumpDatabase } from "@/server/lib/backup/dump"
-import { runPgTool } from "@/server/lib/backup/pg-tools"
+import { dumpDatabase, quoteIdent } from "@/server/lib/backup/dump"
+import { runPgTool, withDatabase } from "@/server/lib/backup/pg-tools"
 import { type BackupStore, diskBackupStore } from "@/server/lib/backup/store"
 import { decryptSecret } from "@/server/lib/crypto"
 import { deleteIntegrationRows } from "@/server/modules/integrations/repo"
@@ -58,7 +58,13 @@ export const SYNC_REMOVED_INTEGRATIONS = [
 export type SyncCheck = { name: string; ok: boolean; message: string }
 
 export type SyncOptions = {
-  from: string
+  /** Source database URL (dumped with SYNC_SKIPPED_DATA left out)… */
+  from?: string
+  /**
+   * …or an existing pg_dump file (custom format) instead, e.g. the
+   * container-side import (server/lib/data-import.ts). Exactly one of the two.
+   */
+  fromDump?: string
   fromSecret: string
   /** Must equal the target database name. */
   confirm: string
@@ -72,6 +78,12 @@ export type SyncOptions = {
   keepIntegrations?: boolean
   backupStore?: BackupStore
   fetchImpl?: typeof fetch
+  /**
+   * Runs as soon as the restore transaction has committed, before re-keying
+   * (the import records its marker here, so a later failure never leads to
+   * a second restore on the next start).
+   */
+  onRestored?: () => Promise<void>
 }
 
 export type SyncReport = {
@@ -271,6 +283,69 @@ async function removeSharedIntegrations(): Promise<string[]> {
   })
 }
 
+/**
+ * A db:sync failure. `restored`: the source data was committed into the
+ * target before the failure (re-keying or later steps did not finish);
+ * false: the target is unchanged.
+ */
+export class SyncError extends Error {
+  /** The step that failed ("restore", "re-key secrets", …). */
+  readonly step: string
+  constructor(
+    message: string,
+    readonly restored: boolean,
+    options?: ErrorOptions & { step?: string }
+  ) {
+    super(message, options)
+    this.name = "SyncError"
+    this.step = options?.step ?? (restored ? "after restore" : "restore")
+  }
+}
+
+/** Scratch database for checking a dump file's secret (same server as the target). */
+export const DUMP_CHECK_SUFFIX = "_import_check"
+
+/**
+ * assertSourceSecret for a dump file: restores it into a scratch database on
+ * the target's server, checks the secret there, and drops the scratch
+ * database. Needs CREATE DATABASE (the compose `sp` role has it).
+ */
+export async function assertDumpSecret(
+  targetUrl: string,
+  file: string,
+  fromSecret: string
+): Promise<number> {
+  const scratch = `${parse(targetUrl).database ?? ""}${DUMP_CHECK_SUFFIX}`
+  if (!/^[a-z0-9_]{1,63}$/.test(scratch))
+    throw new Error(`Cannot derive a scratch database name (${scratch})`)
+  const scratchUrl = withDatabase(targetUrl, scratch)
+  const drop = () =>
+    withClient(targetUrl, (c) =>
+      c.query(`drop database if exists ${quoteIdent(scratch)} with (force)`)
+    )
+  await drop()
+  await withClient(targetUrl, (c) =>
+    c.query(`create database ${quoteIdent(scratch)}`)
+  )
+  try {
+    await runPgTool(
+      "pg_restore",
+      [
+        "--no-owner",
+        "--no-privileges",
+        "--exit-on-error",
+        "--single-transaction",
+        `--dbname=${scratch}`,
+        file,
+      ],
+      scratchUrl
+    )
+    return await assertSourceSecret(scratchUrl, fromSecret)
+  } finally {
+    await drop().catch(() => undefined)
+  }
+}
+
 const backupPath = (backup: BackupResult) =>
   backup.location.endsWith("/")
     ? `${backup.location}${backup.name}`
@@ -291,24 +366,32 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
     throw new Error(
       `--confirm must be the target database name (${targetName}): db:sync replaces everything in it`
     )
-  if (await sameDatabase(opts.from, target))
+  const { from, fromDump } = opts
+  if ((from === undefined) === (fromDump === undefined))
+    throw new Error("Pass exactly one source: a database URL or a dump file")
+  if (from !== undefined && (await sameDatabase(from, target)))
     throw new Error("Source and target are the same database")
-  const sourceSecretsChecked = await assertSourceSecret(
-    opts.from,
-    opts.fromSecret
-  )
+  const sourceSecretsChecked =
+    from !== undefined
+      ? await assertSourceSecret(from, opts.fromSecret)
+      : await assertDumpSecret(target, fromDump!, opts.fromSecret)
 
   const backup = await runBackup({
     url: target,
     store: opts.backupStore ?? diskBackupStore(),
   })
+  let restored = false
+  let step = "restore"
   try {
     const dir = await mkdtemp(join(tmpdir(), "sp-sync-"))
     try {
-      const file = join(dir, "source.dump")
-      await dumpDatabase(opts.from, file, {
-        excludeTableData: SYNC_SKIPPED_DATA,
-      })
+      let file = fromDump ?? ""
+      if (from !== undefined) {
+        file = join(dir, "source.dump")
+        await dumpDatabase(from, file, {
+          excludeTableData: SYNC_SKIPPED_DATA,
+        })
+      }
       // Nothing of ours may hold target connections during the restore.
       await closeDb()
       await runPgTool(
@@ -325,22 +408,34 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
         ],
         target
       )
+      restored = true
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+    step = "after-restore hook"
+    await opts.onRestored?.()
+    // A dump file may come from anywhere (SYNC_SKIPPED_DATA not left out):
+    // sessions and single-use links of the source never carry over.
+    step = "clear sessions and links"
+    if (fromDump !== undefined) await clearSkippedData()
 
+    step = "remove source R2/SMTP settings"
     const integrationsRemoved = opts.keepIntegrations
       ? []
       : await removeSharedIntegrations()
     // The source was dumped mid-tick: its claims belong to no worker here.
+    step = "release job claims"
     await releaseAllJobClaims(getDb())
+    step = "re-key secrets"
     const rotate = await rotateSecrets({
       fromSecret: opts.fromSecret,
       via: "db:sync",
     })
+    step = "demo users"
     const demoUsers = opts.demoPassword
       ? (await seedDemoUsers(opts.demoPassword)).length
       : 0
+    step = "checks"
     const checks = await verifyTarget(opts)
     return {
       sourceSecretsChecked,
@@ -353,9 +448,27 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
       ok: checks.every((check) => check.ok),
     }
   } catch (err) {
-    throw new Error(
+    throw new SyncError(
       `${message(err)}\nThe target was backed up before the sync: ${backupPath(backup)} (restore steps: docs/runbook.md "db:sync")`,
-      { cause: err }
+      restored,
+      { cause: err, step }
     )
   }
+}
+
+/** Empties SYNC_SKIPPED_DATA tables that exist in the target. */
+async function clearSkippedData(): Promise<void> {
+  await withClient(getEnv().DATABASE_URL, async (client) => {
+    for (const table of SYNC_SKIPPED_DATA) {
+      const [schema, name] = table.split(".")
+      const { rows } = await client.query<{ t: string | null }>(
+        "select to_regclass($1)::text as t",
+        [table]
+      )
+      if (rows[0].t)
+        await client.query(
+          `delete from ${quoteIdent(schema)}.${quoteIdent(name)}`
+        )
+    }
+  })
 }

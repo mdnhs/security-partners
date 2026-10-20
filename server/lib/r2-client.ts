@@ -17,6 +17,18 @@ export function r2Endpoint(
 }
 
 /**
+ * Object key in the bucket for a storage key: `<folder>/<key>` when a folder
+ * (keyPrefix) is set, else the key itself. Media rows and URLs keep the bare
+ * key; only calls to R2 use this (uploads, reads, deletes, heads, backups).
+ */
+export function r2ObjectKey(
+  c: Pick<R2Config, "keyPrefix">,
+  key: string
+): string {
+  return c.keyPrefix ? `${c.keyPrefix}/${key}` : key
+}
+
+/**
  * S3 client for R2. Checksums only when an operation requires them: R2
  * does not implement several flexible-checksum headers (notes §5.5).
  */
