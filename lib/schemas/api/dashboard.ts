@@ -14,12 +14,6 @@ export type DashboardDto = {
     inReview: number | null
     /** SEO health score, 0–100 (seo:read; the SEO screen's figure). */
     seoScore: number | null
-    /**
-     * Confirmed newsletter subscribers (newsletter:read), and those confirmed
-     * in the last 30 days. Null too while no placement is on and nobody has
-     * confirmed: the KPI would only ever read 0.
-     */
-    subscribers: { confirmed: number; since30d: number } | null
   }
   /**
    * Non-spam enquiries per Irish day, this week (Monday → Sunday) beside

@@ -66,7 +66,7 @@ describe("lead attribution (D3.1)", () => {
 
     // A later page in the same session never overwrites the first touch.
     captureAttribution(
-      loc("/contact", "?utm_source=newsletter"),
+      loc("/contact", "?utm_source=bing"),
       "https://bing.com/",
       store,
       new Date("2026-10-20T10:00:00.000Z")

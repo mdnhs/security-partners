@@ -146,7 +146,6 @@ describe("emptyBlock", () => {
       "clients",
       "contact",
       "map",
-      "newsletter",
     ] as const) {
       const block = emptyBlock(type, none)
       expect(BuilderDocument.safeParse({ blocks: [block] }).success).toBe(true)

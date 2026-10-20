@@ -623,9 +623,9 @@ describe("enquiry details on a lead screen (C8 review: privacy)", () => {
       await chat(owner.cookie, {
         message: "Hi",
         context: {
-          screen: "Newsletter",
+          screen: "Footer",
           entityType: "settings",
-          entityId: "newsletter",
+          entityId: "footer",
           record: { title: "Stay in the loop" },
         },
       })

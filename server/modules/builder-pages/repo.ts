@@ -130,17 +130,3 @@ export async function findBuilderPageBySlug(db: DbOrTx, slug: string) {
     .where(eq(builderPages.slug, slug))
   return row ?? null
 }
-
-/** True when a published builder page shows a (not hidden) newsletter block. */
-export async function hasPublishedNewsletterBlock(
-  db: DbOrTx
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: builderPages.id })
-    .from(builderPages)
-    .where(
-      sql`${builderPages.published} -> 'blocks' @> '[{"type":"newsletter","hidden":false}]'::jsonb`
-    )
-    .limit(1)
-  return rows.length > 0
-}

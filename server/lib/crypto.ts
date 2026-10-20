@@ -1,13 +1,17 @@
 import "server-only"
 
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
+import {
+  createCipheriv,
+  createDecipheriv,
+  hkdfSync,
+  randomBytes,
+} from "node:crypto"
 
-import { hkdfKey } from "@/lib/crypto/hkdf"
 import { getEnv } from "@/server/env"
 
-export type KeyPurpose =
-  "secrets" | "preview" | "lead-ip" | "cron" | "newsletter"
+export type KeyPurpose = "secrets" | "preview" | "lead-ip" | "cron"
 
+const SALT = "sp/v1"
 const VERSION = "v1"
 const IV_BYTES = 12
 const TAG_BYTES = 16
@@ -24,7 +28,7 @@ function rootSecret(secret?: string): string {
 
 /** HKDF-SHA256(ikm = BETTER_AUTH_SECRET, salt = "sp/v1", info = purpose) → 32 bytes. */
 export function deriveKey(purpose: KeyPurpose, secret?: string): Buffer {
-  return hkdfKey(rootSecret(secret), purpose)
+  return Buffer.from(hkdfSync("sha256", rootSecret(secret), SALT, purpose, 32))
 }
 
 /** AES-256-GCM with a random 12-byte IV. Returns "v1:<iv>:<ciphertext>:<tag>" (base64url parts). */

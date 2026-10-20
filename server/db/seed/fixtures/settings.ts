@@ -1,7 +1,6 @@
 import "server-only"
 
 import type { SettingsKey, SettingsValue } from "@/lib/schemas/settings"
-import { DEFAULT_CONFIRM_PAGE } from "@/lib/schemas/settings/newsletter"
 import { DEFAULT_THEME } from "@/lib/theme/schema"
 
 import type { MediaLookup } from "./media"
@@ -329,47 +328,5 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
     },
     // Same value the *_theme migration inserts (no <style> by default).
     theme: DEFAULT_THEME,
-    // Ruling 2: off by default, so the seeded site renders nothing new.
-    newsletter: {
-      placement: "off",
-      doubleOptIn: true,
-      pendingDays: 30,
-      eyebrow: "Newsletter",
-      title: "Security insights in your inbox",
-      subtitle: "One short email a month. Unsubscribe any time.",
-      emailLabel: "Email address",
-      placeholder: "you@company.ie",
-      button: "Subscribe",
-      success: "Check your inbox to confirm your subscription.",
-      errors: {
-        email: "Enter a valid email address.",
-        rateLimited: "Too many attempts. Please try again in a few minutes.",
-        generic: "Something went wrong. Please try again.",
-      },
-      confirmationEmail: {
-        subject: "Confirm your subscription",
-        body: "Please confirm that you would like to receive the Security Partners newsletter. If you did not ask for this, ignore this email and you will not hear from us again.",
-      },
-      pages: {
-        confirm: { ...DEFAULT_CONFIRM_PAGE },
-        confirmed: {
-          title: "You're subscribed",
-          body: "Thanks for confirming. Our next newsletter will arrive in your inbox.",
-        },
-        invalid: {
-          title: "This link is no longer valid",
-          body: "The confirmation link has expired or was already used. Please subscribe again.",
-        },
-        unsubscribe: {
-          title: "Unsubscribe",
-          body: "Press the button below to stop receiving our newsletter.",
-          button: "Unsubscribe",
-        },
-        unsubscribed: {
-          title: "You're unsubscribed",
-          body: "You will not receive any more newsletters from us.",
-        },
-      },
-    },
   }
 }

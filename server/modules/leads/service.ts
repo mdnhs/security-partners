@@ -74,7 +74,7 @@ export async function publicFormConfig(): Promise<LeadPublicConfig> {
  * not enabled (or unreadable: real enquiries must not be lost, logged
  * above). Throws 422 when enabled and the token fails.
  */
-export async function assertHuman(
+async function assertHuman(
   token: string | undefined,
   ip: string | null
 ): Promise<boolean> {
@@ -145,7 +145,7 @@ export async function submitLead(
 }
 
 /** Any value except undefined, null or a blank string fires the honeypot. */
-export function honeypotFilled(value: unknown): boolean {
+function honeypotFilled(value: unknown): boolean {
   if (value === undefined || value === null) return false
   return typeof value !== "string" || value.trim() !== ""
 }

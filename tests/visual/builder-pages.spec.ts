@@ -5,7 +5,7 @@ import { freezeMotion } from "./freeze-motion"
 
 // Builder pages (D5.3): new baselines only. The 40 public baselines
 // (public-pages.spec.ts) must not move. /p/visual-fixture is seeded by
-// tests/visual/seed.ts with every block except newsletter.
+// tests/visual/seed.ts with every block type.
 test.skip(process.platform !== "darwin", "visual baselines are macOS-only")
 
 test("builder page /p/visual-fixture", async ({ page }) => {

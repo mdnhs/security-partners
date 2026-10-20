@@ -246,7 +246,7 @@ describe("sitemap and share cards: builder pages (D5.3)", () => {
 })
 
 describe("visual fixture /p/visual-fixture (tests/visual/seed.ts)", () => {
-  it("is publishable and has every block type except newsletter", async () => {
+  it("is publishable and has every block type", async () => {
     await seedVisualBuilderPage(getDb())
     const [row] = await getDb()
       .select()
@@ -255,9 +255,7 @@ describe("visual fixture /p/visual-fixture (tests/visual/seed.ts)", () => {
     const types = new Set(
       (row.published as BuilderDocument).blocks.map((b) => b.type)
     )
-    expect([...types].sort()).toEqual(
-      BLOCK_TYPES.filter((t) => t !== "newsletter").sort()
-    )
+    expect([...types].sort()).toEqual([...BLOCK_TYPES].sort())
     expect(await resolvePublicPath(`/p/${VISUAL_BUILDER_SLUG}`, live)).toEqual({
       kind: "pass",
     })

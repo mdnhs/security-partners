@@ -13,17 +13,13 @@ import type { ArticleView, BlogView } from "./view"
 /**
  * "/blog". `posts` is passed separately because the initial category comes
  * from ?category= (request data, read inside Suspense by the page).
- * `newsletter` is the signup slot after the posts (renders nothing while
- * settings.newsletter.placement is "off", ruling 2).
  */
 export function BlogTemplate({
   view,
   posts,
-  newsletter,
 }: {
   view: BlogView
   posts: React.ReactNode
-  newsletter?: React.ReactNode
 }) {
   return (
     <>
@@ -31,7 +27,6 @@ export function BlogTemplate({
       <main>
         <PageHero {...view.hero} />
         {posts}
-        {newsletter}
         <EnquireBanner {...view.enquireBanner} />
       </main>
       <SiteFooter {...view.chrome.footer} />
@@ -41,21 +36,14 @@ export function BlogTemplate({
   )
 }
 
-/** "/blog/[slug]"; `newsletter` is the signup slot after the article body. */
-export function ArticleTemplate({
-  view,
-  newsletter,
-}: {
-  view: ArticleView
-  newsletter?: React.ReactNode
-}) {
+/** "/blog/[slug]". */
+export function ArticleTemplate({ view }: { view: ArticleView }) {
   return (
     <>
       <SiteHeader {...view.chrome.header} />
       <main>
         <ArticleHeader {...view.header} />
         <ArticleBody {...view.body} />
-        {newsletter}
         <section className="bg-brand-surface px-6 py-20 md:px-10 lg:py-28">
           <Container className="flex flex-col gap-14">
             <SectionHeading

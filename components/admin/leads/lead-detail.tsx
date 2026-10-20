@@ -53,7 +53,6 @@ import { cn } from "@/lib/utils"
 
 import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
-import { NewsletterPrivacy } from "./newsletter-privacy"
 import { leadGuardScope } from "./use-leads-params"
 
 // The Handling card sets aria-busy while a change saves.
@@ -512,7 +511,6 @@ export function LeadDetailBody({
             </FieldShell>
           </div>
         </Section>
-        <NewsletterPrivacy email={data.email} />
         <Section
           id={`${uid}-notes`}
           title="Notes"

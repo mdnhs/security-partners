@@ -44,7 +44,6 @@ import { diskStorage } from "@/server/lib/storage"
 import {
   getPublishedBuilderPage,
   isPublishedBuilderSlug,
-  newsletterBlockPublished,
 } from "@/server/modules/builder-pages/queries"
 import { listMediaUsagesFor } from "@/server/modules/media/repo"
 
@@ -786,39 +785,6 @@ describe("builder pages API (D5.2)", () => {
       json: { seo: {} },
     })
     expect(editorRes.status).toBe(403)
-  })
-
-  it("newsletterBlockPublished: only a visible, published newsletter block counts", async () => {
-    expect(await newsletterBlockPublished()).toBe(false)
-    const { page } = await publishedPage()
-    expect(await newsletterBlockPublished()).toBe(false)
-    const block = {
-      id: "newsletter-1",
-      type: "newsletter",
-      anchor: "newsletter",
-      hidden: true,
-      data: { useShared: true },
-    }
-    const hidden = await saveDraft(page.id, {
-      version: page.version,
-      draft: { blocks: [...page.published!.blocks, block] },
-    })
-    const dto = (await hidden.json()) as BuilderPageDto
-    // Draft only: not counted.
-    expect(await newsletterBlockPublished()).toBe(false)
-    const pub = (await (
-      await publish(page.id, dto.version)
-    ).json()) as BuilderPageDto
-    expect(await newsletterBlockPublished()).toBe(false) // hidden
-    const shown = await saveDraft(page.id, {
-      version: pub.version,
-      draft: {
-        blocks: [...page.published!.blocks, { ...block, hidden: false }],
-      },
-    })
-    const shownDto = (await shown.json()) as BuilderPageDto
-    expect((await publish(page.id, shownDto.version)).status).toBe(200)
-    expect(await newsletterBlockPublished()).toBe(true)
   })
 })
 

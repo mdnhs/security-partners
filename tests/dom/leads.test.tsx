@@ -64,8 +64,6 @@ let failPatch = false
 let exportStatus = 200
 /** What GET /leads/:id answers (D3.1 source section). */
 let detail: LeadDto = lead
-/** The newsletter lookup's answer for the lead's address (privacy helper). */
-let onNewsletter = false
 
 const calls: { url: string; method: string; body: unknown }[] = []
 const onClose = vi.fn()
@@ -81,7 +79,6 @@ beforeEach(() => {
   failPatch = false
   exportStatus = 200
   detail = lead
-  onNewsletter = false
   push.mockClear()
   replace.mockClear()
   refresh.mockClear()
@@ -118,24 +115,6 @@ beforeEach(() => {
               },
               exportStatus
             )
-      if (url.includes("/newsletter/lookup"))
-        return reply({
-          subscriber: onNewsletter
-            ? {
-                id: "0190a6e0-0000-7000-8000-0000000000dd",
-                email: body.email,
-                status: "confirmed",
-                sourcePath: "/blog",
-                createdAt: "2026-10-01T09:00:00.000Z",
-                confirmedAt: "2026-10-01T09:00:00.000Z",
-                unsubscribedAt: null,
-              }
-            : null,
-        })
-      if (url.includes("/newsletter/erase")) {
-        onNewsletter = false
-        return reply({ erased: 1 })
-      }
       if (url.includes("/leads/assignees"))
         return reply({
           items: [{ id: "u", name: "Ian Intake", email: "ian@x.test" }],
@@ -500,88 +479,6 @@ describe("leads inbox (master 7.4)", () => {
     // The drawer closes (clears ?lead=) instead of navigating.
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(push).not.toHaveBeenCalled()
-  })
-})
-
-describe("lead detail privacy helper: newsletter (D4.3)", () => {
-  const lookups = () =>
-    calls.filter((c) => c.url.includes("/newsletter/lookup"))
-  /** The lookup runs (and is audited) only on request (MK integration). */
-  async function check(user = userEvent.setup()) {
-    await user.click(
-      await screen.findByRole("button", { name: "Check the newsletter list" })
-    )
-    return user
-  }
-
-  it("never looks the address up just because the lead opened", async () => {
-    renderAs(["admin"], drawer(ID))
-    await screen.findByRole("button", { name: "Check the newsletter list" })
-    await screen.findByRole("heading", { name: "Dinn Rí" })
-    expect(lookups()).toEqual([])
-  })
-
-  it("says whether the address is also on the newsletter list", async () => {
-    onNewsletter = true
-    // Intake opens the lead; marketer adds newsletter:read (not delete).
-    renderAs(["intake", "marketer"], drawer(ID))
-    await check()
-    expect(
-      await screen.findByText("Also on the newsletter list: Yes")
-    ).toBeInTheDocument()
-    expect(lookups()[0]).toMatchObject({
-      method: "POST",
-      body: { email: "dinn@example.ie" },
-    })
-    // A marketer may read the list but not erase from it.
-    expect(
-      screen.queryByRole("button", { name: "Erase from newsletter" })
-    ).toBeNull()
-  })
-
-  it("No when absent; nothing at all without newsletter:read", async () => {
-    renderAs(["admin"], drawer(ID))
-    await check()
-    expect(
-      await screen.findByText("Also on the newsletter list: No")
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "Erase from newsletter" })
-    ).toBeNull()
-  })
-
-  it("is not shown (nor looked up) for intake", async () => {
-    renderAs(["intake"], drawer(ID))
-    await screen.findByRole("heading", { name: "Dinn Rí" })
-    expect(
-      screen.queryByRole("button", { name: "Check the newsletter list" })
-    ).toBeNull()
-    expect(screen.queryByText(/Also on the newsletter list/)).toBeNull()
-    expect(lookups()).toEqual([])
-  })
-
-  it("newsletter:delete erases the address after confirming", async () => {
-    onNewsletter = true
-    renderAs(["admin"], drawer(ID))
-    const user = await check()
-    const erase = await screen.findByRole("button", {
-      name: "Erase from newsletter",
-    })
-    // A 44 px target on touch.
-    expect(erase).toHaveClass("pointer-coarse:h-11", "pointer-coarse:min-w-11")
-    await user.click(erase)
-    const dialog = await screen.findByRole("alertdialog")
-    expect(dialog).toHaveTextContent("dinn@example.ie")
-    expect(calls.some((c) => c.url.includes("/newsletter/erase"))).toBe(false)
-    await user.click(within(dialog).getByRole("button", { name: "Erase" }))
-    await waitFor(() =>
-      expect(
-        calls.find((c) => c.url.includes("/newsletter/erase"))
-      ).toMatchObject({ method: "POST", body: { email: "dinn@example.ie" } })
-    )
-    expect(
-      await screen.findByText("Also on the newsletter list: No")
-    ).toBeInTheDocument()
   })
 })
 

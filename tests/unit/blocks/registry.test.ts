@@ -24,7 +24,6 @@ const TYPES: BlockType[] = [
   "contact",
   "map",
   "richtext",
-  "newsletter",
 ]
 
 const MEDIA = "0b8a3c4e-1f2d-4a5b-8c6d-7e8f9a0b1c2d"

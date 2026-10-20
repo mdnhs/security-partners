@@ -81,8 +81,3 @@ export const getBuilderPageForRequest = cache(
 export function isPublishedBuilderSlug(slug: string): Promise<boolean> {
   return isPublishedSlug(getDb(), "builder", slug)
 }
-
-/** A published builder page shows a newsletter block (D4 newsletterAcceptsSignups). */
-export function newsletterBlockPublished(): Promise<boolean> {
-  return repo.hasPublishedNewsletterBlock(getDb())
-}

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  ANALYTICS_EVENTS,
   type AnalyticsWindow,
   classifyClick,
   cleanPageLocation,
@@ -114,23 +113,6 @@ describe("typed analytics events", () => {
     track({ event: "lead_submitted", source_page: "/" }, win)
     expect(win.fbq).toHaveBeenCalledWith("track", "Lead")
     expect(win.dataLayer).toEqual([])
-  })
-
-  it("newsletter_sign_up: in the catalogue, GA4 params, Meta CompleteRegistration", () => {
-    expect(ANALYTICS_EVENTS).toContain("newsletter_sign_up")
-    const win = fakeWindow({ analytics: true, marketing: true })
-    expect(
-      track({ event: "newsletter_sign_up", method: "newsletter" }, win)
-    ).toBe(true)
-    expect(win.dataLayer).toEqual([
-      { event: "newsletter_sign_up", method: "newsletter" },
-    ])
-    expect(win.gtag).toHaveBeenCalledWith("event", "newsletter_sign_up", {
-      method: "newsletter",
-      page_location: "https://www.example.ie/contact",
-    })
-    expect(win.fbq).toHaveBeenCalledWith("track", "CompleteRegistration")
-    expect(win.fbq).not.toHaveBeenCalledWith("track", "Lead")
   })
 
   it("classifies clicks on phone, email and contact links", () => {

@@ -210,16 +210,6 @@ const richtext = defineBlock({
   defaults: {},
 })
 
-const newsletter = defineBlock({
-  type: "newsletter",
-  label: "Newsletter",
-  icon: "MailPlus",
-  description: "The newsletter sign-up form.",
-  schema: sharedOnly,
-  defaults: { useShared: true },
-  max: 1,
-})
-
 export const BLOCKS = [
   heroPage,
   about,
@@ -235,7 +225,6 @@ export const BLOCKS = [
   contact,
   map,
   richtext,
-  newsletter,
 ] as const
 
 type AnyBlock = (typeof BLOCKS)[number]
@@ -314,7 +303,6 @@ export const BlockInstance = z.discriminatedUnion("type", [
   instance(contact),
   instance(map),
   instance(richtext),
-  instance(newsletter),
 ])
 export type BlockInstance = z.infer<typeof BlockInstance>
 export type BlockData<T extends BlockType> = Extract<

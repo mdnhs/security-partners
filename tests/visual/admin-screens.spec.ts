@@ -47,7 +47,6 @@ const DASHBOARD = {
     published: { pages: 8, services: 6, articles: 8 },
     inReview: 2,
     seoScore: 92,
-    subscribers: null,
   },
   enquiriesWeek: {
     days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => ({
@@ -695,40 +694,6 @@ async function pinLeads(page: Page) {
     route.request().method() === "GET"
       ? route.fulfill({ json: LEAD_DETAIL })
       : route.abort()
-  )
-  // The privacy helper's newsletter check (D4.3): not subscribed.
-  await page.route("**/api/v1/admin/newsletter/lookup", (route) =>
-    route.fulfill({ json: { subscriber: null } })
-  )
-}
-
-/** Newsletter subscribers (D4.3), pinned: the visual seed has none. */
-const SUBSCRIBERS = [
-  {
-    id: "0190f0e0-0000-7000-8000-0000000000e1",
-    email: "niamh@harbourlogistics.ie",
-    status: "confirmed",
-    sourcePath: "/blog",
-    createdAt: "2026-10-14T08:00:00.000Z",
-    confirmedAt: "2026-10-14T08:05:00.000Z",
-    unsubscribedAt: null,
-  },
-  {
-    id: "0190f0e0-0000-7000-8000-0000000000e2",
-    email: "ciaran@murphybuild.ie",
-    status: "confirmed",
-    sourcePath: "/blog/mobile-patrols-protect-your-business-after-hours",
-    createdAt: "2026-10-12T17:20:00.000Z",
-    confirmedAt: "2026-10-12T17:31:00.000Z",
-    unsubscribedAt: null,
-  },
-]
-
-async function pinSubscribers(page: Page) {
-  await page.route("**/api/v1/admin/newsletter?*", (route) =>
-    route.fulfill({
-      json: { items: SUBSCRIBERS, page: 1, pageSize: 25, total: 2 },
-    })
   )
 }
 
@@ -1520,27 +1485,6 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       await expect(page).toHaveScreenshot(shot("lead-delete-dialog"), {
         mask: await overlayOnly(page),
-      })
-    })
-
-    test(`admin newsletter ${colorScheme}`, async ({ page }) => {
-      await pinSubscribers(page)
-      await signIn(page)
-      await page.goto("/admin/newsletter")
-      await expect(
-        page.getByRole("heading", { level: 1, name: "Newsletter" })
-      ).toBeVisible()
-      // A table from 640 px, cards below (the hidden one is still in the
-      // DOM): wait for the visible copy.
-      await expect(
-        page
-          .getByRole("main")
-          .getByText("niamh@harbourlogistics.ie")
-          .filter({ visible: true })
-          .first()
-      ).toBeVisible()
-      await expect(page).toHaveScreenshot(shot("newsletter"), {
-        mask: await masks(page),
       })
     })
 

@@ -26,7 +26,6 @@ const dto: DashboardDto = {
     published: { pages: 8, services: 6, articles: 8 },
     inReview: 2,
     seoScore: 92,
-    subscribers: null,
   },
   enquiriesWeek: {
     days: WEEK_LABELS.map((label, i) => ({
@@ -549,35 +548,6 @@ describe("dashboard (JW layout)", () => {
     ).toBeInTheDocument()
   })
 
-  it("shows Newsletter subscribers when the API sends them (D4.3)", async () => {
-    const withSubscribers: DashboardDto = {
-      ...dto,
-      kpis: { ...dto.kpis, subscribers: { confirmed: 1234, since30d: 5 } },
-    }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const path = new URL(String(input), "http://localhost").pathname
-        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
-        if (path.endsWith("/dashboard")) return Response.json(withSubscribers)
-        if (path.endsWith("/audit")) return Response.json(audit)
-        return Response.json(
-          { error: { code: "NOT_FOUND", message: "x" } },
-          { status: 404 }
-        )
-      })
-    )
-    renderDashboard(["owner"])
-    const cards = await screen.findAllByRole("article")
-    const card = cards.at(-1)!
-    expect(card).toHaveTextContent("Newsletter subscribers")
-    expect(card).toHaveTextContent("5 new in the last 30 days")
-    expect(within(card).getByRole("link")).toHaveAttribute(
-      "href",
-      "/admin/newsletter"
-    )
-  })
-
   it("every KPI links its chip to the screen it counts", async () => {
     renderDashboard(["owner"])
     const cards = await screen.findAllByRole("article")
@@ -611,7 +581,6 @@ describe("dashboard (JW layout)", () => {
                 published: null,
                 inReview: 0,
                 seoScore: null,
-                subscribers: null,
               },
               enquiriesWeek: null,
               contentHealth: null,
