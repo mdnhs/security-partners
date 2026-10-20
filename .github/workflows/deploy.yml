@@ -92,8 +92,12 @@ jobs:
           IN_SP_IMPORT_SOURCE_SECRET: ${{ secrets.SP_IMPORT_SOURCE_SECRET }}
         run: |
           set -euo pipefail
+          # Masked: secret values only (masking "sp" or the site URL would garble every log line).
+          SECRET_KEYS=" POSTGRES_PASSWORD DATABASE_URL BETTER_AUTH_SECRET SP_R2_ACCOUNT_ID SP_R2_ACCESS_KEY_ID SP_R2_SECRET_ACCESS_KEY SP_IMPORT_SOURCE_SECRET SP_IMPORT_KEY "
+          is_secret() { [[ "$SECRET_KEYS" == *" $1 "* ]]; }
+          mask() { if [ -n "$1" ]; then echo "::add-mask::$1"; fi; }
           for v in "$DOKPLOY_API_KEY" "$IN_SP_R2_ACCOUNT_ID" "$IN_SP_R2_ACCESS_KEY_ID" \
-            "$IN_SP_R2_SECRET_ACCESS_KEY" "$IN_SP_R2_BUCKET" "$IN_SP_IMPORT_SOURCE_SECRET"; do
+            "$IN_SP_R2_SECRET_ACCESS_KEY" "$IN_SP_IMPORT_SOURCE_SECRET" "$IN_SP_IMPORT_KEY"; do
             if [ -n "$v" ]; then echo "::add-mask::$v"; fi
           done
           for name in DOKPLOY_URL DOKPLOY_API_KEY IN_SP_R2_ACCOUNT_ID IN_SP_R2_ACCESS_KEY_ID \
@@ -114,7 +118,7 @@ jobs:
           read_env() { api_get compose.one | jq -r '.env // ""'; }
           mask_env() {
             while IFS= read -r line; do
-              case "$line" in *=*) v="${line#*=}"; if [ -n "$v" ]; then echo "::add-mask::$v"; fi ;; esac
+              case "$line" in *=*) if is_secret "${line%%=*}"; then mask "${line#*=}"; fi ;; esac
             done <<< "$1"
           }
           # Here-strings, not pipes: grep -q/-m1 exiting early would SIGPIPE the writer under pipefail.
@@ -136,7 +140,7 @@ jobs:
           declare -A expected=()
           add() { # add KEY VALUE: only when KEY is missing
             if ! has_key "$next" "$1"; then
-              echo "::add-mask::$2"
+              if is_secret "$1"; then mask "$2"; fi
               next="$(printf '%s\n%s=%s' "$next" "$1" "$2" | sed '/^$/d')"
               expected[$1]="$2"
               echo "adding $1"
@@ -144,6 +148,7 @@ jobs:
           }
           follow() { # follow KEY VALUE: set or update KEY when VALUE is non-empty
             [ -n "$2" ] || return 0
+            if is_secret "$1"; then mask "$2"; fi
             if [ "$(value_of "$next" "$1")" != "$2" ]; then
               next="$( { grep -v "^$1=" <<< "$next" || true; printf '%s=%s\n' "$1" "$2"; } | sed '/^$/d')"
               expected[$1]="$2"
@@ -151,12 +156,20 @@ jobs:
             fi
           }
 
-          password="$(value_of "$next" POSTGRES_PASSWORD)"
-          if [ -z "$password" ]; then
+          # Never generate a password that would not match an existing DATABASE_URL
+          # (or a database volume initialised with another one): stop and say which key.
+          if has_key "$next" POSTGRES_PASSWORD; then
+            password="$(value_of "$next" POSTGRES_PASSWORD)"
+            if [ -z "$password" ]; then
+              echo "::error::POSTGRES_PASSWORD exists in the Dokploy environment but is empty: set it (and the password in DATABASE_URL) by hand"; exit 1
+            fi
+          elif has_key "$next" DATABASE_URL; then
+            echo "::error::DATABASE_URL exists but POSTGRES_PASSWORD is missing: add POSTGRES_PASSWORD (the password inside DATABASE_URL) by hand"; exit 1
+          else
             password="$(openssl rand -hex 32)"
             add POSTGRES_PASSWORD "$password"
           fi
-          echo "::add-mask::$password"
+          mask "$password"
           add DATABASE_URL "postgres://sp:${password}@security-partners-db:5432/sp"
           add BETTER_AUTH_SECRET "$(openssl rand -base64 48 | tr -d '\n')"
           add BETTER_AUTH_URL "$SITE_URL"

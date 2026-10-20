@@ -14,9 +14,10 @@ node scripts/dist/migrate.mjs
 
 # One-shot import of a `pnpm data:export-to-r2` dump (docs/runbook.md
 # "Import local data into production"): only when SP_IMPORT_KEY is set and
-# this database does not hold that import yet. Exits non-zero only if the
-# data was restored but a later step failed; otherwise it logs and the start
-# continues. Migrations run again: the dump may predate this release.
+# this database does not hold that import yet. Always exits 0: failures are
+# logged (`[import] FAIL …` after a restore; the marker then prevents a
+# second restore) and the start continues. Migrations run again: the dump
+# may predate this release.
 if [ -n "${SP_IMPORT_KEY:-}" ]; then
   echo "[entrypoint] importing data if SP_IMPORT_KEY is new"
   node scripts/dist/data-import.mjs

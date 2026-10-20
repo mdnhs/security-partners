@@ -30,6 +30,7 @@ import {
   IMPORT_MARKER_KEY,
   importDumpKey,
   importedKey,
+  importMarker,
   runDataImport,
 } from "@/server/lib/data-import"
 import { SyncError } from "@/server/lib/db-sync"
@@ -37,6 +38,22 @@ import { readIntegrationConfig } from "@/server/modules/integrations/service"
 
 import { resetDb, TEST_DATABASE_URL } from "../db"
 import { createUser } from "../helpers/auth"
+
+// Lets one test make re-keying (a step after the restore commits) fail.
+const failRotate = vi.hoisted(() => ({ on: false }))
+vi.mock("@/server/modules/integrations/rotate", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/server/modules/integrations/rotate")
+    >()
+  return {
+    ...actual,
+    rotateSecrets: (...args: Parameters<typeof actual.rotateSecrets>) => {
+      if (failRotate.on) throw new Error("rotate failed on purpose")
+      return actual.rotateSecrets(...args)
+    },
+  }
+})
 
 const SOURCE_DB = "sp_test_import_source"
 const SOURCE_URL = withDatabase(TEST_DATABASE_URL, SOURCE_DB)
@@ -139,7 +156,10 @@ beforeEach(async () => {
   await resetDb()
   dir = await mkdtemp(join(tmpdir(), "sp-import-it-"))
 })
-afterEach(() => rm(dir, { recursive: true, force: true }))
+afterEach(async () => {
+  failRotate.on = false
+  await rm(dir, { recursive: true, force: true })
+})
 
 /** R2 holding the dump and only KEY_IN_R2's file (under the sp/ folder). */
 function fakeR2() {
@@ -217,6 +237,7 @@ describe("runDataImport (container-side one-shot import)", () => {
       [KEY_NOT_IN_R2]: "disk",
     })
     expect(await importedKey()).toBe(IMPORT_KEY)
+    expect(await importMarker()).toMatchObject({ status: "imported" })
   })
 
   it("the same key again changes nothing (idempotent on every start)", async () => {
@@ -266,6 +287,46 @@ describe("runDataImport (container-side one-shot import)", () => {
       .from(schema.settings)
       .where(eq(schema.settings.key, IMPORT_MARKER_KEY))
     expect(marker).toEqual([])
+  })
+
+  it("a failure after the restore commits is returned, not thrown; the marker stops a second restore", async () => {
+    failRotate.on = true
+    const first = fakeR2()
+    const outcome = await runDataImport({
+      key: IMPORT_KEY,
+      sourceSecret: SOURCE_SECRET,
+      r2,
+      client: first.client,
+      backupStore: diskBackupStore(dir),
+    })
+    expect(outcome).toMatchObject({
+      status: "restored-with-errors",
+      step: "re-key secrets",
+    })
+    if (outcome.status === "restored-with-errors")
+      expect(outcome.error).toContain("rotate failed on purpose")
+    // The data is there and the media rows were still adopted.
+    const users = await getDb().select().from(schema.users)
+    expect(users.map((u) => u.email)).toEqual(["demo.editor@example.test"])
+    expect(outcome).toMatchObject({ mediaMoved: 1 })
+    expect(await importMarker()).toMatchObject({
+      key: IMPORT_KEY,
+      status: "restored-with-errors",
+      step: "re-key secrets",
+    })
+    // Next start: no download, no backup, no restore.
+    failRotate.on = false
+    const again = fakeR2()
+    expect(
+      await runDataImport({
+        key: IMPORT_KEY,
+        sourceSecret: SOURCE_SECRET,
+        r2,
+        client: again.client,
+        backupStore: diskBackupStore(dir),
+      })
+    ).toEqual({ status: "already-imported" })
+    expect(again.send).not.toHaveBeenCalled()
   })
 
   it("a missing dump object fails without touching the database", async () => {

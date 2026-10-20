@@ -67,9 +67,26 @@ export async function importedKey(): Promise<string | null> {
   return typeof key === "string" ? key : null
 }
 
-async function writeMarker(key: string): Promise<void> {
+export type ImportMarker = {
+  key: string
+  status: "restored" | "imported" | "restored-with-errors"
+  step?: string
+  importedAt: string
+}
+
+/** The marker row's draft (null when there is none). */
+export async function importMarker(): Promise<ImportMarker | null> {
+  const row = await findSettingsRow(getDb(), IMPORT_MARKER_KEY)
+  return (row?.draft as ImportMarker | undefined) ?? null
+}
+
+async function writeMarker(
+  key: string,
+  state: Pick<ImportMarker, "status" | "step">
+): Promise<void> {
   await upsertSettingsDraft(getDb(), IMPORT_MARKER_KEY, {
     key,
+    ...state,
     importedAt: new Date().toISOString(),
   })
 }
@@ -125,6 +142,18 @@ export type ImportOutcome =
       mediaError?: string
       r2RowsFromSource: number
     }
+  | {
+      /**
+       * The data was restored, then `step` failed (e.g. re-keying). The
+       * marker says so: the next start does not restore again.
+       */
+      status: "restored-with-errors"
+      step: string
+      error: string
+      mediaMoved: number
+      mediaMissing: string[]
+      mediaError?: string
+    }
 
 export type ImportOptions = {
   /** SP_IMPORT_KEY: the dump's object key. */
@@ -145,8 +174,9 @@ export type ImportOptions = {
  * SMTP settings removed, secrets re-keyed (2FA cleared, sessions ended). Demo
  * users stay as they were in the source. Then disk media rows whose files the
  * export uploaded become r2 rows, and the key is recorded.
- * Errors are SyncError (restored says whether the data was committed) or
- * plain errors from before the restore (database unchanged).
+ * Throws only before the restore commits (database unchanged). A failure
+ * after it is returned as "restored-with-errors" (marker written), never
+ * thrown: the site then starts with the restored data.
  */
 export async function runDataImport(
   opts: ImportOptions
@@ -171,25 +201,33 @@ export async function runDataImport(
     await writeFile(file, await object.Body.transformToByteArray(), {
       mode: 0o600,
     })
-    const report = await dbSync({
-      fromDump: file,
-      fromSecret: opts.sourceSecret,
-      confirm: parse(getEnv().DATABASE_URL).database ?? "",
-      keepIntegrations: false,
-      backupStore: opts.backupStore,
-    })
-    // From here the data is restored and re-keyed: record it first, so a
-    // failure below never causes a second import over later edits.
+    let report: SyncReport | null = null
+    let failure: { step: string; error: string } | undefined
     try {
-      await writeMarker(key)
+      report = await dbSync({
+        fromDump: file,
+        fromSecret: opts.sourceSecret,
+        confirm: parse(getEnv().DATABASE_URL).database ?? "",
+        keepIntegrations: false,
+        backupStore: opts.backupStore,
+        // Recorded the moment the restore commits: a later failure (re-key,
+        // checks) must never lead to a second backup + restore on restart.
+        onRestored: () => writeMarker(key, { status: "restored" }),
+      })
     } catch (err) {
-      throw new SyncError(
-        `could not record the import: ${err instanceof Error ? err.message : String(err)}`,
-        true,
-        { cause: err }
-      )
+      if (!(err instanceof SyncError) || !err.restored) throw err
+      failure = { step: err.step, error: err.message }
+      // Best effort: the marker may be missing if the hook itself failed.
+      await writeMarker(key, {
+        status: "restored-with-errors",
+        step: err.step,
+      }).catch(() => undefined)
     }
-    const r2RowsFromSource = await countMediaByDriver(getDb(), "r2")
+    if (report)
+      await writeMarker(key, { status: "imported" }).catch(() => undefined)
+    const r2RowsFromSource = await countMediaByDriver(getDb(), "r2").catch(
+      () => 0
+    )
     // Not fatal: the data is consistent; rows left on disk are reported.
     let adopted: { moved: number; missing: string[] } = {
       moved: 0,
@@ -201,9 +239,17 @@ export async function runDataImport(
     } catch (err) {
       mediaError = err instanceof Error ? err.message : String(err)
     }
+    if (failure)
+      return {
+        status: "restored-with-errors",
+        ...failure,
+        mediaMoved: adopted.moved,
+        mediaMissing: adopted.missing,
+        mediaError,
+      }
     return {
       status: "imported",
-      report,
+      report: report!,
       mediaMoved: adopted.moved,
       mediaMissing: adopted.missing,
       mediaError,

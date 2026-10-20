@@ -78,6 +78,12 @@ export type SyncOptions = {
   keepIntegrations?: boolean
   backupStore?: BackupStore
   fetchImpl?: typeof fetch
+  /**
+   * Runs as soon as the restore transaction has committed, before re-keying
+   * (the import records its marker here, so a later failure never leads to
+   * a second restore on the next start).
+   */
+  onRestored?: () => Promise<void>
 }
 
 export type SyncReport = {
@@ -283,13 +289,16 @@ async function removeSharedIntegrations(): Promise<string[]> {
  * false: the target is unchanged.
  */
 export class SyncError extends Error {
+  /** The step that failed ("restore", "re-key secrets", …). */
+  readonly step: string
   constructor(
     message: string,
     readonly restored: boolean,
-    options?: ErrorOptions
+    options?: ErrorOptions & { step?: string }
   ) {
     super(message, options)
     this.name = "SyncError"
+    this.step = options?.step ?? (restored ? "after restore" : "restore")
   }
 }
 
@@ -372,6 +381,7 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
     store: opts.backupStore ?? diskBackupStore(),
   })
   let restored = false
+  let step = "restore"
   try {
     const dir = await mkdtemp(join(tmpdir(), "sp-sync-"))
     try {
@@ -402,22 +412,30 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+    step = "after-restore hook"
+    await opts.onRestored?.()
     // A dump file may come from anywhere (SYNC_SKIPPED_DATA not left out):
     // sessions and single-use links of the source never carry over.
+    step = "clear sessions and links"
     if (fromDump !== undefined) await clearSkippedData()
 
+    step = "remove source R2/SMTP settings"
     const integrationsRemoved = opts.keepIntegrations
       ? []
       : await removeSharedIntegrations()
     // The source was dumped mid-tick: its claims belong to no worker here.
+    step = "release job claims"
     await releaseAllJobClaims(getDb())
+    step = "re-key secrets"
     const rotate = await rotateSecrets({
       fromSecret: opts.fromSecret,
       via: "db:sync",
     })
+    step = "demo users"
     const demoUsers = opts.demoPassword
       ? (await seedDemoUsers(opts.demoPassword)).length
       : 0
+    step = "checks"
     const checks = await verifyTarget(opts)
     return {
       sourceSecretsChecked,
@@ -433,7 +451,7 @@ export async function dbSync(opts: SyncOptions): Promise<SyncReport> {
     throw new SyncError(
       `${message(err)}\nThe target was backed up before the sync: ${backupPath(backup)} (restore steps: docs/runbook.md "db:sync")`,
       restored,
-      { cause: err }
+      { cause: err, step }
     )
   }
 }

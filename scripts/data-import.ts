@@ -7,10 +7,11 @@
 //   SP_IMPORT_SOURCE_SECRET  BETTER_AUTH_SECRET of the exported database
 //   SP_R2_ACCOUNT_ID, SP_R2_ACCESS_KEY_ID, SP_R2_SECRET_ACCESS_KEY, SP_R2_BUCKET, SP_R2_PREFIX
 // Nothing happens without SP_IMPORT_KEY, or when this database already
-// holds that import (settings row ops.data-import). Logs `[import] …`, never
-// a secret. Exit code 1 only when the data was restored but a later step
-// failed (the container then stops: read the log); any failure before the
-// restore leaves the database unchanged and the site starts as it was.
+// holds that import (settings row ops.data-import, written the moment the
+// restore commits). Logs `[import] …`, never a secret. Always exits 0: a
+// failure before the restore leaves the database unchanged; a failure after
+// it is logged as `[import] FAIL …` (marker status restored-with-errors, no
+// re-import on restart) and the site starts with the restored data.
 import { closeDb } from "@/server/db/client"
 import { getEnv } from "@/server/env"
 import { runDataImport } from "@/server/lib/data-import"
@@ -29,7 +30,6 @@ const r2Env = { ...process.env }
 for (const name of Object.keys(process.env))
   if (name.startsWith("SP_")) delete process.env[name]
 
-let exitCode = 0
 try {
   if (!key) {
     log("SP_IMPORT_KEY not set: nothing to import")
@@ -42,6 +42,18 @@ try {
     const outcome = await runDataImport({ key, sourceSecret, r2 })
     if (outcome.status === "already-imported") {
       log(`${key} is already imported: nothing changed`)
+    } else if (outcome.status === "restored-with-errors") {
+      // Never fatal: the marker keeps the next start from restoring again,
+      // and the site starts with the restored data (runbook recovery steps).
+      log(
+        `FAIL the data was restored, then "${outcome.step}" failed: ${outcome.error}`
+      )
+      log(
+        `FAIL marked as restored-with-errors (no re-import on restart); follow docs/runbook.md "Import local data into production" → "If the import fails after the restore"`
+      )
+      log(
+        `media: ${outcome.mediaMoved} file(s) now served from R2; ${outcome.mediaMissing.length} not found in R2${outcome.mediaError ? `; not moved: ${outcome.mediaError}` : ""}`
+      )
     } else {
       const { report } = outcome
       log(
@@ -66,12 +78,14 @@ try {
     }
   }
 } catch (err) {
+  // runDataImport throws only before the restore commits.
   const restored = err instanceof SyncError && err.restored
   console.error(
-    `[import] ${restored ? "FAILED after the data was restored" : "not imported (database unchanged)"}: ${message(err)}`
+    `[import] ${restored ? "FAIL after the data was restored" : "not imported (database unchanged)"}: ${message(err)}`
   )
-  if (restored) exitCode = 1
 } finally {
   await closeDb().catch(() => undefined)
-  process.exitCode = exitCode
+  // Always 0: the start continues and the site serves whatever the
+  // database holds; the log says what to do.
+  process.exitCode = 0
 }

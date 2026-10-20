@@ -195,6 +195,8 @@ separate Dokploy database service.
   (`/api/v1/media/file/<key>`), so the folder is a property of the
   storage, not of the data. Changing the folder does not move stored files;
   it is refused (409) while any upload is stored in R2, like a new bucket.
+  Once a folder is saved it cannot be cleared back to the bucket root
+  (422): the bucket may be shared.
 - Production shares the sister site's bucket under the folder `sp`.
   Nothing of this site is written outside `sp/`.
 - `r2-bootstrap` (every container start, after migrate and seed): when
@@ -243,18 +245,41 @@ R2.
    - turns disk media rows whose files are in R2 into R2 rows; records the
      key; then migrations run again and `r2-bootstrap` saves production's
      R2 (folder `sp`).
-   Logs are `[import] …` and never contain secrets. A failure before the
-   restore leaves the database as it was and the site starts normally
-   (fix and redeploy). A failure after the restore stops the container
-   (exit 1, crash loop): read the log; the pre-import backup is named there.
-4. **Demo accounts are now on production with the known local passwords.**
-   Sign in with a real owner (imported, or `admin-create`) and run
-   `node scripts/dist/demo-remove.mjs` before the site is announced. Then
-   delete the repo secrets `SP_IMPORT_KEY` / `SP_IMPORT_SOURCE_SECRET` and
-   the `sp/bootstrap/` objects in R2 (they hold password hashes); the
-   Dokploy variables can stay (the marker prevents a second import) or be
-   removed by hand.
-5. A new export + a **new** `SP_IMPORT_KEY` imports again and **replaces
+   Logs are `[import] …` and never contain secrets. The import never stops
+   the container (always exit 0). A failure before the restore leaves the
+   database as it was (`[import] not imported (database unchanged): …`) and
+   the site starts normally: fix the cause and redeploy. The marker
+   (`ops.data-import`) is written the moment the restore commits, so a
+   failure after it is never followed by a second restore on restart.
+4. **If the import fails after the restore** (`[import] FAIL the data was
+   restored, then "<step>" failed: …`; marker status
+   `restored-with-errors` with that step): the site runs on the restored
+   data. Read the step:
+   - `re-key secrets`: the remaining integration secrets (Turnstile, AI)
+     do not decrypt with production's key. Run
+     `OLD_BETTER_AUTH_SECRET='<local secret>' node scripts/dist/secrets-rotate.mjs`
+     in the app container, or re-enter those secrets in Settings ▸
+     Integrations.
+   - `remove source R2/SMTP settings` / `release job claims` /
+     `clear sessions and links`: run the matching step by hand (Settings ▸
+     Integrations → Disconnect; the `update jobs set locked_at = null …`
+     statement in "Restore a backup"; `delete from sessions` /
+     `verifications` with `psql "$DATABASE_URL"`).
+   - To start over instead: restore the pre-import backup named in the log
+     (`/data/backups`, "Restore a backup"), then run a **new** export (new
+     key) and update `SP_IMPORT_KEY`; the same key is never imported twice.
+5. **Required after a successful import:**
+   - Demo accounts are now on production with the known local passwords.
+     Sign in with a real owner (imported, or `admin-create`) and run
+     `node scripts/dist/demo-remove.mjs` before the site is announced.
+   - Delete the dump object(s) under `sp/bootstrap/` in R2 (they hold every
+     row, including password hashes).
+   - Remove `SP_IMPORT_KEY` and `SP_IMPORT_SOURCE_SECRET` from **both** the
+     GitHub repo secrets (`gh secret delete SP_IMPORT_KEY`,
+     `gh secret delete SP_IMPORT_SOURCE_SECRET`) and the Dokploy
+     environment (the app → Environment; `ensure-env` never deletes keys),
+     then redeploy.
+6. A new export + a **new** `SP_IMPORT_KEY` imports again and **replaces
    everything** edited on production since: only do that on purpose.
 
 ## Rollback

@@ -615,6 +615,19 @@ describe("PUT integrations.r2 while files are stored there (final review I2)", (
     expect((await readIntegrationConfig("integrations.r2"))?.keyPrefix).toBe(
       "sp"
     )
+    // Once saved, the folder cannot be cleared back to the bucket root.
+    const cleared = await put(owner, "integrations.r2", 2, { keyPrefix: "" })
+    expect(cleared.status).toBe(422)
+    expect(
+      (
+        JSON.parse(cleared.text) as {
+          error: { fieldErrors: Record<string, string[]> }
+        }
+      ).error.fieldErrors.keyPrefix?.[0]
+    ).toMatch(/cannot be cleared/)
+    expect((await readIntegrationConfig("integrations.r2"))?.keyPrefix).toBe(
+      "sp"
+    )
   })
 })
 

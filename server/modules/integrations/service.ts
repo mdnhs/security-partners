@@ -256,6 +256,8 @@ const aiTarget = (values: Values) => {
     ? `${provider} ${normaliseBaseUrl(String(values.baseUrl ?? ""))}`
     : provider
 }
+const R2_FOLDER_REQUIRED =
+  "A folder was saved: it cannot be cleared (the bucket may be shared with another site)"
 const AI_KEY_AGAIN = "Enter the API key again for the new provider"
 const ACKNOWLEDGE_FIRST = "Confirm the acknowledgement first"
 
@@ -481,6 +483,15 @@ export async function saveIntegration(
         parsed.success ? (parsed.data as Values) : merged
       ),
     }
+    // A saved folder cannot be cleared: the bucket may be shared, and the
+    // root would mix this site's files with another's.
+    if (
+      key === "integrations.r2" &&
+      parsed.success &&
+      String(previous?.keyPrefix ?? "") !== "" &&
+      String((parsed.data as Values).keyPrefix ?? "") === ""
+    )
+      fieldErrors.keyPrefix = [R2_FOLDER_REQUIRED]
     if (parsed.success && key === "integrations.smtp") {
       const host = String((parsed.data as Values).host)
       const target =
