@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test"
 
 import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
 import { askAssistant, assistantOnHomeEditor, openAssistant } from "./ai-pins"
+import { BASE_URL } from "./env"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 import { freezeUploads, pinMedia, PNG_1PX } from "./media-pins"
 
@@ -289,6 +290,21 @@ async function pinLeads(page: Page) {
   )
 }
 
+/** Same-origin header the admin API's CSRF check wants on writes. */
+const SAME_ORIGIN = { origin: BASE_URL }
+
+/** One newsletter subscriber (pinned: the seed has none). */
+const SUBSCRIBER = {
+  id: "0190f0e0-0000-7000-8000-0000000000e1",
+  email: "aoife@harbourlogistics.ie",
+  status: "confirmed",
+  sourcePath: "/blog",
+  createdAt: "2026-10-15T09:00:00.000Z",
+  confirmedAt: "2026-10-15T09:05:00.000Z",
+  unsubscribedAt: null,
+}
+const SUBSCRIBERS = { items: [SUBSCRIBER], page: 1, pageSize: 25, total: 1 }
+
 const PATROLS = "mobile-patrols-protect-your-business-after-hours"
 const UNPUBLISHED = {
   live: false,
@@ -371,6 +387,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await signIn(page, E2E_ADMIN)
       const failures = await auditEach(page, [
         "/admin/users",
+        "/admin/users?tab=roles", // the read-only permission matrix (D3.4)
         "/admin/activity",
       ])
       // One user's page, by its list link.
@@ -406,6 +423,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       const failures = await auditEach(page, [
         "/admin/leads",
         "/admin/leads?status=all&assignee=none",
+        "/admin/leads?view=table", // the board is the default view (D3.3)
         "/admin/leads?folder=spam",
         `/admin/leads?lead=${LEAD_ID}`,
         "/admin/leads/not-a-lead", // not found (404)
@@ -442,6 +460,118 @@ for (const colorScheme of ["light", "dark"] as const) {
         ).toBeVisible()
         for (const violation of await blocking(page))
           failures.push(`${path} → ${violation}`)
+      }
+      expect(failures).toEqual([])
+    })
+
+    test(`appearance and newsletter in ${colorScheme}`, async ({ page }) => {
+      // MK C5 + D4.3 (owner): both appearance tabs, a colour picker and the
+      // reset dialog; the subscriber list (one pinned row) and its delete
+      // confirmation.
+      await page.route("**/api/v1/admin/newsletter?*", (route) =>
+        route.request().method() === "GET"
+          ? route.fulfill({ json: SUBSCRIBERS })
+          : route.continue()
+      )
+      await signIn(page, E2E_OWNER)
+      const failures: string[] = []
+      const audit = async (label: string) => {
+        for (const violation of await blocking(page))
+          failures.push(`${label} → ${violation}`)
+      }
+      await page.goto("/admin/appearance")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Appearance" })
+      ).toBeVisible()
+      await audit("/admin/appearance (site)")
+      await page
+        .getByRole("button", { name: /^Pick / })
+        .first()
+        .click()
+      await expect(page.locator('[data-slot="popover-content"]')).toBeVisible()
+      await audit("appearance colour picker")
+      await page.keyboard.press("Escape")
+      await page.getByRole("tab", { name: "Admin" }).click()
+      await expect(
+        page.getByRole("group", { name: "Admin preview" })
+      ).toBeVisible()
+      await audit("/admin/appearance (admin)")
+      await page.getByRole("button", { name: "Reset to preset…" }).click()
+      await expect(
+        page.getByRole("dialog", { name: "Reset to preset" })
+      ).toBeVisible()
+      await audit("appearance reset dialog")
+      await page.keyboard.press("Escape")
+
+      await page.goto("/admin/newsletter")
+      await expect(
+        page.getByRole("table", { name: "Subscribers" })
+      ).toContainText(SUBSCRIBER.email)
+      await audit("/admin/newsletter (one row)")
+      await page.goto("/admin/newsletter?tab=pending")
+      await audit("/admin/newsletter?tab=pending")
+      await page.goto("/admin/newsletter")
+      await page
+        .getByRole("button", { name: `Delete ${SUBSCRIBER.email}` })
+        .first()
+        .click()
+      await expect(
+        page.getByRole("alertdialog", { name: "Delete this subscriber?" })
+      ).toBeVisible()
+      await audit("newsletter delete dialog")
+      expect(failures).toEqual([])
+    })
+
+    test(`page builder in ${colorScheme}`, async ({ page }) => {
+      // MK D5.5: the pages list with its New page dialog, a custom page's
+      // builder (content and SEO tabs) and the block library.
+      await signIn(page, readFixtures().editor)
+      const failures: string[] = []
+      const audit = async (label: string) => {
+        for (const violation of await blocking(page))
+          failures.push(`${label} → ${violation}`)
+      }
+      const slug = `a11y-${colorScheme}`
+      const old = (await (
+        await page.request.get("/api/v1/admin/builder-pages")
+      ).json()) as { items: { id: string; slug: string }[] }
+      for (const item of old.items.filter((i) => i.slug === slug))
+        await page.request.delete(`/api/v1/admin/builder-pages/${item.id}`, {
+          headers: SAME_ORIGIN,
+        })
+      const created = await page.request.post("/api/v1/admin/builder-pages", {
+        headers: SAME_ORIGIN,
+        data: { title: `A11y ${colorScheme}`, slug },
+      })
+      expect(created.status()).toBe(201)
+      const { id } = (await created.json()) as { id: string }
+      try {
+        await page.goto("/admin/pages")
+        await page.getByRole("button", { name: "New page" }).click()
+        await expect(
+          page.getByRole("dialog", { name: "New page" })
+        ).toBeVisible()
+        await audit("/admin/pages + New page dialog")
+        await page.goto(`/admin/pages/custom/${id}`)
+        await expect(
+          page.getByRole("navigation", { name: "Page outline" })
+        ).toBeVisible()
+        await audit("builder (content)")
+        await page.getByRole("button", { name: "Add block" }).click()
+        await expect(
+          page.getByRole("dialog", { name: "Add a block" })
+        ).toBeVisible()
+        await audit("builder block library")
+        await page.keyboard.press("Escape")
+        await page.goto(`/admin/pages/custom/${id}?tab=seo`)
+        await expect(
+          page.getByRole("textbox", { name: "Address", exact: true })
+        ).toBeVisible()
+        await audit("builder (SEO tab)")
+      } finally {
+        await page.request.delete(`/api/v1/admin/builder-pages/${id}`, {
+          headers: SAME_ORIGIN,
+        })
       }
       expect(failures).toEqual([])
     })
