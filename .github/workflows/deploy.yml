@@ -60,11 +60,141 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  # Makes sure the Dokploy compose app has every variable it needs before a
+  # deploy (docs/runbook.md "Deploy"). It only ADDS missing keys — existing
+  # values are never changed, so the database password and auth secret
+  # generated on the first run stay — except SP_IMPORT_KEY and
+  # SP_IMPORT_SOURCE_SECRET, which follow their repo secrets when set.
+  # Dokploy v0.30.8 API (x-api-key header; procedures and input schemas
+  # verified in the v0.30.8 sources: apps/dokploy/server/api/routers/compose.ts
+  # and packages/server/src/db/schema/compose.ts, served as REST by the
+  # OpenAPI adapter, https://docs.dokploy.com/docs/api):
+  #   GET  /api/compose.one?composeId=…          → compose incl. env (KEY=VALUE lines), autoDeploy
+  #   POST /api/compose.update {composeId, autoDeploy:false}
+  #   POST /api/compose.saveEnvironment {composeId, env, createEnvFile:true}
+  ensure-env:
     needs: build-and-push
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.build-and-push.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Ensure Dokploy environment
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          COMPOSE_ID: NTWy3Bk2X7d8g25YMsbn2
+          SITE_URL: https://security.raynx.ie
+          IN_SP_R2_ACCOUNT_ID: ${{ secrets.SP_R2_ACCOUNT_ID }}
+          IN_SP_R2_ACCESS_KEY_ID: ${{ secrets.SP_R2_ACCESS_KEY_ID }}
+          IN_SP_R2_SECRET_ACCESS_KEY: ${{ secrets.SP_R2_SECRET_ACCESS_KEY }}
+          IN_SP_R2_BUCKET: ${{ secrets.SP_R2_BUCKET }}
+          IN_SP_IMPORT_KEY: ${{ secrets.SP_IMPORT_KEY }}
+          IN_SP_IMPORT_SOURCE_SECRET: ${{ secrets.SP_IMPORT_SOURCE_SECRET }}
+        run: |
+          set -euo pipefail
+          for v in "$DOKPLOY_API_KEY" "$IN_SP_R2_ACCOUNT_ID" "$IN_SP_R2_ACCESS_KEY_ID" \
+            "$IN_SP_R2_SECRET_ACCESS_KEY" "$IN_SP_R2_BUCKET" "$IN_SP_IMPORT_SOURCE_SECRET"; do
+            if [ -n "$v" ]; then echo "::add-mask::$v"; fi
+          done
+          for name in DOKPLOY_URL DOKPLOY_API_KEY IN_SP_R2_ACCOUNT_ID IN_SP_R2_ACCESS_KEY_ID \
+            IN_SP_R2_SECRET_ACCESS_KEY IN_SP_R2_BUCKET; do
+            if [ -z "${!name}" ]; then echo "::error::repo secret ${name#IN_} is not set"; exit 1; fi
+          done
+
+          api_get() {
+            curl --fail-with-body -sS -G "$DOKPLOY_URL/api/$1" \
+              -H "x-api-key: $DOKPLOY_API_KEY" --data-urlencode "composeId=$COMPOSE_ID"
+          }
+          # The body (it may hold secrets) goes through stdin, never argv.
+          api_post() {
+            curl --fail-with-body -sS -X POST "$DOKPLOY_URL/api/$1" \
+              -H "x-api-key: $DOKPLOY_API_KEY" -H "Content-Type: application/json" \
+              --data-binary @- > /dev/null
+          }
+          read_env() { api_get compose.one | jq -r '.env // ""'; }
+          mask_env() {
+            while IFS= read -r line; do
+              case "$line" in *=*) v="${line#*=}"; if [ -n "$v" ]; then echo "::add-mask::$v"; fi ;; esac
+            done <<< "$1"
+          }
+          # Here-strings, not pipes: grep -q/-m1 exiting early would SIGPIPE the writer under pipefail.
+          value_of() { { grep -m1 "^$2=" <<< "$1" || true; } | cut -d= -f2-; }
+          has_key() { grep -q "^$2=" <<< "$1"; }
+
+          compose="$(api_get compose.one)"
+          current="$(jq -r '.env // ""' <<< "$compose")"
+          mask_env "$current"
+
+          # Only this workflow deploys (after CI); Dokploy's own git trigger would not wait.
+          if [ "$(jq -r '.autoDeploy' <<< "$compose")" != "false" ]; then
+            jq -n --arg id "$COMPOSE_ID" '{composeId: $id, autoDeploy: false}' | api_post compose.update
+            [ "$(api_get compose.one | jq -r '.autoDeploy')" = "false" ] || { echo "::error::autoDeploy is still on"; exit 1; }
+            echo "autoDeploy turned off"
+          fi
+
+          next="$current"
+          declare -A expected=()
+          add() { # add KEY VALUE: only when KEY is missing
+            if ! has_key "$next" "$1"; then
+              echo "::add-mask::$2"
+              next="$(printf '%s\n%s=%s' "$next" "$1" "$2" | sed '/^$/d')"
+              expected[$1]="$2"
+              echo "adding $1"
+            fi
+          }
+          follow() { # follow KEY VALUE: set or update KEY when VALUE is non-empty
+            [ -n "$2" ] || return 0
+            if [ "$(value_of "$next" "$1")" != "$2" ]; then
+              next="$( { grep -v "^$1=" <<< "$next" || true; printf '%s=%s\n' "$1" "$2"; } | sed '/^$/d')"
+              expected[$1]="$2"
+              echo "setting $1"
+            fi
+          }
+
+          password="$(value_of "$next" POSTGRES_PASSWORD)"
+          if [ -z "$password" ]; then
+            password="$(openssl rand -hex 32)"
+            add POSTGRES_PASSWORD "$password"
+          fi
+          echo "::add-mask::$password"
+          add DATABASE_URL "postgres://sp:${password}@security-partners-db:5432/sp"
+          add BETTER_AUTH_SECRET "$(openssl rand -base64 48 | tr -d '\n')"
+          add BETTER_AUTH_URL "$SITE_URL"
+          add SP_R2_ACCOUNT_ID "$IN_SP_R2_ACCOUNT_ID"
+          add SP_R2_ACCESS_KEY_ID "$IN_SP_R2_ACCESS_KEY_ID"
+          add SP_R2_SECRET_ACCESS_KEY "$IN_SP_R2_SECRET_ACCESS_KEY"
+          add SP_R2_BUCKET "$IN_SP_R2_BUCKET"
+          add SP_R2_PREFIX sp
+          follow SP_IMPORT_KEY "$IN_SP_IMPORT_KEY"
+          follow SP_IMPORT_SOURCE_SECRET "$IN_SP_IMPORT_SOURCE_SECRET"
+
+          if [ "${#expected[@]}" -eq 0 ]; then
+            echo "environment complete: nothing to change"
+            exit 0
+          fi
+          jq -n --arg id "$COMPOSE_ID" --arg env "$next" \
+            '{composeId: $id, env: $env, createEnvFile: true}' | api_post compose.saveEnvironment
+
+          saved="$(read_env)"
+          for key in "${!expected[@]}"; do
+            if [ "$(value_of "$saved" "$key")" != "${expected[$key]}" ]; then
+              echo "::error::$key was not saved"; exit 1
+            fi
+          done
+          # Every key that existed before is still there, unchanged.
+          while IFS= read -r line; do
+            case "$line" in *=*) key="${line%%=*}"
+              [ -n "${expected[$key]+x}" ] && continue
+              [ "$(value_of "$saved" "$key")" = "${line#*=}" ] || { echo "::error::$key changed unexpectedly"; exit 1; } ;;
+            esac
+          done <<< "$current"
+          echo "environment saved and verified: ${!expected[*]}"
+
+  deploy:
+    needs: ensure-env
     # !cancelled(): with skip_ci the skipped `ci` job would otherwise skip
     # this job too (implicit success() over the whole needs chain).
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.build-and-push.result == 'success' }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.ensure-env.result == 'success' }}
     runs-on: ubuntu-latest
     # Created on first use; required reviewers are an owner setting.
     environment: production
