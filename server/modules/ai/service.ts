@@ -51,7 +51,6 @@ import { screenContextFor } from "./screen-context"
 import {
   type ConversationRow,
   deleteConversationRow,
-  dropLastReply,
   findConversation,
   findUserName,
   insertConversation,
@@ -61,6 +60,7 @@ import {
   type MessageRow,
   recentMessageRows,
   replaceFrom,
+  takeTurnForRegenerate,
   touchConversation,
 } from "./repo"
 import { buildTools } from "./tools"
@@ -397,9 +397,10 @@ export async function chat(
       const history = await recentMessageRows(tx, id!, AI_HISTORY_LIMIT)
       // Regenerate: the model does not see the reply it replaces (a
       // stopped or failed turn has none).
-      const replacing =
+      const replaced =
         input.regenerate === true && history.at(-1)?.role === "assistant"
-      if (replacing) history.pop()
+          ? history.pop()!
+          : null
       const question = history.at(-1)
       if (question?.role !== "user")
         throw new AppError("CONFLICT", "There is no question to answer yet.")
@@ -407,7 +408,10 @@ export async function chat(
         conversationId: id!,
         userMessageId: question.id,
         history,
-        replacing,
+        // The reply a regenerate replaces, by id (C9 re-review N2).
+        replacing: input.regenerate
+          ? { questionId: question.id, replyId: replaced?.id ?? null }
+          : null,
       }
     })
   // The model must see a user message first.
@@ -510,8 +514,13 @@ export async function chat(
         if (!failed && !signal.aborted) {
           if (answer.trim()) {
             const saved = await getDb().transaction(async (tx) => {
-              // Regenerate: the old reply goes only now, with the new one.
-              if (replacing) await dropLastReply(tx, conversationId)
+              // Regenerate: the old reply goes only now, with the new one,
+              // and only while this turn still ends the conversation.
+              if (
+                replacing &&
+                !(await takeTurnForRegenerate(tx, conversationId, replacing))
+              )
+                return null
               return insertMessage(tx, {
                 conversationId,
                 role: "assistant",
@@ -519,7 +528,13 @@ export async function chat(
                 enquiryDetails,
               })
             })
-            send({ type: "done", messageId: saved.id })
+            if (saved) send({ type: "done", messageId: saved.id })
+            else
+              send({
+                type: "error",
+                message:
+                  "This conversation changed in another tab, so the new answer was not saved. Reload it to see the latest messages.",
+              })
           } else {
             send({
               type: "error",

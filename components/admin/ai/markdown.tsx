@@ -32,7 +32,9 @@ const HEADING = /^\s{0,3}(#{1,6})\s+(.*)$/
 const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/
 const ITEM = /^\s*([-*+]|\d{1,9}[.)])\s+(.*)$/
 const QUOTE = /^\s{0,3}>\s?(.*)$/
-const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
+// Tested on the trimmed line: no whitespace run can be split two ways
+// (C9 re-review N1).
+const TABLE_RULE = /^\|?\s*:?-+:?(?:\s*\|\s*:?-+:?)*\s*\|?$/
 
 /** A label like "ts" or "c++"; anything stranger is just "Code". */
 const langOf = (raw: string) => (/^[\w+#.-]{1,20}$/.test(raw) ? raw : "")
@@ -60,7 +62,7 @@ function isTableStart(lines: string[], i: number) {
   const rule = lines[i + 1]
   if (!head.includes("|") || rule === undefined || !rule.includes("-"))
     return false
-  if (!TABLE_RULE.test(rule)) return false
+  if (!TABLE_RULE.test(rule.trim())) return false
   return cells(head).length === cells(rule).length
 }
 

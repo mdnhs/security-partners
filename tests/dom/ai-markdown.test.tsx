@@ -216,4 +216,27 @@ describe("Markdown for assistant replies (no raw HTML, ever)", () => {
       expect(performance.now() - started, input.slice(0, 12)).toBeLessThan(100)
     }
   })
+
+  it("checks a 20k-whitespace table rule line in linear time (C9 re-review N1)", () => {
+    const inputs = [
+      `a | b\n${" ".repeat(20_000)}-x`,
+      `a | b\n-${" ".repeat(20_000)}x`,
+      `a | b\n|${" ".repeat(20_000)}-${" ".repeat(20_000)}x`,
+      `a | b\n- |${" ".repeat(20_000)}-x`,
+    ]
+    for (const input of inputs) {
+      const started = performance.now()
+      parseBlocks(input)
+      const { unmount } = render(<Markdown text={input} />)
+      unmount()
+      expect(performance.now() - started, input.slice(6, 12)).toBeLessThan(100)
+    }
+    // Real rules with padding still make tables.
+    expect(parseBlocks("a | b\n  | :--- |  ---: |  \n1 | 2")).toEqual([
+      { kind: "table", head: ["a", "b"], rows: [["1", "2"]] },
+    ])
+    expect(parseBlocks("a | b\n---|---\n1 | 2")[0]).toMatchObject({
+      kind: "table",
+    })
+  })
 })

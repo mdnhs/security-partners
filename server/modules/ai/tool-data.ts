@@ -22,7 +22,7 @@ import { getServiceAdmin } from "@/server/modules/services/service"
 import { isPageKey } from "@/templates/registry"
 
 import { oneLine } from "./prompt"
-import { redactContacts } from "./redact"
+import { REDACT_LINE_MAX, redactContacts } from "./redact"
 import {
   contentStatuses,
   leadCounts,
@@ -432,9 +432,13 @@ export async function enquiryStats(
       // Newest first: rows before the range only come at the end.
       if (!inRange.has(isoDate(row.createdAt))) break
       const item = {
-        name: redactContacts(oneLine(row.name)),
-        company: row.company ? redactContacts(oneLine(row.company)) : null,
-        service: row.service ? redactContacts(oneLine(row.service)) : null,
+        name: redactContacts(oneLine(row.name), REDACT_LINE_MAX),
+        company: row.company
+          ? redactContacts(oneLine(row.company), REDACT_LINE_MAX)
+          : null,
+        service: row.service
+          ? redactContacts(oneLine(row.service), REDACT_LINE_MAX)
+          : null,
         status: row.status,
         message: redactContacts(clip(row.message.trim(), MESSAGE_MAX)),
         createdAt: row.createdAt.toISOString(),

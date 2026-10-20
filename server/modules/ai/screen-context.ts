@@ -9,7 +9,7 @@ import { AppError } from "@/server/lib/errors"
 import { getLead } from "@/server/modules/leads/service"
 
 import { oneLine } from "./prompt"
-import { redactContacts } from "./redact"
+import { REDACT_LINE_MAX, redactContacts } from "./redact"
 import { knownServices, serviceBucket } from "./tool-data"
 
 /**
@@ -98,8 +98,10 @@ export async function screenContextFor(
     return { context: { ...safe, record: facts }, enquiryDetails: false }
   safe.record = {
     ...facts,
-    name: redactContacts(oneLine(lead.name)),
-    company: lead.company ? redactContacts(oneLine(lead.company)) : null,
+    name: redactContacts(oneLine(lead.name), REDACT_LINE_MAX),
+    company: lead.company
+      ? redactContacts(oneLine(lead.company), REDACT_LINE_MAX)
+      : null,
     message: redactContacts(clip(lead.message.trim(), LEAD_TEXT_MAX)),
     notes: lead.events
       .filter((event) => event.type === "note" && event.body)
