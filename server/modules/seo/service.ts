@@ -342,6 +342,15 @@ async function computeHealth(
 /** GET /seo/health: the eight checks, issues with Fix links, alt-text coverage. */
 export async function getSeoHealth(actor: Actor): Promise<SeoHealthDto> {
   assertCan(actor, { seo: ["read"] })
+  return computeSeoHealth()
+}
+
+/**
+ * The same figures without a permission check, for the dashboard's cached
+ * reader (server/modules/dashboard/content-review.ts), which runs only for
+ * seo:read and cannot take the actor as a cache key.
+ */
+export async function computeSeoHealth(): Promise<SeoHealthDto> {
   return (await computeHealth(getDb())).health
 }
 
@@ -449,7 +458,7 @@ export async function updateSeo(
     })
     return current.slug
   })
-  invalidate(...tagsFor(kind, id, slug))
+  invalidate(...tagsFor(kind, id, slug), tag.contentReview)
   // With its checks: they depend on the other records (title-unique).
   // Cost: a full health pass (every row, every rich-text body) per save.
   // Fine at this site's size (tens of records); if PUT latency ever

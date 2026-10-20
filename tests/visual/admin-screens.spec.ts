@@ -42,16 +42,34 @@ test.beforeEach(async ({ context }, testInfo) => {
 
 const DASHBOARD = {
   kpis: {
-    leads30d: 7,
+    leads30d: { value: 7, previous: 5 },
     openLeads: 3,
     published: { pages: 8, services: 6, articles: 8 },
     inReview: 2,
+    seoScore: 92,
     subscribers: null,
   },
-  leadsTrend: Array.from({ length: 90 }, (_, i) => ({
-    date: new Date(Date.UTC(2026, 6, 19 + i)).toISOString().slice(0, 10),
-    count: [0, 1, 0, 2, 1, 0, 3][i % 7]!,
-  })),
+  enquiriesWeek: {
+    days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => ({
+      key: `2026-10-${String(12 + i).padStart(2, "0")}`,
+      label,
+      current: [0, 1, 0, 2, 1, 0, 3][i]!,
+      previous: [1, 0, 2, 1, 0, 1, 0][i]!,
+    })),
+    current: 7,
+    previous: 5,
+    previousToDate: 4,
+  },
+  contentHealth: { complete: 14, needsWork: 5, missing: 3 },
+  qa: [
+    {
+      rule: "legal-unpublished",
+      label: "Terms of use",
+      href: "/admin/pages/terms",
+      message:
+        "Still the starter text: have it reviewed, then publish your own.",
+    },
+  ],
   nextUp: [
     {
       id: "smtp",

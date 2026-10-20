@@ -81,7 +81,7 @@ test("dashboard: KPI row one 24 px gap under the header; Next up at 28 px", asyn
   expect(Math.round(kpiBox.y - (headerBox.y + headerBox.height))).toBe(24)
 
   const rows = page
-    .getByRole("list", { name: "Setup checklist" })
+    .getByRole("list", { name: "Next steps" })
     .getByRole("listitem")
   if ((await rows.count()) > 1) {
     const a = (await rows.nth(0).boundingBox())!

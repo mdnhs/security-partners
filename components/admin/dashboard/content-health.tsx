@@ -1,55 +1,63 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
-import { EmptyState } from "@/components/admin/kit/empty-state"
 import { Gauge } from "@/components/admin/kit/gauge"
-import { CardSkeleton } from "@/components/admin/kit/skeletons"
-import { healthParts } from "@/components/admin/seo/health"
-import { SEO_HEALTH_KEY } from "@/components/admin/seo/keys"
-import { usePermission } from "@/hooks/use-permission"
-import { api, errorMessage, unwrap } from "@/lib/api-client"
+import type { GaugePart } from "@/components/admin/kit/gauge-math"
+import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 
-/** JW dashboard gauge (closes 04b deviation D7): share of passing SEO checks. */
-export function ContentHealthCard() {
-  const canRead = usePermission({ seo: ["read"] })
-  const query = useQuery({
-    queryKey: SEO_HEALTH_KEY,
-    queryFn: () => unwrap(api.seo.health.$get()),
-    enabled: canRead,
-    staleTime: 60_000,
-  })
-  if (!canRead) return null
+type Health = NonNullable<DashboardDto["contentHealth"]>
+
+/** Complete (solid), needs work (dark), missing description or alt text (hatched). */
+export function contentHealthParts(health: Health): GaugePart[] {
+  return [
+    {
+      key: "complete",
+      label: "Complete",
+      value: health.complete,
+      tone: "solid",
+    },
+    {
+      key: "needsWork",
+      label: "Needs work",
+      value: health.needsWork,
+      tone: "dark",
+    },
+    {
+      key: "missing",
+      label: "Missing description or alt text",
+      value: health.missing,
+      tone: "hatched",
+    },
+  ]
+}
+
+/**
+ * JW dashboard gauge (D3.5): published pages, services and articles by
+ * their SEO checks, from the dashboard's own data (seo:read; the API sends
+ * null otherwise and the card is not drawn).
+ */
+export function ContentHealthCard({ health }: { health: Health | null }) {
+  if (!health) return null
   return (
     <DashboardCard
       title="Content health"
       action={
         <Link
           href="/admin/seo"
-          className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+          className="inline-flex min-h-6 items-center rounded-sm text-sm font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:min-h-11"
         >
           Open SEO
         </Link>
       }
     >
-      {query.isPending ? (
-        <CardSkeleton />
-      ) : query.isError ? (
-        <EmptyState
-          role="alert"
-          title="Content health didn't load"
-          description={errorMessage(query.error)}
-        />
-      ) : (
-        <Gauge
-          title="Content health"
-          centerLabel="SEO checks passing"
-          headlineKey="passed"
-          parts={healthParts(query.data)}
-        />
-      )}
+      <Gauge
+        title="Content health"
+        centerLabel="Complete"
+        headlineKey="complete"
+        parts={contentHealthParts(health)}
+      />
     </DashboardCard>
   )
 }

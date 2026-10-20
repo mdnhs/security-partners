@@ -28,6 +28,13 @@ vi.mock("next/server", async (importOriginal) => ({
 const drain = async () => {
   await Promise.allSettled(deferred.tasks.splice(0))
 }
+// The dashboard's cached content readers (D3.5) run outside a "use cache"
+// scope here: record nothing, compute directly.
+vi.mock("next/cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/cache")>()),
+  cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
+}))
 
 import type { Role } from "@/lib/auth/roles"
 import { ROLES } from "@/lib/auth/roles"

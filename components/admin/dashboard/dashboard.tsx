@@ -8,7 +8,11 @@ import type { ReactNode } from "react"
 import { ActivityFeed } from "@/components/admin/kit/activity-feed"
 import { DashboardCard } from "@/components/admin/kit/dashboard-card"
 import { EmptyState } from "@/components/admin/kit/empty-state"
-import { formatNumber } from "@/components/admin/kit/format"
+import {
+  formatDelta,
+  formatNumber,
+  formatPercent,
+} from "@/components/admin/kit/format"
 import { KpiCard, type KpiCardProps } from "@/components/admin/kit/kpi-card"
 import { PillBarChart } from "@/components/admin/kit/pill-bar-chart"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
@@ -27,11 +31,12 @@ import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import { cn } from "@/lib/utils"
 
 import { ContentHealthCard } from "./content-health"
+import { ContentQaCard } from "./content-qa"
 import { DashboardSkeleton } from "./dashboard-skeleton"
 import { NextUp } from "./next-up"
-import { greetingFor, weeklyBuckets } from "./present"
+import { greetingFor } from "./present"
 
-type Kpi = Pick<KpiCardProps, "label" | "value" | "caption" | "href">
+type Kpi = Pick<KpiCardProps, "label" | "value" | "caption" | "href" | "delta">
 
 /** Content list the role may open, for the Published content chip. */
 type ContentAccess = { pages: boolean; services: boolean; articles: boolean }
@@ -46,13 +51,21 @@ function contentHref(access: ContentAccess): string {
 function kpisFor(dto: DashboardDto, access: ContentAccess): Kpi[] {
   const { kpis } = dto
   const out: Kpi[] = []
-  if (kpis.leads30d !== null)
+  if (kpis.leads30d !== null) {
+    const { value, previous } = kpis.leads30d
+    const delta = formatDelta(value, previous)
     out.push({
       label: "New enquiries",
-      value: formatNumber(kpis.leads30d),
-      caption: "last 30 days",
+      value: formatNumber(value),
+      delta,
+      // Reads "+20.0% vs the previous 30 days" / "New: none in the previous 30 days".
+      caption:
+        delta?.label === "New"
+          ? "· none in the previous 30 days"
+          : "vs the previous 30 days",
       href: "/admin/leads",
     })
+  }
   if (kpis.openLeads !== null)
     out.push({
       label: "Open enquiries",
@@ -69,6 +82,13 @@ function kpisFor(dto: DashboardDto, access: ContentAccess): Kpi[] {
       href: contentHref(access),
     })
   }
+  if (kpis.seoScore !== null)
+    out.push({
+      label: "SEO health",
+      value: formatPercent(kpis.seoScore / 100),
+      caption: "of SEO checks passing on live pages",
+      href: "/admin/seo",
+    })
   if (kpis.inReview !== null)
     out.push({
       label: "Drafts in review",
@@ -250,9 +270,10 @@ function Body({
   /** The Team activity card's body; null when the role may not read the activity log. */
   activity: ReactNode
 }) {
-  // The Content health gauge (hidden without seo:read) sits beside the feed.
-  const canReadSeo = usePermission({ seo: ["read"] })
-  const weeks = dto.leadsTrend ? weeklyBuckets(dto.leadsTrend) : null
+  const week = dto.enquiriesWeek
+  // Content health and QA (each only when the API sent it) share a column
+  // beside the team feed.
+  const hasSide = !!dto.contentHealth || !!dto.qa?.length
   return (
     <>
       {/* KPI cards title themselves with h3s; keep the outline continuous. */}
@@ -260,7 +281,9 @@ function Body({
       <div
         className={cn(
           "grid gap-4 sm:grid-cols-2",
-          kpis.length > 3 ? "xl:grid-cols-4" : "xl:grid-cols-3"
+          // MK: the first four KPIs share one row on wide screens (4 across
+          // from 4 cards up; extra cards wrap below). Fewer: 3 across.
+          kpis.length >= 4 ? "xl:grid-cols-4" : "xl:grid-cols-3"
         )}
       >
         {kpis.map((kpi, index) => (
@@ -274,35 +297,63 @@ function Body({
       <div
         className={cn(
           "grid gap-4",
-          weeks && "xl:grid-cols-[minmax(0,1fr)_340px]"
+          week && "xl:grid-cols-[minmax(0,1fr)_340px]"
         )}
       >
-        {weeks ? (
-          <DashboardCard title="Enquiries, last 90 days">
-            <PillBarChart
-              ariaLabel="Enquiries, last 90 days"
-              // The card's title already names this region.
-              labelFigure={false}
-              rowHeader="Week of"
-              legend={{ current: "Enquiries", previous: "Previous period" }}
-              emptyText="No enquiries yet"
-              data={weeks}
-            />
-          </DashboardCard>
-        ) : null}
+        {week ? <EnquiriesWeekCard week={week} /> : null}
         <NextUp items={dto.nextUp} />
       </div>
-      <div
-        className={cn(
-          "grid gap-4",
-          activity && canReadSeo && "xl:grid-cols-[minmax(0,1fr)_340px]"
-        )}
-      >
-        {activity ? (
-          <DashboardCard title="Team activity">{activity}</DashboardCard>
-        ) : null}
-        <ContentHealthCard />
-      </div>
+      {activity || hasSide ? (
+        <div
+          className={cn(
+            "grid gap-4",
+            activity && hasSide && "xl:grid-cols-[minmax(0,1fr)_340px]"
+          )}
+        >
+          {activity ? (
+            <DashboardCard title="Team activity">{activity}</DashboardCard>
+          ) : null}
+          {hasSide ? (
+            <div className="flex min-w-0 flex-col gap-4">
+              <ContentHealthCard health={dto.contentHealth} />
+              <ContentQaCard findings={dto.qa} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </>
+  )
+}
+
+/** MK "Enquiries this week": Monday → Sunday in Ireland beside last week. */
+function EnquiriesWeekCard({
+  week,
+}: {
+  week: NonNullable<DashboardDto["enquiriesWeek"]>
+}) {
+  // This week so far against last week up to the same weekday and time
+  // (review I1): a Monday morning is not "-100%" against a full week.
+  const delta = formatDelta(week.current, week.previousToDate)
+  return (
+    <DashboardCard title="Enquiries this week">
+      <p className="text-sm text-muted-foreground">
+        <span className="font-semibold text-foreground tabular-nums">
+          {formatNumber(week.current)}
+        </span>{" "}
+        so far, {formatNumber(week.previousToDate)} by this time last week
+        {delta && delta.direction !== "flat" ? ` (${delta.label})` : null}
+        {" · "}
+        {formatNumber(week.previous)} in all of last week
+      </p>
+      <PillBarChart
+        ariaLabel="Enquiries this week"
+        // The card's title already names this region.
+        labelFigure={false}
+        rowHeader="Day"
+        legend={{ current: "This week", previous: "Last week" }}
+        emptyText="No enquiries this week or last"
+        data={week.days}
+      />
+    </DashboardCard>
   )
 }

@@ -9,6 +9,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   ne,
   sql,
 } from "drizzle-orm"
@@ -16,6 +17,7 @@ import {
 import type { DbOrTx } from "@/server/db/client"
 import {
   articles,
+  builderPages,
   jobs,
   leads,
   pages,
@@ -51,6 +53,41 @@ export async function countLeadsFromDay(
   return row.n
 }
 
+/**
+ * Non-spam leads created in [from, to) (instants: the KPI baseline and
+ * "last week up to now"). Constant bounds, as above.
+ */
+export async function countLeadsBetween(
+  db: DbOrTx,
+  from: Date,
+  to: Date
+): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(leads)
+    .where(
+      and(
+        gte(leads.createdAt, from),
+        lt(leads.createdAt, to),
+        ne(leads.status, "spam")
+      )
+    )
+  return row.n
+}
+
+/** The oldest lead still marked new (Next up's "Reply to …"). */
+export async function oldestNewLead(
+  db: DbOrTx
+): Promise<{ id: string; name: string } | null> {
+  const [row] = await db
+    .select({ id: leads.id, name: leads.name })
+    .from(leads)
+    .where(eq(leads.status, "new"))
+    .orderBy(asc(leads.createdAt), asc(leads.id))
+    .limit(1)
+  return row ?? null
+}
+
 export async function countOpenLeads(db: DbOrTx): Promise<number> {
   const [row] = await db
     .select({ n: count() })
@@ -67,13 +104,96 @@ export async function countUnassignedNewLeads(db: DbOrTx): Promise<number> {
   return row.n
 }
 
-/** Non-spam leads per calendar day in Irish time since `since`. */
-export function leadsPerDay(db: DbOrTx, since: Date) {
+/** Non-spam leads per calendar day in Irish time in [since, until). */
+export function leadsPerDay(db: DbOrTx, since: Date, until: Date) {
   return db
     .select({ date: irishDay, n: count() })
     .from(leads)
-    .where(and(gte(leads.createdAt, since), ne(leads.status, "spam")))
+    .where(
+      and(
+        gte(leads.createdAt, since),
+        lt(leads.createdAt, until),
+        ne(leads.status, "spam")
+      )
+    )
     .groupBy(irishDay)
+}
+
+/**
+ * What content QA scans, each part only when asked for: the live version
+ * of pages and builder pages (`pages`), services and the given settings
+ * keys (the draft until first published). A page is "updated since the
+ * seed" once its version moved past 1 (every save and publish bumps it).
+ */
+export async function qaSources(
+  db: DbOrTx,
+  want: { pages: boolean; services: boolean; settingsKeys: string[] }
+) {
+  const [pageRows, serviceRows, settingRows, builderRows] = await Promise.all([
+    want.pages
+      ? db
+          .select({
+            key: pages.key,
+            draft: pages.draft,
+            published: pages.published,
+            version: pages.version,
+          })
+          .from(pages)
+          .orderBy(asc(pages.key))
+      : [],
+    want.services
+      ? db
+          .select({
+            id: services.id,
+            draft: services.draft,
+            published: services.published,
+          })
+          .from(services)
+          .orderBy(asc(services.sortOrder), asc(services.slug))
+      : [],
+    want.settingsKeys.length
+      ? db
+          .select({
+            key: settings.key,
+            draft: settings.draft,
+            published: settings.published,
+          })
+          .from(settings)
+          .where(inArray(settings.key, want.settingsKeys))
+      : [],
+    want.pages
+      ? db
+          .select({
+            id: builderPages.id,
+            title: builderPages.title,
+            draft: builderPages.draft,
+            published: builderPages.published,
+          })
+          .from(builderPages)
+          .orderBy(asc(builderPages.title), asc(builderPages.id))
+      : [],
+  ])
+  return {
+    pages: pageRows.map((row) => ({
+      key: row.key,
+      data: row.published ?? row.draft,
+      published: row.published !== null,
+      updatedSinceSeed: row.version > 1,
+    })),
+    services: serviceRows.map((row) => {
+      const data = row.published ?? row.draft
+      return { id: row.id, title: data?.title ?? "", data }
+    }),
+    settings: settingRows.map((row) => ({
+      key: row.key,
+      data: row.published ?? row.draft,
+    })),
+    builderPages: builderRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      data: row.published ?? row.draft,
+    })),
+  }
 }
 
 export async function publishedCounts(db: DbOrTx) {

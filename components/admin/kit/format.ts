@@ -5,6 +5,7 @@ const PERCENT = new Intl.NumberFormat("en-IE", {
 })
 const CHANGE = new Intl.NumberFormat("en-IE", {
   style: "percent",
+  minimumFractionDigits: 1,
   maximumFractionDigits: 1,
   signDisplay: "exceptZero",
 })
@@ -15,10 +16,17 @@ export const formatPercent = (ratio: number) => PERCENT.format(ratio)
 
 export type Delta = { label: string; direction: "up" | "down" | "flat" }
 
-/** A KPI caption's "+3.4%"; without a baseline there is no honest percentage. */
+/**
+ * A KPI caption's "+3.4%". Without a baseline there is no honest
+ * percentage: 0 → n reads "New" (never "∞%" or NaN), 0 → 0 "No change".
+ * Null only for non-finite input.
+ */
 export function formatDelta(current: number, previous: number): Delta | null {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null
   if (previous === 0) {
-    return current === 0 ? { label: "No change", direction: "flat" } : null
+    return current === 0
+      ? { label: "No change", direction: "flat" }
+      : { label: "New", direction: current > 0 ? "up" : "down" }
   }
   const change = (current - previous) / previous
   if (Math.abs(change) < 0.0005)

@@ -19,11 +19,29 @@ describe("kit format helpers", () => {
     expect(formatPercent(0.425)).toBe("43%")
   })
 
-  it("captions a change only when there is a baseline", () => {
-    expect(formatDelta(12, 10)).toEqual({ label: "+20%", direction: "up" })
-    expect(formatDelta(5, 10)).toEqual({ label: "-50%", direction: "down" })
+  it("formatDelta: 0→0 No change, 0→3 New, 10→12 +20.0%", () => {
+    expect(formatDelta(12, 10)).toEqual({ label: "+20.0%", direction: "up" })
+    expect(formatDelta(5, 10)).toEqual({ label: "-50.0%", direction: "down" })
     expect(formatDelta(0, 0)).toEqual({ label: "No change", direction: "flat" })
-    expect(formatDelta(3, 0)).toBeNull()
+    expect(formatDelta(3, 0)).toEqual({ label: "New", direction: "up" })
+    expect(formatDelta(10, 10)).toEqual({
+      label: "No change",
+      direction: "flat",
+    })
+    expect(formatDelta(1001, 1000)).toEqual({ label: "+0.1%", direction: "up" })
+    expect(formatDelta(0, 4)).toEqual({ label: "-100.0%", direction: "down" })
+  })
+
+  it("formatDelta never shows ∞% or NaN", () => {
+    for (const [current, previous] of [
+      [0, 0],
+      [3, 0],
+      [0, 3],
+      [7, 3],
+    ] as const) {
+      const label = formatDelta(current, previous)?.label ?? ""
+      expect(label).not.toMatch(/∞|NaN|Infinity/)
+    }
   })
 
   it("says how long ago, from a given clock", () => {

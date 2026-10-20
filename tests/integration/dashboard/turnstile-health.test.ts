@@ -1,5 +1,19 @@
 import { eq } from "drizzle-orm"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+// Not under test here: the cached SEO health / QA readers (they need Next's
+// cache scope and, for SEO, seeded settings).
+vi.mock("@/server/modules/dashboard/content-review", () => ({
+  cachedSeoHealth: async () => ({
+    score: 100,
+    passed: 0,
+    total: 0,
+    entities: [],
+    issues: [],
+    alt: { images: 0, described: 0, decorative: 0, missing: 0 },
+  }),
+  cachedQa: async () => [],
+}))
 
 import { getDb } from "@/server/db/client"
 import { settings } from "@/server/db/schema"

@@ -25,7 +25,7 @@ export function NextUp({
     <DashboardCard title="Next up" headingLevel={headingLevel}>
       <div className="flex flex-1 flex-col justify-between gap-6">
         <div className="flex flex-col gap-3">
-          <p className="text-2xl leading-tight font-semibold text-primary">
+          <p className="text-2xl leading-tight font-semibold break-words text-primary">
             {next ? next.title : "You're all set"}
           </p>
           <p className="text-sm text-muted-foreground">
@@ -35,7 +35,8 @@ export function NextUp({
           </p>
         </div>
         {items.length > 1 ? (
-          <ul aria-label="Setup checklist" className="flex flex-col gap-1">
+          // Setup steps and day-to-day work (e.g. "Reply to …") alike.
+          <ul aria-label="Next steps" className="flex flex-col gap-1">
             {items.map((item) => (
               <li key={item.id}>
                 <Link
@@ -63,7 +64,7 @@ export function NextUp({
         ) : null}
         {next ? (
           <Link href={next.href} className={LINK_PRIMARY}>
-            Get started
+            {next.id === "reply" ? "Open enquiry" : "Get started"}
           </Link>
         ) : null}
       </div>

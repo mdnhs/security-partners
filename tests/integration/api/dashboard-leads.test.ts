@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+// The dashboard's cached content readers (D3.5) run outside a "use cache"
+// scope here: record nothing, compute directly.
+vi.mock("next/cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/cache")>()),
+  cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
+}))
+
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
@@ -37,9 +45,16 @@ describe("dashboard uses real lead data (master 4.7 × 7.3)", () => {
     const after = (await (
       await adminRequest("/dashboard", { cookie })
     ).json()) as DashboardDto
-    expect(after.kpis.leads30d).toBe((before.kpis.leads30d ?? 0) + 1)
+    expect(after.kpis.leads30d!.value).toBe(
+      (before.kpis.leads30d?.value ?? 0) + 1
+    )
     expect(after.kpis.openLeads).toBe((before.kpis.openLeads ?? 0) + 1)
-    expect(after.leadsTrend!.at(-1)!.count).toBeGreaterThanOrEqual(1)
+    expect(after.enquiriesWeek!.current).toBe(
+      (before.enquiriesWeek?.current ?? 0) + 1
+    )
+    expect(after.nextUp.find((i) => i.id === "reply")?.title).toBe(
+      "Reply to Dash"
+    )
     expect(after.nextUp.find((i) => i.id === "unassigned-leads")?.href).toBe(
       "/admin/leads?status=new&assignee=none"
     )

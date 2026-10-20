@@ -40,6 +40,7 @@ import { seedContent } from "@/server/db/seed"
 import type { Actor } from "@/server/lib/actor"
 import { createLanguageModel } from "@/server/modules/ai/providers"
 import {
+  dashboardSummary,
   enquiryStats,
   readArticle,
   searchContent,
@@ -311,6 +312,23 @@ describe("AI tools: offered by role (spec §6.3)", () => {
     )
     await events(await chat(owner.cookie, { message: "Leads?" }))
     expect(promptText(1)).not.toContain('"byStatus"')
+  })
+})
+
+describe("getDashboardSummary (D3.5)", () => {
+  it("never carries the name from the dashboard's Reply item; has this week vs last", async () => {
+    const out = await dashboardSummary(actorOf(["intake"]))
+    const text = JSON.stringify(out)
+    expect(text).not.toContain(seededLead.name)
+    expect(text).not.toContain("Siobhan")
+    expect(out.nextUp).toContainEqual({
+      id: "reply",
+      title: "Reply to the oldest new enquiry",
+      done: false,
+    })
+    expect(out.enquiriesThisWeek).toBe(1)
+    expect(out.enquiriesLastWeek).toBe(0)
+    expect(out.enquiriesLastWeekToDate).toBe(0)
   })
 })
 
