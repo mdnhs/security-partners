@@ -9,6 +9,7 @@ import {
   realpath,
   rename,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises"
 import { dirname, resolve, sep } from "node:path"
@@ -114,13 +115,17 @@ export function diskStorage(
           await handle.close()
           return null
         }
+        // The size comes from the path: under `next dev` an open handle's
+        // fstat can report size 0 (blocks right), which served every file
+        // as an empty body. Keys are immutable, so both name one file.
+        const { size } = await stat(path)
         // The stream owns the handle from here (autoClose).
         const nodeStream = handle.createReadStream(
           range ? { start: range.start, end: range.end } : {}
         )
         return {
           body: Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>,
-          size: stats.size,
+          size,
           partial: range !== undefined,
         }
       } catch (err) {
