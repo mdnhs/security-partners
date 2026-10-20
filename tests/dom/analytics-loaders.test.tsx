@@ -199,7 +199,7 @@ describe("GA4 page_location (D2.4 minor 3)", () => {
     window.history.replaceState(
       null,
       "",
-      "/newsletter/confirm?token=secret&email=a%40b.ie#x"
+      "/contact?token=secret&email=a%40b.ie#x"
     )
     const win = window as AnalyticsWindow
     startTracking(
@@ -213,7 +213,7 @@ describe("GA4 page_location (D2.4 minor 3)", () => {
     expect(config).toEqual([
       "config",
       "G-TEST1",
-      { page_location: `${window.location.origin}/newsletter/confirm` },
+      { page_location: `${window.location.origin}/contact` },
     ])
     expect(win.__spGa4Id).toBe("G-TEST1")
   })

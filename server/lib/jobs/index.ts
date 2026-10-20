@@ -6,7 +6,6 @@ import { migrateMediaJob } from "./migrate-media"
 import { publishScheduledJob } from "./publish-scheduled"
 import { pruneRevisionsJob } from "./prune-revisions"
 import { purgeLeadsJob } from "./purge-leads"
-import { purgeNewsletterJob } from "./purge-newsletter"
 
 export type JobContext = { now: Date; payload: unknown }
 /**
@@ -35,7 +34,6 @@ export const RECURRING_JOBS: readonly JobDefinition[] = [
   publishScheduledJob,
   pruneRevisionsJob,
   purgeLeadsJob,
-  purgeNewsletterJob,
   backupJob,
 ]
 

@@ -15,11 +15,6 @@ const FIXED: Record<string, ActivitySummary> = {
     status: { label: "Signed in", tone: "success" },
   },
   "auth.sign_out": { text: "signed out" },
-  "newsletter.looked_up": {
-    text: "checked an address against the newsletter list",
-  },
-  "newsletter.exported": { text: "exported the newsletter list" },
-  "newsletter.purged": { text: "removed unconfirmed newsletter sign-ups" },
   "auth.sign_in_failed": {
     text: "failed to sign in",
     status: { label: "Failed", tone: "danger" },
@@ -85,7 +80,6 @@ const SINGULAR: Record<string, string> = {
   category: "a category",
   article: "an article",
   media: "a file",
-  newsletter: "a newsletter subscriber",
   "builder-page": "a custom page",
 }
 

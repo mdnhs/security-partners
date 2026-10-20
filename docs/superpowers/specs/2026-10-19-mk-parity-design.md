@@ -437,6 +437,8 @@ Rules for these redirects:
 
 ### 7.4 D4 Newsletter (MK-equivalent)
 
+> Newsletter removed 2026-10-20 at owner request (migration `0020_remove_newsletter`).
+
 - **Table** `newsletter_subscribers` (migration `0017_newsletter`). Columns:
   - `id uuid v7`
   - `email text unique` (check lower)

@@ -293,18 +293,6 @@ async function pinLeads(page: Page) {
 /** Same-origin header the admin API's CSRF check wants on writes. */
 const SAME_ORIGIN = { origin: BASE_URL }
 
-/** One newsletter subscriber (pinned: the seed has none). */
-const SUBSCRIBER = {
-  id: "0190f0e0-0000-7000-8000-0000000000e1",
-  email: "aoife@harbourlogistics.ie",
-  status: "confirmed",
-  sourcePath: "/blog",
-  createdAt: "2026-10-15T09:00:00.000Z",
-  confirmedAt: "2026-10-15T09:05:00.000Z",
-  unsubscribedAt: null,
-}
-const SUBSCRIBERS = { items: [SUBSCRIBER], page: 1, pageSize: 25, total: 1 }
-
 const PATROLS = "mobile-patrols-protect-your-business-after-hours"
 const UNPUBLISHED = {
   live: false,
@@ -472,15 +460,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       expect(failures).toEqual([])
     })
 
-    test(`appearance and newsletter in ${colorScheme}`, async ({ page }) => {
-      // MK C5 + D4.3 (owner): both appearance tabs, a colour picker and the
-      // reset dialog; the subscriber list (one pinned row) and its delete
-      // confirmation.
-      await page.route("**/api/v1/admin/newsletter?*", (route) =>
-        route.request().method() === "GET"
-          ? route.fulfill({ json: SUBSCRIBERS })
-          : route.continue()
-      )
+    test(`appearance in ${colorScheme}`, async ({ page }) => {
+      // MK C5 (owner): both appearance tabs, a colour picker and the reset
+      // dialog.
       await signIn(page, E2E_OWNER)
       const failures: string[] = []
       const audit = async (label: string) => {
@@ -509,24 +491,6 @@ for (const colorScheme of ["light", "dark"] as const) {
         page.getByRole("dialog", { name: "Reset to preset" })
       ).toBeVisible()
       await audit("appearance reset dialog")
-      await page.keyboard.press("Escape")
-
-      await page.goto("/admin/newsletter")
-      await expect(
-        page.getByRole("table", { name: "Subscribers" })
-      ).toContainText(SUBSCRIBER.email)
-      await audit("/admin/newsletter (one row)")
-      await page.goto("/admin/newsletter?tab=pending")
-      await audit("/admin/newsletter?tab=pending")
-      await page.goto("/admin/newsletter")
-      await page
-        .getByRole("button", { name: `Delete ${SUBSCRIBER.email}` })
-        .first()
-        .click()
-      await expect(
-        page.getByRole("alertdialog", { name: "Delete this subscriber?" })
-      ).toBeVisible()
-      await audit("newsletter delete dialog")
       expect(failures).toEqual([])
     })
 

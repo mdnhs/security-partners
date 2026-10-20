@@ -30,7 +30,6 @@ export const statements = {
   audit: ["read"],
   ai: ["use"],
   appearance: ["read", "update", "publish"], // theme (admin + public colours)
-  newsletter: ["read", "export", "delete"],
 } as const
 
 export type Resource = keyof typeof statements
@@ -61,7 +60,6 @@ const EVERYTHING = {
   audit: all("audit"),
   ai: all("ai"),
   appearance: all("appearance"),
-  newsletter: all("newsletter"),
 } satisfies Required<Grants>
 
 /**
@@ -89,7 +87,6 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
     audit: all("audit"),
     ai: all("ai"),
     appearance: all("appearance"),
-    newsletter: all("newsletter"),
   },
   editor: {
     page: all("page"),
@@ -117,7 +114,6 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
     media: ["read", "create"],
     ai: ["use"],
     appearance: ["read"],
-    newsletter: ["read", "export"],
   },
   intake: {
     lead: ["read", "update", "export"],

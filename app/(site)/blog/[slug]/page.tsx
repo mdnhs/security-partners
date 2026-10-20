@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { connection } from "next/server"
 
-import { NewsletterSection } from "@/components/newsletter/newsletter-section"
 import { JsonLd } from "@/components/seo/json-ld"
 import { SiteThemed } from "@/components/site-themed"
 import { publicOrigin } from "@/server/lib/site-origin"
@@ -43,10 +42,7 @@ async function Article({ params }: Pick<PageProps<"/blog/[slug]">, "params">) {
   )
   return (
     <>
-      <ArticleTemplate
-        view={view}
-        newsletter={<NewsletterSection where="article" />}
-      />
+      <ArticleTemplate view={view} />
       {jsonLd && <JsonLd data={jsonLd} />}
     </>
   )

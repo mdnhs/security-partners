@@ -82,7 +82,6 @@ const EXPECTED: Record<string, PermissionRequest | null> = {
   "marketing/consent/page.tsx": { marketing: ["read"] },
   "marketing/events/page.tsx": { marketing: ["read"] },
   "media/page.tsx": { media: ["read"] },
-  "newsletter/page.tsx": { newsletter: ["read"] },
   "pages/page.tsx": { page: ["read"] },
   "pages/[key]/page.tsx": { page: ["read"] },
   "pages/custom/[id]/page.tsx": { page: ["read"] },

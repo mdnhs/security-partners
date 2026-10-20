@@ -9,7 +9,6 @@ import {
   Info,
   LayoutGrid,
   type LucideIcon,
-  MailPlus,
   MapPin,
   Megaphone,
   Newspaper,
@@ -52,7 +51,6 @@ export const BLOCK_ICONS: Readonly<Record<string, LucideIcon>> = {
   Contact,
   MapPin,
   Type,
-  MailPlus,
 }
 
 /**

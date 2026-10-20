@@ -9,7 +9,6 @@ export const ANALYTICS_EVENTS = [
   "email_click",
   "page_view_virtual",
   "tracking_test",
-  "newsletter_sign_up",
 ] as const
 
 export type AnalyticsEvent =
@@ -19,8 +18,6 @@ export type AnalyticsEvent =
   | { event: "email_click"; link_url: string }
   | { event: "page_view_virtual"; page_path: string; page_title: string }
   | { event: "tracking_test"; test_id: string }
-  /** Newsletter signup accepted (GA4 sign_up; Meta CompleteRegistration). */
-  | { event: "newsletter_sign_up"; method: string }
 
 /**
  * What each event means and what it maps to in GA4 and Meta (Marketing ›
@@ -77,13 +74,6 @@ export const EVENT_CATALOGUE: readonly {
     ga4: "tracking_test",
     meta: null,
   },
-  {
-    event: "newsletter_sign_up",
-    firesWhen: "newsletter signup accepted",
-    params: ["method"],
-    ga4: "sign_up",
-    meta: "CompleteRegistration",
-  },
 ]
 
 /**
@@ -100,7 +90,6 @@ export const GTM_SETUP_STEPS = [
 /** Meta standard event per analytics event (marketing consent only). */
 const META_EVENTS: Partial<Record<AnalyticsEvent["event"], string>> = {
   lead_submitted: "Lead",
-  newsletter_sign_up: "CompleteRegistration",
 }
 
 export type Fbq = ((...args: unknown[]) => void) & {

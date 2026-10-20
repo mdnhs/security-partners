@@ -356,11 +356,8 @@ test.describe.serial("consent and tracking (master 8.3)", () => {
       "GA4",
       "Meta",
     ])
-    // Header + 7 events (newsletter_sign_up joined at the D4 integration).
-    await expect(table.getByRole("row")).toHaveCount(8)
-    await expect(
-      table.getByRole("row").filter({ hasText: "newsletter_sign_up" })
-    ).toContainText("sign_up")
+    // Header + 6 events.
+    await expect(table.getByRole("row")).toHaveCount(7)
     await expect(
       table.getByRole("row").filter({ hasText: "page_view_virtual" })
     ).toContainText("page_view")

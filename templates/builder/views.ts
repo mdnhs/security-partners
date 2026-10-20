@@ -59,8 +59,6 @@ export type BlockViewResult =
   | { type: "contact"; props: ContactProps }
   | { type: "map"; props: LocationMapProps }
   | { type: "richtext"; props: { doc: WithMedia<RichTextDoc> } }
-  /** Rendered by the D4 sign-up form when its copy is available. */
-  | { type: "newsletter"; props: null }
 
 /** The shared Why choose us section (as on /services). */
 function whyChooseUsView(s: SiteSources): WhyChooseUsProps {
@@ -178,8 +176,6 @@ export function blockView(
       return { type: block.type, props: locationMapView(s) }
     case "richtext":
       return { type: block.type, props: { doc: block.data.doc } }
-    case "newsletter":
-      return { type: block.type, props: null }
   }
 }
 

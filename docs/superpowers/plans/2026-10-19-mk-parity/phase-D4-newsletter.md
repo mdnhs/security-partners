@@ -1,5 +1,7 @@
 # Phase D4 — Newsletter
 
+> Newsletter removed 2026-10-20 at owner request (migration `0020_remove_newsletter`).
+
 > Part of `docs/superpowers/plans/2026-10-19-mk-parity.md`. Spec §0 (dated note), §3 ruling 2, §7.4, §8 (0017), §11, §13. Branch `feat/dynamic-platform`. Never push.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.

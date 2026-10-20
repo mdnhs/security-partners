@@ -99,9 +99,13 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   (`node scripts/dist/backup.mjs`, see "Running scripts in the container"):
   migrations only go forward.
 - The MK parity release adds migrations `0010_theme` to
-  `0019_ai_enquiry_details` (theme, AI settings, media alt, SEO robots,
-  redirect admin fields, marketing/custom code, lead attribution,
-  newsletter, builder pages, AI enquiry-details flag). Several carry data
+  `0020_remove_newsletter` (theme, AI settings, media alt, SEO robots,
+  redirect admin fields, marketing/custom code, lead attribution, builder
+  pages, AI enquiry-details flag). Newsletter removed 2026-10-20 at owner
+  request: `0020_remove_newsletter` drops the table `0017` created (its
+  rows are deleted for good: back up first if they must be kept), its
+  settings, job and rate-limit rows, and strips that block from custom
+  pages (a page that showed only it goes back to draft). Several carry data
   migrations (the legacy custom code becomes `necessary` all-routes
   snippets in `0015_marketing`). They must run before the new code serves
   a request: the entrypoint does that on every start. If you start
@@ -397,15 +401,7 @@ re-encrypts the integration secrets for this environment's key.
    the new key are reported, not changed.
 4. Tell staff to sign in again and re-enrol 2FA. Preview links and lead-IP
    rate-limit counters reset (their keys are derived from the secret).
-5. Newsletter: every unsubscribe link already emailed stops working. The
-   link is `<subscriber id>.<HMAC>` keyed by the `newsletter` key derived
-   from `BETTER_AUTH_SECRET`, and `secrets-rotate` does not (cannot)
-   re-issue sent emails; the old key is not accepted after the rotation.
-   A person who asks to be removed after that is deleted by an admin under
-   Newsletter (`newsletter:delete`). The per-email
-   sign-up rate-limit keys reset too. Pending confirm links survive: the
-   confirm token is random and stored as a SHA-256 hash, not derived from
-   the secret. Rotate only when needed (a leak), not on a schedule.
+   Rotate only when needed (a leak), not on a schedule.
 
 ## Rotate the database password or the R2 keys
 
@@ -532,13 +528,6 @@ own process only.
   failures listed) and must be started again after fixing the files. One
   tick may block for up to ~40 s; an object copied to R2 whose database
   update then failed is logged by key and left in the bucket;
-- newsletter purge (`purge-newsletter`, daily): deletes **pending**
-  (never confirmed) sign-ups older than `settings.newsletter.pendingDays`
-  (1–90), counted from `created_at` (a row re-pended after an unsubscribe
-  counts from its latest confirm link). Confirmed and unsubscribed rows are
-  never purged here. Audited as `newsletter.purged` with the count. While
-  `settings.newsletter` is unpublished nothing is purged and the job shows a
-  warning;
 - replaced media files (one `delete-retired-media` row per old file): a
   replaced file stays servable at its old URL for 24 hours (pages already
   open keep their images), then it is deleted. Disconnecting or re-pointing
@@ -706,28 +695,6 @@ per page load. Drafts never run on the site; publishing applies at once.
   contact form sends it only with analytics consent. An invalid value is
   dropped on the server (`[leads] invalid attribution dropped; enquiry
   kept`), never rejecting the enquiry.
-
-## Newsletter
-
-- Sign-up is double opt-in: `POST /api/v1/public/newsletter` stores a
-  pending row and emails a confirm link (rate-limited per IP and per email
-  address; the per-email key is an HMAC, so the table never holds the
-  address).
-- Every state change is a `POST`. Mail gateways pre-fetch links, so the
-  emailed confirm link opens the `/newsletter/confirm` page, whose button
-  POSTs the token; `GET /api/v1/public/newsletter/confirm` (older links)
-  only redirects (303) to that page. Unsubscribe is the same: the
-  `/newsletter/unsubscribe` page POSTs. The pages strip the token from the
-  address bar after load.
-- `/newsletter/*` is sent with `Cache-Control: private, no-store,
-  max-age=0`, `Referrer-Policy: no-referrer` and
-  `X-Robots-Tag: noindex, nofollow` (next.config.ts). A CDN or proxy in
-  front must not cache these pages or strip those headers: the URLs carry
-  tokens. Also keep access-log retention short ("Logs").
-- Settings › Newsletter (placement, copy, `pendingDays`, confirmation
-  email) is owner/admin only. Unconfirmed sign-ups are purged daily
-  ("Background jobs"). Unsubscribe links depend on `BETTER_AUTH_SECRET`
-  ("Rotate BETTER_AUTH_SECRET").
 
 ## AI assistant
 

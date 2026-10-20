@@ -7,7 +7,7 @@ import { builderPages, pages } from "@/server/db/schema"
 import { VISUAL_BUILDER_SLUG } from "./builder-slug"
 
 // /p/visual-fixture (tests/visual/builder-pages.spec.ts): one published
-// builder page with every block except newsletter (D4 renders that one).
+// builder page with every block type.
 // Visual runs only — never `pnpm db:seed`. Media come from the seeded
 // fixed pages, so the screenshots use the same images as the site.
 

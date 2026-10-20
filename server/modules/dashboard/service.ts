@@ -14,10 +14,6 @@ import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
 import { integrationReadState } from "@/server/modules/integrations/service"
-import {
-  countSubscribers,
-  newsletterAcceptsSignups,
-} from "@/server/modules/newsletter/service"
 import { cachedQa, cachedSeoHealth } from "./content-review"
 import { trendDays } from "./days"
 import * as repo from "./repo"
@@ -110,7 +106,6 @@ export async function getDashboard(
     can({ service: ["read"] }) ||
     can({ article: ["read"] })
   const canArticles = can({ article: ["read"] })
-  const canNewsletter = can({ newsletter: ["read"] })
   const canSeo = can({ seo: ["read"] })
   const isOwnerOrAdmin =
     actor.roles.includes("owner") || actor.roles.includes("admin")
@@ -138,8 +133,6 @@ export async function getDashboard(
     jobProblems,
     turnstile,
     ai,
-    subscriberCounts,
-    newsletterLive,
     seoHealth,
     qa,
   ] = await Promise.all([
@@ -169,17 +162,11 @@ export async function getDashboard(
       ? integrationReadState("integrations.turnstile", db)
       : null,
     can({ integration: ["update"] }) ? getAiStatus(actor) : null,
-    canNewsletter ? countSubscribers(now) : null,
-    canNewsletter ? newsletterAcceptsSignups() : false,
     canSeo ? orNull("SEO health", cachedSeoHealth) : null,
     options.qa === false
       ? null
       : orNull("Content QA", () => contentQa(actor, can)),
   ])
-  const subscribers =
-    subscriberCounts && (newsletterLive || subscriberCounts.confirmed > 0)
-      ? subscriberCounts
-      : null
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
   const weekDays = week.days.map((day, i) => ({
@@ -301,7 +288,6 @@ export async function getDashboard(
       published,
       inReview,
       seoScore: seoHealth ? seoHealth.score : null,
-      subscribers,
     },
     enquiriesWeek,
     contentHealth: seoHealth ? contentHealthOf(seoHealth) : null,
