@@ -162,9 +162,12 @@ test("site draft preview shows the draft; public stays default", async ({
     ])
     await tab.waitForURL(`${BASE_URL}/`)
     await expect(tab.locator("style#site-theme")).toHaveCount(1)
-    await expect(tab.locator("style#site-theme")).toContainText(
-      "--color-brand-green:"
-    )
+    // Playwright's text matchers skip <style> content: read it directly.
+    await expect
+      .poll(() =>
+        tab.locator("style#site-theme").evaluate((el) => el.textContent)
+      )
+      .toContain("--color-brand-green:")
 
     // A visitor (no session, no preview) sees the default: nothing emitted.
     const visitor = await browser.newContext()
