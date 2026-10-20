@@ -20,8 +20,10 @@ import * as repo from "./repo"
  * They expire with each publish, unpublish and delete (the public tags
  * the versioning store and the modules already expire), each SEO save and
  * each media change (tag.contentReview). Draft saves never expire caches
- * (they leave the site untouched), so a draft-only change shows within
- * the "minutes" profile's revalidate window (about a minute).
+ * (they leave the site untouched), so a draft-only change shows once the
+ * "minutes" profile revalidates the entry: usually a read or two after a
+ * minute (stale-while-revalidate), and never later than its one-hour
+ * expiry.
  *
  * Neither takes the actor: callers check permissions first and pass the
  * readable scope as plain data (part of the cache key).
