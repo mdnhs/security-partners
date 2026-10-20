@@ -100,6 +100,8 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(
       isPaletteShortcut(key({ key: "k", ctrlKey: true, shiftKey: true }))
     ).toBe(false)
+    // Chrome autofill dispatches a plain "keydown" Event with no key.
+    expect(isPaletteShortcut(new Event("keydown") as KeyboardEvent)).toBe(false)
   })
 
   it("opens with Ctrl+K, searches records and opens the chosen one", async () => {

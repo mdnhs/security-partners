@@ -49,7 +49,7 @@ const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 /** True for ⌘B (macOS) / Ctrl+B (elsewhere). */
 function isSidebarShortcut(event: KeyboardEvent): boolean {
   return (
-    event.key.toLowerCase() === SIDEBAR_KEYBOARD_SHORTCUT &&
+    event.key?.toLowerCase() === SIDEBAR_KEYBOARD_SHORTCUT &&
     (event.metaKey || event.ctrlKey) &&
     !event.altKey &&
     !event.shiftKey

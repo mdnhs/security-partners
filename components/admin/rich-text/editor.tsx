@@ -21,7 +21,7 @@ import { RichTextToolbar } from "./toolbar"
 /** ⌘K (macOS) / Ctrl+K without other modifiers: inside the editor it means "link", not the admin palette. */
 export function isLinkShortcut(event: KeyboardEvent): boolean {
   return (
-    event.key.toLowerCase() === "k" &&
+    event.key?.toLowerCase() === "k" &&
     (event.metaKey || event.ctrlKey) &&
     !event.altKey &&
     !event.shiftKey

@@ -30,4 +30,11 @@ describe("assistant shortcut (⌘J / Ctrl+J)", () => {
     )
     expect(isAssistantShortcut(key("k", { metaKey: true }))).toBe(false)
   })
+
+  it("ignores a keydown without a key (Chrome autofill)", () => {
+    const autofill = { ...key("j", { metaKey: true }), key: undefined }
+    expect(
+      isAssistantShortcut(autofill as unknown as ReturnType<typeof key>)
+    ).toBe(false)
+  })
 })

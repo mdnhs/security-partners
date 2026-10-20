@@ -10,7 +10,7 @@ type KeyLike = Pick<
 /** ⌘J / Ctrl+J (JW parity). TipTap binds no Mod-j, so it works in rich text too. */
 export function isAssistantShortcut(event: KeyLike): boolean {
   return (
-    event.key.toLowerCase() === "j" &&
+    event.key?.toLowerCase() === "j" &&
     (event.metaKey || event.ctrlKey) &&
     !event.altKey &&
     !event.shiftKey

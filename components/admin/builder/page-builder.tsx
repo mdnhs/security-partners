@@ -288,7 +288,10 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
   useEffect(() => {
     if (readOnly) return
     const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key?.toLowerCase() === "s"
+      ) {
         event.preventDefault()
         void autosave.flush()
       }
