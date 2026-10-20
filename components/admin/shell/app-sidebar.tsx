@@ -14,7 +14,7 @@ import {
 import type { NavBadges } from "@/lib/admin/nav"
 
 import { BrandMark } from "./brand-mark"
-import type { SiteInfo } from "./constants"
+import type { AdminBrand, SiteInfo } from "./constants"
 import { type DockProps, FooterDock } from "./footer-dock"
 import { NavMain } from "./nav-main"
 import { useShellSignOut } from "./sign-out-context"
@@ -28,9 +28,12 @@ import { WebsiteCard } from "./website-card"
 export function AppSidebar({
   site,
   badges,
+  brand = null,
 }: {
   site: SiteInfo
   badges?: NavBadges
+  /** The published site logo (panel layout); null = the SP chip. */
+  brand?: AdminBrand | null
 }) {
   const { roles } = useAdminSession()
   const pathname = usePathname()
@@ -49,14 +52,18 @@ export function AppSidebar({
   }
   return (
     <Sidebar variant="floating" collapsible="icon" className="p-4">
-      <SidebarHeader className="px-4 pt-5 pb-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">
+      {/* 18 + 44 + 6 px: the 68 px row of the 40 px chip with 20 + 8 px. */}
+      <SidebarHeader className="px-4 pt-4.5 pb-1.5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">
         <Link
           href="/admin"
           onClick={onNavigate}
-          aria-label="Security Partners admin home"
-          className="rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          aria-label={`${brand?.name || "Security Partners"} admin home`}
+          className="flex min-h-11 items-center rounded-xl outline-none group-data-[collapsible=icon]:min-w-11 group-data-[collapsible=icon]:justify-center focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <BrandMark className="group-data-[collapsible=icon]:[&_[data-slot=brand-name]]:hidden group-data-[collapsible=icon]:[&>span:first-child]:w-10" />
+          <BrandMark
+            brand={brand}
+            className="group-data-[collapsible=icon]:[&_[data-slot=brand-name]]:hidden group-data-[collapsible=icon]:[&>span:first-child]:w-10"
+          />
         </Link>
       </SidebarHeader>
       <SidebarContent>

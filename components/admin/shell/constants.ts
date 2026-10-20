@@ -8,6 +8,25 @@ export type SiteInfo = {
   env: "development" | "staging" | "production"
 }
 
+/**
+ * The site's published logo for the sidebar brand (settings.site, media
+ * resolved server-side by the panel layout). null = the SP chip.
+ */
+export type AdminBrand = {
+  /** settings.site.name: the brand link's accessible name. */
+  name: string
+  logo: {
+    src: string
+    alt: string
+    width: number | null
+    height: number | null
+  }
+  /** settings.site.logoOnDark URL, shown in dark mode when set. */
+  logoOnDark: string | null
+  /** settings.site.logoAnimation URL (Lottie), looped over the logo. */
+  animation: string | null
+}
+
 /** Until the layout passes the configured origin (tests, stories). */
 export const DEFAULT_SITE: SiteInfo = { url: "/", env: "development" }
 

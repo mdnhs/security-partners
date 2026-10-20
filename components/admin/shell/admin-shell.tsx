@@ -18,7 +18,7 @@ import type { ShellNotification } from "@/lib/schemas/api/dashboard"
 
 import { AppSidebar } from "./app-sidebar"
 import { CommandPalette } from "./command-palette"
-import { DEFAULT_SITE, type SiteInfo } from "./constants"
+import { type AdminBrand, DEFAULT_SITE, type SiteInfo } from "./constants"
 import { ImpersonationBanner } from "./impersonation-banner"
 import { CommandPaletteProvider } from "./palette-context"
 import { SectionRail } from "./section-rail"
@@ -44,6 +44,7 @@ export function AdminShell({
   queryClient,
   defaultSidebarOpen = true,
   site = DEFAULT_SITE,
+  brand = null,
   badges,
   assistant,
   notifications,
@@ -55,6 +56,8 @@ export function AdminShell({
   defaultSidebarOpen?: boolean
   /** The public site (website card). */
   site?: SiteInfo
+  /** The published site logo for the sidebar brand; null = the SP chip. */
+  brand?: AdminBrand | null
   /** Counts beside nav items (new unassigned leads). */
   badges?: NavBadges
   /** AI assistant availability for this user (panel layout, server). */
@@ -85,7 +88,7 @@ export function AdminShell({
                   defaultOpen={defaultSidebarOpen}
                   style={{ "--sidebar-width": "20rem" } as CSSProperties}
                 >
-                  <AppSidebar site={site} badges={badges} />
+                  <AppSidebar site={site} badges={badges} brand={brand} />
                   <div className="flex h-svh min-w-0 flex-1 flex-col gap-4 p-3 [--content-h:calc(100svh-112px)] sm:p-4 sm:[--content-h:calc(100svh-120px)] lg:pl-0">
                     {/* One header wrapper: the impersonation banner stacks above
                   the topbar instead of covering it; the sidebar sits beside

@@ -115,8 +115,9 @@ describe("account trigger", () => {
 })
 
 describe("brand chip", () => {
-  it("is a round accent chip with the SP mark", () => {
-    const { container } = render(<BrandMark />)
+  it("is a round accent chip with the SP mark when no logo is published", () => {
+    const { container } = render(<BrandMark brand={null} />)
+    expect(container.querySelector("[data-slot=brand-logo]")).toBeNull()
     const chip = container.querySelector("[data-slot=brand-chip]")
     expect(chip).toHaveClass(
       "size-10",
@@ -135,6 +136,25 @@ describe("brand chip", () => {
       )
     ).toEqual(["S", "P"])
     expect(container).toHaveTextContent("Security Partners")
+  })
+
+  it("gives way to the published logo (the Admin pill stays)", () => {
+    const { container } = render(
+      <BrandMark
+        brand={{
+          name: "Security Partners",
+          logo: { src: "/images/logo.png", alt: "SP", width: 224, height: 136 },
+          logoOnDark: null,
+          animation: null,
+        }}
+      />
+    )
+    expect(container.querySelector("[data-slot=brand-chip]")).toBeNull()
+    const box = container.querySelector("[data-slot=brand-logo]")
+    // Same 40 px row as the chip.
+    expect(box).toHaveClass("h-10")
+    expect(box!.querySelector("img")).toHaveAttribute("src", "/images/logo.png")
+    expect(container).toHaveTextContent("Admin")
   })
 })
 
