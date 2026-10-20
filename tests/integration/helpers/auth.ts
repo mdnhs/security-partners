@@ -88,17 +88,29 @@ export async function signedInUser(roles: Role[]) {
   return { user, cookie }
 }
 
-/** Request to the admin API as a signed-in user (same-origin, JSON). */
+/**
+ * Request to the admin API as a signed-in user (same-origin, JSON).
+ * `rawJson` sends an already-serialised JSON body as-is (e.g. hostile nesting
+ * that JSON.stringify itself would overflow the stack on).
+ */
 export function adminRequest(
   path: string,
-  opts: { cookie?: string; method?: string; json?: unknown } = {}
+  opts: {
+    cookie?: string
+    method?: string
+    json?: unknown
+    rawJson?: string
+  } = {}
 ) {
   const headers: Record<string, string> = { origin: ORIGIN }
   if (opts.cookie) headers.cookie = opts.cookie
-  if (opts.json !== undefined) headers["content-type"] = "application/json"
+  const body =
+    opts.rawJson ??
+    (opts.json === undefined ? undefined : JSON.stringify(opts.json))
+  if (body !== undefined) headers["content-type"] = "application/json"
   return app.request(`/api/v1/admin${path}`, {
     method: opts.method ?? "GET",
     headers,
-    body: opts.json === undefined ? undefined : JSON.stringify(opts.json),
+    body,
   })
 }
