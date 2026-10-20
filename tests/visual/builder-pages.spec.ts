@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { VISUAL_BUILDER_SLUG } from "./builder-fixture"
+import { VISUAL_BUILDER_SLUG } from "./builder-slug"
 import { freezeMotion } from "./freeze-motion"
 
 // Builder pages (D5.3): new baselines only. The 40 public baselines
