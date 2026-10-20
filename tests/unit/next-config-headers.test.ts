@@ -39,6 +39,19 @@ describe("security headers (spec §13)", () => {
       expect(csp).not.toContain(directive)
   })
 
+  it("newsletter token pages: never cached or indexed, never a Referer", async () => {
+    const rules = await nextConfig.headers!()
+    const rule = rules.find((r) => r.source === "/newsletter/:path*")
+    expect(rule).toBeDefined()
+    // After the site-wide rule, so its Referrer-Policy wins.
+    expect(rules.indexOf(rule!)).toBeGreaterThan(0)
+    expect(asObject(rule!.headers)).toEqual({
+      "Cache-Control": "private, no-store, max-age=0",
+      "Referrer-Policy": "no-referrer",
+      "X-Robots-Tag": "noindex, nofollow",
+    })
+  })
+
   it("forbids framing the admin at all (the later rule wins)", async () => {
     const rules = await nextConfig.headers!()
     expect(rules.at(-1)).toEqual({

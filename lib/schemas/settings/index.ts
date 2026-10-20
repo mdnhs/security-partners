@@ -13,6 +13,7 @@ import { footerSettings } from "./footer"
 import { leadsSettings } from "./leads"
 import { microcopySettings } from "./microcopy"
 import { navigationSettings } from "./navigation"
+import { newsletterSettings } from "./newsletter"
 import { seoDefaultsSettings } from "./seo-defaults"
 import { siteSettings } from "./site"
 import { trackingSettings } from "./tracking"
@@ -38,6 +39,7 @@ export const settingsSchemas = {
   // Appearance (lib/theme): edited only through /api/v1/admin/appearance,
   // never public/editable here.
   theme: ThemeConfig,
+  newsletter: newsletterSettings,
 } as const
 
 export type SettingsKey = keyof typeof settingsSchemas

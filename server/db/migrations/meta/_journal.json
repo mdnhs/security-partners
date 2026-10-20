@@ -124,8 +124,15 @@
     {
       "idx": 17,
       "version": "7",
+      "when": 1792442099538,
+      "tag": "0017_newsletter",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
       "when": 1792443402315,
-      "tag": "0017_ai_enquiry_details",
+      "tag": "0018_ai_enquiry_details",
       "breakpoints": true
     }
   ]

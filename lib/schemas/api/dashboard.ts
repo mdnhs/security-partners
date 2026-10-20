@@ -5,6 +5,12 @@ export type DashboardDto = {
     openLeads: number | null
     published: { pages: number; services: number; articles: number } | null
     inReview: number | null
+    /**
+     * Confirmed newsletter subscribers (newsletter:read), and those confirmed
+     * in the last 30 days. Null too while no placement is on and nobody has
+     * confirmed: the KPI would only ever read 0.
+     */
+    subscribers: { confirmed: number; since30d: number } | null
   }
   /** One entry per day (Europe/Dublin), oldest first, 90 days ending today. */
   leadsTrend: { date: string; count: number }[] | null

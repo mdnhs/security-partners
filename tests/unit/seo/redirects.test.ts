@@ -101,6 +101,10 @@ describe("redirect rules", () => {
       "/a%zz",
       "/ADMIN/x",
       "/Api",
+      // Newsletter state pages (D4.2) belong to the site.
+      "/newsletter",
+      "/newsletter/confirmed",
+      "/Newsletter/unsubscribe",
     ])
       expect(fromPathProblem(bad), bad).not.toBeNull()
   })

@@ -43,6 +43,7 @@ const SCREENS: { path: string; permission: PermissionRequest }[] = [
     permission: { integration: ["read"] },
   },
   { path: "/admin/leads", permission: { lead: ["read"] } },
+  { path: "/admin/newsletter", permission: { newsletter: ["read"] } },
   { path: "/admin/users", permission: { user: ["read"] } },
   { path: "/admin/activity", permission: { audit: ["read"] } },
   { path: "/admin/marketing/code", permission: { customCode: ["read"] } },

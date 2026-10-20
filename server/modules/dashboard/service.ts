@@ -11,6 +11,10 @@ import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
 import { integrationReadState } from "@/server/modules/integrations/service"
+import {
+  countSubscribers,
+  newsletterAcceptsSignups,
+} from "@/server/modules/newsletter/service"
 
 import { trendDays } from "./days"
 import * as repo from "./repo"
@@ -35,6 +39,7 @@ export async function getDashboard(
     can({ service: ["read"] }) ||
     can({ article: ["read"] })
   const canArticles = can({ article: ["read"] })
+  const canNewsletter = can({ newsletter: ["read"] })
   const isOwnerOrAdmin =
     actor.roles.includes("owner") || actor.roles.includes("admin")
   const days = trendDays(now)
@@ -55,6 +60,8 @@ export async function getDashboard(
     jobProblems,
     turnstile,
     ai,
+    subscriberCounts,
+    newsletterLive,
   ] = await Promise.all([
     canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
     canLeads ? repo.countOpenLeads(db) : null,
@@ -71,7 +78,13 @@ export async function getDashboard(
       ? integrationReadState("integrations.turnstile", db)
       : null,
     can({ integration: ["update"] }) ? getAiStatus(actor) : null,
+    canNewsletter ? countSubscribers(now) : null,
+    canNewsletter ? newsletterAcceptsSignups() : false,
   ])
+  const subscribers =
+    subscriberCounts && (newsletterLive || subscriberCounts.confirmed > 0)
+      ? subscriberCounts
+      : null
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
   const nextUp: NextUpItem[] = []
@@ -156,7 +169,7 @@ export async function getDashboard(
     })
 
   return {
-    kpis: { leads30d, openLeads, published, inReview },
+    kpis: { leads30d, openLeads, published, inReview, subscribers },
     leadsTrend: perDay
       ? days.map((date) => ({ date, count: byDay.get(date) ?? 0 }))
       : null,

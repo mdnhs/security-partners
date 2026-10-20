@@ -1,3 +1,4 @@
+import { MailIcon } from "lucide-react"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -32,6 +33,29 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     expect(badged.map((item) => [item.id, item.badgeLabel])).toEqual([
       ["leads", "new enquiries"],
     ])
+  })
+
+  it("Newsletter sits in Menu after Enquiries, for newsletter readers (D4.3)", () => {
+    const item = NAV_ITEMS.find((i) => i.id === "newsletter")!
+    expect(item).toMatchObject({
+      group: "menu",
+      label: "Newsletter",
+      href: "/admin/newsletter",
+      icon: MailIcon,
+      permission: { newsletter: ["read"] },
+      match: "prefix",
+      keywords: ["subscribers", "mailing list", "email"],
+    })
+    expect(permissionFor("/admin/newsletter")).toEqual({
+      newsletter: ["read"],
+    })
+    const menu = (roles: Parameters<typeof visibleNav>[0]) =>
+      visibleNav(roles)
+        .find((g) => g.group === "menu")
+        ?.items.map((i) => i.id) ?? []
+    expect(menu(["marketer"])).toContain("newsletter")
+    expect(menu(["editor"])).not.toContain("newsletter")
+    expect(menu(["intake"])).not.toContain("newsletter")
   })
 
   it("Insights holds Articles and Categories; Collections the rest", () => {
@@ -70,6 +94,7 @@ describe("nav registry (MK IA, spec §5.1)", () => {
       "collections",
       "media",
       "leads",
+      "newsletter",
       "seo",
       "marketing",
       "appearance",

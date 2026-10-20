@@ -30,6 +30,8 @@ import { internalRoutes } from "@/server/modules/internal/routes"
 import { leadsRoutes, publicLeadsRoutes } from "@/server/modules/leads/routes"
 import { marketingRoutes } from "@/server/modules/marketing/routes"
 import { mediaFileRoutes, mediaRoutes } from "@/server/modules/media/routes"
+import { publicNewsletterRoutes } from "@/server/modules/newsletter/public-routes"
+import { newsletterRoutes } from "@/server/modules/newsletter/routes"
 import { pagesRoutes } from "@/server/modules/pages/routes"
 import {
   adminPreviewRoutes,
@@ -73,6 +75,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/seo", seoRoutes)
   .route("/ai", aiRoutes)
   .route("/appearance", themeRoutes)
+  .route("/newsletter", newsletterRoutes)
 export type AdminApi = typeof adminRoutes
 
 /** Builds the API. Mount order follows spec §7; Phase 2 adds Better Auth + session middleware. */
@@ -99,6 +102,7 @@ export function createApp() {
   // 3. Public endpoints: 64 KB body; leads add their own DB rate limit
   api.use("/v1/public/*", limitBody("public"))
   api.route("/v1/public/leads", publicLeadsRoutes)
+  api.route("/v1/public/newsletter", publicNewsletterRoutes)
 
   // 4. Admin endpoints: session → signed in → same origin → body limit (1 MB; uploads 20 MB)
   api.use(

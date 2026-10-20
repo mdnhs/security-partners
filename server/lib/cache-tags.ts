@@ -18,6 +18,8 @@ export const tag = {
   settings: (key: SettingsKey) => `settings:${key}`,
   redirects: "redirects",
   media: (id: string) => `media:${id}`,
+  /** Newsletter subscriber counts (admin dashboard only). */
+  newsletter: "newsletter",
 } as const
 
 /**

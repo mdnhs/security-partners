@@ -62,6 +62,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/((?!api/).*)", headers: SECURITY_HEADERS },
+      // Newsletter confirm/unsubscribe pages carry a token in the URL: never
+      // stored by a cache, sent on as a Referer, or indexed. Next only sets
+      // its own Cache-Control when none is set (send-payload.js).
+      {
+        source: "/newsletter/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
       // The admin is never framed (later rules override the same key).
       {
         source: "/admin/:path*",

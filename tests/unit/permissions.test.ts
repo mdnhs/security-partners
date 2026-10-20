@@ -68,6 +68,9 @@ const EXPECTED: Record<Role, string[]> = {
     "appearance:read",
     "appearance:update",
     "appearance:publish",
+    "newsletter:read",
+    "newsletter:export",
+    "newsletter:delete",
   ],
   admin: [
     "page:read",
@@ -122,6 +125,9 @@ const EXPECTED: Record<Role, string[]> = {
     "appearance:read",
     "appearance:update",
     "appearance:publish",
+    "newsletter:read",
+    "newsletter:export",
+    "newsletter:delete",
   ],
   editor: [
     "page:read",
@@ -181,6 +187,8 @@ const EXPECTED: Record<Role, string[]> = {
     "marketing:update",
     "ai:use",
     "appearance:read",
+    "newsletter:read",
+    "newsletter:export",
   ],
   intake: ["lead:read", "lead:update", "lead:export", "ai:use"],
   viewer: [
@@ -273,6 +281,16 @@ describe("hasPermission", () => {
       expect(hasPermission([role], { owner: ["manage"] })).toBe(
         role === "owner"
       )
+  })
+
+  it("newsletter: owner/admin all; marketer read+export; nobody else", () => {
+    for (const role of ROLES) {
+      const full = role === "owner" || role === "admin"
+      const read = full || role === "marketer"
+      expect(hasPermission([role], { newsletter: ["read"] })).toBe(read)
+      expect(hasPermission([role], { newsletter: ["export"] })).toBe(read)
+      expect(hasPermission([role], { newsletter: ["delete"] })).toBe(full)
+    }
   })
 
   it("customCode (read and update) is owner-only", () => {

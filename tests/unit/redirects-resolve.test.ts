@@ -37,6 +37,24 @@ describe("resolvePublicPath (proxy.ts)", () => {
     expect(repo.findRedirectByFrom).not.toHaveBeenCalled()
   })
 
+  it("newsletter state pages pass without a query; other /newsletter paths are missing", async () => {
+    for (const path of [
+      "/newsletter/confirm",
+      "/newsletter/confirmed",
+      "/newsletter/invalid",
+      "/newsletter/unsubscribe",
+      "/newsletter/unsubscribed",
+    ])
+      expect(await resolvePublicPath(path, live), path).toEqual({
+        kind: "pass",
+      })
+    for (const path of ["/newsletter", "/newsletter/nope", "/newsletter/a/b"])
+      expect(await resolvePublicPath(path, live), path).toEqual({
+        kind: "missing",
+      })
+    expect(repo.findRedirectByFrom).not.toHaveBeenCalled()
+  })
+
   it("a published slug passes; an unknown one is missing", async () => {
     repo.isPublishedSlug.mockResolvedValueOnce(true)
     expect(await resolvePublicPath("/services/alarm-responses", live)).toEqual({

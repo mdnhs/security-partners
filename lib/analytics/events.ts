@@ -9,6 +9,7 @@ export const ANALYTICS_EVENTS = [
   "email_click",
   "page_view_virtual",
   "tracking_test",
+  "newsletter_sign_up",
 ] as const
 
 export type AnalyticsEvent =
@@ -18,6 +19,8 @@ export type AnalyticsEvent =
   | { event: "email_click"; link_url: string }
   | { event: "page_view_virtual"; page_path: string; page_title: string }
   | { event: "tracking_test"; test_id: string }
+  /** Newsletter signup accepted (GA4 sign_up; Meta CompleteRegistration). */
+  | { event: "newsletter_sign_up"; method: string }
 
 /**
  * What each event means and what it maps to in GA4 and Meta (Marketing ›
@@ -90,6 +93,12 @@ export const GTM_SETUP_STEPS = [
   "Send GA4 through the container or through the Google Analytics 4 switch on the Tracking page, not both.",
 ] as const
 
+/** Meta standard event per analytics event (marketing consent only). */
+const META_EVENTS: Partial<Record<AnalyticsEvent["event"], string>> = {
+  lead_submitted: "Lead",
+  newsletter_sign_up: "CompleteRegistration",
+}
+
 export type Fbq = ((...args: unknown[]) => void) & {
   callMethod?: (...args: unknown[]) => void
   queue: unknown[][]
@@ -148,8 +157,9 @@ export function track(
     }
     sent = true
   }
-  if (consent.marketing && event.event === "lead_submitted" && win.fbq) {
-    win.fbq("track", "Lead")
+  const metaEvent = META_EVENTS[event.event]
+  if (consent.marketing && metaEvent && win.fbq) {
+    win.fbq("track", metaEvent)
     sent = true
   }
   return sent

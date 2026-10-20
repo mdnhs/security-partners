@@ -1,5 +1,6 @@
 import "server-only"
 
+import { isNewsletterState } from "@/lib/newsletter/placement"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 import {
   FILE_EXTENSION,
@@ -40,6 +41,8 @@ const PASS = { kind: "pass" } as const
 const MISSING = { kind: "missing" } as const
 const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
+/** /newsletter is reserved (lib/seo/redirects): no redirect can live under it. */
+const NEWSLETTER = /^\/newsletter(?:\/(.*))?$/
 
 /**
  * Only the SQLSTATE (or the error's class) is logged: a driver message can
@@ -122,6 +125,13 @@ export async function resolvePublicPath(
     FILE_EXTENSION.test(pathname)
   )
     return PASS
+  // The four state pages pass; anything else under /newsletter is a real 404
+  // (the page's own notFound() would stream as a 200).
+  const newsletter = NEWSLETTER.exec(pathname)
+  if (newsletter)
+    return newsletter[1] !== undefined && isNewsletterState(newsletter[1])
+      ? PASS
+      : MISSING
   const detail = DETAIL.exec(pathname)
   if (detail && options.draft) return PASS
   try {

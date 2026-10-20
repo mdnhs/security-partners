@@ -18,10 +18,16 @@ export const EDITABLE_SETTINGS_KEYS = [
   "sections.clients",
   "sections.whyChooseUs",
   "leads",
+  "newsletter",
 ] as const satisfies readonly SettingsKey[]
 export type EditableSettingsKey = (typeof EDITABLE_SETTINGS_KEYS)[number]
 
-export const SETTINGS_GROUPS = ["General", "Shared sections", "Leads"] as const
+export const SETTINGS_GROUPS = [
+  "General",
+  "Shared sections",
+  "Leads",
+  "Forms",
+] as const
 export type SettingsGroup = (typeof SETTINGS_GROUPS)[number]
 
 /** Content keys: editors may change them (spec §6.1). */
@@ -119,6 +125,17 @@ export const SETTINGS_ENTRIES: Record<
     read: { settings: ["read"] },
     // Operational, not content: editors cannot change it (spec §6.1).
     update: { settings: ["update"], lead: ["update"] },
+  },
+  newsletter: {
+    label: "Newsletter",
+    description:
+      "Turning on a placement adds the signup form to the public site.",
+    group: "Forms",
+    read: { settings: ["read"] },
+    // Operational, not content (like leads): the placement starts collecting
+    // personal data on the public site and pendingDays drives deletion, so
+    // only owner/admin (newsletter:delete) change it.
+    update: { settings: ["update"], newsletter: ["delete"] },
   },
 }
 
