@@ -1464,9 +1464,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       // The pinned lead is unassigned. A shadcn Select shows only its
       // value (full width, whatever the options), so the assignee list
       // loading never changes the shot.
-      await expect(drawer.getByLabel("Assigned to")).toContainText(
-        "Unassigned"
-      )
+      await expect(drawer.getByLabel("Assigned to")).toContainText("Unassigned")
       await page.evaluate(() => document.fonts.ready)
       await expect(page).toHaveScreenshot(shot("lead-drawer"), {
         mask: await masks(page),
