@@ -98,6 +98,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     expect(children(["owner"], "marketing")).toEqual([
       "Tracking",
       "Consent banner",
+      "Event catalogue",
       "Custom code",
     ])
     // Custom code stays owner-only.
@@ -105,6 +106,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
       expect(children([role], "marketing")).toEqual([
         "Tracking",
         "Consent banner",
+        "Event catalogue",
       ])
     expect(children(["editor"], "seo")).toEqual(["Overview", "Defaults"])
     expect(children(["marketer"], "seo")).toEqual([

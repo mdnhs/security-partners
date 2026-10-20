@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -18,9 +19,11 @@ import {
   consentModeUpdate,
   cookieValue,
   readConsent,
+  recordedChoice,
   withdrawn,
 } from "@/lib/analytics/consent"
 import type { AnalyticsWindow } from "@/lib/analytics/events"
+import { CONSENT_EVENT } from "@/lib/analytics/snippets"
 
 /** Server render and hydration: the cookie is not known yet. */
 const PENDING = "pending" as const
@@ -46,8 +49,10 @@ export function useConsent(): ConsentContextValue {
 }
 
 /** The visitor's choice: read once from the cookie, then kept in memory. */
-function createStore() {
+function createStore(version: number, maxAgeSeconds: number) {
   let value: ConsentChoice | null | undefined
+  /** A cookie's choice that no longer counts (other version, too old). */
+  let lapsed: ConsentChoice | null = null
   const listeners = new Set<() => void>()
   const publish = (next: ConsentChoice | null) => {
     value = next
@@ -61,13 +66,17 @@ function createStore() {
       }
     },
     get(): ConsentChoice | null {
-      if (value === undefined)
-        publish(
-          readConsent(cookieValue(document.cookie, CONSENT_COOKIE), Date.now())
-        )
+      if (value === undefined) {
+        const raw = cookieValue(document.cookie, CONSENT_COOKIE)
+        const current = readConsent(raw, Date.now(), version, maxAgeSeconds)
+        if (current === null) lapsed = recordedChoice(raw)
+        publish(current)
+      }
       return value ?? null
     },
+    lapsed: () => lapsed,
     set(next: ConsentChoice) {
+      lapsed = null
       publish(next)
       for (const listener of listeners) listener()
     },
@@ -78,32 +87,50 @@ const serverSnapshot = (): ConsentState => PENDING
 
 /**
  * Rendered only when tracking is enabled (components/site-extras.tsx).
- * Stores the choice in the sp_consent cookie for 6 months, mirrors it to
+ * Stores the choice in the sp_consent cookie for the re-consent interval,
+ * under the published consent version (a cookie of another version counts
+ * as no choice, so the banner asks again and nothing loads), mirrors it to
  * Google Consent Mode, and reloads after a withdrawal (running tags cannot
  * be unloaded; their cookies are cleared first).
  */
 export function ConsentProvider({
   children,
+  version,
+  maxAgeSeconds,
   reload = () => window.location.reload(),
 }: {
   children: ReactNode
+  /** settings.consent.version (published). */
+  version: number
+  /** consentMaxAgeSeconds(settings.consent.reconsentMonths). */
+  maxAgeSeconds: number
   reload?: () => void
 }) {
-  const [store] = useState(createStore)
+  // Read once: the layout persists across soft navigation, so a newly
+  // published version or interval applies from the next full page load.
+  const [store] = useState(() => createStore(version, maxAgeSeconds))
   const choice = useSyncExternalStore<ConsentState>(
     store.subscribe,
     store.get,
     serverSnapshot
   )
   const [reopened, setReopened] = useState(false)
+  // Custom code snippets wait on this (components/consent/custom-code.tsx).
+  // Dispatched after commit, never during render: listeners run third-party
+  // snippet code. Once the stored choice is known, then after each choice.
+  useEffect(() => {
+    if (choice === PENDING) return
+    window.dispatchEvent(new CustomEvent(CONSENT_EVENT, { detail: choice }))
+  }, [choice])
   const save = useCallback(
     (next: ConsentChoice) => {
       const previous = store.get()
-      document.cookie = consentCookie(
-        next,
-        Date.now(),
-        window.location.protocol === "https:"
-      )
+      const lapsed = store.lapsed()
+      document.cookie = consentCookie(next, Date.now(), {
+        version,
+        maxAgeSeconds,
+        secure: window.location.protocol === "https:",
+      })
       store.set(next)
       ;(window as AnalyticsWindow).gtag?.(
         "consent",
@@ -114,9 +141,14 @@ export function ConsentProvider({
       if (withdrawn(previous, next)) {
         clearTrackingCookies(document, window.location.hostname)
         reload()
+      } else if (withdrawn(lapsed, next)) {
+        // Re-consent (new version or interval over) answered with Reject:
+        // the old choice's GA/Meta cookies go too. Nothing has loaded
+        // under the new version, so no reload is needed.
+        clearTrackingCookies(document, window.location.hostname)
       }
     },
-    [store, reload]
+    [store, reload, version, maxAgeSeconds]
   )
   const value = useMemo<ConsentContextValue>(
     () => ({

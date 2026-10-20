@@ -27,6 +27,7 @@ import { groupCompanySchema } from "@/lib/schemas/content/group-company"
 import { serviceSchema } from "@/lib/schemas/content/service"
 import { teamMemberSchema } from "@/lib/schemas/content/team-member"
 import { settingsSchemas } from "@/lib/schemas/settings"
+import * as customCodeModule from "@/lib/schemas/settings/custom-code"
 import { templateEditorMeta } from "@/templates/editor-meta"
 import { templates } from "@/templates/registry"
 
@@ -234,5 +235,34 @@ describe("editor meta helpers", () => {
       type: "doc",
       content: [{ type: "paragraph" }],
     })
+  })
+})
+
+describe("custom code snippets in SchemaForm (D2.3)", () => {
+  it("a new snippet starts with a fresh, valid uuid; other strings stay empty", () => {
+    const { snippet } = customCodeModule
+    const a = emptyValue(snippet) as { id: string; name: string }
+    const b = emptyValue(snippet) as { id: string }
+    expect(z.uuid().safeParse(a.id).success).toBe(true)
+    expect(a.id).not.toBe(b.id)
+    expect(a.name).toBe("")
+    expect(emptyValue(z.string())).toBe("")
+    // Only the snippet id is generated: any other uuid (a reference)
+    // starts empty and fails "required" until chosen.
+    expect(emptyValue(z.uuid())).toBe("")
+    expect(emptyValue(z.object({ id: z.uuid() }))).toEqual({ id: "" })
+  })
+
+  it("meta.required makes a defaulted field required (review D2.2 I1)", () => {
+    const field = resolveWidget(
+      z.number().default(1),
+      { required: true },
+      "version",
+      "version"
+    )
+    expect(field.optional).toBe(false)
+    expect(
+      resolveWidget(z.number().default(1), {}, "version", "version").optional
+    ).toBe(true)
   })
 })

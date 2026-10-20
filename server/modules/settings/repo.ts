@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, getTableColumns, inArray } from "drizzle-orm"
+import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { settings, users } from "@/server/db/schema"
@@ -56,4 +56,31 @@ export async function updateSettingsIfVersion(
     .where(and(eq(settings.key, key), eq(settings.version, version)))
     .returning({ key: settings.key })
   return updated ? findSettingsForEdit(db, key) : null
+}
+
+const DISABLED = sql`'{"disabled":true}'::jsonb`
+
+/**
+ * Kill switch (pnpm custom-code:off): sets `disabled` on the customCode
+ * draft and published value (an unpublished or non-object value is left
+ * as is), bumps the version so an open editor gets a conflict instead of
+ * overwriting it, and clears updatedBy (no actor). False when there is no
+ * customCode row.
+ */
+export async function disableCustomCode(
+  db: DbOrTx,
+  now: Date
+): Promise<boolean> {
+  const updated = await db
+    .update(settings)
+    .set({
+      draft: sql`CASE WHEN jsonb_typeof(${settings.draft}) = 'object' THEN ${settings.draft} || ${DISABLED} ELSE ${settings.draft} END`,
+      published: sql`CASE WHEN jsonb_typeof(${settings.published}) = 'object' THEN ${settings.published} || ${DISABLED} ELSE ${settings.published} END`,
+      version: sql`${settings.version} + 1`,
+      updatedBy: null,
+      updatedAt: now,
+    })
+    .where(eq(settings.key, "customCode"))
+    .returning({ key: settings.key })
+  return updated.length > 0
 }

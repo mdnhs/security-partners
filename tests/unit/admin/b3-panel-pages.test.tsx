@@ -43,6 +43,21 @@ vi.mock("@/components/admin/integrations/migrate-media-panel", () => ({
 vi.mock("@/components/admin/seo/growth-settings-editor", () => ({
   GrowthSettingsEditor: () => null,
 }))
+vi.mock("@/components/admin/marketing/tracking-editor", () => ({
+  TrackingEditor: () => null,
+}))
+vi.mock("@/components/admin/marketing/consent-editor", () => ({
+  ConsentEditor: () => null,
+}))
+vi.mock("@/components/admin/marketing/snippets-editor", () => ({
+  SnippetsEditor: () => null,
+}))
+const published = vi.hoisted(() => ({
+  customCode: null as unknown,
+}))
+vi.mock("@/server/modules/settings/queries", () => ({
+  getPublishedSettings: vi.fn(async () => published.customCode),
+}))
 vi.mock("@/components/admin/audit/audit-screen", () => ({
   AuditScreen: () => null,
 }))
@@ -50,12 +65,18 @@ vi.mock("@/components/admin/audit/audit-screen", () => ({
 import CollectionsPage from "@/app/(admin)/admin/(panel)/collections/page"
 import ActivityPage from "@/app/(admin)/admin/(panel)/activity/page"
 import MarketingCodePage from "@/app/(admin)/admin/(panel)/marketing/code/page"
+import MarketingConsentPage from "@/app/(admin)/admin/(panel)/marketing/consent/page"
+import MarketingEventsPage from "@/app/(admin)/admin/(panel)/marketing/events/page"
 import MarketingPage from "@/app/(admin)/admin/(panel)/marketing/page"
 import SettingsKeyPage from "@/app/(admin)/admin/(panel)/settings/[key]/page"
 import AiAssistantPage from "@/app/(admin)/admin/(panel)/settings/ai-assistant/page"
 import IntegrationPage from "@/app/(admin)/admin/(panel)/settings/integrations/[slug]/page"
 import SettingsPage from "@/app/(admin)/admin/(panel)/settings/page"
 import { AiSettingsView } from "@/components/admin/ai/ai-settings-view"
+import { ConsentEditor } from "@/components/admin/marketing/consent-editor"
+import { EventsView } from "@/components/admin/marketing/events-view"
+import { SnippetsEditor } from "@/components/admin/marketing/snippets-editor"
+import { TrackingEditor } from "@/components/admin/marketing/tracking-editor"
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import { permissionFor } from "@/lib/admin/nav"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
@@ -141,14 +162,42 @@ describe("moved pages", () => {
     expect(session.requirePermission).toHaveBeenCalledWith(
       GROWTH_SETTINGS.tracking.read
     )
-    expect(out!.props).toMatchObject({ settingsKey: "tracking" })
+    expect(out!.type).toBe(TrackingEditor)
     expect(out!.props).not.toHaveProperty("backHref")
   })
 
-  it("/admin/marketing/code is Custom code, owner only", async () => {
-    const out = await inner(MarketingCodePage())
-    expect(out!.props).toMatchObject({ settingsKey: "customCode" })
+  it("/admin/marketing/consent is the Consent editor with its live preview (D2.2)", async () => {
+    const out = await inner(MarketingConsentPage())
+    expect(session.requirePermission).toHaveBeenCalledWith(
+      GROWTH_SETTINGS.consent.read
+    )
+    expect(out!.type).toBe(ConsentEditor)
     expect(out!.props).not.toHaveProperty("backHref")
+  })
+
+  it("/admin/marketing/events is the Event catalogue, for marketing readers (D2.4)", async () => {
+    session.roles = ["marketer"]
+    const out = await inner(MarketingEventsPage())
+    expect(session.requirePermission).toHaveBeenCalledWith({
+      marketing: ["read"],
+    })
+    expect(permissionFor("/admin/marketing/events")).toEqual({
+      marketing: ["read"],
+    })
+    expect(out!.type).toBe(EventsView)
+    session.roles = ["author"]
+    await expect(inner(MarketingEventsPage())).rejects.toThrow("FORBIDDEN")
+  })
+
+  it("/admin/marketing/code is Custom code, owner only; banner while switched off (D2.3)", async () => {
+    published.customCode = null
+    let out = await inner(MarketingCodePage())
+    expect(out!.type).toBe(SnippetsEditor)
+    expect(out!.props).toMatchObject({ killSwitchOn: false })
+    expect(out!.props).not.toHaveProperty("backHref")
+    published.customCode = { disabled: true, allowedHosts: [], snippets: [] }
+    out = await inner(MarketingCodePage())
+    expect(out!.props).toMatchObject({ killSwitchOn: true })
     session.roles = ["marketer"]
     await expect(inner(MarketingCodePage())).rejects.toThrow("FORBIDDEN")
   })

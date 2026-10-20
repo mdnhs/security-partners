@@ -3,6 +3,8 @@ import { interpolate } from "@/lib/interpolate"
 import {
   type ConsentSettings,
   DEFAULT_CLOSE_LABEL,
+  DEFAULT_CONSENT_VERSION,
+  DEFAULT_RECONSENT_MONTHS,
 } from "@/lib/schemas/settings/consent"
 
 import type { SiteSources } from "./sources"
@@ -36,5 +38,7 @@ export function consentBannerCopy(
       analytics: category(consent.categories.analytics),
       marketing: category(consent.categories.marketing),
     },
+    version: consent.version ?? DEFAULT_CONSENT_VERSION,
+    reconsentMonths: consent.reconsentMonths ?? DEFAULT_RECONSENT_MONTHS,
   }
 }

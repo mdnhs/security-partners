@@ -225,9 +225,19 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
           description: "Lets us measure our advertising.",
         },
       },
+      version: 1,
+      reconsentMonths: 6,
     },
-    tracking: { enabled: false, gtmId: null, ga4Id: null, metaPixelId: null },
-    customCode: { headHtml: "", bodyEndHtml: "" },
+    tracking: {
+      enabled: false,
+      gtmEnabled: false,
+      gtmId: null,
+      ga4Enabled: false,
+      ga4Id: null,
+      metaEnabled: false,
+      metaPixelId: null,
+    },
+    customCode: { disabled: false, allowedHosts: [], snippets: [] },
     microcopy: {
       header: { phone24hLabel: "24 Hour Number:", hoursLabel: "Office hours:" },
       aria: {

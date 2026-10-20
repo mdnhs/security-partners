@@ -1,5 +1,5 @@
 {
-  "id": "a61c8461-a8b7-4fb6-a513-76d61587b6d5",
+  "id": "61ae1745-e947-437d-875c-e2826fb3f890",
   "prevId": "67b08b79-9480-4f7e-8d5c-fdd6b6140c02",
   "version": "7",
   "dialect": "postgresql",
@@ -2454,13 +2454,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "enquiry_details": {
-          "name": "enquiry_details",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {

@@ -1,0 +1,44 @@
+/*
+ * The consent banner preview's utilities (Marketing › Consent banner).
+ * The admin stylesheet never scans the public components or reads the
+ * public tokens (spec 2026-10-19-mk-parity §4.1), so the banner's classes
+ * are built here, for the banner's own files only, and scoped to the
+ * preview frame: no utility applies outside [data-consent-preview].
+ * Exception: Tailwind also emits its global `@property --tw-*` rules and
+ * the `@layer properties` fallback (`*, ::before, ::after, ::backdrop`).
+ * They are identical to what admin.css emits only while both are built by
+ * the same Tailwind version: keep this file and admin.css in lockstep.
+ * The preview also inherits the admin font, not the public body font, so
+ * line wraps can differ slightly from the live banner (known difference).
+ * Theme values are inlined (the admin does not define the public scale);
+ * the brand colours stay variables, set on the frame by
+ * BANNER_PREVIEW_STYLE (lib/analytics/banner-preview-style.ts).
+ */
+/* The admin's layer order, whichever stylesheet loads first. */
+@layer properties, theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" theme(reference inline);
+
+@theme inline reference {
+  --color-brand-navy: var(--color-brand-navy);
+  --color-brand-blue: var(--color-brand-blue);
+  --color-brand-blue-deep: var(--color-brand-blue-deep);
+  --color-brand-green: var(--color-brand-green);
+  --color-brand-green-dark: var(--color-brand-green-dark);
+  --color-brand-mint: var(--color-brand-mint);
+  --color-brand-surface: var(--color-brand-surface);
+  --color-brand-line: var(--color-brand-line);
+  --color-brand-ink: var(--color-brand-ink);
+  --color-brand-muted: var(--color-brand-muted);
+  --color-brand-placeholder: var(--color-brand-placeholder);
+  --color-brand-map: var(--color-brand-map);
+}
+
+@source "../../consent/consent-banner-view.tsx";
+@source "../../ui/button.tsx";
+
+@layer utilities {
+  @scope ([data-consent-preview]) {
+    @tailwind utilities source(none);
+  }
+}

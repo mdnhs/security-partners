@@ -10,6 +10,7 @@ import {
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { GrowthSettingsDto } from "@/lib/schemas/api/marketing"
 import { settingsSchemas } from "@/lib/schemas/settings"
+import { consentSettings } from "@/lib/schemas/settings/consent"
 import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { tag } from "@/server/lib/cache-tags"
@@ -74,8 +75,10 @@ const storeFor = (actor: Actor): VersionedStore<unknown, Row> => ({
   find: async (db, key) => asVersioned(await findSettingsForEdit(db, key)),
   update: async (db, key, version, patch) =>
     asVersioned(await updateSettingsIfVersion(db, key, version, patch)),
-  authorizeWrite: (row, next, action) =>
-    assertMayChangeTrackingTags(actor, row, next, action),
+  authorizeWrite: (row, next, action) => {
+    assertMayChangeTrackingTags(actor, row, next, action)
+    assertConsentVersionKept(row, next)
+  },
   tags: (row) => [tag.settings(row.key as GrowthSettingsKey)],
   present: (row) => toDto(actor, row),
 })
@@ -100,6 +103,25 @@ function assertMayChangeTrackingTags(
       "FORBIDDEN",
       "Only an owner can change the Tag Manager, Analytics or Meta Pixel ID"
     )
+}
+
+/**
+ * Review D2.2 I1: a consent version below the published one would make
+ * cookies stored under that older version count again (consent given for
+ * other purposes revived without asking). Save, publish and restore all
+ * refuse it; `next` is already parsed, so a blank field arrives as the
+ * schema default 1 and is refused too. Unpublished consent has no floor.
+ */
+function assertConsentVersionKept(row: Row, next: unknown) {
+  if (row.key !== "consent") return
+  const live = consentSettings.safeParse(row.published)
+  if (!live.success) return
+  const version = (next as { version?: unknown } | null)?.version
+  if (typeof version !== "number" || version >= live.data.version) return
+  const message = `Can't go below ${live.data.version}, the published version: visitors who chose under an older version would count as having consented.`
+  throw new AppError("VALIDATION_FAILED", "Some fields need attention", {
+    fieldErrors: { version: [message] },
+  })
 }
 
 export async function getGrowthSettings(

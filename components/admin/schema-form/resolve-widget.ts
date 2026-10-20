@@ -98,8 +98,6 @@ const LONG_TEXT = new Set([
   "excerpt",
   "caption",
   "callout",
-  "headHtml",
-  "bodyEndHtml",
 ])
 
 /** Text fields whose values are long lines: they take the full row. */
@@ -167,7 +165,7 @@ export function resolveWidget(
   const { inner, optional, nullable } = unwrapSchema(schema)
   const base = {
     schema: inner,
-    optional,
+    optional: optional && !meta.required,
     nullable,
     meta,
     label: meta.label ?? humanize(name),

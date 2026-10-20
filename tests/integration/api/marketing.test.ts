@@ -33,6 +33,23 @@ beforeEach(async () => {
   revalidateTag.mockClear()
 })
 
+/** A custom code value with these snippets (D2.3 shape). */
+const code = (snippets: unknown[], allowedHosts: string[] = []) => ({
+  disabled: false,
+  allowedHosts,
+  snippets,
+})
+const snippet = (over: { html?: string; src?: string }) => ({
+  id: crypto.randomUUID(),
+  name: "Test",
+  placement: "head",
+  src: over.src ?? "",
+  html: over.html ?? "",
+  category: "necessary",
+  routes: [],
+  enabled: true,
+})
+
 const get = (cookie: string, key: string) =>
   adminRequest(`/marketing/${key}`, { cookie })
 
@@ -90,10 +107,9 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
     ).toBe(200)
     expect(
       (
-        await saveAndPublish(owner, "customCode", () => ({
-          headHtml: "<!-- x -->",
-          bodyEndHtml: "",
-        }))
+        await saveAndPublish(owner, "customCode", () =>
+          code([snippet({ html: "<!-- x -->" })])
+        )
       ).status
     ).toBe(200)
     const rows = await getDb()
@@ -125,15 +141,36 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
         await adminRequest("/marketing/customCode/draft", {
           cookie: admin,
           method: "PUT",
-          json: { draft: { headHtml: "", bodyEndHtml: "" }, version: 1 },
+          json: { draft: code([]), version: 1 },
         })
       ).status
     ).toBe(403)
-    const published = await saveAndPublish(owner, "customCode", (d) => ({
-      ...d,
-      headHtml: '<meta name="x" content="y">',
-    }))
+    const published = await saveAndPublish(owner, "customCode", () =>
+      code([snippet({ html: '<meta name="x" content="y">' })])
+    )
     expect(published.status).toBe(200)
+  })
+
+  it("custom code: a script on a host that is not allowed → 422 on snippets.0.src (D2.3)", async () => {
+    const dto = (await (
+      await get(owner, "customCode")
+    ).json()) as GrowthSettingsDto
+    const res = await adminRequest("/marketing/customCode/draft", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        draft: code(
+          [snippet({ src: "https://evil.example.net/x.js" })],
+          ["cdn.example.com"]
+        ),
+        version: dto.version,
+      },
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as {
+      error: { fieldErrors: Record<string, string[]> }
+    }
+    expect(Object.keys(body.error.fieldErrors)).toEqual(["snippets.0.src"])
   })
 
   it("keys edited elsewhere are 404 here; these keys stay 404 under /settings", async () => {
@@ -164,10 +201,9 @@ describe("SEO/marketing settings API (master 8.1, 8.3)", () => {
   })
 
   it("history follows each key's read permission; integrations never", async () => {
-    await saveAndPublish(owner, "customCode", (d) => ({
-      ...d,
-      bodyEndHtml: "<script>window.x=1</script>",
-    }))
+    await saveAndPublish(owner, "customCode", () =>
+      code([snippet({ html: "<script>window.x=1</script>" })])
+    )
     await saveAndPublish(marketer, "consent", (d) => ({
       ...d,
       title: "Cookies?",
@@ -325,8 +361,14 @@ describe("tracking tag IDs are owner-only (final review I1)", () => {
     const toggled = await saveAndPublish(marketer, "tracking", (d) => ({
       ...d,
       enabled: true,
+      gtmEnabled: true,
+      ga4Enabled: true,
+      metaEnabled: true,
     }))
     expect(toggled.status).toBe(200)
+    expect(await toggled.json()).toMatchObject({
+      published: { gtmEnabled: true, ga4Enabled: true, metaEnabled: true },
+    })
     const copy = await saveAndPublish(marketer, "consent", (d) => ({
       ...d,
       title: "Cookies on this site",
@@ -392,5 +434,104 @@ describe("tracking tag IDs are owner-only (final review I1)", () => {
       })
     expect((await restore(marketer)).status).toBe(403)
     expect((await restore(owner)).status).toBe(200)
+  })
+})
+
+// Review D2.2 I1: a lower consent version would revive consent given for
+// an older version, so save, publish and restore all refuse one (422).
+describe("consent version never goes below the published one", () => {
+  const consentDto = async (cookie: string) =>
+    (await (await get(cookie, "consent")).json()) as GrowthSettingsDto
+  const fieldErrors = async (res: Response) =>
+    ((await res.json()) as { error: { fieldErrors?: object } }).error
+      .fieldErrors
+
+  it("save: a lower version → 422 on version; equal or higher → 200", async () => {
+    expect(
+      (await saveAndPublish(marketer, "consent", (d) => ({ ...d, version: 3 })))
+        .status
+    ).toBe(200)
+    const dto = await consentDto(marketer)
+    const put = (version: number, draftVersion: number) =>
+      adminRequest("/marketing/consent/draft", {
+        cookie: marketer,
+        method: "PUT",
+        json: {
+          draft: { ...(dto.draft as object), version: draftVersion },
+          version,
+        },
+      })
+    const low = await put(dto.version, 2)
+    expect(low.status).toBe(422)
+    expect(await fieldErrors(low)).toHaveProperty("version")
+    // A blank field (missing key) parses to the default 1: refused too.
+    const blank = await adminRequest("/marketing/consent/draft", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        draft: Object.fromEntries(
+          Object.entries(dto.draft as object).filter(([k]) => k !== "version")
+        ),
+        version: dto.version,
+      },
+    })
+    expect(blank.status).toBe(422)
+    expect((await put(dto.version, 3)).status).toBe(200)
+    expect((await put(dto.version + 1, 4)).status).toBe(200)
+  })
+
+  it("publish: a lower draft version (written behind the API) → 422", async () => {
+    await saveAndPublish(owner, "consent", (d) => ({ ...d, version: 3 }))
+    const dto = await consentDto(owner)
+    await getDb()
+      .update(settings)
+      .set({ draft: { ...(dto.draft as object), version: 2 } })
+      .where(eq(settings.key, "consent"))
+    const res = await adminRequest("/marketing/consent/publish", {
+      cookie: owner,
+      method: "POST",
+      json: { version: dto.version },
+    })
+    expect(res.status).toBe(422)
+    expect(await fieldErrors(res)).toHaveProperty("version")
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "consent"))
+    expect((row!.published as { version: number }).version).toBe(3)
+  })
+
+  it("restore: a revision from before a bump → 422", async () => {
+    await saveAndPublish(owner, "consent", (d) => ({ ...d, version: 1 }))
+    await saveAndPublish(owner, "consent", (d) => ({ ...d, version: 2 }))
+    const history = (await (
+      await adminRequest("/revisions/settings/consent", { cookie: owner })
+    ).json()) as { items: { id: string }[] }
+    // Newest first: [version 2, version 1, …].
+    const restore = async (revisionId: string) =>
+      adminRequest("/marketing/consent/restore", {
+        cookie: owner,
+        method: "POST",
+        json: { revisionId, version: (await consentDto(owner)).version },
+      })
+    expect((await restore(history.items[1]!.id)).status).toBe(422)
+    expect((await restore(history.items[0]!.id)).status).toBe(200)
+  })
+
+  it("an unpublished consent value has no floor", async () => {
+    await getDb()
+      .update(settings)
+      .set({ published: null })
+      .where(eq(settings.key, "consent"))
+    const dto = await consentDto(owner)
+    const res = await adminRequest("/marketing/consent/draft", {
+      cookie: owner,
+      method: "PUT",
+      json: {
+        draft: { ...(dto.draft as object), version: 1 },
+        version: dto.version,
+      },
+    })
+    expect(res.status).toBe(200)
   })
 })

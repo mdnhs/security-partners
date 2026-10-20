@@ -421,12 +421,13 @@ for (const colorScheme of ["light", "dark"] as const) {
     })
 
     test(`marketing screens in ${colorScheme}`, async ({ page }) => {
-      // Phase 8: the owner sees all three tabs (custom code is owner-only).
+      // Phase 8: the owner sees all four tabs (custom code is owner-only).
       await signIn(page, E2E_OWNER)
       const failures: string[] = []
       for (const [path, title] of [
         ["/admin/marketing", "Tracking"],
         ["/admin/marketing/consent", "Consent banner"],
+        ["/admin/marketing/events", "Event catalogue"],
         ["/admin/marketing/code", "Custom code"],
       ] as const) {
         await page.goto(path)

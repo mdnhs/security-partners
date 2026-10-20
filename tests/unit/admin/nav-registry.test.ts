@@ -100,6 +100,9 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     expect(permissionFor("/admin/marketing/code")).toEqual({
       customCode: ["read"],
     })
+    expect(permissionFor("/admin/marketing/events")).toEqual({
+      marketing: ["read"],
+    })
     expect(permissionFor("/admin/settings/ai-assistant")).toEqual({
       integration: ["read"],
     })
@@ -132,6 +135,7 @@ describe("nav registry (MK IA, spec §5.1)", () => {
   it("marketer sees Growth but not Custom code or Site settings AI", () => {
     const ids = reachableLinks(["marketer"]).map((l) => l.id)
     expect(ids).toContain("marketing-tracking")
+    expect(ids).toContain("marketing-events")
     expect(ids).not.toContain("marketing-code")
     expect(ids).not.toContain("settings-ai-assistant")
   })
