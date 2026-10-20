@@ -58,6 +58,21 @@ export async function updateSettingsIfVersion(
   return updated ? findSettingsForEdit(db, key) : null
 }
 
+/** Operator bookkeeping row (no editor, no versioned form): insert or replace its draft. */
+export async function upsertSettingsDraft(
+  db: DbOrTx,
+  key: string,
+  draft: unknown
+): Promise<void> {
+  await db
+    .insert(settings)
+    .values({ key, draft, version: 1 })
+    .onConflictDoUpdate({
+      target: settings.key,
+      set: { draft, version: sql`${settings.version} + 1` },
+    })
+}
+
 const DISABLED = sql`'{"disabled":true}'::jsonb`
 
 /**
