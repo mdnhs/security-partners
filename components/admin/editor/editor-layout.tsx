@@ -60,6 +60,7 @@ export function EditorLayout({
   saveState,
   actions,
   aside,
+  asideHidden = false,
   asideColumnFrom = "2xl",
   longTitle = false,
   preview,
@@ -78,6 +79,11 @@ export function EditorLayout({
   saveState: ReactNode
   actions: ReactNode
   aside?: ReactNode
+  /**
+   * Keeps the side panel mounted (its state) but out of view and out of the
+   * grid, e.g. while an editor's SEO tab (with its own previews) is shown.
+   */
+  asideHidden?: boolean
   /**
    * Width from which the side panel becomes a column beside the form
    * (above the form before that). "xl" for a panel the work needs at hand
@@ -172,7 +178,9 @@ export function EditorLayout({
         >
           <div data-slot="editor-form" className="flex min-w-0 flex-col gap-6">
             {aside ? (
-              <aside className="flex flex-col gap-4">{aside}</aside>
+              <aside hidden={asideHidden} className="flex flex-col gap-4">
+                {aside}
+              </aside>
             ) : null}
             {children}
           </div>
@@ -185,9 +193,11 @@ export function EditorLayout({
           ref={contentRef}
           className={cn(
             "grid w-full gap-6",
-            asideColumnFrom === "xl"
-              ? "xl:grid-cols-[minmax(0,1fr)_18rem]"
-              : "2xl:grid-cols-[minmax(0,1fr)_18rem]",
+            asideHidden
+              ? null
+              : asideColumnFrom === "xl"
+                ? "xl:grid-cols-[minmax(0,1fr)_18rem]"
+                : "2xl:grid-cols-[minmax(0,1fr)_18rem]",
             inRail ? "max-w-240" : "max-w-304"
           )}
         >
@@ -196,6 +206,7 @@ export function EditorLayout({
           </div>
           {aside ? (
             <aside
+              hidden={asideHidden}
               className={cn(
                 "order-first flex flex-col gap-4",
                 asideColumnFrom === "xl" ? "xl:order-0" : "2xl:order-0"

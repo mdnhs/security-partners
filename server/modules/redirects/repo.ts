@@ -19,7 +19,13 @@ import { containsPattern } from "@/server/db/like"
 import { articles, redirects, services } from "@/server/db/schema"
 
 export type RedirectRow = typeof redirects.$inferSelect
-type RedirectValues = { fromPath: string; toPath: string; code: number }
+type RedirectValues = {
+  fromPath: string
+  toPath: string
+  code: number
+  note: string
+  isActive: boolean
+}
 
 export async function listRedirectRows(
   db: DbOrTx,
@@ -57,12 +63,81 @@ export async function listRedirectRows(
   return { rows, total }
 }
 
+/** Every redirect by from_path (CSV export and import; the table stays small). */
+export async function listAllRedirectRows(db: DbOrTx): Promise<RedirectRow[]> {
+  return db.select().from(redirects).orderBy(asc(redirects.fromPath))
+}
+
+/** Rows per INSERT / UPDATE statement of an import (parameters stay well under 65k). */
+const IMPORT_CHUNK = 500
+
+/**
+ * CSV import (inside the caller's locked transaction), one statement per
+ * 500 rows: new rows are inserted; existing ones (matched by from_path)
+ * get the given target, code, note and On/Off. Both become source
+ * 'import'. `edited` false (only On/Off changed) keeps updated_at, as a
+ * manual toggle does.
+ */
+export async function writeImportedRedirects(
+  db: DbOrTx,
+  creates: readonly RedirectValues[],
+  updates: readonly (RedirectValues & { edited: boolean })[]
+): Promise<void> {
+  for (let i = 0; i < creates.length; i += IMPORT_CHUNK)
+    await db
+      .insert(redirects)
+      .values(
+        creates
+          .slice(i, i + IMPORT_CHUNK)
+          .map((v) => ({ ...v, source: "import" as const }))
+      )
+  for (let i = 0; i < updates.length; i += IMPORT_CHUNK) {
+    const values = sql.join(
+      updates
+        .slice(i, i + IMPORT_CHUNK)
+        .map(
+          (v) =>
+            sql`(${v.fromPath}::text, ${v.toPath}::text, ${v.code}::integer, ${v.note}::text, ${v.isActive}::boolean, ${v.edited}::boolean)`
+        ),
+      sql`, `
+    )
+    await db.execute(sql`
+      update ${redirects} set
+        to_path = v.to_path,
+        code = v.code,
+        note = v.note,
+        is_active = v.is_active,
+        source = 'import',
+        updated_at = case when v.edited then now() else ${redirects.updatedAt} end
+      from (values ${values}) as v(from_path, to_path, code, note, is_active, edited)
+      where ${redirects.fromPath} = v.from_path`)
+  }
+}
+
+/**
+ * The slugs among `slugs` that a published service/article uses (their
+ * pages are live): one query per kind for a whole import.
+ */
+export async function listPublishedSlugs(
+  db: DbOrTx,
+  kind: "service" | "article",
+  slugs: readonly string[]
+): Promise<Set<string>> {
+  if (slugs.length === 0) return new Set()
+  const table = kind === "service" ? services : articles
+  const rows = await db
+    .select({ slug: table.slug })
+    .from(table)
+    .where(and(inArray(table.slug, [...slugs]), isNotNull(table.published)))
+  return new Set(rows.map((r) => r.slug))
+}
+
 export async function findRedirectById(db: DbOrTx, id: string) {
   const [row] = await db.select().from(redirects).where(eq(redirects.id, id))
   return row ?? null
 }
 
-/** proxy.ts: the redirect for one exact path, if any. */
+/** proxy.ts: the active redirect for one exact path, if any (Off ones never resolve). */
 export async function findRedirectByFrom(db: DbOrTx, fromPath: string) {
   const [row] = await db
     .select({
@@ -71,11 +146,15 @@ export async function findRedirectByFrom(db: DbOrTx, fromPath: string) {
       code: redirects.code,
     })
     .from(redirects)
-    .where(eq(redirects.fromPath, fromPath))
+    .where(and(eq(redirects.fromPath, fromPath), eq(redirects.isActive, true)))
   return row ?? null
 }
 
-/** Every from_path → to_path (loop detection; the table stays small). */
+/**
+ * Every from_path → to_path (loop detection; the table stays small). Off
+ * redirects count too, so turning one back on can never close a loop or
+ * exceed the hop limit, and moves re-point them like the others.
+ */
 export async function listRedirectEdges(
   db: DbOrTx
 ): Promise<Map<string, string>> {
@@ -90,10 +169,11 @@ export async function insertRedirect(db: DbOrTx, values: RedirectValues) {
   return row
 }
 
+/** `updatedAt` given → kept as is (an On/Off toggle is not an edit). */
 export async function updateRedirectRow(
   db: DbOrTx,
   id: string,
-  values: RedirectValues
+  values: RedirectValues & { updatedAt?: Date }
 ) {
   const [row] = await db
     .update(redirects)
@@ -111,7 +191,10 @@ export async function deleteRedirectRow(db: DbOrTx, id: string) {
   return row ?? null
 }
 
-/** `by` more hits (coalesced in resolve.ts); updatedAt keeps meaning "last edited". */
+/**
+ * `by` more hits (coalesced in resolve.ts) and last_hit_at = now();
+ * updatedAt keeps meaning "last edited". Nothing about the visitor is stored.
+ */
 export async function incrementRedirectHits(
   db: DbOrTx,
   id: string,
@@ -121,6 +204,7 @@ export async function incrementRedirectHits(
     .update(redirects)
     .set({
       hits: sql`${redirects.hits} + ${by}`,
+      lastHitAt: sql`now()`,
       updatedAt: sql`${redirects.updatedAt}`,
     })
     .where(eq(redirects.id, id))
@@ -155,7 +239,8 @@ export async function isPublishedSlug(
 /**
  * A live address moved from `from` to `to`: nothing may redirect away from
  * the new address, the redirects named in `repoint` (those that led to the
- * old one) follow it, and the old address gets a 301. Returns the source
+ * old one) follow it, and the old address gets a 301 (taking over any
+ * redirect already there, see below). Returns the source
  * paths deleted and re-pointed (for the audit).
  */
 export async function moveRedirects(
@@ -176,12 +261,22 @@ export async function moveRedirects(
           .where(inArray(redirects.fromPath, [...repoint]))
           .returning({ fromPath: redirects.fromPath })
       : []
+  // Any redirect already at the old address is taken over, because the
+  // move must answer there: an Off leftover (allowed while it was a live
+  // page) or a manual/imported one alike becomes this automatic, active
+  // 301 (source 'auto', is_active true); its note stays.
   await db
     .insert(redirects)
-    .values({ fromPath: from, toPath: to, code: 301 })
+    .values({ fromPath: from, toPath: to, code: 301, source: "auto" })
     .onConflictDoUpdate({
       target: redirects.fromPath,
-      set: { toPath: to, code: 301, updatedAt: new Date() },
+      set: {
+        toPath: to,
+        code: 301,
+        source: "auto",
+        isActive: true,
+        updatedAt: new Date(),
+      },
     })
   return {
     deleted: deleted.map((r) => r.fromPath),

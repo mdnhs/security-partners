@@ -1,6 +1,7 @@
 import "server-only"
 
 import {
+  boolean,
   index,
   integer,
   pgEnum,
@@ -32,6 +33,10 @@ export const media = pgTable(
     focalX: real("focal_x"),
     focalY: real("focal_y"),
     alt: text("alt").notNull().default(""),
+    /** Purely decorative image: no alt text needed (the alt text entered is kept). */
+    isDecorative: boolean("is_decorative").notNull().default(false),
+    /** Optional caption (admin). Public templates do not render it. */
+    caption: text("caption").notNull().default(""),
     /** File name as uploaded (library/picker label and search); static rows: the public/images name. */
     originalName: text("original_name").notNull().default(""),
     createdBy: uuid("created_by").references(() => users.id, {

@@ -126,12 +126,24 @@ export function listMediaUsagesFor(
     .orderBy(mediaUsages.field)
 }
 
-/** Paginated library rows (picker + library). `q` matches alt text, key or file name. */
+/** Images with no alt text that are not decorative (PDFs never need alt text). */
+const missingAltWhere = () =>
+  and(
+    like(media.mime, "image/%"),
+    eq(media.alt, ""),
+    eq(media.isDecorative, false)
+  )
+
+/**
+ * Paginated library rows (picker + library). `q` matches alt text, key or
+ * file name; `missingAlt` keeps images that still need alt text.
+ */
 export async function listMediaRows(
   db: DbOrTx,
   opts: {
     q?: string
     kind?: "image" | "document"
+    missingAlt?: boolean
     sort: { field: "createdAt" | "alt"; dir: "asc" | "desc" }
     page: number
     pageSize: number
@@ -144,6 +156,7 @@ export async function listMediaRows(
       : opts.kind === "document"
         ? notLike(media.mime, "image/%")
         : undefined,
+    opts.missingAlt ? missingAltWhere() : undefined,
     pattern
       ? or(
           ilike(media.alt, pattern),
@@ -168,6 +181,35 @@ export async function listMediaRows(
     .limit(opts.pageSize)
     .offset((opts.page - 1) * opts.pageSize)
   return { rows, total }
+}
+
+/**
+ * Alt-text coverage of the library's images: decorative images count as
+ * decorative whatever their alt text; described = has alt text and is not
+ * decorative; missing = neither. The three add up to `images`.
+ */
+export async function altSummary(db: DbOrTx): Promise<{
+  images: number
+  described: number
+  decorative: number
+  missing: number
+}> {
+  const [row] = await db
+    .select({
+      images: count(),
+      decorative: count(sql`case when ${media.isDecorative} then 1 end`),
+      missing: count(
+        sql`case when not ${media.isDecorative} and ${media.alt} = '' then 1 end`
+      ),
+    })
+    .from(media)
+    .where(like(media.mime, "image/%"))
+  return {
+    images: row.images,
+    described: row.images - row.decorative - row.missing,
+    decorative: row.decorative,
+    missing: row.missing,
+  }
 }
 
 /** Rows stored by one driver (integrations: R2 cannot be disconnected while it holds files). */

@@ -46,8 +46,15 @@ const dto: DashboardDto = {
   ],
 }
 
-/** Phase 8: the Content health card (roles with seo:read) reads this. */
-const SEO_OVERVIEW = { entries: [], checks: { passed: 0, total: 0 } }
+/** The Content health card (roles with seo:read) reads GET /seo/health (D1.2). */
+const SEO_HEALTH = {
+  score: 100,
+  passed: 0,
+  total: 0,
+  entities: [],
+  issues: [],
+  alt: { images: 0, described: 0, decorative: 0, missing: 0 },
+}
 
 const audit = {
   items: [
@@ -100,7 +107,7 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(String(input), "http://localhost").pathname
-      if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
+      if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
       if (path.endsWith("/dashboard")) return Response.json(dto)
       if (path.endsWith("/audit")) return Response.json(audit)
       return Response.json(
@@ -204,7 +211,7 @@ describe("dashboard (JW layout)", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
+        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard"))
           return Response.json({
             ...dto,
@@ -266,8 +273,7 @@ describe("dashboard (JW layout)", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
+        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard") && fail)
           return Response.json(
             { error: { code: "FORBIDDEN", message: "Not allowed" } },
@@ -295,8 +301,7 @@ describe("dashboard (JW layout)", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
+        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard")) return Response.json(dto)
         if (fail)
           return Response.json(
@@ -323,8 +328,7 @@ describe("dashboard (JW layout)", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(String(input), "http://localhost").pathname
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
-        if (path.endsWith("/seo/overview")) return Response.json(SEO_OVERVIEW)
+        if (path.endsWith("/seo/health")) return Response.json(SEO_HEALTH)
         if (path.endsWith("/dashboard"))
           return Response.json({
             ...dto,
@@ -370,9 +374,9 @@ describe("dashboard (JW layout)", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) =>
         new URL(String(input), "http://localhost").pathname.endsWith(
-          "/seo/overview"
+          "/seo/health"
         )
-          ? Response.json(SEO_OVERVIEW)
+          ? Response.json(SEO_HEALTH)
           : Response.json({
               kpis: {
                 leads30d: null,

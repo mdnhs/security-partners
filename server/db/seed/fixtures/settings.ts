@@ -198,6 +198,8 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
         areaServed: "Ireland",
         sameAs: [],
       },
+      robots: "index",
+      verification: { google: "", bing: "" },
     },
     consent: {
       title: "We use cookies",

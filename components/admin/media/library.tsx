@@ -33,6 +33,7 @@ import {
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
+import { isMediaId } from "@/lib/media"
 import type { MediaItem, MediaKind } from "@/lib/schemas/api/media"
 import { cn } from "@/lib/utils"
 
@@ -93,10 +94,17 @@ function Thumb({
   )
 }
 
-/** Media library (spec §8.1): grid/list, search, kind filter, drag & drop upload, details sheet. */
+/** `?open=` accepts only a UUID; anything else is ignored and dropped from the URL. */
+const openParam = (value: string | null): string | null =>
+  isMediaId(value) ? value : null
+
+/**
+ * Media library (spec §8.1): grid/list, search, kind and missing-alt filters,
+ * drag & drop upload, details sheet (`?open=<id>` opens one file's).
+ */
 export function MediaLibrary() {
   const canUpload = usePermission({ media: ["create"] })
-  // Search, kind, view and page start from the URL and are written back
+  // Search, filters, view, page and the open file start from the URL and are written back
   // (final review I8), so a reload or Back returns to the same spot.
   const searchParams = useSearchParams()
   const [initial] = useState(() => {
@@ -113,13 +121,17 @@ export function MediaLibrary() {
       view:
         params.get("view") === "list" ? ("list" as const) : ("grid" as const),
       page: Number.isInteger(pageParam) && pageParam > 1 ? pageParam : 1,
+      missingAlt: params.get("missingAlt") === "true",
+      // Only a file id: the value goes into the API path (review I1).
+      open: openParam(params.get("open")),
     }
   })
   const [query, setQuery] = useState(initial.q)
   const [kind, setKind] = useState<MediaKind | "all">(initial.kind)
   const [view, setView] = useState<"grid" | "list">(initial.view)
   const [page, setPage] = useState(initial.page)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [missingAlt, setMissingAlt] = useState(initial.missingAlt)
+  const [selected, setSelected] = useState<string | null>(initial.open)
   const search = useRef<HTMLInputElement>(null)
   const choose = useRef<HTMLButtonElement>(null)
   const debounced = useDebouncedValue(query.trim(), 250)
@@ -132,13 +144,15 @@ export function MediaLibrary() {
         {
           [LIST_QUERY]: q,
           kind: kind === "all" ? undefined : kind,
+          missingAlt: missingAlt ? "true" : undefined,
           view: view === "grid" ? undefined : view,
           [LIST_PAGE]: page > 1 ? String(page) : undefined,
+          open: selected ?? undefined,
         },
         { keepPage: true }
       )
     )
-  }, [q, kind, view, page])
+  }, [q, kind, missingAlt, view, page, selected])
   // Back to page 1 when the applied search changes (adjusted during render).
   const [pagedQ, setPagedQ] = useState(q)
   if (pagedQ !== q) {
@@ -147,13 +161,18 @@ export function MediaLibrary() {
   }
 
   const list = useQuery({
-    queryKey: ["media", "list", { q, page, kind, pageSize: PAGE_SIZE }],
+    queryKey: [
+      "media",
+      "list",
+      { q, page, kind, missingAlt, pageSize: PAGE_SIZE },
+    ],
     queryFn: () =>
       unwrap(
         api.media.$get({
           query: {
             q: q || undefined,
             kind: kind === "all" ? undefined : kind,
+            missingAlt: missingAlt ? "true" : undefined,
             page: String(page),
             pageSize: String(PAGE_SIZE),
           },
@@ -172,7 +191,7 @@ export function MediaLibrary() {
   // A page past the end (its last files deleted): go to the last page.
   const lastPage = Math.max(1, Math.ceil((list.data?.total ?? 0) / PAGE_SIZE))
   if (list.data && !list.isPlaceholderData && page > lastPage) setPage(lastPage)
-  const filtered = kind !== "all"
+  const filtered = kind !== "all" || missingAlt
 
   return (
     <div className="flex flex-col gap-5">
@@ -229,6 +248,18 @@ export function MediaLibrary() {
             </Button>
           ))}
         </ButtonGroup>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(TOGGLE, "rounded-full")}
+          aria-pressed={missingAlt}
+          onClick={() => {
+            setMissingAlt((on) => !on)
+            setPage(1)
+          }}
+        >
+          Missing alt text
+        </Button>
         <ButtonGroup aria-label="View" className="sm:ml-auto">
           <Button
             type="button"
@@ -286,9 +317,13 @@ export function MediaLibrary() {
             q
               ? `Nothing matches “${q}”.`
               : filtered
-                ? kind === "image"
-                  ? "There are no images in the library."
-                  : "There are no documents in the library."
+                ? missingAlt
+                  ? kind === "document"
+                    ? "Documents don't need alt text. Turn off Missing alt text to see them."
+                    : "Every image has alt text or is marked decorative."
+                  : kind === "image"
+                    ? "There are no images in the library."
+                    : "There are no documents in the library."
                 : canUpload
                   ? "Upload images and PDFs above; pages, services and articles can then use them."
                   : "Images and PDFs appear here once someone uploads them."

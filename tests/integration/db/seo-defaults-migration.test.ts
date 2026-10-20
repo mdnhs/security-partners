@@ -19,6 +19,12 @@ const statements = readFileSync(join(DIR, file), "utf8")
   .map((s) => s.trim())
   .filter(Boolean)
 
+// The schema as of 0008: robots/verification arrive with 0013 (D1.6).
+const before0013 = seoDefaultsSettings.omit({
+  robots: true,
+  verification: true,
+})
+
 const legacy = {
   title: "T",
   titleTemplate: "{title} | T",
@@ -47,7 +53,7 @@ describe("0008_seo_defaults_organization (custom data migration)", () => {
       .select()
       .from(settings)
       .where(eq(settings.key, "seo.defaults"))
-    const published = seoDefaultsSettings.parse(row.published)
+    const published = before0013.parse(row.published)
     expect(published.organization).toEqual({
       type: "LocalBusiness",
       streetAddress: "Derryguile",
@@ -58,9 +64,7 @@ describe("0008_seo_defaults_organization (custom data migration)", () => {
       areaServed: "Ireland",
       sameAs: [],
     })
-    expect(seoDefaultsSettings.parse(row.draft).organization.areaServed).toBe(
-      "Leinster"
-    )
+    expect(before0013.parse(row.draft).organization.areaServed).toBe("Leinster")
     expect(row.version).toBe(3)
   })
 
@@ -75,6 +79,6 @@ describe("0008_seo_defaults_organization (custom data migration)", () => {
       .from(settings)
       .where(eq(settings.key, "seo.defaults"))
     expect(row.published).toBeNull()
-    expect(seoDefaultsSettings.safeParse(row.draft).success).toBe(true)
+    expect(before0013.safeParse(row.draft).success).toBe(true)
   })
 })

@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 }))
 
 import type { SeoEntry, SeoOverviewDto } from "@/lib/schemas/api/seo"
+import { SEO_CHECK_COUNT } from "@/lib/seo/checks"
 import { getDb } from "@/server/db/client"
 import {
   auditLog,
@@ -16,6 +17,7 @@ import {
   mediaUsages,
   pages,
   services,
+  settings,
 } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { backfillMediaUsages } from "@/server/lib/media-usages"
@@ -75,9 +77,31 @@ describe("SEO API (master 8.1)", () => {
     const live = dto.entries.filter((e) => e.published)
     const issues = live.reduce((n, e) => n + e.issues.length, 0)
     expect(dto.checks).toEqual({
-      passed: live.length * 4 - issues,
-      total: live.length * 4,
+      passed: live.length * SEO_CHECK_COUNT - issues,
+      total: live.length * SEO_CHECK_COUNT,
     })
+    // The previews' defaults (title pattern, site share image, robots mode).
+    expect(dto.defaults).toEqual({
+      titleTemplate: fx.settings["seo.defaults"].titleTemplate,
+      ogImageId: fx.settings["seo.defaults"].ogImage?.id ?? null,
+      siteNoindex: false,
+    })
+  })
+
+  it("overview: the site robots mode reaches the editors' live checklist (D1.6 M7)", async () => {
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "seo.defaults"))
+    await getDb()
+      .update(settings)
+      .set({
+        published: { ...(row.published as object), robots: "noindex" },
+      })
+      .where(eq(settings.key, "seo.defaults"))
+    const res = await adminRequest("/seo/overview", { cookie: viewer })
+    const dto = (await res.json()) as SeoOverviewDto
+    expect(dto.defaults?.siteNoindex).toBe(true)
   })
 
   it("overview: stored blank SEO fields fall back like the public page", async () => {
@@ -123,7 +147,9 @@ describe("SEO API (master 8.1)", () => {
         "Fast alarm response across Laois, Offaly and Kildare, day and night.",
       noindex: false,
     })
-    expect(entry.issues.map((i) => i.check)).not.toContain("own-description")
+    expect(entry.issues.map((i) => i.message)).not.toContain(
+      "Uses the site-wide default description"
+    )
     expect((await service("alarm-responses")).version).toBe(s.version)
     expect(revalidateTag).toHaveBeenCalledWith("service:alarm-responses", {
       expire: 0,

@@ -5,6 +5,38 @@ import { isSafeHref } from "@/lib/href"
 /** Longest allowed chain from a redirect to its final address. */
 export const MAX_REDIRECT_HOPS = 5
 
+/** 301/308 permanent, 302/307 temporary; 307/308 keep the request method. */
+export const REDIRECT_CODES = [301, 302, 307, 308] as const
+export type RedirectCode = (typeof REDIRECT_CODES)[number]
+
+/** A stored code as RedirectCode (the column check allows only these). */
+export const redirectCode = (code: number): RedirectCode =>
+  (REDIRECT_CODES as readonly number[]).includes(code)
+    ? (code as RedirectCode)
+    : 301
+
+/**
+ * Who made a redirect: manual (admin form), auto (rename/delete of a live
+ * page), import (CSV). Server-owned. The single list: the column type and
+ * the API type come from here; the DB check `redirects_source` repeats it
+ * in SQL (pinned by tests/integration/api/redirects-admin.test.ts).
+ */
+export const REDIRECT_SOURCES = ["manual", "auto", "import"] as const
+export type RedirectSource = (typeof REDIRECT_SOURCES)[number]
+
+/**
+ * A note may hold TAB and line breaks, never other control characters
+ * (Postgres text refuses NUL; a spreadsheet file can carry any of them).
+ */
+export function noteProblem(note: string): string | null {
+  for (let i = 0; i < note.length; i++) {
+    const c = note.charCodeAt(i)
+    if ((c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || c === 0x7f)
+      return "Remove the control characters from the note"
+  }
+  return null
+}
+
 const RESERVED = ["/admin", "/api", "/_next", "/og", "/images"]
 const PATH = /^\/[A-Za-z0-9\-._~%/]*$/
 /** A path ending in a file extension (static files; never a page or redirect source). */

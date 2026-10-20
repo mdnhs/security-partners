@@ -78,6 +78,29 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
         itemName: "Profile link",
         help: "Full links to the company's own LinkedIn, Facebook … pages.",
       },
+      robots: {
+        label: "Search engines",
+        widget: "radio",
+        options: [
+          { value: "index", label: "Show the site in search results" },
+          { value: "noindex", label: "Hide the whole site from search" },
+        ],
+        help: "“Hide the whole site from search” blocks every page in robots.txt and asks search engines not to index it. Pages already in search results may stay listed until they are removed: use the removal tool in Google Search Console (and Bing Webmaster Tools) for that.",
+      },
+      verification: {
+        label: "Search console verification",
+        section: true,
+      },
+      "verification.google": {
+        label: "Google Search Console",
+        placeholder: "abc123…",
+        help: "Only the content value of the google-site-verification meta tag. Leave empty if not used.",
+      },
+      "verification.bing": {
+        label: "Bing Webmaster Tools",
+        placeholder: "ABC123…",
+        help: "Only the content value of the msvalidate.01 meta tag. Leave empty if not used.",
+      },
     },
   },
   tracking: {

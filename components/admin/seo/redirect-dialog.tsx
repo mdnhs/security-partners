@@ -18,8 +18,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
-import type { RedirectDto } from "@/lib/schemas/api/redirects"
+import {
+  REDIRECT_NOTE_MAX,
+  type RedirectCode,
+  redirectCode,
+  type RedirectDto,
+} from "@/lib/schemas/api/redirects"
 
 function FieldRow({
   id,
@@ -50,9 +56,17 @@ function FieldRow({
   )
 }
 
-const REDIRECT_CODES = [
+const CODE_OPTIONS: { value: `${RedirectCode}`; label: string }[] = [
   { value: "301", label: "Permanent (301) — the page moved for good" },
   { value: "302", label: "Temporary (302) — it will come back" },
+  {
+    value: "307",
+    label: "Temporary, keep method (307) — for forms and APIs",
+  },
+  {
+    value: "308",
+    label: "Permanent, keep method (308) — for forms and APIs",
+  },
 ]
 
 const describedBy = (id: string, error: string | undefined) =>
@@ -70,21 +84,22 @@ export function RedirectDialog({
 }) {
   const [fromPath, setFromPath] = useState(redirect?.fromPath ?? "")
   const [toPath, setToPath] = useState(redirect?.toPath ?? "")
-  const [code, setCode] = useState<301 | 302>(redirect?.code ?? 301)
+  const [code, setCode] = useState<RedirectCode>(redirect?.code ?? 301)
+  const [note, setNote] = useState(redirect?.note ?? "")
   const [errors, setErrors] = useState<Record<string, string[]>>({})
   const fromRef = useRef<HTMLInputElement>(null)
   const toRef = useRef<HTMLInputElement>(null)
+  const noteRef = useRef<HTMLTextAreaElement>(null)
   const title = redirect ? "Edit redirect" : "Add redirect"
   const save = useMutation({
-    mutationFn: () =>
-      redirect
+    mutationFn: () => {
+      const json = { fromPath, toPath, code, note: note.trim() }
+      return redirect
         ? unwrap(
-            api.redirects[":id"].$patch({
-              param: { id: redirect.id },
-              json: { fromPath, toPath, code },
-            })
+            api.redirects[":id"].$patch({ param: { id: redirect.id }, json })
           )
-        : unwrap(api.redirects.$post({ json: { fromPath, toPath, code } })),
+        : unwrap(api.redirects.$post({ json }))
+    },
     onSuccess: () => {
       toast.success(redirect ? "Redirect saved" : "Redirect added")
       onSaved()
@@ -94,12 +109,18 @@ export function RedirectDialog({
       const fieldErrors = error instanceof ApiError ? error.fieldErrors : {}
       setErrors(fieldErrors)
       // Errors on other keys (code, a root refine) have no inline place.
-      if (!fieldErrors.fromPath?.length && !fieldErrors.toPath?.length) {
+      const first = fieldErrors.fromPath?.length
+        ? fromRef
+        : fieldErrors.toPath?.length
+          ? toRef
+          : fieldErrors.note?.length
+            ? noteRef
+            : null
+      if (!first) {
         toast.error("Not saved", { description: errorMessage(error) })
         return
       }
       // Focus the first invalid field so screen readers announce its error.
-      const first = fieldErrors.fromPath?.length ? fromRef : toRef
       first.current?.focus()
     },
   })
@@ -110,11 +131,13 @@ export function RedirectDialog({
   }
   const fromError = errors.fromPath?.[0]
   const toError = errors.toPath?.[0]
+  const noteError = errors.note?.[0]
   const dirty =
     !save.isSuccess &&
     (fromPath !== (redirect?.fromPath ?? "") ||
       toPath !== (redirect?.toPath ?? "") ||
-      code !== (redirect?.code ?? 301))
+      code !== (redirect?.code ?? 301) ||
+      note !== (redirect?.note ?? ""))
   const close = useGuardedClose({
     dirty,
     onClose,
@@ -170,16 +193,39 @@ export function RedirectDialog({
               className="h-11 rounded-xl font-mono"
             />
           </FieldRow>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="redirect-code">Type</Label>
+          <FieldRow
+            id="redirect-code"
+            label="Type"
+            hint="Use 301 unless the move is temporary. 307 and 308 keep a submitted form as it was sent; search engines treat 308 like 301 and 307 like 302."
+            error={undefined}
+          >
             <OptionSelect
               id="redirect-code"
               value={String(code)}
-              onChange={(value) => setCode(Number(value) === 302 ? 302 : 301)}
-              options={REDIRECT_CODES}
+              onChange={(value) => setCode(redirectCode(Number(value)))}
+              options={CODE_OPTIONS}
+              aria-describedby="redirect-code-hint"
               className="rounded-xl bg-card shadow-none data-[size=default]:h-11"
             />
-          </div>
+          </FieldRow>
+          <FieldRow
+            id="redirect-note"
+            label="Note"
+            hint={`Optional, for your team only: why this redirect exists. Up to ${REDIRECT_NOTE_MAX} characters.`}
+            error={noteError}
+          >
+            <Textarea
+              id="redirect-note"
+              ref={noteRef}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={REDIRECT_NOTE_MAX}
+              rows={2}
+              aria-invalid={noteError ? true : undefined}
+              aria-describedby={describedBy("redirect-note", noteError)}
+              className="rounded-xl"
+            />
+          </FieldRow>
           <DialogFooter>
             <Button
               type="button"

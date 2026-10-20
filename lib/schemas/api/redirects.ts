@@ -1,6 +1,15 @@
 import { z } from "zod"
 
-import { fromPathProblem, toPathProblem } from "@/lib/seo/redirects"
+import {
+  fromPathProblem,
+  noteProblem,
+  REDIRECT_CODES,
+  REDIRECT_SOURCES,
+  type RedirectCode,
+  redirectCode,
+  type RedirectSource,
+  toPathProblem,
+} from "@/lib/seo/redirects"
 
 import { listQuery, sortParam } from "./list"
 
@@ -10,21 +19,62 @@ const checked = (problem: (value: string) => string | null) =>
     if (message) ctx.addIssue({ code: "custom", message })
   })
 
-export const REDIRECT_CODES = [301, 302] as const
+export {
+  REDIRECT_CODES,
+  REDIRECT_SOURCES,
+  type RedirectCode,
+  redirectCode,
+  type RedirectSource,
+}
+export const REDIRECT_NOTE_MAX = 200
 
-/** POST /redirects. Live pages and loops are checked by the service. */
-export const redirectInput = z.object({
+const fields = {
   fromPath: checked(fromPathProblem),
   toPath: checked(toPathProblem),
-  code: z.union([z.literal(301), z.literal(302)]),
-})
-export type RedirectInput = z.infer<typeof redirectInput>
+  code: z.literal(REDIRECT_CODES),
+  /** Admin-only context ("Old brochure link"); never shown to visitors. */
+  note: z
+    .string()
+    .trim()
+    .max(REDIRECT_NOTE_MAX, `Keep the note to ${REDIRECT_NOTE_MAX} characters`)
+    .superRefine((value, ctx) => {
+      const message = noteProblem(value)
+      if (message) ctx.addIssue({ code: "custom", message })
+    }),
+  /** Off keeps the redirect listed but stops it resolving. */
+  isActive: z.boolean(),
+}
 
-/** PATCH /redirects/:id — any subset, at least one field. */
-export const redirectPatch = redirectInput
+/**
+ * POST /redirects. Live pages and loops are checked by the service. `source`
+ * is server-owned (manual here; auto from moves; import from CSV): unknown
+ * keys such as `source` are refused (422), not silently dropped.
+ */
+export const redirectInput = z.strictObject({
+  fromPath: fields.fromPath,
+  toPath: fields.toPath,
+  code: fields.code,
+  note: fields.note.default(""),
+  isActive: fields.isActive.default(true),
+})
+export type RedirectInput = z.output<typeof redirectInput>
+
+/** PATCH /redirects/:id — any subset, at least one field; no other keys. */
+export const redirectPatch = z
+  .strictObject(fields)
   .partial()
   .refine((value) => Object.keys(value).length > 0, "Nothing to change")
 export type RedirectPatch = z.infer<typeof redirectPatch>
+
+/**
+ * POST /redirects/import: the CSV text (the admin body limit, 1 MB, caps
+ * it) and whether to only check it (`preview`) or write it (`commit`).
+ */
+export const redirectImportInput = z.strictObject({
+  csv: z.string(),
+  mode: z.enum(["preview", "commit"]),
+})
+export type RedirectImportInput = z.infer<typeof redirectImportInput>
 
 export const redirectListQuery = listQuery.extend({
   sort: sortParam(["fromPath", "hits", "updatedAt"], {
@@ -38,8 +88,18 @@ export type RedirectDto = {
   id: string
   fromPath: string
   toPath: string
-  code: 301 | 302
+  code: RedirectCode
   hits: number
+  /** Last counted hit (ISO); null = never. */
+  lastHitAt: string | null
+  isActive: boolean
+  note: string
+  source: RedirectSource
   createdAt: string
+  /**
+   * Last edit of fromPath, toPath, code or note. On/Off switches (manual or
+   * by import) and hits keep it. A manual switch's time is in the audit log
+   * (redirect.updated); an import logs counts only (redirect.imported).
+   */
   updatedAt: string
 }

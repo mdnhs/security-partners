@@ -59,4 +59,10 @@ describe("HIDDEN_CHARS (one set for alt text and file names)", () => {
       cleanAltText("  Guard\u2028 at\u2060 the\u{e0041} gate\u061c ")
     ).toBe("Guard at the gate")
   })
+  it("line breaks and tabs become one space, so words never merge", () => {
+    expect(cleanAltText("Night\nshift")).toBe("Night shift")
+    expect(cleanAltText("Night \r\n\n  shift\tpatrol\n")).toBe(
+      "Night shift patrol"
+    )
+  })
 })

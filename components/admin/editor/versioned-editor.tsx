@@ -26,6 +26,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 
 import { ConflictDialog } from "./conflict-dialog"
 import { EDITOR_ACTION, EditorLayout } from "./editor-layout"
+import { EditorTabs, SEO_TAB, useEditorTab } from "./editor-tabs"
 import { LivePreviewToggle, useLivePreview } from "./live-preview-toggle"
 import { PreviewPane } from "./preview-pane"
 import { PublishDialog } from "./publish-dialog"
@@ -79,6 +80,12 @@ export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
    * the record and whether it has edits the site does not show.
    */
   status?: (record: Dto, dirty: boolean) => readonly StatusPillSpec[]
+  /**
+   * The record's SEO tab (MK D1.4): top Content / SEO tabs, the SEO one
+   * selected by ?tab=seo. Both stay mounted once shown (unsaved edits on
+   * either side survive a switch).
+   */
+  seo?: EditorSlot<Dto>
 }
 
 /** A plain node, or one rendered from the editor's state. */
@@ -417,6 +424,53 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
     autosave.resolveConflict()
     setRequestConflict(null)
   }
+  const seoTab = useEditorTab(!!props.seo)
+  // Field errors (a failed publish, a 422) are all in the content: leave the
+  // SEO tab so they show. The form's section tabs usually move to the
+  // errored section first (then ?tab= is no longer "seo" and this is a no-op).
+  const { select: selectEditorTab } = seoTab
+  const contentRef = useRef<HTMLDivElement>(null)
+  const focusInvalid = useRef(false)
+  useEffect(() => {
+    if (!fieldErrors || Object.keys(fieldErrors).length === 0) return
+    if (new URLSearchParams(window.location.search).get("tab") === SEO_TAB) {
+      focusInvalid.current = true
+      selectEditorTab("content", { replace: true })
+    }
+    // Once per new set of errors.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrors])
+  // A form without section tabs (no FormTabs to do it): once Content shows,
+  // focus its first invalid field.
+  useEffect(() => {
+    if (!focusInvalid.current || seoTab.active) return
+    focusInvalid.current = false
+    const root = contentRef.current
+    if (!root || root.contains(document.activeElement)) return
+    root.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  })
+  const form = (
+    <div
+      ref={contentRef}
+      onKeyDownCapture={markTouched}
+      onPointerDownCapture={markTouched}
+      onInputCapture={markTouched}
+      onPasteCapture={markTouched}
+      onDropCapture={markTouched}
+    >
+      <SchemaForm
+        schema={props.schema}
+        meta={props.meta}
+        value={draft as never}
+        onChange={onFormChange}
+        errors={fieldErrors}
+        resetKey={resetKey}
+        disabled={!props.canEdit}
+        sectionTabs="Sections"
+        onFieldFocus={props.canEdit ? onFieldFocus : undefined}
+      />
+    </div>
+  )
 
   return (
     <>
@@ -492,33 +546,21 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
           </>
         }
         aside={slot(props.aside)}
+        asideHidden={seoTab.active}
         asideColumnFrom={props.asideColumnFrom}
         longTitle={props.longTitle}
         preview={
-          paneAvailable && livePreview ? (
+          // The SEO tab has its own previews: no content preview beside it.
+          paneAvailable && livePreview && !seoTab.active ? (
             <PreviewPane src={props.previewHref!} refreshKey={base.version} />
           ) : undefined
         }
       >
-        <div
-          onKeyDownCapture={markTouched}
-          onPointerDownCapture={markTouched}
-          onInputCapture={markTouched}
-          onPasteCapture={markTouched}
-          onDropCapture={markTouched}
-        >
-          <SchemaForm
-            schema={props.schema}
-            meta={props.meta}
-            value={draft as never}
-            onChange={onFormChange}
-            errors={fieldErrors}
-            resetKey={resetKey}
-            disabled={!props.canEdit}
-            sectionTabs="Sections"
-            onFieldFocus={props.canEdit ? onFieldFocus : undefined}
-          />
-        </div>
+        {props.seo ? (
+          <EditorTabs state={seoTab} content={form} seo={slot(props.seo)} />
+        ) : (
+          form
+        )}
       </EditorLayout>
       <PublishDialog
         open={publishOpen}

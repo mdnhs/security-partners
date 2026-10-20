@@ -44,6 +44,8 @@ const item = (n: number, extra: Partial<MediaItem> = {}): MediaItem => ({
   driver: "disk",
   focalX: null,
   focalY: null,
+  isDecorative: false,
+  caption: "",
   createdBy: null,
   ...extra,
 })
@@ -219,6 +221,8 @@ describe("MediaLibrary (master 6.3)", () => {
     )
     expect(calls.find((c) => c.method === "PATCH")!.body).toEqual({
       alt: "Patrol car",
+      isDecorative: false,
+      caption: "",
       focal: null,
     })
   })
@@ -418,6 +422,8 @@ describe("MediaLibrary (master 6.3)", () => {
     await waitFor(() =>
       expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
         alt: "Mine",
+        isDecorative: false,
+        caption: "",
         focal: null,
       })
     )

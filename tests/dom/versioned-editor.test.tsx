@@ -7,7 +7,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }))
 
+import { z } from "zod"
+
+import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
 import { PageEditor } from "@/components/admin/pages/page-editor"
+import { EMPTY_META } from "@/components/admin/schema-form/editor-meta"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { PageDto } from "@/lib/schemas/api/content"
@@ -688,5 +692,69 @@ describe("page editor section tabs", () => {
     expect(
       screen.queryByRole("dialog", { name: "Publish changes?" })
     ).toBeNull()
+  })
+})
+
+describe("editor SEO tab backstop (D1.4 re-review item 1)", () => {
+  // One plain field: SchemaForm renders no section tabs.
+  const schema = z.object({ name: z.string().min(1) })
+  const record = {
+    draft: { name: "" },
+    published: { name: "Old" },
+    version: 1,
+    dirty: true,
+  }
+
+  it("a failed publish on the SEO tab of a form without section tabs focuses the first invalid field", async () => {
+    window.history.replaceState(null, "", "/admin/pages/home?tab=seo")
+    const user = userEvent.setup()
+    render(
+      <AdminShell
+        queryClient={makeQueryClient()}
+        session={{
+          user: {
+            id: "u1",
+            name: "Edith",
+            email: "e@x.test",
+            title: null,
+            twoFactorEnabled: true,
+          },
+          roles: ["editor"],
+          impersonatedBy: null,
+        }}
+      >
+        <VersionedEditor<never>
+          title="Small"
+          queryKey={["small"]}
+          load={async () => record as never}
+          saveDraft={async () => record as never}
+          publish={async () => record as never}
+          restore={async () => record as never}
+          schema={schema}
+          meta={EMPTY_META}
+          revisions={{ entity: "page", id: "small" }}
+          canEdit
+          canPublish
+          seo={<p>SEO panel</p>}
+        />
+      </AdminShell>
+    )
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "SEO" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
+    )
+    expect(screen.queryByRole("tablist", { name: "Sections" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Content" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
+    )
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /^Name/ })).toHaveFocus()
+    )
   })
 })

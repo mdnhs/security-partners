@@ -5,6 +5,7 @@ import { Suspense } from "react"
 import { PageEditor } from "@/components/admin/pages/page-editor"
 import { PAGE_LABELS } from "@/lib/admin/page-labels"
 import { requirePage } from "@/server/auth/session"
+import { getSiteOrigin } from "@/server/modules/seo/queries"
 import { isPageKey } from "@/templates/registry"
 
 export async function generateMetadata({
@@ -31,5 +32,5 @@ async function Editor({
   // Permission first, as on every [param] page but settings/[key].
   await requirePage("/admin/pages")
   if (!isPageKey(key)) notFound()
-  return <PageEditor pageKey={key} />
+  return <PageEditor pageKey={key} origin={await getSiteOrigin()} />
 }

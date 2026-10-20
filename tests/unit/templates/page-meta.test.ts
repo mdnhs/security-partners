@@ -8,6 +8,7 @@ import {
   serviceMetadata,
   siteMetadata,
 } from "@/templates/shared/page-meta"
+import { placeholders } from "@/templates/shared/views"
 
 const s = fixtureSiteSources()
 const defaults = s.settings["seo.defaults"]
@@ -111,6 +112,82 @@ describe("public page metadata (spec §10)", () => {
     expect(articleMetadata(s, "nope")).toEqual({})
   })
 
+  it("ogTitle/ogDescription override social only; page title unchanged", () => {
+    const base = pageMetadata(s, "about")
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      ...custom.pages.about.seo,
+      ogTitle: "Social",
+      ogDescription: "Social description",
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.title).toBe(base.title)
+    expect(meta.description).toBe(base.description)
+    expect(meta.openGraph).toMatchObject({
+      title: "Social",
+      description: "Social description",
+    })
+    // X shows one coherent card: the social title, like og:title.
+    expect(meta.twitter).toMatchObject({
+      card: "summary_large_image",
+      title: "Social",
+      description: "Social description",
+    })
+  })
+
+  it("blank ogTitle/ogDescription fall back to the page title and description", () => {
+    const base = pageMetadata(s, "about")
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      ...custom.pages.about.seo,
+      ogTitle: "  ",
+      ogDescription: "",
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.openGraph).toMatchObject({
+      title: base.title,
+      description: base.description,
+    })
+    expect(meta.twitter).toMatchObject({
+      title: base.title,
+      description: base.description,
+    })
+  })
+
+  it("without social overrides twitter:title is the page title (unchanged)", () => {
+    for (const meta of [
+      pageMetadata(s, "home"),
+      pageMetadata(s, "about"),
+      serviceMetadata(s, "alarm-responses"),
+      articleMetadata(s, "key-holding-explained"),
+    ])
+      expect(meta.twitter).toMatchObject({ title: meta.title })
+  })
+
+  it("social fields fill {placeholders} like the own fields", () => {
+    const custom = structuredClone(s)
+    custom.pages.about.seo = {
+      ...custom.pages.about.seo,
+      ogTitle: "Call {phone24h}",
+    }
+    const meta = pageMetadata(custom, "about")
+    expect(meta.openGraph).toMatchObject({
+      title: interpolate("Call {phone24h}", placeholders(s)),
+    })
+    expect((meta.openGraph as { title: string }).title).not.toContain("{")
+  })
+
+  it("twitterCard summary", () => {
+    const custom = structuredClone(s)
+    custom.articles[0].seo = {
+      ...custom.articles[0].seo,
+      twitterCard: "summary",
+    }
+    expect(
+      articleMetadata(custom, custom.articles[0].slug).twitter
+    ).toMatchObject({ card: "summary" })
+  })
+
   it("siteMetadata: metadataBase is the origin, default description for pages without one", () => {
     const meta = siteMetadata(s, "https://www.securitypartnersltd.com")
     expect(meta.metadataBase?.toString()).toBe(
@@ -133,5 +210,63 @@ describe("public page metadata (spec §10)", () => {
     }
     const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
     expect(meta.icons).toEqual({ icon: "/api/v1/media/file/uploads/icon.png" })
+  })
+
+  it("siteMetadata (seeded): no robots and no verification keys", () => {
+    const meta = siteMetadata(s, "https://www.securitypartnersltd.com")
+    expect(Object.keys(meta).sort()).toEqual([
+      "description",
+      "icons",
+      "metadataBase",
+    ])
+  })
+
+  it("siteMetadata: site-wide noindex → robots index:false, follow:false", () => {
+    const custom = structuredClone(s)
+    custom.settings["seo.defaults"].robots = "noindex"
+    const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
+    expect(meta.robots).toEqual({ index: false, follow: false })
+    // Pages keep their own metadata (the root robots is inherited).
+    expect(pageMetadata(custom, "home").robots).toBeUndefined()
+  })
+
+  it("siteMetadata: verification tokens only when non-empty", () => {
+    const custom = structuredClone(s)
+    custom.settings["seo.defaults"].verification = { google: "g-123", bing: "" }
+    expect(
+      siteMetadata(custom, "https://www.securitypartnersltd.com").verification
+    ).toEqual({ google: "g-123" })
+    custom.settings["seo.defaults"].verification = { google: "", bing: "B_9" }
+    expect(
+      siteMetadata(custom, "https://www.securitypartnersltd.com").verification
+    ).toEqual({ other: { "msvalidate.01": "B_9" } })
+    custom.settings["seo.defaults"].verification = {
+      google: "g-123",
+      bing: "B_9",
+    }
+    expect(
+      siteMetadata(custom, "https://www.securitypartnersltd.com").verification
+    ).toEqual({ google: "g-123", other: { "msvalidate.01": "B_9" } })
+  })
+
+  it("siteMetadata: a pre-migration seo.defaults row keeps the base metadata (D1.6 M1)", () => {
+    const custom = structuredClone(s)
+    const legacy = custom.settings["seo.defaults"] as Partial<
+      (typeof custom.settings)["seo.defaults"]
+    >
+    delete legacy.verification
+    delete legacy.robots
+    const meta = siteMetadata(custom, "https://www.securitypartnersltd.com")
+    expect(Object.keys(meta).sort()).toEqual([
+      "description",
+      "icons",
+      "metadataBase",
+    ])
+    expect(String(meta.metadataBase)).toBe(
+      "https://www.securitypartnersltd.com/"
+    )
+    expect(meta.description).toBe(
+      interpolate(defaults.description, placeholders(s))
+    )
   })
 })

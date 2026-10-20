@@ -30,5 +30,24 @@ export const SEO_FIELDS_META: EditorMeta = {
       label: "Hide from search engines",
       help: "Adds noindex and leaves the page out of the sitemap.",
     },
+    ogTitle: {
+      label: "Social title",
+      help: "The headline when the page is shared on social networks. Empty: the title above.",
+      maxLength: 70,
+    },
+    ogDescription: {
+      label: "Social description",
+      help: "The text under the headline when shared. Empty: the description above.",
+      maxLength: 200,
+      rows: 3,
+    },
+    twitterCard: {
+      label: "Card on X (Twitter)",
+      help: "A large image above the text, or a small square beside it.",
+      options: [
+        { value: "summary_large_image", label: "Large image" },
+        { value: "summary", label: "Small image" },
+      ],
+    },
   },
 }

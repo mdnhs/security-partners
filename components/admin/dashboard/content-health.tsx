@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/admin/kit/empty-state"
 import { Gauge } from "@/components/admin/kit/gauge"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { healthParts } from "@/components/admin/seo/health"
-import { SEO_OVERVIEW_KEY } from "@/components/admin/seo/keys"
+import { SEO_HEALTH_KEY } from "@/components/admin/seo/keys"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 
@@ -16,8 +16,8 @@ import { api, errorMessage, unwrap } from "@/lib/api-client"
 export function ContentHealthCard() {
   const canRead = usePermission({ seo: ["read"] })
   const query = useQuery({
-    queryKey: SEO_OVERVIEW_KEY,
-    queryFn: () => unwrap(api.seo.overview.$get()),
+    queryKey: SEO_HEALTH_KEY,
+    queryFn: () => unwrap(api.seo.health.$get()),
     enabled: canRead,
     staleTime: 60_000,
   })
@@ -47,7 +47,7 @@ export function ContentHealthCard() {
           title="Content health"
           centerLabel="SEO checks passing"
           headlineKey="passed"
-          parts={healthParts(query.data.checks)}
+          parts={healthParts(query.data)}
         />
       )}
     </DashboardCard>

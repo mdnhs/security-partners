@@ -64,11 +64,18 @@ function metadataFor(s: SiteSources, subject: Subject): Metadata {
     values: placeholders(s),
   })
   const image = shareImage(s, subject)
+  // Social overrides (Open Graph/Twitter only); the page title and meta
+  // description stay as above. {placeholders} fill like the own fields.
+  const social = (value: string | undefined) => {
+    const own = filled(value)
+    return own === null ? null : interpolate(own, placeholders(s))
+  }
+  const socialDescription = social(subject.seo.ogDescription) ?? description
   const shared = {
     url: subject.path,
     siteName: s.settings.site.name,
-    title,
-    description,
+    title: social(subject.seo.ogTitle) ?? title,
+    description: socialDescription,
     images: [image],
   }
   const { article } = subject
@@ -90,9 +97,10 @@ function metadataFor(s: SiteSources, subject: Subject): Metadata {
         }
       : { ...shared, type: "website" },
     twitter: {
-      card: "summary_large_image",
-      title,
-      description,
+      card: subject.seo.twitterCard ?? "summary_large_image",
+      // The social title, like og:title (X does not fall back once set).
+      title: shared.title,
+      description: socialDescription,
       images: [{ url: image.url, ...(image.alt ? { alt: image.alt } : {}) }],
     },
   }
@@ -153,14 +161,38 @@ export const DEFAULT_FAVICON = "/favicon.ico"
  * become absolute on the production origin) and the default description,
  * which the 404 page (no metadata of its own) inherits. The browser tab
  * icon is settings.site.favicon, else the bundled public/favicon.ico.
+ * Site-wide noindex adds a root robots tag (pages inherit it); search
+ * console tokens are emitted only when set (seeded: neither key).
  */
 export function siteMetadata(s: SiteSources, origin: string): Metadata {
+  const defaults = s.settings["seo.defaults"]
+  // The layout reads settings unparsed: a row from before the robots
+  // migration has no verification and must still yield the base metadata.
+  const verification = siteVerification(
+    defaults.verification ?? { google: "", bing: "" }
+  )
   return {
     metadataBase: new URL(origin),
-    description: interpolate(
-      s.settings["seo.defaults"].description,
-      placeholders(s)
-    ),
+    description: interpolate(defaults.description, placeholders(s)),
     icons: { icon: s.settings.site.favicon?.url ?? DEFAULT_FAVICON },
+    ...(defaults.robots === "noindex"
+      ? { robots: { index: false, follow: false } }
+      : {}),
+    ...(verification ? { verification } : {}),
+  }
+}
+
+/** google-site-verification and Bing's msvalidate.01; null when both are empty. */
+function siteVerification({
+  google,
+  bing,
+}: {
+  google: string
+  bing: string
+}): Metadata["verification"] | null {
+  if (!google && !bing) return null
+  return {
+    ...(google ? { google } : {}),
+    ...(bing ? { other: { "msvalidate.01": bing } } : {}),
   }
 }

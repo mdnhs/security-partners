@@ -89,8 +89,29 @@
     {
       "idx": 12,
       "version": "7",
+      "when": 1792431933245,
+      "tag": "0012_media_alt",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792441347140,
+      "tag": "0013_seo_defaults_robots",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792442099535,
+      "tag": "0014_redirects_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
       "when": 1792443402315,
-      "tag": "0012_ai_enquiry_details",
+      "tag": "0015_ai_enquiry_details",
       "breakpoints": true
     }
   ]

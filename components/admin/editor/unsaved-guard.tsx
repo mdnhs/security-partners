@@ -293,6 +293,12 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Attribute of links that stay on the page (their click handler updates
+ * the URL in place): the unsaved-changes guard lets them through.
+ */
+export const IN_PAGE_LINK = "data-in-page"
+
 /** The same-origin page a plain left click on a link would open, or null. */
 function guardedLinkTarget(
   event: MouseEvent
@@ -304,8 +310,17 @@ function guardedLinkTarget(
   if (!(anchor instanceof HTMLAnchorElement)) return null
   if (anchor.target && anchor.target !== "_self") return null
   if (anchor.hasAttribute("download")) return null
+  // In-page links (e.g. an editor's SEO tab link: ?tab=seo on the same
+  // path) switch state without leaving: never a leave prompt, and never the
+  // "confirmed leave" that would mute beforeunload. Only on the current
+  // path: misused on a link to another page, it still asks.
   const url = new URL(anchor.href, window.location.href)
   if (url.origin !== window.location.origin) return null
+  if (
+    anchor.hasAttribute(IN_PAGE_LINK) &&
+    url.pathname === window.location.pathname
+  )
+    return null
   // API routes (CSV exports, files) never unload the page.
   if (url.pathname.startsWith("/api/")) return null
   if (url.pathname === window.location.pathname && url.hash) return null

@@ -7,13 +7,28 @@ import { makeQueryClient } from "@/components/admin/providers"
 import { AdminSessionProvider } from "@/components/admin/session-provider"
 import type { Role } from "@/lib/auth/roles"
 
-const fetchMock = vi.fn(
-  async () =>
-    new Response(
-      JSON.stringify({ entries: [], checks: { passed: 30, total: 40 } }),
-      { status: 200, headers: { "content-type": "application/json" } }
-    )
-)
+const HEALTH = {
+  score: 75,
+  passed: 30,
+  total: 40,
+  entities: [],
+  issues: [],
+  alt: { images: 0, described: 0, decorative: 0, missing: 0 },
+}
+
+// D1.2: the card reads GET /seo/health (anything else is a 404 here).
+const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const health = String(input).endsWith("/api/v1/admin/seo/health")
+  return new Response(
+    health
+      ? JSON.stringify(HEALTH)
+      : JSON.stringify({ error: { code: "NOT_FOUND", message: "Nope" } }),
+    {
+      status: health ? 200 : 404,
+      headers: { "content-type": "application/json" },
+    }
+  )
+})
 
 beforeEach(() => {
   fetchMock.mockClear()

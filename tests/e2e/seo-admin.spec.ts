@@ -60,9 +60,55 @@ test("owner adds a redirect in SEO › Redirects; the old address 301s", async (
   ).toHaveCount(0)
 })
 
+test("a redirect turned off stops answering; on again, it 308s (D1.7)", async ({
+  page,
+}) => {
+  await signIn(page, E2E_OWNER.email)
+  const created = await page.request.post("/api/v1/admin/redirects", {
+    headers: { origin: BASE_URL },
+    data: {
+      fromPath: "/e2e-toggle",
+      toPath: "/contact",
+      code: 308,
+      note: "e2e toggle",
+    },
+  })
+  expect(created.status()).toBe(201)
+  const { id } = (await created.json()) as { id: string }
+  try {
+    await page.goto("/admin/seo/redirects?q=e2e-toggle")
+    const table = page.getByRole("table", { name: "Redirects" })
+    await expect(table).toContainText("e2e toggle")
+    await expect(table).toContainText("Never")
+    await page
+      .getByRole("button", { name: "Turn off redirect from /e2e-toggle" })
+      .click()
+    await expect(
+      page.getByRole("button", { name: "Turn on redirect from /e2e-toggle" })
+    ).toBeVisible()
+    const off = await page.request.get("/e2e-toggle", { maxRedirects: 0 })
+    expect(off.status()).toBe(404)
+
+    await page
+      .getByRole("button", { name: "Turn on redirect from /e2e-toggle" })
+      .click()
+    await expect(
+      page.getByRole("button", { name: "Turn off redirect from /e2e-toggle" })
+    ).toBeVisible()
+    const on = await page.request.get("/e2e-toggle", { maxRedirects: 0 })
+    expect(on.status()).toBe(308)
+    expect(absolute(on.headers().location)).toBe(`${BASE_URL}/contact`)
+  } finally {
+    await page.request.delete(`/api/v1/admin/redirects/${id}`, {
+      headers: { origin: BASE_URL },
+    })
+  }
+})
+
 test("SEO overview: the sheet saves a page's description", async ({ page }) => {
   await signIn(page, E2E_OWNER.email)
-  await page.goto("/admin/seo")
+  // All: Terms may pass every check (Needs work would hide it).
+  await page.goto("/admin/seo?show=all")
   await page.getByRole("button", { name: "Edit SEO for Terms of use" }).click()
   const sheet = page.getByRole("dialog", { name: "SEO: Terms of use" })
   const description = sheet.getByRole("textbox", { name: /^Description/ })
@@ -96,8 +142,68 @@ test("SEO overview: the sheet saves a page's description", async ({ page }) => {
       .getByRole("button", { name: "Edit SEO for Terms of use" })
       .click()
     const again = page.getByRole("dialog", { name: "SEO: Terms of use" })
-    await again.getByRole("textbox", { name: /^Description/ }).fill(before)
-    await again.getByRole("button", { name: "Save SEO" }).click()
+    const field = again.getByRole("textbox", { name: /^Description/ })
+    // Save is disabled while nothing changed (the first save failed before
+    // writing): then there is nothing to restore, just close the sheet.
+    if ((await field.inputValue()) !== before) {
+      await field.fill(before)
+      await again.getByRole("button", { name: "Save SEO" }).click()
+    } else {
+      await page.keyboard.press("Escape")
+    }
     await expect(again).toBeHidden()
   }
+})
+
+test("SEO overview: alt-text card, Needs work / All, Fix opens the editor's SEO tab", async ({
+  page,
+}) => {
+  await signIn(page, E2E_OWNER.email)
+  await page.goto("/admin/seo")
+  const alt = page.getByRole("region", { name: "Alt text" })
+  await expect(alt).toContainText(
+    /\d+ of \d+ images described · \d+ decorative/
+  )
+  await expect(
+    alt.getByRole("link", { name: "Find images without alt text" })
+  ).toHaveAttribute("href", "/admin/media?missingAlt=true")
+
+  const filter = page.getByRole("navigation", { name: "Issue filter" })
+  await expect(
+    filter.getByRole("link", { name: "Needs work" })
+  ).toHaveAttribute("aria-current", "page")
+  // Needs work never says "All checks pass"; All lists the passing records.
+  await expect(page.getByText("All checks pass")).toHaveCount(0)
+  await filter.getByRole("link", { name: "All" }).click()
+  await page.waitForURL((url) => url.searchParams.get("show") === "all")
+  await expect(filter.getByRole("link", { name: "All" })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await filter.getByRole("link", { name: "Needs work" }).click()
+  await page.waitForURL((url) => !url.searchParams.has("show"))
+  // The filter pushes history entries (review D1.5 M4): Back returns to All.
+  await page.goBack()
+  await page.waitForURL((url) => url.searchParams.get("show") === "all")
+  await expect(filter.getByRole("link", { name: "All" })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
+  await page.goForward()
+  await page.waitForURL((url) => !url.searchParams.has("show"))
+
+  // The seed has issues (services' images lack alt text, D1.2 report):
+  // the first record Fix lands on that editor's SEO tab.
+  const fix = page
+    .getByRole("link", { name: /^Fix / })
+    .and(page.locator('[href*="?tab=seo"]'))
+    .first()
+  const href = await fix.getAttribute("href")
+  expect(href).toMatch(/^\/admin\/(pages|services|insights)\/.+\?tab=seo$/)
+  await fix.click()
+  await page.waitForURL((url) => url.searchParams.get("tab") === "seo")
+  await expect(page.getByRole("tab", { name: "SEO" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  )
 })

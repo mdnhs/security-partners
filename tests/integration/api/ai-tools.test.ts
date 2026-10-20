@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 
 import { simulateReadableStream } from "ai"
 import { MockLanguageModelV4 } from "ai/test"
@@ -509,16 +509,16 @@ describe("enquiry details on a lead screen (C8 review: privacy)", () => {
   })
 
   it("messages from before the flag existed are withheld while the switch is off (C9 review I1)", async () => {
-    // Migration 0012 flags every message that existed before it.
+    // The ai_enquiry_details migration flags every message that existed before it.
     const migration = readFileSync(
-      "server/db/migrations/0012_ai_enquiry_details.sql",
+      `server/db/migrations/${readdirSync("server/db/migrations").find((f) => f.endsWith("_ai_enquiry_details.sql"))}`,
       "utf8"
     )
     expect(migration).toContain(
       'UPDATE "ai_messages" SET "enquiry_details" = true;'
     )
     await configureAi()
-    // A conversation from the C6/C7 era, flagged by migration 0012.
+    // A conversation from the C6/C7 era, flagged by the ai_enquiry_details migration.
     const [legacy] = await getDb()
       .insert(aiConversations)
       .values({ userId: owner.id, title: "Old lead chat", context: null })

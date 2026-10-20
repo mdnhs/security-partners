@@ -10,6 +10,9 @@ import { zv } from "@/server/api/validate"
 import * as service from "./service"
 
 export const seoRoutes = new Hono<AppEnv>()
+  .get("/health", can({ seo: ["read"] }), async (c) =>
+    c.json(await service.getSeoHealth(actorOf(c)), 200)
+  )
   .get("/overview", can({ seo: ["read"] }), async (c) =>
     c.json(await service.getSeoOverview(actorOf(c)), 200)
   )

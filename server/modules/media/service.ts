@@ -97,6 +97,8 @@ export function toItem(row: MediaRow): MediaItem {
     driver: row.driver,
     focalX: row.focalX,
     focalY: row.focalY,
+    isDecorative: row.isDecorative,
+    caption: row.caption,
     createdBy: row.createdBy,
   }
 }
@@ -202,6 +204,7 @@ export async function listMedia(
   const { rows, total } = await listMediaRows(getDb(), {
     q: query.q || undefined,
     kind: query.kind,
+    missingAlt: query.missingAlt === "true",
     sort: query.sort,
     page: query.page,
     pageSize: query.pageSize,
@@ -422,14 +425,18 @@ export async function listUsages(
   return { items: await usagesOf(db, actor, id) }
 }
 
-/** Alt text and focal point (spec §8.1). Media is not versioned: last write wins. */
+/**
+ * Alt text, decorative flag, caption and focal point (spec §8.1). Media is
+ * not versioned: last write wins. Marking a file decorative keeps its alt
+ * text as entered.
+ */
 export async function updateMedia(
   actor: Actor,
   id: string,
   input: MediaUpdateInput
 ): Promise<MediaItem> {
   // media:update edits any file; an uploader (media:create, e.g. authors)
-  // may describe their own uploads: alt text and focal point only (WCAG 1.1.1).
+  // may describe their own uploads: these descriptive fields only (WCAG 1.1.1).
   const editsAny = hasPermission(actor.roles, { media: ["update"] })
   if (!editsAny) assertCan(actor, { media: ["create"] })
   const row = await getDb().transaction(async (tx) => {
@@ -438,6 +445,9 @@ export async function updateMedia(
     if (!editsAny && existing.createdBy !== actor.userId) throw forbidden()
     const patch: Parameters<typeof updateMediaRow>[2] = {}
     if (input.alt !== undefined) patch.alt = cleanAltText(input.alt)
+    if (input.isDecorative !== undefined)
+      patch.isDecorative = input.isDecorative
+    if (input.caption !== undefined) patch.caption = cleanAltText(input.caption)
     if (input.focal !== undefined) {
       patch.focalX = input.focal?.x ?? null
       patch.focalY = input.focal?.y ?? null
@@ -448,9 +458,21 @@ export async function updateMedia(
       action: "media.updated",
       entityType: "media",
       entityId: id,
+      // Only fields that changed (review M3): the form always sends them all.
       diff: {
-        ...(input.alt !== undefined
+        ...(existing.alt !== updated.alt
           ? { alt: { from: existing.alt, to: updated.alt } }
+          : {}),
+        ...(existing.isDecorative !== updated.isDecorative
+          ? {
+              isDecorative: {
+                from: existing.isDecorative,
+                to: updated.isDecorative,
+              },
+            }
+          : {}),
+        ...(existing.caption !== updated.caption
+          ? { caption: { from: existing.caption, to: updated.caption } }
           : {}),
         ...(input.focal !== undefined
           ? {
