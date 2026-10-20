@@ -288,7 +288,10 @@ describe("caps follow the block schemas (review D5.5 M2/M3)", () => {
       expect(notes).toEqual([
         expect.stringContaining("only its first part is copied"),
       ])
-    }
+    },
+    // The 3000-item list takes ~2.5 s alone and up to ~8 s under the full
+    // suite's load; the default 5 s timed it out on every full run.
+    20_000
   )
 
   it("the seeded pages copy without notes; cut copy and lists say so", () => {
