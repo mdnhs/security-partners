@@ -93,6 +93,13 @@ describe("redactContacts (best-effort; C8 review M1, C9 review I2/M1)", () => {
     ["{@}", "write to john{@}gmail.com please"],
     ["<@>", "write to john < @ > gmail.com please"],
     ["zero-width around @", "write to john​@​gmail.com please"],
+    // C9 N5 (final review minor 9): spaced {@} and unbalanced brackets.
+    ["spaced {@}", "write to john {@} gmail.com please"],
+    ["spaced { @ }", "write to john { @ } gmail.com please"],
+    ["open bracket only", "write to john (@ gmail.com please"],
+    ["close bracket only", "write to john @) gmail.com please"],
+    ["open bracket, at", "write to john (at gmail dot com please"],
+    ["close bracket, at", "write to john at] gmail.com please"],
   ])("removes an obfuscated email: %s", (_name, text) => {
     const out = redactContacts(text)
     expect(out).toBe("write to [email removed] please")

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { Suspense } from "react"
 
 import { PageBuilder } from "@/components/admin/builder/page-builder"
-import { idParam } from "@/lib/schemas/api/params"
+import { isUuid } from "@/lib/ids"
 import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Page builder" }
@@ -24,6 +24,6 @@ async function Builder({
   const { id } = await params
   // Permission first, as on every [param] page but settings/[key].
   await requirePage("/admin/pages/custom")
-  if (!idParam.safeParse({ id }).success) notFound()
+  if (!isUuid(id)) notFound()
   return <PageBuilder id={id} />
 }

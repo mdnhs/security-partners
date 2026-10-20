@@ -49,6 +49,8 @@ const RUNTIME_LIMITS = [
   "Editors’ settings changes cover content settings only.",
   "The AI assistant is also limited to the roles chosen in Integrations, and is read-only while viewing as someone else.",
   "Nobody can view as someone else while already viewing as someone else.",
+  "Anyone who can upload media may edit the alt text and focal point of their own uploads (also the caption and decorative flag), even without media update.",
+  "New articles from a role that cannot edit every article are always under that person’s own byline.",
 ] as const
 
 /** Rows grouped by resource, in statement order. */

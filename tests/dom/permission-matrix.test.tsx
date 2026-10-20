@@ -33,8 +33,8 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/admin/users")
 })
 
-function renderScreen() {
-  render(
+function screenTree(client = makeQueryClient()) {
+  return (
     <AdminSessionProvider
       value={{
         user: {
@@ -48,12 +48,14 @@ function renderScreen() {
         impersonatedBy: null,
       }}
     >
-      <AdminProviders cacheKey="test" client={makeQueryClient()}>
+      <AdminProviders cacheKey="test" client={client}>
         <UsersScreen />
       </AdminProviders>
     </AdminSessionProvider>
   )
 }
+
+const renderScreen = () => render(screenTree())
 
 const MATRIX = "Users & roles: permissions"
 
@@ -106,6 +108,19 @@ describe("Users & roles: People / Roles tabs", () => {
     search.value = "tab=roles"
     renderScreen()
     expect(screen.getByRole("table", { name: MATRIX })).toBeInTheDocument()
+  })
+
+  it("a soft navigation to ?tab=roles while mounted switches the tab (D3.4 N1)", () => {
+    const client = makeQueryClient()
+    const { rerender } = render(screenTree(client))
+    expect(screen.queryByRole("table", { name: MATRIX })).toBeNull()
+    // ⌘K or a nav link: the URL changes, the screen stays mounted.
+    search.value = "tab=roles"
+    rerender(screenTree(client))
+    expect(screen.getByRole("table", { name: MATRIX })).toBeInTheDocument()
+    search.value = ""
+    rerender(screenTree(client))
+    expect(screen.queryByRole("table", { name: MATRIX })).toBeNull()
   })
 })
 
@@ -196,6 +211,9 @@ describe("PermissionMatrix", () => {
     expect(text).toMatch(/content settings/i)
     expect(text).toMatch(/AI assistant/i)
     expect(text).toMatch(/viewing as someone/i)
+    // D3.4 parked footnotes (final review minor 8).
+    expect(text).toMatch(/alt text and focal point of their own uploads/i)
+    expect(text).toMatch(/own byline/i)
   })
 
   it("describes every role above the table", () => {

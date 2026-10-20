@@ -100,9 +100,17 @@ export function UsersScreen() {
   // Kept in ?role=&status= so returning from a user restores the list.
   const [params, setParams] = useUrlFilters(["role", "status"] as const)
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<TabValue>(() =>
+  const urlTab: TabValue =
     searchParams?.get("tab") === "roles" ? "roles" : "people"
-  )
+  const [tab, setTab] = useState<TabValue>(urlTab)
+  // A soft navigation while mounted (⌘K, a nav link to ?tab=roles) changes
+  // the URL only: follow it (D3.4 N1). Adjusted during render, React's
+  // pattern for state derived from a changed prop.
+  const [seenUrlTab, setSeenUrlTab] = useState<TabValue>(urlTab)
+  if (urlTab !== seenUrlTab) {
+    setSeenUrlTab(urlTab)
+    setTab(urlTab)
+  }
   // Own writer, not setParams: keeps ?page= and is never remembered as the
   // list's "back to users" search (that stays the People list's).
   const selectTab = (next: TabValue) => {

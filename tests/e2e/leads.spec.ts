@@ -292,9 +292,11 @@ test("first-touch attribution travels with the enquiry, only with analytics cons
   await showTable(page)
   await page.getByRole("searchbox", { name: "Search leads" }).fill(refused)
   await page.getByRole("link", { name: refused }).first().click()
-  await expect(page.getByRole("region", { name: "Source" })).toContainText(
-    "No source was recorded for this enquiry."
-  )
+  await expect(
+    page
+      .getByRole("dialog", { name: refused })
+      .getByRole("region", { name: "Source" })
+  ).toContainText("No source was recorded for this enquiry.")
 })
 
 test("the detail URL lands on the drawer, and Back closes it (D3.2)", async ({

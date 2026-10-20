@@ -324,6 +324,27 @@ describe("useBuilderAutosave", () => {
       expect(result.current.version()).toBe(4)
     })
 
+    it("discardPending alone implies replaces: ⌘S during it sends nothing (D5 N3)", async () => {
+      const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
+        dto(v + 1)
+      )
+      const { result, rerender } = setup(save)
+      rerender({ doc: docWith("edits") })
+      const { request, done } = slowRequest()
+      const discarding = act(() =>
+        result.current.exclusive(request, { discardPending: true })
+      )
+      await tick(0)
+      let flushed: Promise<boolean> | undefined
+      act(() => {
+        flushed = result.current.flush()
+      })
+      await act(async () => done(dto(4, published)))
+      await discarding
+      expect(await act(() => flushed!)).toBe(true)
+      expect(save).not.toHaveBeenCalled()
+    })
+
     it("a debounce that was about to fire never sends the discarded edits", async () => {
       const save = vi.fn(async (_d: DraftDocumentValue, v: number) =>
         dto(v + 1)

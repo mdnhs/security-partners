@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
-import { z } from "zod"
 
 import { ServiceEditor } from "@/components/admin/services/service-editor"
+import { isUuid } from "@/lib/ids"
 import { requirePage } from "@/server/auth/session"
 import { getSiteOrigin } from "@/server/modules/seo/queries"
 
@@ -25,6 +25,6 @@ async function Screen({
   const { id } = await params
   // Permission first, as on every [param] page but settings/[key].
   await requirePage("/admin/services")
-  if (!z.uuid().safeParse(id).success) notFound()
+  if (!isUuid(id)) notFound()
   return <ServiceEditor id={id} origin={await getSiteOrigin()} />
 }

@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { randomId } from "@/lib/ids"
 import { collectMediaFields } from "@/lib/media"
 
 import {
@@ -164,17 +165,6 @@ const anchorBase = (type: BlockType) =>
     .replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
     .replace(/[^a-z0-9]+/g, "-")
 
-/**
- * A fresh BlockId. crypto.randomUUID() exists only in secure contexts, so
- * an admin opened over plain http (LAN, staging IP) falls back to 16
- * random bytes as hex (getRandomValues is available everywhere).
- */
-function newBlockId(): string {
-  if (typeof crypto.randomUUID === "function") return crypto.randomUUID()
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
-}
-
 /** A new block of `type` with a fresh id, an unused anchor and its defaults. */
 export function emptyBlock(
   type: BlockType,
@@ -185,7 +175,7 @@ export function emptyBlock(
   let anchor = base
   for (let n = 2; taken.has(anchor); n++) anchor = `${base}-${n}`
   return {
-    id: newBlockId(),
+    id: randomId(),
     type,
     anchor,
     hidden: false,

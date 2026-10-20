@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 
-import { idParam } from "@/lib/schemas/api/params"
+import { isUuid } from "@/lib/ids"
 import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Lead" }
@@ -19,6 +19,6 @@ export default async function LeadPage({
   // Permission first: a 403 never leaks whether an id exists.
   await requirePage("/admin/leads")
   // Only a UUID goes into the URL (and later the API path): SEC1.
-  if (!idParam.safeParse({ id }).success) notFound()
+  if (!isUuid(id)) notFound()
   redirect(`/admin/leads?lead=${encodeURIComponent(id.toLowerCase())}`)
 }

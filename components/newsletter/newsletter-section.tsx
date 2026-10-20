@@ -1,5 +1,6 @@
 import "server-only"
 
+import { unstable_rethrow } from "next/navigation"
 import { connection } from "next/server"
 
 import { type NewsletterWhere, shouldRender } from "@/lib/newsletter/placement"
@@ -17,6 +18,7 @@ export async function NewsletterSection({ where }: { where: NewsletterWhere }) {
   await connection()
   const settings = await readPublishedSettings("newsletter").catch(
     (error: unknown) => {
+      unstable_rethrow(error)
       console.error(
         `[newsletter] section not rendered (${error instanceof Error ? error.name : "unknown"})`
       )
