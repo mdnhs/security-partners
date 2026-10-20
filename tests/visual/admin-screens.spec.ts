@@ -1403,8 +1403,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect.poll(() => visibleImagesLoaded(page)).toBe(true)
       // The scroll offset the baselines were captured at (desktop/mobile).
       // Mobile: 853 since the 44 px coarse SectionTabs (final review I4,
-      // +8 px above the Hero card; was 845).
-      const baselineScrollTop = page.viewportSize()!.width >= 1024 ? 558 : 853
+      // +8 px above the Hero card; was 845). MK parity (page editor and
+      // shell changes above the Hero card): 622/925, were 558/853.
+      const baselineScrollTop = page.viewportSize()!.width >= 1024 ? 622 : 925
       await expect
         .poll(() => settledMainScrollTop(page))
         .toBe(baselineScrollTop)
@@ -1458,13 +1459,30 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("heading", { level: 1, name: "Enquiries" })
       ).toBeVisible()
+      // The board is the inbox's default view (D3.3): one card per lead.
+      await expect(
+        page.getByRole("main").locator(`[data-lead-card="${LEAD_ID}"]`)
+      ).toContainText("Siobhán Byrne")
+      await expect(page).toHaveScreenshot(shot("leads"), {
+        mask: await masks(page),
+      })
+    })
+
+    test(`admin leads table ${colorScheme}`, async ({ page }) => {
+      await pinLeads(page)
+      await signIn(page)
+      await page.goto("/admin/leads?view=table")
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Enquiries" })
+      ).toBeVisible()
       // A table from 640 px, cards below: find the links in either.
       await expect(
         page
           .getByRole("main")
           .getByRole("link", { name: "Siobhán Byrne", exact: true })
+          .filter({ visible: true })
       ).toBeVisible()
-      await expect(page).toHaveScreenshot(shot("leads"), {
+      await expect(page).toHaveScreenshot(shot("leads-table"), {
         mask: await masks(page),
       })
     })
@@ -1512,8 +1530,14 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("heading", { level: 1, name: "Newsletter" })
       ).toBeVisible()
+      // A table from 640 px, cards below (the hidden one is still in the
+      // DOM): wait for the visible copy.
       await expect(
-        page.getByRole("main").getByText("niamh@harbourlogistics.ie").first()
+        page
+          .getByRole("main")
+          .getByText("niamh@harbourlogistics.ie")
+          .filter({ visible: true })
+          .first()
       ).toBeVisible()
       await expect(page).toHaveScreenshot(shot("newsletter"), {
         mask: await masks(page),
