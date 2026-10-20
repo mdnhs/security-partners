@@ -141,6 +141,13 @@
       "when": 1792443402315,
       "tag": "0019_ai_enquiry_details",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792503069273,
+      "tag": "0020_remove_newsletter",
+      "breakpoints": true
     }
   ]
 }
