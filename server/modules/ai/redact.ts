@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * Best-effort removal of contact details typed into free text (enquiry
  * names, companies, messages and notes) before it reaches the AI provider.

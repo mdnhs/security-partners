@@ -1,3 +1,5 @@
+import "server-only"
+
 import { isoDate } from "@/lib/format"
 import { TREND_DAYS } from "@/lib/schemas/api/dashboard"
 
