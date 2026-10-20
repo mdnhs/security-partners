@@ -1,18 +1,27 @@
 # Runbook
 
 Security Partners site + admin on one Next.js app (standalone Docker image
-`ghcr.io/mdnhs/security-partners`), Postgres 17 as a Dokploy database
-service, Traefik in front (Dokploy). The container reads exactly three
-variables: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (plus the
-platform's `NODE_ENV`, `PORT`, `HOSTNAME`, set by the image). Everything else
-(SMTP, R2, Turnstile, AI, tracking) is set in the admin and stored in the
-database, secrets encrypted with keys derived from `BETTER_AUTH_SECRET`.
+`ghcr.io/mdnhs/security-partners`), Postgres 17 as the `db` service of the
+same Dokploy compose app ("Postgres in the compose stack"), Traefik in front
+(Dokploy). The app reads exactly three variables: `DATABASE_URL`,
+`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (plus the platform's `NODE_ENV`,
+`PORT`, `HOSTNAME`, set by the image). Everything else (SMTP, R2, Turnstile,
+AI, tracking) is set in the admin and stored in the database, secrets
+encrypted with keys derived from `BETTER_AUTH_SECRET`.
 
 Some operator scripts accept a secret through an input-only variable so it
 stays out of shell history: `DEMO_PASSWORD` (`demo:seed`),
 `OLD_BETTER_AUTH_SECRET` (`secrets:rotate`), `SOURCE_DATABASE_URL` and
 `SOURCE_BETTER_AUTH_SECRET` (`db:sync`). Only that script reads them; the app
 never does. Never set them in the Dokploy environment.
+
+The container start scripts read a second group of input-only variables,
+which the deploy workflow does set in the Dokploy environment; the
+entrypoint unsets them before `server.js` starts, so the app never sees
+them: `SP_R2_ACCOUNT_ID`, `SP_R2_ACCESS_KEY_ID`, `SP_R2_SECRET_ACCESS_KEY`,
+`SP_R2_BUCKET`, `SP_R2_PREFIX` (`r2-bootstrap`, "R2 folder and bootstrap")
+and `SP_IMPORT_KEY`, `SP_IMPORT_SOURCE_SECRET` (`data-import`, "Import local
+data into production"). `POSTGRES_PASSWORD` is read by the `db` service only.
 
 Owner decisions and the go-live checklist are in `docs/launch.md`.
 
@@ -26,11 +35,29 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   the Docker image, then migrate → auto-seed of the empty database
   (`seed.mjs --if-empty`) → server → readiness → a second `--if-empty` run
   that must change nothing → `backup.mjs` → `restore-drill.mjs` inside it). Only when CI passes is the
-  image pushed to GHCR (`:latest` and `:<commit sha>`) and Dokploy asked to
-  redeploy the compose app. Every job in `deploy.yml` runs only on
-  `refs/heads/main`; the Dokploy step uses the GitHub environment
-  `production` (add required reviewers there to make deploys wait for an
-  approval). `ci.yml` also runs on pull requests; a push to a branch other
+  image pushed to GHCR (`:latest` and `:<commit sha>`), then `ensure-env`
+  checks the Dokploy environment, then Dokploy is asked to redeploy the
+  compose app (it re-pulls `:latest`: `pull_policy: always`). Every job in
+  `deploy.yml` runs only on `refs/heads/main`; `ensure-env` and the Dokploy
+  step use the GitHub environment `production` (add required reviewers
+  there to make deploys wait for an approval).
+- `ensure-env` (Dokploy API with `DOKPLOY_URL` / `DOKPLOY_API_KEY`:
+  `compose.one`, `compose.update`, `compose.saveEnvironment`) turns the
+  compose app's Dokploy auto-deploy off (only the workflow deploys, after
+  CI), then **adds** each missing key: `POSTGRES_PASSWORD` (random hex),
+  `DATABASE_URL` (built from that password, host `security-partners-db`),
+  `BETTER_AUTH_SECRET` (`openssl rand -base64 48`), `BETTER_AUTH_URL`
+  (`https://security.raynx.ie`), `SP_R2_ACCOUNT_ID`, `SP_R2_ACCESS_KEY_ID`,
+  `SP_R2_SECRET_ACCESS_KEY`, `SP_R2_BUCKET` (from the repo secrets of the
+  same names) and `SP_R2_PREFIX=sp`. A key that exists is never changed,
+  whatever its value — change it in Dokploy yourself ("Rotate …"). The one
+  exception: `SP_IMPORT_KEY` and `SP_IMPORT_SOURCE_SECRET` follow the repo
+  secrets of the same names whenever those are set ("Import local data into
+  production"). It saves, reads the environment back and fails (no deploy)
+  unless every key it wrote is there and every other key is unchanged. Values
+  are masked in the log; only key names are printed. The generated
+  `BETTER_AUTH_SECRET` and database password live only in Dokploy: copy
+  them into the password manager after the first deploy. `ci.yml` also runs on pull requests; a push to a branch other
   than `main` starts no workflow of its own. Visual pixel tests are not in CI (macOS only): run
   `pnpm test:visual` locally before merging a change that can touch the
   public pages.
@@ -40,9 +67,11 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
   broken); it exists only for `workflow_dispatch`, never for a push.
 - The container's PID 1 is `tini`, which forwards `SIGTERM`. On start the
   container applies pending migrations (`docker-entrypoint.sh` →
-  `node scripts/dist/migrate.mjs`), then auto-seeds the content if the
-  database is empty (`node scripts/dist/seed.mjs --if-empty`), then starts
-  `node server.js`. The seed step writes only when the `pages` table has no
+  `node scripts/dist/migrate.mjs`), imports `SP_IMPORT_KEY` once when it is
+  set (`data-import.mjs`, then migrate again), auto-seeds the content if the
+  database is empty (`node scripts/dist/seed.mjs --if-empty`), saves R2 from
+  `SP_R2_*` when no R2 settings exist (`r2-bootstrap.mjs`), unsets the
+  input-only variables, then starts `node server.js`. The seed step writes only when the `pages` table has no
   rows at all (a fresh database); otherwise it logs
   `[db:seed] <n> page(s) already exist: auto-seed skipped, no data changed`
   and touches nothing, so deleted or unpublished content is never
@@ -97,35 +126,136 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
 
 ## First production deploy
 
-1. Dokploy: create a Postgres 17 database service. Put the app's compose
-   project on the same `dokploy-network` so the database host name resolves
-   from the app container.
-2. Environment (Dokploy → the app → Environment): `DATABASE_URL`,
-   `BETTER_AUTH_SECRET` (`openssl rand -base64 48`; keep it in the password
-   manager — it also derives the encryption keys; the `.env.example` value is
-   refused in production), `BETTER_AUTH_URL` (`https://security.raynx.ie`;
-   https is required in production, http is accepted only for localhost).
-3. Deploy (push to `main` or run the workflow). The first start migrates
-   and seeds the empty database by itself (`docker logs` shows
-   `[db:seed] empty database (no pages): content seeded (…)`). Check
-   `/api/v1/health` and the home page. No manual seed step: the bootstrap is
-   the three variables, the deploy and `admin-create` (spec §1.2 #6).
+Automatic now (no Dokploy clicks): the database, the environment, R2 and
+the deploy.
+
+1. Repo secrets (GitHub → Settings → Secrets → Actions): `DOKPLOY_URL`,
+   `DOKPLOY_API_KEY`, `SP_R2_ACCOUNT_ID`, `SP_R2_ACCESS_KEY_ID`,
+   `SP_R2_SECRET_ACCESS_KEY`, `SP_R2_BUCKET`; optionally `SP_IMPORT_KEY` and
+   `SP_IMPORT_SOURCE_SECRET` ("Import local data into production").
+2. Push to `main` (or run the workflow). `ensure-env` writes the missing
+   variables (see "Deploy"), Dokploy starts `db` (Postgres 17, new volume
+   `security-pgdata`) and the app. The first start migrates, imports
+   `SP_IMPORT_KEY` if set, otherwise seeds the empty database
+   (`[db:seed] empty database (no pages): content seeded (…)`), and saves
+   R2 from `SP_R2_*` with the folder `sp` (`[bootstrap] R2 settings saved
+   from SP_R2_* …`). Check `/api/v1/health` and the home page.
+3. Copy `BETTER_AUTH_SECRET` and `POSTGRES_PASSWORD` from Dokploy (the app
+   → Environment) into the password manager.
 4. Never run `node scripts/dist/seed.mjs --allow-production` on a live
    production database: it is insert-only and re-creates rows an editor
    deleted. The entrypoint's `--if-empty` mode is the only seed production
    needs.
-5. First owner:
+5. First owner — still a manual step, unless the import brought a local
+   owner account (then sign in with it and change its password):
    `node scripts/dist/admin-create.mjs --email <owner email> --name "<name>"`
    prints a set-password link (single use, valid 7 days; also emailed once
    SMTP works). Sign in at `/admin` and turn on 2FA. `admin-create` does not
    check whether an owner already exists: every run creates another owner.
    Use it once; invite everyone else from Users.
-6. Settings ▸ Integrations: SMTP, R2 (then "Move uploads to R2"),
-   Turnstile; Settings ▸ Leads: recipients. Then work through
-   `docs/launch.md`.
-7. Demo accounts never go on production. If `demo:seed` ever ran there:
+6. Settings ▸ Integrations: SMTP, Turnstile (R2 is already saved; "Move
+   uploads to R2" only if uploads were made before it); Settings ▸ Leads:
+   recipients. Then work through `docs/launch.md`.
+7. Demo accounts: production normally has none. The owner-approved local
+   import copies them **with their known local passwords** ("Import local
+   data into production"). Remove them before real use:
    `node scripts/dist/demo-remove.mjs` (refuses while no real active owner
-   would remain).
+   would remain, so create or keep a real owner first).
+
+## Postgres in the compose stack
+
+Ruling: production Postgres is the `db` service of the app's own compose
+file (`postgres:17.11`, the patch release CI and local dev use), not a
+separate Dokploy database service.
+
+- Data: named volume `security-pgdata`. Dokploy keeps volumes across
+  redeploys; deleting the compose app with "delete volumes" deletes the
+  database. Backups ("Backups and the restore drill") go to R2.
+- Network: `db` is only on the stack's own `default` network (never on
+  `dokploy-network`, no published port). The app is on both: `default` for
+  the database, `dokploy-network` for Traefik. The database host is the
+  alias `security-partners-db`, not `db`: on `dokploy-network` other
+  stacks' services named `db` would make a bare `db` ambiguous.
+- `POSTGRES_PASSWORD` sets the `sp` role's password on the volume's first
+  start only; changing it later does nothing by itself ("Rotate the
+  database password").
+- Superuser `sp` owns the database, so `restore-drill` and the import's
+  scratch databases (`CREATE DATABASE`) work.
+- `psql` from the app container:
+  `psql "$DATABASE_URL"`; or `docker exec -it <db container> psql -U sp -d sp`.
+
+## R2 folder and bootstrap
+
+- Settings ▸ Integrations ▸ R2 has an optional **Folder** (`keyPrefix`):
+  lowercase `a-z 0-9 - _` segments joined by single `/`, no `/` at either
+  end, at most 64 characters; empty = the bucket root (settings saved
+  before it existed behave as before). The R2 driver then writes, reads,
+  streams and deletes `<folder>/<key>`, and backups live under
+  `<folder>/backups/`. Media rows and URLs keep the bare key
+  (`/api/v1/media/file/<key>`), so the folder is a property of the
+  storage, not of the data. Changing the folder does not move stored files;
+  it is refused (409) while any upload is stored in R2, like a new bucket.
+- Production shares the sister site's bucket under the folder `sp`.
+  Nothing of this site is written outside `sp/`.
+- `r2-bootstrap` (every container start, after migrate and seed): when
+  `SP_R2_ACCOUNT_ID`, `SP_R2_ACCESS_KEY_ID`, `SP_R2_SECRET_ACCESS_KEY` and
+  `SP_R2_BUCKET` are set (jurisdiction `default`; folder `SP_R2_PREFIX`,
+  `sp` when empty) **and** no R2 settings are saved, it saves them through
+  the admin's own validation and encryption (audit `integration.created`,
+  no actor, `via: r2-bootstrap`). It never overwrites saved settings: to
+  change bucket, keys or folder later, use the admin form. It never logs a
+  value; on any problem it logs `[bootstrap] R2 settings not saved: …`
+  (names of missing/invalid variables) and the start continues (exit 0).
+- Locally: `SP_R2_…=… pnpm r2:bootstrap`.
+
+## Import local data into production
+
+Owner-approved one-shot copy of the local development database (content,
+settings, leads, users **including demo users** and their passwords) and
+its uploads into production. Production's database is reachable only
+inside the compose network, so the import is pulled by the container from
+R2.
+
+1. On the developer machine, from the main checkout (it has
+   `.env.development` and `.data/uploads`), with the dev database running
+   (`pnpm db:up`):
+   `SP_R2_ACCOUNT_ID=… SP_R2_ACCESS_KEY_ID=… SP_R2_SECRET_ACCESS_KEY=… SP_R2_BUCKET=… pnpm data:export-to-r2`
+   (`--dry-run` first: dumps to a temp file and lists what would be
+   uploaded, writes nothing). It checks that the local `BETTER_AUTH_SECRET`
+   decrypts the local secrets, dumps with `pg_dump` 17 (the dev Postgres
+   container's when the local one is newer — a `pg_dump` 18 archive cannot
+   be read by the image's `pg_restore` 17), uploads every upload file to
+   `sp/<key>` (what the R2 driver reads) and the dump to
+   `sp/bootstrap/<UTC stamp>.dump`, and prints `SP_IMPORT_KEY=<that key>`.
+2. Set the repo secrets: `SP_IMPORT_KEY` = the printed key,
+   `SP_IMPORT_SOURCE_SECRET` = the local `BETTER_AUTH_SECRET`
+   (`.env.development`).
+3. Run the deploy workflow. `ensure-env` copies both into Dokploy (these two
+   follow their secrets), the container starts and `data-import`:
+   - does nothing if this database already holds that key (settings row
+     `ops.data-import`) — so later restarts and deploys never re-import;
+   - downloads the dump, checks the source secret in a scratch database
+     `sp_import_check`, backs up the current database to `/data/backups`,
+     restores the dump in one transaction (`db:sync --from-dump`), removes
+     the local R2/SMTP settings, re-encrypts the remaining secrets for
+     production's key, clears 2FA and sessions, keeps every user as it was
+     (demo users included, local passwords unchanged);
+   - turns disk media rows whose files are in R2 into R2 rows; records the
+     key; then migrations run again and `r2-bootstrap` saves production's
+     R2 (folder `sp`).
+   Logs are `[import] …` and never contain secrets. A failure before the
+   restore leaves the database as it was and the site starts normally
+   (fix and redeploy). A failure after the restore stops the container
+   (exit 1, crash loop): read the log; the pre-import backup is named there.
+4. **Demo accounts are now on production with the known local passwords.**
+   Sign in with a real owner (imported, or `admin-create`) and run
+   `node scripts/dist/demo-remove.mjs` before the site is announced. Then
+   delete the repo secrets `SP_IMPORT_KEY` / `SP_IMPORT_SOURCE_SECRET` and
+   the `sp/bootstrap/` objects in R2 (they hold password hashes); the
+   Dokploy variables can stay (the marker prevents a second import) or be
+   removed by hand.
+5. A new export + a **new** `SP_IMPORT_KEY` imports again and **replaces
+   everything** edited on production since: only do that on purpose.
 
 ## Rollback
 
@@ -147,7 +277,8 @@ what the entrypoint runs, seeds only a database with no pages;
 `--allow-production`: adds every missing fixture row, never on a live
 site), `admin-create`, `owner-recover`, `demo-seed`,
 `demo-remove`, `backup`, `restore-drill` (`--keep`), `secrets-rotate`,
-`db-sync`, `custom-code-off`. Locally: `pnpm <name>` with
+`db-sync`, `custom-code-off`, `r2-bootstrap`, `data-import` (the last two
+run from the entrypoint). Locally: `pnpm <name>` with
 `.env.development` (`db:migrate`, `db:seed`, `admin:create`,
 `owner:recover`, `demo:seed`, `demo:remove`, `backup`, `restore-drill`,
 `secrets:rotate`, `db:sync`, `custom-code:off`). Every script prints
@@ -175,8 +306,9 @@ source's.
   `rate_limits` and `public_rate_limits` (short-lived counters) and of
   `verifications` (pending invite, password-reset and 2FA links, which are
   redeemable by whoever reads them) is not dumped.
-- Where: the R2 bucket, prefix `backups/`, once Settings ▸ Integrations ▸ R2
-  is saved; until then `/data/backups` on the app volume (lost with the
+- Where: the R2 bucket, prefix `<folder>/backups/` (production:
+  `sp/backups/`; `backups/` when no folder is set), once Settings ▸
+  Integrations ▸ R2 is saved; until then `/data/backups` on the app volume (lost with the
   server — set up R2). Local files are readable by the app user only.
 - Backups go to the **same bucket with the same API token** as media. They
   are not encrypted by the app; at rest they rely on R2's server-side
@@ -211,10 +343,10 @@ source's.
 ## Restore a backup
 
 1. Stop the app (Dokploy → Stop) so nothing writes.
-2. Get the dump: from R2 (`backups/<name>.dump`) or `/data/backups/`. Check
+2. Get the dump: from R2 (`sp/backups/<name>.dump`) or `/data/backups/`. Check
    its SHA-256 against the `.json` manifest next to it.
 3. `pg_restore --clean --if-exists --no-owner --no-privileges --single-transaction --exit-on-error -d "$DATABASE_URL" <name>.dump`
-   (from the app container: `PGPASSWORD=… pg_restore … -h <db host> -U <user> -d <db>`).
+   (from the app container: `PGPASSWORD=… pg_restore … -h security-partners-db -U sp -d sp`).
    The role must own the objects it drops (the app's own user does).
 4. Release the job claims the dump captured (the backup job always holds
    its own while it runs; otherwise those jobs wait 10 minutes):
@@ -229,7 +361,8 @@ re-encrypts the integration secrets for this environment's key.
 ## Rotate BETTER_AUTH_SECRET
 
 1. Generate the new secret; keep the old one at hand.
-2. Dokploy: set the new `BETTER_AUTH_SECRET`, redeploy. Until step 3,
+2. Dokploy: set the new `BETTER_AUTH_SECRET` (by hand: the workflow's
+   `ensure-env` never changes an existing key), redeploy. Until step 3,
    SMTP/R2/Turnstile/AI cannot decrypt their credentials (email and media in
    R2 fail for those minutes).
 3. `OLD_BETTER_AUTH_SECRET='<old>' node scripts/dist/secrets-rotate.mjs`
@@ -249,6 +382,18 @@ re-encrypts the integration secrets for this environment's key.
    confirm token is random and stored as a SHA-256 hash, not derived from
    the secret. Rotate only when needed (a leak), not on a schedule.
 
+## Rotate the database password or the R2 keys
+
+- Database: `docker exec -it <db container> psql -U sp -d sp -c "alter role sp password '<new>'"`,
+  then in Dokploy change `POSTGRES_PASSWORD` and the password inside
+  `DATABASE_URL` to the same value, redeploy. (`ensure-env` keeps existing
+  keys, so it never undoes this.)
+- R2 keys: create the new token in Cloudflare, enter it in Settings ▸
+  Integrations ▸ R2 (same bucket and folder: only the keys), then update the
+  repo secrets `SP_R2_ACCESS_KEY_ID` / `SP_R2_SECRET_ACCESS_KEY` and the
+  Dokploy variables of the same names by hand (they are only read while no R2
+  settings are saved, but stale values mislead), then revoke the old token.
+
 ## Copy a database between environments (db:sync)
 
 For refreshing staging from production. It runs with the **target's** three
@@ -262,6 +407,14 @@ the **target app stopped**, from a one-off container on the Dokploy network:
   shell history and are removed from the environment before `pg_dump` runs.
   `--to` / `--to-secret` override the target's `DATABASE_URL` /
   `BETTER_AUTH_SECRET`. `--confirm` must equal the target database name.
+- `--from-dump <file>` uses an existing `pg_dump` custom-format file as the
+  source instead of `--from` (the production import uses this). The source
+  secret is then checked in a scratch database `<target>_import_check`
+  (needs `CREATEDB`), and sessions, verifications and rate-limit rows from
+  the file are emptied after the restore.
+- Production's database is on its compose network only: run a one-off
+  container on that network (`docker network ls`, `<compose app>_default`)
+  with `DATABASE_URL` host `security-partners-db`.
 - Order: refuses when source and target are the same database; checks that
   the source secret decrypts the source's integration secrets (prints a
   notice when there are none to check); backs up the target first
