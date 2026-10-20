@@ -191,6 +191,9 @@ export const mediaFileRoutes = new Hono<AppEnv>().get("/*", async (c) => {
       return c.body(whole.body, 200, {
         ...fileHeaders({ ...file, size: whole.size }),
         "Accept-Ranges": "bytes",
+        // Never immutable: a wrong answer cached for a year (an empty body
+        // once did) would outlive the fix.
+        "Cache-Control": "no-store",
       })
     }
     return range
