@@ -1,10 +1,18 @@
+import type { QaFinding } from "@/lib/content/qa"
+
 /** GET /api/v1/admin/dashboard (spec §8.1). null = the actor may not see it. */
 export type DashboardDto = {
   kpis: {
-    leads30d: number | null
+    /**
+     * Non-spam enquiries in the last 30 Irish calendar days (today
+     * included), and in the 30 days before that (the delta's baseline).
+     */
+    leads30d: { value: number; previous: number } | null
     openLeads: number | null
     published: { pages: number; services: number; articles: number } | null
     inReview: number | null
+    /** SEO health score, 0–100 (seo:read; the SEO screen's figure). */
+    seoScore: number | null
     /**
      * Confirmed newsletter subscribers (newsletter:read), and those confirmed
      * in the last 30 days. Null too while no placement is on and nobody has
@@ -12,8 +20,26 @@ export type DashboardDto = {
      */
     subscribers: { confirmed: number; since30d: number } | null
   }
-  /** One entry per day (Europe/Dublin), oldest first, 90 days ending today. */
-  leadsTrend: { date: string; count: number }[] | null
+  /**
+   * Non-spam enquiries per Irish day, this week (Monday → Sunday) beside
+   * the same weekday last week (lead:read). Totals are the two weeks'.
+   */
+  enquiriesWeek: {
+    days: { key: string; label: string; current: number; previous: number }[]
+    current: number
+    previous: number
+  } | null
+  /**
+   * Published records by their SEO checks (seo:read): `missing` when the
+   * meta description or image alt text fails, `needsWork` for any other
+   * failing check, `complete` when every check passes.
+   */
+  contentHealth: { complete: number; needsWork: number; missing: number } | null
+  /**
+   * Placeholder copy and unfinished legal pages (settings:read or
+   * page:read), scanning only what the actor may read.
+   */
+  qa: QaFinding[] | null
   nextUp: NextUpItem[]
 }
 
@@ -25,6 +51,7 @@ export type NextUpItem = {
     | "two-factor"
     | "review"
     | "unassigned-leads"
+    | "reply"
     | "failed-jobs"
     | "turnstile-unreadable"
   title: string
@@ -32,8 +59,6 @@ export type NextUpItem = {
   href: string
   done: boolean
 }
-
-export const TREND_DAYS = 90
 
 /**
  * The topbar bell (final review I6): the open "Next up" items that need

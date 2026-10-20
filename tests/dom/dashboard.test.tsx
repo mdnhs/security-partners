@@ -17,18 +17,42 @@ import { SiteInfoProvider } from "@/components/admin/shell/site-context"
 import type { Role } from "@/lib/auth/roles"
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 
+const WEEK_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
 const dto: DashboardDto = {
   kpis: {
-    leads30d: 7,
+    leads30d: { value: 7, previous: 5 },
     openLeads: 3,
     published: { pages: 8, services: 6, articles: 8 },
     inReview: 2,
+    seoScore: 92,
     subscribers: null,
   },
-  leadsTrend: Array.from({ length: 90 }, (_, i) => ({
-    date: new Date(Date.UTC(2026, 6, 19 + i)).toISOString().slice(0, 10),
-    count: i === 89 ? 4 : i === 80 ? 3 : 0,
-  })),
+  enquiriesWeek: {
+    days: WEEK_LABELS.map((label, i) => ({
+      key: `2026-10-${String(12 + i).padStart(2, "0")}`,
+      label,
+      current: i === 3 ? 4 : 0,
+      previous: i === 1 ? 3 : 0,
+    })),
+    current: 4,
+    previous: 3,
+  },
+  contentHealth: { complete: 14, needsWork: 5, missing: 3 },
+  qa: [
+    {
+      rule: "placeholder-contact",
+      label: "Contact details",
+      href: "/admin/settings/contact",
+      message: 'Placeholder contact details: "[phone]".',
+    },
+    {
+      rule: "legal-unpublished",
+      label: "Terms of use",
+      href: "/admin/pages/terms",
+      message: "Not published yet: the site links to it from every footer.",
+    },
+  ],
   nextUp: [
     {
       id: "smtp",
@@ -138,9 +162,14 @@ describe("dashboard (JW layout)", () => {
       "default",
       "default",
       "default",
+      "default",
     ])
     expect(cards[0]).toHaveTextContent("New enquiries")
     expect(cards[0]).toHaveTextContent("7")
+    // 7 vs 5 in the 30 days before.
+    expect(cards[0]).toHaveTextContent("+40.0% vs the previous 30 days")
+    expect(cards[3]).toHaveTextContent("SEO health")
+    expect(cards[3]).toHaveTextContent("92%")
     expect(cards[2]).toHaveTextContent("22")
     expect(cards[2]).toHaveTextContent("8 pages · 6 services · 8 articles")
     expect(
@@ -154,18 +183,135 @@ describe("dashboard (JW layout)", () => {
     expect(screen.queryByRole("article")).not.toBeInTheDocument()
   })
 
-  it("draws the 90-day trend as weekly pills with a data table", async () => {
+  it("hero delta: New (never ∞% or NaN) when the 30 days before had none", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard"))
+          return Response.json({
+            ...dto,
+            kpis: { ...dto.kpis, leads30d: { value: 3, previous: 0 } },
+          } satisfies DashboardDto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    const [hero] = await screen.findAllByRole("article")
+    expect(hero).toHaveTextContent("New · none in the previous 30 days")
+    expect(hero).not.toHaveTextContent(/∞|NaN|Infinity/)
+  })
+
+  it("Enquiries this week: Mon–Sun pills beside last week, with a data table", async () => {
     renderDashboard(["owner"])
     const card = await screen.findByRole("region", {
-      name: "Enquiries, last 90 days",
+      name: "Enquiries this week",
     })
+    expect(card).toHaveTextContent("4 this week, 3 last week (+33.3%)")
     const table = within(card).getByRole("table", {
-      name: "Enquiries, last 90 days",
+      name: "Enquiries this week",
     })
-    expect(within(table).getAllByRole("row")).toHaveLength(14)
+    // Header + 7 days.
+    expect(within(table).getAllByRole("row")).toHaveLength(8)
     expect(
-      within(table).getByRole("rowheader", { name: "10 Oct" })
+      within(table)
+        .getAllByRole("rowheader")
+        .map((cell) => cell.textContent)
+    ).toEqual(WEEK_LABELS)
+    expect(
+      within(table).getByRole("columnheader", { name: "This week" })
     ).toBeInTheDocument()
+    expect(
+      within(table).getByRole("columnheader", { name: "Last week" })
+    ).toBeInTheDocument()
+    const thursday = within(table).getByRole("rowheader", {
+      name: "Thu",
+    }).parentElement!
+    expect(thursday).toHaveTextContent("Thu40")
+  })
+
+  it("Content health: a 3-part gauge from the dashboard data (no extra request)", async () => {
+    renderDashboard(["owner"])
+    const card = await screen.findByRole("region", { name: "Content health" })
+    // 14 of 22 published records pass every check.
+    expect(card).toHaveTextContent("63%")
+    for (const label of [
+      "Complete",
+      "Needs work",
+      "Missing description or alt text",
+    ])
+      expect(card).toHaveTextContent(label)
+    expect(
+      within(card).getByRole("link", { name: "Open SEO" })
+    ).toHaveAttribute("href", "/admin/seo")
+    const calls = vi.mocked(fetch).mock.calls.map(([input]) => String(input))
+    expect(calls.some((url) => url.includes("/seo/health"))).toBe(false)
+  })
+
+  it("Content QA lists each finding as a link to its editor", async () => {
+    renderDashboard(["owner"])
+    const card = await screen.findByRole("region", { name: "Content QA" })
+    expect(card).toHaveTextContent("2 to fix")
+    const list = within(card).getByRole("list", { name: "Content QA findings" })
+    const links = within(list).getAllByRole("link")
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/admin/settings/contact",
+      "/admin/pages/terms",
+    ])
+    expect(links[0]).toHaveTextContent("Contact details")
+    expect(links[0]).toHaveTextContent('"[phone]"')
+    expect(links[1]).toHaveTextContent("Legal page")
+    // 44 px rows: every pointer, not only coarse.
+    for (const link of links) expect(link).toHaveClass("min-h-11")
+  })
+
+  it("Content QA is not drawn when there is nothing to fix", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard"))
+          return Response.json({ ...dto, qa: [] } satisfies DashboardDto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    await screen.findByRole("region", { name: "Content health" })
+    expect(screen.queryByRole("region", { name: "Content QA" })).toBeNull()
+  })
+
+  it("Next up: Reply to the oldest new enquiry opens its drawer", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard"))
+          return Response.json({
+            ...dto,
+            nextUp: [
+              {
+                id: "reply",
+                title: "Reply to Ada <b>Lovelace</b>",
+                description: "The oldest enquiry still marked New.",
+                href: "/admin/leads?lead=0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+                done: false,
+              },
+            ],
+          } satisfies DashboardDto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["intake"])
+    const next = await screen.findByRole("region", { name: "Next up" })
+    // Plain text, never markup.
+    expect(next).toHaveTextContent("Reply to Ada <b>Lovelace</b>")
+    expect(next.querySelector("b")).toBeNull()
+    expect(
+      within(next).getByRole("link", { name: "Open enquiry" })
+    ).toHaveAttribute(
+      "href",
+      "/admin/leads?lead=0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"
+    )
   })
 
   it("Next up: headline, checklist with states and the call to action", async () => {
@@ -292,7 +438,7 @@ describe("dashboard (JW layout)", () => {
     await userEvent.click(
       within(alert).getByRole("button", { name: "Try again" })
     )
-    expect(await screen.findAllByRole("article")).toHaveLength(4)
+    expect(await screen.findAllByRole("article")).toHaveLength(5)
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
@@ -333,17 +479,27 @@ describe("dashboard (JW layout)", () => {
         if (path.endsWith("/dashboard"))
           return Response.json({
             ...dto,
-            leadsTrend: dto.leadsTrend!.map((d) => ({ ...d, count: 0 })),
+            enquiriesWeek: {
+              days: dto.enquiriesWeek!.days.map((d) => ({
+                ...d,
+                current: 0,
+                previous: 0,
+              })),
+              current: 0,
+              previous: 0,
+            },
           } satisfies DashboardDto)
         return Response.json(audit)
       })
     )
     renderDashboard(["owner"])
     const card = await screen.findByRole("region", {
-      name: "Enquiries, last 90 days",
+      name: "Enquiries this week",
     })
+    expect(card).toHaveTextContent("0 this week, 0 last week")
+    expect(card).not.toHaveTextContent(/∞|NaN/)
     // The overlay is real text inside the labelled figure, not decoration.
-    const overlay = within(card).getByText("No enquiries yet")
+    const overlay = within(card).getByText("No enquiries this week or last")
     expect(overlay.closest("[aria-hidden]")).toBeNull()
     // Named once, by the card; the figure adds no second name and the sr
     // table keeps its caption.
@@ -351,7 +507,7 @@ describe("dashboard (JW layout)", () => {
     expect(figure).not.toBeNull()
     expect(figure).not.toHaveAttribute("aria-label")
     expect(
-      within(card).getByRole("table", { name: "Enquiries, last 90 days" })
+      within(card).getByRole("table", { name: "Enquiries this week" })
     ).toBeInTheDocument()
   })
 
@@ -395,6 +551,7 @@ describe("dashboard (JW layout)", () => {
       "/admin/leads",
       "/admin/leads",
       "/admin/pages",
+      "/admin/seo",
       "/admin/insights?status=in_review",
     ])
   })
@@ -413,9 +570,12 @@ describe("dashboard (JW layout)", () => {
                 openLeads: null,
                 published: null,
                 inReview: 0,
+                seoScore: null,
                 subscribers: null,
               },
-              leadsTrend: null,
+              enquiriesWeek: null,
+              contentHealth: null,
+              qa: null,
               nextUp: [],
             } satisfies DashboardDto)
       )
@@ -424,9 +584,8 @@ describe("dashboard (JW layout)", () => {
     const cards = await screen.findAllByRole("article")
     expect(cards).toHaveLength(1)
     expect(cards[0]).toHaveTextContent("Drafts in review")
-    expect(
-      screen.queryByRole("region", { name: "Enquiries, last 90 days" })
-    ).not.toBeInTheDocument()
+    for (const name of ["Enquiries this week", "Content health", "Content QA"])
+      expect(screen.queryByRole("region", { name })).not.toBeInTheDocument()
     const next = screen.getByRole("region", { name: "Next up" })
     expect(next).toHaveTextContent("You're all set")
   })

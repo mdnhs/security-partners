@@ -29,7 +29,7 @@ async function dashboard(cookie: string) {
 }
 
 describe("dashboard (master 4.7)", () => {
-  it("counts leads (30 d, open), published content and builds a 90-day trend", async () => {
+  it("counts leads (30 d vs the 30 d before, open) and published content", async () => {
     const now = Date.now()
     const lead = (
       daysAgo: number,
@@ -61,8 +61,21 @@ describe("dashboard (master 4.7)", () => {
         { ...lead(0, "won"), createdAt: new Date(`${dayBefore}T12:00:00Z`) },
       ])
     const { cookie } = await signedInUser(["admin"])
+    // kpis.leads30d.previous counts the 30 Irish days before: the day before
+    // the window and 40 days ago count; 70 days ago and spam do not.
+    const [firstPreviousDay] = trendDays(new Date(now), 60)
+    await getDb()
+      .insert(leads)
+      .values([
+        lead(70, "won"),
+        lead(45, "spam"),
+        {
+          ...lead(0, "won"),
+          createdAt: new Date(`${firstPreviousDay}T12:00:00Z`),
+        },
+      ])
     const dto = await dashboard(cookie)
-    expect(dto.kpis.leads30d).toBe(4)
+    expect(dto.kpis.leads30d).toEqual({ value: 4, previous: 3 })
     expect(dto.kpis.openLeads).toBe(3)
     expect(dto.kpis.published).toEqual({
       pages: 8,
@@ -71,9 +84,146 @@ describe("dashboard (master 4.7)", () => {
     })
     expect(dto.kpis.published!.articles).toBeGreaterThan(0)
     expect(dto.kpis.inReview).toBe(0)
-    expect(dto.leadsTrend).toHaveLength(90)
-    expect(dto.leadsTrend!.reduce((sum, d) => sum + d.count, 0)).toBe(6)
-    expect(dto.leadsTrend!.at(-1)!.count).toBeGreaterThanOrEqual(1)
+    expect(dto).not.toHaveProperty("leadsTrend")
+  })
+
+  it("enquiriesWeek counts per Irish day, this week (Mon–Sun) vs last week", async () => {
+    const at = (iso: string, status: "new" | "spam" = "new") => ({
+      name: "N",
+      email: "n@example.ie",
+      message: "Hello",
+      status,
+      createdAt: new Date(iso),
+    })
+    await getDb()
+      .insert(leads)
+      .values([
+        at("2026-10-18T22:59:59Z"), // Sun 18 Oct 23:59 IST: two weeks back
+        at("2026-10-18T23:00:00Z"), // Mon 19 Oct 00:00 IST: last week, Mon
+        at("2026-10-25T23:30:00Z"), // Sun 25 Oct 23:30 GMT: last week, Sun
+        at("2026-10-26T00:00:00Z"), // Mon 26 Oct 00:00 GMT: this week, Mon
+        at("2026-10-28T09:00:00Z"), // Wed: this week
+        at("2026-10-28T10:00:00Z"), // Wed: this week
+        at("2026-10-28T11:00:00Z", "spam"), // spam never counts
+        at("2026-11-02T00:00:00Z"), // next Monday: outside the window
+      ])
+    const owner = await signedInUser(["owner"])
+    const actor = {
+      userId: owner.user.id,
+      roles: ["owner" as const],
+      ip: null,
+      userAgent: null,
+      impersonatorId: null,
+    }
+    const dto = await getDashboard(actor, new Date("2026-10-28T12:00:00Z"))
+    const week = dto.enquiriesWeek!
+    expect(week.current).toBe(3)
+    expect(week.previous).toBe(2)
+    expect(week.days).toEqual([
+      { key: "2026-10-26", label: "Mon", current: 1, previous: 1 },
+      { key: "2026-10-27", label: "Tue", current: 0, previous: 0 },
+      { key: "2026-10-28", label: "Wed", current: 2, previous: 0 },
+      { key: "2026-10-29", label: "Thu", current: 0, previous: 0 },
+      { key: "2026-10-30", label: "Fri", current: 0, previous: 0 },
+      { key: "2026-10-31", label: "Sat", current: 0, previous: 0 },
+      { key: "2026-11-01", label: "Sun", current: 0, previous: 1 },
+    ])
+  })
+
+  it("Next up: Reply to the oldest new enquiry, for lead readers", async () => {
+    const DAY_MS = 86_400_000
+    const [older] = await getDb()
+      .insert(leads)
+      .values({
+        name: "  Ada <b>Lovelace</b>  ",
+        email: "ada@example.ie",
+        message: "Hi",
+        createdAt: new Date(Date.now() - 2 * DAY_MS),
+      })
+      .returning({ id: leads.id })
+    await getDb()
+      .insert(leads)
+      .values([
+        { name: "Newer", email: "b@example.ie", message: "Hi" },
+        {
+          name: "Old but contacted",
+          email: "c@example.ie",
+          message: "Hi",
+          status: "contacted",
+          createdAt: new Date(Date.now() - 9 * DAY_MS),
+        },
+      ])
+    const intake = await dashboard((await signedInUser(["intake"])).cookie)
+    expect(intake.nextUp).toContainEqual({
+      id: "reply",
+      title: "Reply to Ada <b>Lovelace</b>",
+      description: "The oldest enquiry still marked New.",
+      href: `/admin/leads?lead=${older!.id}`,
+      done: false,
+    })
+    const editor = await dashboard((await signedInUser(["editor"])).cookie)
+    expect(editor.nextUp.map((i) => i.id)).not.toContain("reply")
+  })
+
+  it("SEO score, content health and QA follow the viewer's permissions", async () => {
+    const admin = await dashboard((await signedInUser(["admin"])).cookie)
+    expect(admin.kpis.seoScore).toEqual(expect.any(Number))
+    const health = admin.contentHealth!
+    expect(health.complete + health.needsWork + health.missing).toBeGreaterThan(
+      0
+    )
+    // Seeded legal pages are still the starter text.
+    expect(admin.qa).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rule: "legal-unpublished",
+          href: "/admin/pages/privacy",
+        }),
+        expect.objectContaining({
+          rule: "legal-unpublished",
+          href: "/admin/pages/terms",
+        }),
+      ])
+    )
+
+    const intake = await dashboard((await signedInUser(["intake"])).cookie)
+    expect(intake.qa).toBeNull()
+    expect(intake.contentHealth).toBeNull()
+    expect(intake.kpis.seoScore).toBeNull()
+
+    // An author reads neither settings nor pages nor SEO.
+    const author = await dashboard((await signedInUser(["author"])).cookie)
+    expect(author.qa).toBeNull()
+    expect(author.contentHealth).toBeNull()
+  })
+
+  it("QA flags a placeholder in the published contact settings; a marketer (no settings:read) does not see it", async () => {
+    const [row] = await getDb()
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "contact"))
+    await getDb()
+      .update(settings)
+      .set({
+        published: {
+          ...(row!.published as Record<string, unknown>),
+          office: "[phone]",
+        },
+      })
+      .where(eq(settings.key, "contact"))
+    const admin = await dashboard((await signedInUser(["admin"])).cookie)
+    expect(admin.qa).toContainEqual(
+      expect.objectContaining({
+        rule: "placeholder-contact",
+        label: "Contact details",
+        href: "/admin/settings/contact",
+      })
+    )
+    const marketer = await dashboard((await signedInUser(["marketer"])).cookie)
+    expect(marketer.qa).not.toBeNull()
+    expect(marketer.qa!.map((f) => f.href)).not.toContain(
+      "/admin/settings/contact"
+    )
   })
 
   it("computes Next up from state (SMTP/R2 unset, 2FA off, unassigned leads)", async () => {
@@ -90,6 +240,7 @@ describe("dashboard (master 4.7)", () => {
       "two-factor": false,
       review: true,
       "unassigned-leads": false,
+      reply: false,
     })
     expect(before.nextUp.find((i) => i.id === "unassigned-leads")?.title).toBe(
       "Assign 1 new enquiry"
@@ -153,12 +304,13 @@ describe("dashboard (master 4.7)", () => {
   it("hides what the role may not see", async () => {
     const viewer = await dashboard((await signedInUser(["viewer"])).cookie)
     expect(viewer.kpis.leads30d).toBeNull()
-    expect(viewer.leadsTrend).toBeNull()
+    expect(viewer.enquiriesWeek).toBeNull()
     expect(viewer.kpis.published).not.toBeNull()
     expect(viewer.nextUp).toEqual([])
 
     const intake = await dashboard((await signedInUser(["intake"])).cookie)
-    expect(intake.kpis.leads30d).toBe(0)
+    expect(intake.kpis.leads30d).toEqual({ value: 0, previous: 0 })
+    expect(intake.enquiriesWeek!.days).toHaveLength(7)
     expect(intake.kpis.published).toBeNull()
     expect(intake.nextUp.map((i) => i.id)).toEqual(["unassigned-leads"])
   })

@@ -311,19 +311,20 @@ export async function seoHealth(actor: Actor): Promise<ToolResult> {
 /**
  * The dashboard as the actor sees it (role-filtered by getDashboard).
  * Next-up items keep their titles only: descriptions can hold background
- * job errors.
+ * job errors, and the "Reply to …" title a lead's name (never shared
+ * here, whatever the enquiry-details switch says).
  */
 export async function dashboardSummary(actor: Actor): Promise<ToolResult> {
   const dashboard = await getDashboard(actor)
-  const trend = dashboard.leadsTrend
+  const week = dashboard.enquiriesWeek
   return {
     kpis: dashboard.kpis,
-    leadsLast7Days: trend
-      ? trend.slice(-7).reduce((n, day) => n + day.count, 0)
-      : null,
+    enquiriesThisWeek: week ? week.current : null,
+    enquiriesLastWeek: week ? week.previous : null,
     nextUp: dashboard.nextUp.map((item) => ({
       id: item.id,
-      title: item.title,
+      title:
+        item.id === "reply" ? "Reply to the oldest new enquiry" : item.title,
       done: item.done,
     })),
   }

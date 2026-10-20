@@ -1,13 +1,17 @@
 import "server-only"
 
+import { readableSettingsKeys } from "@/lib/admin/settings-keys"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
-import {
-  type DashboardDto,
-  type NextUpItem,
-  type ShellNotification,
-  TREND_DAYS,
+import { scanContent } from "@/lib/content/qa"
+import { weekWindow } from "@/lib/dashboard/week"
+import type {
+  DashboardDto,
+  NextUpItem,
+  ShellNotification,
 } from "@/lib/schemas/api/dashboard"
-import { getDb } from "@/server/db/client"
+import type { SeoHealthDto } from "@/lib/schemas/api/seo"
+import { PUBLIC_SETTINGS_KEYS } from "@/lib/schemas/settings"
+import { type DbOrTx, getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
 import { integrationReadState } from "@/server/modules/integrations/service"
@@ -15,17 +19,91 @@ import {
   countSubscribers,
   newsletterAcceptsSignups,
 } from "@/server/modules/newsletter/service"
+import { getSeoHealth } from "@/server/modules/seo/service"
 
 import { trendDays } from "./days"
 import * as repo from "./repo"
 
 export { trendDays }
 
-const DAY = 86_400_000
+/** A lead's name in a Next-up title: one line, at most this many characters. */
+const NAME_MAX = 60
 
 /**
- * KPIs, 90-day lead trend and the "Next up" checklist (spec §8.1), each
- * part only for actors allowed to see it (null otherwise).
+ * Published records by their SEO checks: a failing meta description or
+ * image alt text is `missing`, any other failure `needsWork`.
+ */
+export function contentHealthOf(
+  health: Pick<SeoHealthDto, "entities">
+): NonNullable<DashboardDto["contentHealth"]> {
+  const out = { complete: 0, needsWork: 0, missing: 0 }
+  for (const entity of health.entities) {
+    if (!entity.published) continue
+    const failed = entity.results.filter((r) => !r.ok)
+    if (failed.some((r) => r.id === "description" || r.id === "alt-text"))
+      out.missing++
+    else if (failed.length) out.needsWork++
+    else out.complete++
+  }
+  return out
+}
+
+/**
+ * The SEO health figures, or null when they can't be computed (e.g. a
+ * settings row that no longer parses): the rest of the dashboard still
+ * loads, as it did while the card fetched /seo/health on its own. Logs
+ * the error's name only.
+ */
+async function seoHealthOrNull(actor: Actor): Promise<SeoHealthDto | null> {
+  try {
+    return await getSeoHealth(actor)
+  } catch (error) {
+    console.error(
+      `[dashboard] SEO health unavailable (${error instanceof Error ? error.name : typeof error})`
+    )
+    return null
+  }
+}
+
+/**
+ * Content QA over what the actor may read: the public settings they can
+ * open, pages (page:read) and services (service:read). Null without
+ * settings:read and page:read.
+ */
+async function contentQa(
+  db: DbOrTx,
+  actor: Actor,
+  can: (req: PermissionRequest) => boolean
+): Promise<DashboardDto["qa"]> {
+  const canSettings = can({ settings: ["read"] })
+  const canPages = can({ page: ["read"] })
+  if (!canSettings && !canPages) return null
+  const publicKeys = new Set<string>(PUBLIC_SETTINGS_KEYS)
+  const settingsKeys = canSettings
+    ? readableSettingsKeys(actor.roles).filter((key) => publicKeys.has(key))
+    : []
+  const sources = await repo.qaSources(db, {
+    pages: canPages,
+    services: can({ service: ["read"] }),
+    settingsKeys,
+  })
+  // Settings in their tab order, whatever order the rows came back in.
+  const byKey = new Map(sources.settings.map((row) => [row.key, row.data]))
+  return scanContent({
+    settings: Object.fromEntries(
+      settingsKeys
+        .filter((key) => byKey.has(key))
+        .map((key) => [key, byKey.get(key)])
+    ),
+    pages: sources.pages,
+    services: sources.services,
+  })
+}
+
+/**
+ * KPIs with their baselines, this week vs last week, content health and
+ * QA, and the "Next up" checklist (spec §8.1, MK parity D3.5), each part
+ * only for actors allowed to see it (null otherwise).
  */
 export async function getDashboard(
   actor: Actor,
@@ -40,18 +118,21 @@ export async function getDashboard(
     can({ article: ["read"] })
   const canArticles = can({ article: ["read"] })
   const canNewsletter = can({ newsletter: ["read"] })
+  const canSeo = can({ seo: ["read"] })
   const isOwnerOrAdmin =
     actor.roles.includes("owner") || actor.roles.includes("admin")
-  const days = trendDays(now)
-  // The 30-day KPI is calendar-aligned like the trend: the last 30 Irish days.
+  // The 30-day KPI is calendar-aligned: the last 30 Irish days, and the
+  // 30 before them for the delta.
+  const [firstPreviousDay] = trendDays(now, 60)
   const [firstKpiDay] = trendDays(now, 30)
-  // A day wider than the chart: days outside `days` fall off in the map below.
-  const since = new Date(now.getTime() - (TREND_DAYS + 1) * DAY)
+  const week = weekWindow(now)
 
   const [
     leads30d,
+    leadsPrevious30d,
     openLeads,
     perDay,
+    oldestNew,
     published,
     inReview,
     unassigned,
@@ -62,10 +143,16 @@ export async function getDashboard(
     ai,
     subscriberCounts,
     newsletterLive,
+    seoHealth,
+    qa,
   ] = await Promise.all([
     canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
+    canLeads
+      ? repo.countLeadsBetweenDays(db, firstPreviousDay!, firstKpiDay!)
+      : null,
     canLeads ? repo.countOpenLeads(db) : null,
-    canLeads ? repo.leadsPerDay(db, since) : null,
+    canLeads ? repo.leadsPerDay(db, week.previousStart, week.end) : null,
+    canLeads ? repo.oldestNewLead(db) : null,
     canContent ? repo.publishedCounts(db) : null,
     canArticles ? repo.countArticlesInReview(db) : null,
     can({ lead: ["update"] }) ? repo.countUnassignedNewLeads(db) : null,
@@ -80,6 +167,8 @@ export async function getDashboard(
     can({ integration: ["update"] }) ? getAiStatus(actor) : null,
     canNewsletter ? countSubscribers(now) : null,
     canNewsletter ? newsletterAcceptsSignups() : false,
+    canSeo ? seoHealthOrNull(actor) : null,
+    contentQa(db, actor, can),
   ])
   const subscribers =
     subscriberCounts && (newsletterLive || subscriberCounts.confirmed > 0)
@@ -87,6 +176,20 @@ export async function getDashboard(
       : null
 
   const byDay = new Map((perDay ?? []).map((row) => [row.date, row.n]))
+  const weekDays = week.days.map((day, i) => ({
+    key: day.key,
+    label: day.label,
+    current: byDay.get(day.key) ?? 0,
+    previous: byDay.get(week.previousDays[i]!.key) ?? 0,
+  }))
+  const enquiriesWeek: DashboardDto["enquiriesWeek"] = perDay
+    ? {
+        days: weekDays,
+        current: weekDays.reduce((n, day) => n + day.current, 0),
+        previous: weekDays.reduce((n, day) => n + day.previous, 0),
+      }
+    : null
+
   const nextUp: NextUpItem[] = []
   // First, so it is the headline: the public form takes enquiries without
   // the spam check while this lasts (fail-open by ruling, leads service).
@@ -157,6 +260,19 @@ export async function getDashboard(
       href: "/admin/leads?status=new&assignee=none",
       done: unassigned === 0,
     })
+  // Lead readers: open the oldest enquiry still waiting in its drawer.
+  if (oldestNew) {
+    const name = oldestNew.name.replace(/\s+/g, " ").trim()
+    nextUp.push({
+      id: "reply",
+      title: name
+        ? `Reply to ${name.length > NAME_MAX ? `${name.slice(0, NAME_MAX - 1)}…` : name}`
+        : "Reply to the oldest new enquiry",
+      description: "The oldest enquiry still marked New.",
+      href: `/admin/leads?lead=${oldestNew.id}`,
+      done: false,
+    })
+  }
   if (jobProblems && jobProblems.length > 0)
     nextUp.push({
       id: "failed-jobs",
@@ -169,10 +285,20 @@ export async function getDashboard(
     })
 
   return {
-    kpis: { leads30d, openLeads, published, inReview, subscribers },
-    leadsTrend: perDay
-      ? days.map((date) => ({ date, count: byDay.get(date) ?? 0 }))
-      : null,
+    kpis: {
+      leads30d:
+        leads30d === null
+          ? null
+          : { value: leads30d, previous: leadsPrevious30d ?? 0 },
+      openLeads,
+      published,
+      inReview,
+      seoScore: seoHealth ? seoHealth.score : null,
+      subscribers,
+    },
+    enquiriesWeek,
+    contentHealth: seoHealth ? contentHealthOf(seoHealth) : null,
+    qa,
     nextUp,
   }
 }
