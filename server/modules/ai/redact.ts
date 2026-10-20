@@ -6,28 +6,42 @@ import "server-only"
  * The email and phone columns are never read for the assistant; this only
  * covers what people type into other fields, so it errs on the side of
  * removing too much.
+ *
+ * Every pattern here runs in linear time (C9 re-review N4): a run of
+ * address characters is only tried from its first character (the
+ * lookbehinds), so a long run with no "@" is scanned once, not once per
+ * position. The input is clipped first as well.
  */
+import { AI_MAX_FIELD_CHARS } from "@/lib/schemas/api/ai"
+
+/** Longest text redacted (the screen field's cap); the rest is dropped. */
+export const REDACT_MAX = AI_MAX_FIELD_CHARS
+/** A one-line enquiry field: name, company, service (the form's cap). */
+export const REDACT_LINE_MAX = 200
 
 /**
  * Email addresses (after NFKC, so fullwidth "＠" is "@"), also typed with
  * spaces around the "@" ("john @ gmail.com").
  */
-const EMAIL = /[^\s@<>()[\]",;:]+\s*@\s*[^\s@<>()[\]",;:]+/gu
+const EMAIL =
+  /(?<![^\s@<>()[\]",;:])[^\s@<>()[\]",;:]+\s*@\s*[^\s@<>()[\]",;:]+/gu
 
-const AT = String.raw`(?:\s*[[({<]\s*at\s*[\])}>]\s*|\s+at\s+)`
+/** " at ", "[at]", "(at)" and a bracketed "@": "(@)", "[@]", "{@}", "<@>". */
+const AT = String.raw`(?:\s*[[({<]\s*(?:at|@)\s*[\])}>]\s*|\s+at\s+)`
 const DOT = String.raw`(?:\s*[[({<]\s*dot\s*[\])}>]\s*|\s+dot\s+|\.)`
-/** "john at gmail dot com", "john[at]gmail[dot]com", "john (at) gmail.com". */
+/** "john at gmail dot com", "john[at]gmail[dot]com", "john (@) gmail.com". */
 const SPELLED_EMAIL = new RegExp(
-  String.raw`[\p{L}\p{N}._%+-]+${AT}[\p{L}\p{N}-]+(?:${DOT}[\p{L}\p{N}-]+)+`,
+  String.raw`(?<![\p{L}\p{N}._%+-])[\p{L}\p{N}._%+-]+${AT}[\p{L}\p{N}-]+(?:${DOT}[\p{L}\p{N}-]+)+`,
   "giu"
 )
 
 /**
  * Digit runs with phone separators: spaces, dots, commas, underscores,
- * brackets, slashes, any dash (\p{Pd}, minus sign) and middle dots or
- * bullets. Digits are ASCII by then (see asciiDigits).
+ * brackets, slashes, colons, apostrophes, asterisks, pipes, tildes, plus
+ * signs, any dash (\p{Pd}, minus sign) and middle dots or bullets. Digits
+ * are ASCII by then (see asciiDigits).
  */
-const PHONE_LIKE = /\+?\(?\d[\d\s().,_\/\p{Pd}−·•]{4,}\d/gu
+const PHONE_LIKE = /\+?\(?\d[\d\s().,_\/:'*|~+\p{Pd}−·•]{4,}\d/gu
 
 const DECIMAL = /\p{Nd}/u
 
@@ -51,25 +65,65 @@ function asciiDigits(text: string): string {
   })
 }
 
-/** Dates that are not phone numbers: 2024-10-12, 12/10/2024, 12.10.2024. */
-const DATE = /^(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{4})$/
+const ISO_DATE = /^\d{4}-(\d{2})-(\d{2})$/
+const DAY_MONTH_YEAR = /^(\d{1,2})([/.])(\d{1,2})\2\d{4}$/
+const TIME = /^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/
+
+const inRange = (value: string, max: number) =>
+  Number(value) >= 1 && Number(value) <= max
+
+/**
+ * A real calendar date (2024-10-12, 12/10/2024, 10.12.2024; day first or
+ * month first) or a time of day (09:00). 08/71/2345 is neither, so its
+ * digits count toward a phone number (C9 re-review N3).
+ */
+function isDateOrTime(part: string): boolean {
+  if (TIME.test(part)) return true
+  const iso = ISO_DATE.exec(part)
+  if (iso) return inRange(iso[1]!, 12) && inRange(iso[2]!, 31)
+  const dmy = DAY_MONTH_YEAR.exec(part)
+  if (!dmy) return false
+  const [a, b] = [dmy[1]!, dmy[3]!]
+  return inRange(a, 31) && inRange(b, 31) && (inRange(a, 12) || inRange(b, 12))
+}
 
 const digits = (text: string) => text.replace(/\D/gu, "").length
 
-export function redactContacts(text: string): string {
-  return (
-    // Fullwidth digits and "＠", compatibility forms, odd spaces; then
-    // digits of other scripts.
-    asciiDigits(text.normalize("NFKC"))
-      .replace(EMAIL, "[email removed]")
-      .replace(SPELLED_EMAIL, "[email removed]")
-      .replace(PHONE_LIKE, (match) => {
-        const run = match.trim()
-        // A date, or a list of dates ("2024-10-12, 12/10/2024").
-        if (run.split(/[\s,]+/).every((part) => DATE.test(part))) return match
-        return digits(run) >= 7 ? "[number removed]" : match
-      })
-      .replace(/\d{7,}/gu, "[number removed]")
-      .replaceAll("@", " ")
+/** At most `max` UTF-16 units, never ending inside a surrogate pair. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text
+  const end = /[\ud800-\udbff]/.test(text[max - 1]!) ? max - 1 : max
+  return text.slice(0, end)
+}
+
+/**
+ * @param max longest input looked at (pass the field's own cap when it is
+ *   shorter); anything after it is dropped, never sent unredacted.
+ */
+export function redactContacts(text: string, max = REDACT_MAX): string {
+  // Fullwidth digits and "＠", compatibility forms, odd spaces; then format
+  // characters (zero-width spaces and joiners, bidi marks, word joiner,
+  // BOM: NFKC keeps them), then digits of other scripts.
+  const plain = asciiDigits(
+    clip(
+      clip(text, max)
+        .normalize("NFKC")
+        .replace(/\p{Cf}/gu, ""),
+      max
+    )
   )
+  return plain
+    .replace(EMAIL, "[email removed]")
+    .replace(SPELLED_EMAIL, "[email removed]")
+    .replace(PHONE_LIKE, (match) => {
+      // Real dates and times in the run ("2024-10-12, 12/10/2024",
+      // "09:00 - 17:30") are not part of a number.
+      const rest = match
+        .trim()
+        .split(/[\s,]+/)
+        .filter((part) => !isDateOrTime(part))
+      return digits(rest.join(" ")) >= 7 ? "[number removed]" : match
+    })
+    .replace(/\d{7,}/gu, "[number removed]")
+    .replaceAll("@", " ")
 }

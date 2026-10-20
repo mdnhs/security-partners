@@ -133,21 +133,44 @@ export async function insertMessage(
 }
 
 /**
- * Regenerate: deletes the conversation's last message only if it is an
- * assistant reply. The caller checks ownership first.
+ * Regenerate's save step (C9 re-review N2), inside the save transaction:
+ * locks the conversation row, then checks that the turn being answered is
+ * still the conversation's end: `replyId` (the reply being replaced) when
+ * there is one, else the question itself. If so, deletes that reply by its
+ * id and returns true. false = the conversation moved on (a send or another
+ * regenerate from another tab): nothing is deleted, and the caller saves
+ * nothing, so no answer is lost and no turn lands out of order. The caller
+ * checks ownership first.
  */
-export async function dropLastReply(
+export async function takeTurnForRegenerate(
   db: DbOrTx,
-  conversationId: string
+  conversationId: string,
+  turn: { questionId: string; replyId: string | null }
 ): Promise<boolean> {
+  await db
+    .select({ id: aiConversations.id })
+    .from(aiConversations)
+    .where(eq(aiConversations.id, conversationId))
+    .for("update")
   const [last] = await db
-    .select({ id: aiMessages.id, role: aiMessages.role })
+    .select({ id: aiMessages.id })
     .from(aiMessages)
     .where(eq(aiMessages.conversationId, conversationId))
     .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
     .limit(1)
-  if (last?.role !== "assistant") return false
-  await db.delete(aiMessages).where(eq(aiMessages.id, last.id))
+  if (last?.id !== (turn.replyId ?? turn.questionId)) return false
+  if (turn.replyId) {
+    const deleted = await db
+      .delete(aiMessages)
+      .where(
+        and(
+          eq(aiMessages.id, turn.replyId),
+          eq(aiMessages.conversationId, conversationId)
+        )
+      )
+      .returning({ id: aiMessages.id })
+    if (deleted.length === 0) return false
+  }
   return true
 }
 

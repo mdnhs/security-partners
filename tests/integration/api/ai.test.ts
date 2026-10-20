@@ -443,6 +443,43 @@ describe("POST /api/v1/admin/ai/chat — streaming and persistence", () => {
     ).toEqual(["user"])
   })
 
+  it("a regenerate never deletes a reply saved by a concurrent send (C9 re-review N2)", async () => {
+    await configureAi()
+    const first = await events(await chat(editor.cookie, { message: "One" }))
+    const conversationId = startedId(first)
+    // The regenerate's model waits until the other tab's turn is saved.
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    vi.mocked(createLanguageModel).mockImplementationOnce(() => {
+      const model = replying("Again")
+      const doStream = model.doStream.bind(model)
+      model.doStream = async (options) => {
+        await gate
+        return doStream(options)
+      }
+      return model
+    })
+    const regenerating = await chat(editor.cookie, {
+      conversationId,
+      regenerate: true,
+    })
+    expect(regenerating.status).toBe(200)
+    vi.mocked(createLanguageModel).mockImplementation(() => replying("Deux"))
+    const second = await events(
+      await chat(editor.cookie, { conversationId, message: "Two" })
+    )
+    expect(second.at(-1)).toMatchObject({ type: "done" })
+    release()
+    const again = await events(regenerating)
+    expect(again.at(-1)).toMatchObject({ type: "error" })
+    expect(await messagesOf(conversationId)).toEqual([
+      { role: "user", content: "One" },
+      { role: "assistant", content: "Hello world" },
+      { role: "user", content: "Two" },
+      { role: "assistant", content: "Deux" },
+    ])
+  })
+
   it("regenerating someone else's conversation returns 404", async () => {
     await configureAi()
     const first = await events(await chat(editor.cookie, { message: "One" }))

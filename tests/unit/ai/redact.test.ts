@@ -66,4 +66,64 @@ describe("redactContacts (best-effort; C8 review M1, C9 review I2/M1)", () => {
   it("never leaves an @ behind", () => {
     expect(redactContacts("@ home @@ x")).not.toContain("@")
   })
+
+  // C9 re-review N3 probes.
+  it.each([
+    ["zero-width space", "call 087​123​4567"],
+    ["zero-width joiner", "call 087‍123‍4567"],
+    ["left-to-right mark", "call 087‎123‏4567"],
+    ["word joiner", "call 087⁠123⁠4567"],
+    ["BOM", "call 087﻿123﻿4567"],
+    ["colons", "call 087:123:4567"],
+    ["apostrophes", "call 087'123'4567"],
+    ["asterisks", "call 087*123*4567"],
+    ["pipes", "call 087|123|4567"],
+    ["tildes", "call 087~123~4567"],
+    ["pluses", "call 087+123+4567"],
+    ["invalid date shape", "call 08/71/2345"],
+    ["invalid date list", "call 08.71.2345, 67.89.0123"],
+    ["invalid ISO date", "call 2345-67-89"],
+  ])("removes a phone number: %s", (_name, text) => {
+    expect(redactContacts(text)).toBe("call [number removed]")
+  })
+
+  it.each([
+    ["(@)", "write to john(@)gmail.com please"],
+    ["[@]", "write to john [@] gmail.com please"],
+    ["{@}", "write to john{@}gmail.com please"],
+    ["<@>", "write to john < @ > gmail.com please"],
+    ["zero-width around @", "write to john​@​gmail.com please"],
+  ])("removes an obfuscated email: %s", (_name, text) => {
+    const out = redactContacts(text)
+    expect(out).toBe("write to [email removed] please")
+  })
+
+  it("keeps valid dates and times next to each other", () => {
+    expect(
+      redactContacts("From 17:30, 24/7 on 31/12/2024 and 12/31/2024")
+    ).toBe("From 17:30, 24/7 on 31/12/2024 and 12/31/2024")
+    expect(redactContacts("Shifts 08:00 - 16:00")).toBe("Shifts 08:00 - 16:00")
+  })
+
+  it("clips its input before matching (C9 re-review N4)", () => {
+    expect(redactContacts("a".repeat(50), 10)).toBe("a".repeat(10))
+    expect(redactContacts("x".repeat(20_000))).toHaveLength(10_000)
+    // Never splits a surrogate pair.
+    expect(redactContacts(`${"a".repeat(9)}😀`, 10)).toBe("a".repeat(9))
+  })
+
+  it.each([
+    ["no @", "a".repeat(10_000)],
+    ["no @, long input", "a".repeat(100_000)],
+    ["spelled, no at", "a.".repeat(5_000)],
+    ["words", "john ".repeat(2_000)],
+    ["digits and separators", "1 ".repeat(5_000)],
+    ["separators then letter", `1${" ".repeat(10_000)}x`],
+    ["dots", ".".repeat(10_000)],
+  ])("runs in linear time on 10k characters: %s", (_name, text) => {
+    redactContacts("warm up john@gmail.com 087 123 4567")
+    const started = performance.now()
+    redactContacts(text)
+    expect(performance.now() - started).toBeLessThan(100)
+  })
 })
