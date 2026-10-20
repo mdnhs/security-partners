@@ -5,6 +5,7 @@ import { connection } from "next/server"
 import { Suspense } from "react"
 
 import "../globals.css"
+import { AttributionCapture } from "@/components/attribution-capture"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { PreviewBar } from "@/components/preview-bar"
 import { SiteExtras } from "@/components/site-extras"
@@ -69,6 +70,8 @@ export default function RootLayout({
       </head>
       <body>
         <SmoothScroll />
+        {/* First-touch lead attribution; renders nothing. */}
+        <AttributionCapture />
         <ThemeProvider>{children}</ThemeProvider>
         {/* Draft-mode only (admins); renders nothing for visitors. */}
         <Suspense fallback={null}>

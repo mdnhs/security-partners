@@ -1,31 +1,19 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Inbox, Trash2 } from "lucide-react"
-import Link from "next/link"
+import { Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { useAssistantScreen } from "@/components/admin/ai/assistant-context"
 import { leadAssistantScreen } from "@/components/admin/ai/screens"
-import { ADMIN_TEXTAREA, FormCard } from "@/components/admin/form/form-ui"
-import { useListHref } from "@/components/admin/data-table/list-url"
 import { UnsavedGuard } from "@/components/admin/editor/unsaved-guard"
-import { EmptyState } from "@/components/admin/kit/empty-state"
+import { ADMIN_TEXTAREA } from "@/components/admin/form/form-ui"
 import { CardSkeleton } from "@/components/admin/kit/skeletons"
 import { OptionSelect } from "@/components/admin/option-select"
-import {
-  FORM_ACTION,
-  LINK_FORM,
-  PageHeader,
-  PRIMARY_ACTION,
-} from "@/components/admin/page-header"
+import { FORM_ACTION, PRIMARY_ACTION } from "@/components/admin/page-header"
 import { FieldShell } from "@/components/admin/schema-form/widgets/field-shell"
-import {
-  SectionTabs,
-  SectionTabsPanel,
-} from "@/components/admin/section-tabs/section-tabs"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,11 +25,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { usePermission } from "@/hooks/use-permission"
 import { leadExportHref } from "@/lib/admin/leads"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
+import {
+  type Attribution,
+  UTM_KEYS,
+  type UtmKey,
+} from "@/lib/leads/attribution"
 import {
   LEAD_STATUS_LABELS,
   LEAD_STATUSES,
@@ -55,13 +53,14 @@ import { cn } from "@/lib/utils"
 
 import { CsvDownloadButton } from "./csv-download-button"
 import { LeadStatusBadge } from "./lead-status-badge"
+import { leadGuardScope } from "./use-leads-params"
 
 // The Handling card sets aria-busy while a change saves.
-const SELECT = "disabled:opacity-60 in-aria-busy:cursor-progress"
+const SELECT = "w-full disabled:opacity-60 in-aria-busy:cursor-progress"
 
-const leadKey = (id: string) => ["leads", "detail", id] as const
+export const leadKey = (id: string) => ["leads", "detail", id] as const
 
-/** One status/assignee change; `seq` orders it among this page's changes. */
+/** One status/assignee change; `seq` orders it among this drawer's changes. */
 type LeadChange = { json: UpdateLeadInput; seq: number }
 
 function Fact({
@@ -92,6 +91,97 @@ function None() {
 const FACT_LINK =
   "rounded-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
 
+const UTM_LABELS: Record<UtmKey, string> = {
+  utm_source: "UTM source",
+  utm_medium: "UTM medium",
+  utm_campaign: "UTM campaign",
+  utm_term: "UTM term",
+  utm_content: "UTM content",
+}
+
+/** A titled drawer section: a region named by its heading. */
+function Section({
+  id,
+  title,
+  count,
+  description,
+  children,
+  className,
+  ...rest
+}: {
+  id: string
+  title: string
+  /** Shown after the heading ("Notes · 2 notes"); the region keeps its name. */
+  count?: string
+  description?: React.ReactNode
+  children: React.ReactNode
+} & Omit<React.ComponentProps<"section">, "id" | "title">) {
+  return (
+    <section
+      aria-labelledby={`${id}-title`}
+      className={cn("flex min-w-0 flex-col gap-3", className)}
+      {...rest}
+    >
+      <header className="flex flex-col gap-0.5">
+        <span className="flex items-center gap-2">
+          <h3 id={`${id}-title`} className="text-sm font-semibold">
+            {title}
+          </h3>
+          {count ? (
+            <span className="rounded-full bg-muted px-2 text-xs text-muted-foreground tabular-nums">
+              {count}
+            </span>
+          ) : null}
+        </span>
+        {description ? (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        ) : null}
+      </header>
+      {children}
+    </section>
+  )
+}
+
+/**
+ * Where the visitor first came from this visit (D3.1). Every value is
+ * visitor-supplied: shown as plain text, never as a link.
+ */
+function LeadSource({
+  id,
+  attribution,
+}: {
+  id: string
+  attribution: Attribution | null
+}) {
+  return (
+    <Section
+      id={id}
+      title="Source"
+      description="First page of the visit that sent this enquiry."
+    >
+      {attribution ? (
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <Fact label="Referrer">{attribution.referrer ?? <None />}</Fact>
+          <Fact label="Landing page">
+            <code className="font-mono text-xs break-all">
+              {attribution.landingPath}
+            </code>
+          </Fact>
+          {UTM_KEYS.map((key) => (
+            <Fact key={key} label={UTM_LABELS[key]}>
+              {attribution.utm[key] ?? <None />}
+            </Fact>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No source was recorded for this enquiry.
+        </p>
+      )}
+    </Section>
+  )
+}
+
 /** One note or history entry: who (or "Website") · when, then the text. */
 function EventLine({ event }: { event: LeadEventItem }) {
   return (
@@ -112,24 +202,43 @@ function EventLine({ event }: { event: LeadEventItem }) {
 }
 
 /**
- * One lead (spec §8.1): the enquiry and its handling (status, assignee) as
- * section tabs with notes and the activity history; subject-access export
- * and deletion (GDPR) in the header. Status and assignee save on change.
- * Every change refreshes the server shell so the sidebar's count follows.
+ * One lead (spec §8.1) as the body of the leads drawer (D3.2): contact,
+ * message, source, status & assignee (saved on change), notes and the
+ * activity history; subject-access export and deletion (GDPR) at the end.
+ * Renders inside a `SheetContent` (its title names the dialog). Every change
+ * refreshes the server shell so the sidebar's count follows.
+ *
+ * `onMissing`: the lead does not exist (deleted meanwhile, or a wrong link);
+ * the message stays shown. `onDeleted`: this person deleted it here.
  */
-export function LeadDetail({ id }: { id: string }) {
+export function LeadDetailBody({
+  id,
+  onMissing,
+  onDeleted,
+  discardNote = 0,
+}: {
+  id: string
+  onMissing?: () => void
+  onDeleted?: () => void
+  /** Changes when the drawer closes: a typed note is discarded then. */
+  discardNote?: number
+}) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const canUpdate = usePermission({ lead: ["update"] })
   const canDelete = usePermission({ lead: ["delete"] })
   const canExport = usePermission({ lead: ["export"] })
   const [note, setNote] = useState("")
-  // "All leads" returns to the inbox as it was left (filters, page, search).
-  const listHref = useListHref("/admin/leads")
+  const [seenDiscard, setSeenDiscard] = useState(discardNote)
+  if (seenDiscard !== discardNote) {
+    setSeenDiscard(discardNote)
+    setNote("")
+  }
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const statusId = useId()
-  const assigneeId = useId()
-  const noteId = useId()
+  const uid = useId()
+  const statusId = `${uid}-status`
+  const assigneeId = `${uid}-assignee`
+  const noteId = `${uid}-note`
   const noteRef = useRef<HTMLTextAreaElement>(null)
   /** The newest status/assignee change; older responses are not applied. */
   const latestChange = useRef(0)
@@ -140,6 +249,15 @@ export function LeadDetail({ id }: { id: string }) {
     queryFn: async () =>
       (await unwrap(api.leads[":id"].$get({ param: { id } }))) as LeadDto,
   })
+  const missing =
+    lead.isError && lead.error instanceof ApiError && lead.error.status === 404
+  // Tell the drawer once, so it clears ?lead= while the message stays.
+  const reportedMissing = useRef(false)
+  useEffect(() => {
+    if (!missing || reportedMissing.current) return
+    reportedMissing.current = true
+    onMissing?.()
+  }, [missing, onMissing])
   // "Summarise this lead" (spec §8.3): the assistant sees the open lead once
   // it has loaded. Hooks run before every early return below.
   useAssistantScreen(lead.data ? leadAssistantScreen(lead.data) : null)
@@ -227,7 +345,7 @@ export function LeadDetail({ id }: { id: string }) {
       queryClient.removeQueries({ queryKey: key })
       void queryClient.invalidateQueries({ queryKey: ["leads"] })
       toast.success("Lead deleted")
-      router.push("/admin/leads")
+      onDeleted?.()
       router.refresh()
     },
     onError: (error) => {
@@ -238,31 +356,46 @@ export function LeadDetail({ id }: { id: string }) {
 
   if (lead.isPending)
     return (
-      <div role="status">
-        <span className="sr-only">Loading lead…</span>
-        <CardSkeleton className="h-24" />
-      </div>
+      <>
+        <SheetHeader className="border-b pr-12">
+          <SheetTitle className="text-lg font-semibold">Enquiry</SheetTitle>
+          <SheetDescription>Loading…</SheetDescription>
+        </SheetHeader>
+        <div role="status" className="p-4">
+          <span className="sr-only">Loading enquiry…</span>
+          <CardSkeleton className="h-24" />
+        </div>
+      </>
     )
-  if (lead.isError) {
-    const missing = lead.error instanceof ApiError && lead.error.status === 404
+  if (lead.isError)
     return (
-      <EmptyState
-        role="alert"
-        icon={Inbox}
-        title={missing ? "This lead does not exist" : "The lead didn't load"}
-        description={
-          missing
-            ? "It may have been deleted, or the link is wrong."
-            : errorMessage(lead.error)
-        }
-        action={
-          <Link href={listHref} className={LINK_FORM}>
-            All leads
-          </Link>
-        }
-      />
+      <>
+        <SheetHeader className="border-b pr-12">
+          <SheetTitle className="text-lg font-semibold">Enquiry</SheetTitle>
+        </SheetHeader>
+        <div role="alert" className="flex flex-col gap-1 p-4">
+          <p className="font-semibold">
+            {missing
+              ? "This enquiry no longer exists"
+              : "The enquiry didn't load"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {missing
+              ? "It may have been deleted, or the link is wrong."
+              : errorMessage(lead.error)}
+          </p>
+          {missing ? null : (
+            <Button
+              type="button"
+              className={cn(FORM_ACTION, "mt-2 self-start")}
+              onClick={() => void lead.refetch()}
+            >
+              Try again
+            </Button>
+          )}
+        </div>
+      </>
     )
-  }
 
   const data = lead.data
   const notes = data.events.filter((e) => e.type === "note")
@@ -272,225 +405,192 @@ export function LeadDetail({ id }: { id: string }) {
 
   return (
     <>
-      <PageHeader
-        breadcrumbs={
-          <Link
-            href={listHref}
-            className="inline-flex w-fit items-center gap-1 rounded-md text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <ArrowLeft aria-hidden className="size-4" />
-            All leads
-          </Link>
-        }
-        title={data.name}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <LeadStatusBadge status={data.status} />
-            <span>
-              Received{" "}
-              <time dateTime={data.createdAt}>
-                {formatDateTime(data.createdAt)}
-              </time>
-            </span>
+      <SheetHeader className="border-b pr-12">
+        <SheetTitle className="text-lg font-semibold break-words">
+          {data.name}
+        </SheetTitle>
+        <SheetDescription className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <LeadStatusBadge status={data.status} />
+          <span>
+            Received{" "}
+            <time dateTime={data.createdAt}>
+              {formatDateTime(data.createdAt)}
+            </time>
           </span>
-        }
-        actions={
-          canExport || canDelete ? (
-            <>
-              {canExport ? (
-                <CsvDownloadButton
-                  href={leadExportHref({ status: "all", email: data.email })}
+        </SheetDescription>
+      </SheetHeader>
+      <div className="flex flex-col gap-6 p-4">
+        <Section id={`${uid}-contact`} title="Contact">
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <Fact label="Email">
+              <a href={`mailto:${data.email}`} className={FACT_LINK}>
+                {data.email}
+              </a>
+            </Fact>
+            <Fact label="Phone">
+              {data.phone ? (
+                <a
+                  href={`tel:${data.phone.replace(/[^\d+]/g, "")}`}
+                  className={FACT_LINK}
                 >
-                  Export this person&apos;s data
-                </CsvDownloadButton>
-              ) : null}
-              {canDelete ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  className={PRIMARY_ACTION}
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash2 aria-hidden />
-                  Delete
-                </Button>
-              ) : null}
-            </>
-          ) : null
-        }
-      />
-      <SectionTabs
-        ariaLabel="Lead sections"
-        heading="Lead"
-        items={[
-          { id: "details", label: "Details" },
-          {
-            id: "notes",
-            label: "Notes",
-            badge: notes.length ? (
-              <span className="rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground tabular-nums">
-                <span aria-hidden>{notes.length}</span>
-                <span className="sr-only">
-                  {`, ${notes.length} ${notes.length === 1 ? "note" : "notes"}`}
-                </span>
-              </span>
-            ) : undefined,
-          },
-          { id: "activity", label: "Activity" },
-        ]}
-      >
-        <SectionTabsPanel id="details">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
-            <FormCard id="lead-enquiry" title="Enquiry">
-              <dl className="grid gap-4 sm:grid-cols-2">
-                <Fact label="Email">
-                  <a href={`mailto:${data.email}`} className={FACT_LINK}>
-                    {data.email}
-                  </a>
-                </Fact>
-                <Fact label="Phone">
-                  {data.phone ? (
-                    <a
-                      href={`tel:${data.phone.replace(/[^\d+]/g, "")}`}
-                      className={FACT_LINK}
-                    >
-                      {data.phone}
-                    </a>
-                  ) : (
-                    <None />
-                  )}
-                </Fact>
-                <Fact label="Company">{data.company ?? <None />}</Fact>
-                <Fact label="Service">{data.service ?? <None />}</Fact>
-                <Fact label="Sent from">
-                  {data.sourcePage ? (
-                    <code className="font-mono text-xs">{data.sourcePage}</code>
-                  ) : (
-                    <None />
-                  )}
-                </Fact>
-                <Fact label="Consent to be contacted">
-                  {data.consent ? "Yes" : "No"}
-                </Fact>
-              </dl>
-              <div className="flex flex-col gap-1">
-                <h3 className="text-xs font-medium text-muted-foreground">
-                  Message
-                </h3>
-                <p className="rounded-lg border bg-muted/40 p-3 text-sm break-words whitespace-pre-wrap">
-                  {data.message}
-                </p>
-              </div>
-            </FormCard>
-            <FormCard
-              id="lead-handling"
-              title="Handling"
-              description={
-                canUpdate
-                  ? "Changes save straight away."
-                  : "You can read this lead but not change it."
-              }
-              className="self-start"
-              aria-busy={update.isPending || undefined}
-            >
-              <FieldShell id={statusId} label="Lead status">
-                <OptionSelect
-                  id={statusId}
-                  className={SELECT}
-                  value={data.status}
-                  disabled={!canUpdate}
-                  onChange={(value) => change({ status: value as LeadStatus })}
-                  options={LEAD_STATUSES.map((s) => ({
-                    value: s,
-                    label: LEAD_STATUS_LABELS[s],
-                  }))}
-                />
-              </FieldShell>
-              <FieldShell id={assigneeId} label="Assigned to">
-                <OptionSelect
-                  id={assigneeId}
-                  className={SELECT}
-                  value={data.assignee?.id ?? ""}
-                  disabled={!canUpdate}
-                  onChange={(value) => change({ assigneeId: value || null })}
-                  options={[
-                    { value: "", label: "Unassigned" },
-                    ...(data.assignee && !knownAssignee
-                      ? [{ value: data.assignee.id, label: data.assignee.name }]
-                      : []),
-                    ...(assignees.data ?? []).map((u) => ({
-                      value: u.id,
-                      label: u.name,
-                    })),
-                  ]}
-                />
-              </FieldShell>
-            </FormCard>
+                  {data.phone}
+                </a>
+              ) : (
+                <None />
+              )}
+            </Fact>
+            <Fact label="Company">{data.company ?? <None />}</Fact>
+            <Fact label="Service">{data.service ?? <None />}</Fact>
+            <Fact label="Sent from">
+              {data.sourcePage ? (
+                <code className="font-mono text-xs">{data.sourcePage}</code>
+              ) : (
+                <None />
+              )}
+            </Fact>
+            <Fact label="Consent to be contacted">
+              {data.consent ? "Yes" : "No"}
+            </Fact>
+          </dl>
+        </Section>
+        <Section id={`${uid}-message`} title="Message">
+          <p className="rounded-lg border bg-muted/40 p-3 text-sm break-words whitespace-pre-wrap">
+            {data.message}
+          </p>
+        </Section>
+        <LeadSource id={`${uid}-source`} attribution={data.attribution} />
+        <Section
+          id={`${uid}-handling`}
+          title="Status & assignee"
+          description={
+            canUpdate
+              ? "Changes save straight away."
+              : "You can read this lead but not change it."
+          }
+          aria-busy={update.isPending || undefined}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldShell id={statusId} label="Lead status">
+              <OptionSelect
+                id={statusId}
+                className={SELECT}
+                value={data.status}
+                disabled={!canUpdate}
+                onChange={(value) => change({ status: value as LeadStatus })}
+                options={LEAD_STATUSES.map((s) => ({
+                  value: s,
+                  label: LEAD_STATUS_LABELS[s],
+                }))}
+              />
+            </FieldShell>
+            <FieldShell id={assigneeId} label="Assigned to">
+              <OptionSelect
+                id={assigneeId}
+                className={SELECT}
+                value={data.assignee?.id ?? ""}
+                disabled={!canUpdate}
+                onChange={(value) => change({ assigneeId: value || null })}
+                options={[
+                  { value: "", label: "Unassigned" },
+                  ...(data.assignee && !knownAssignee
+                    ? [{ value: data.assignee.id, label: data.assignee.name }]
+                    : []),
+                  ...(assignees.data ?? []).map((u) => ({
+                    value: u.id,
+                    label: u.name,
+                  })),
+                ]}
+              />
+            </FieldShell>
           </div>
-        </SectionTabsPanel>
-        <SectionTabsPanel id="notes">
-          <FormCard
-            id="lead-notes"
-            title="Notes"
-            description="For the team only; never sent to the person."
-            className="max-w-3xl"
-          >
-            {notes.length ? (
-              <ol className="flex flex-col gap-4">
-                {notes.map((event) => (
-                  <EventLine key={event.id} event={event} />
-                ))}
-              </ol>
-            ) : (
-              <p className="text-sm text-muted-foreground">No notes yet.</p>
-            )}
-            {canUpdate ? (
-              <form
-                className="flex flex-col gap-3 border-t pt-5"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  if (note.trim()) addNote.mutate(note.trim())
-                }}
-              >
-                {/* A note typed but not added is not dropped silently. */}
-                <UnsavedGuard when={note.trim() !== ""} />
-                <FieldShell id={noteId} label="Add a note">
-                  <Textarea
-                    ref={noteRef}
-                    id={noteId}
-                    rows={3}
-                    maxLength={5000}
-                    className={ADMIN_TEXTAREA}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
-                </FieldShell>
-                <Button
-                  type="submit"
-                  className={cn(FORM_ACTION, "self-start")}
-                  disabled={addNote.isPending || !note.trim()}
-                >
-                  Add note
-                </Button>
-              </form>
-            ) : null}
-          </FormCard>
-        </SectionTabsPanel>
-        <SectionTabsPanel id="activity">
-          <FormCard
-            id="lead-activity"
-            title="Activity"
-            description="Everything that happened to this lead, oldest first."
-            className="max-w-3xl"
-          >
+        </Section>
+        <Section
+          id={`${uid}-notes`}
+          title="Notes"
+          count={
+            notes.length
+              ? `${notes.length} ${notes.length === 1 ? "note" : "notes"}`
+              : undefined
+          }
+          description="For the team only; never sent to the person."
+        >
+          {notes.length ? (
             <ol className="flex flex-col gap-4">
-              {data.events.map((event) => (
+              {notes.map((event) => (
                 <EventLine key={event.id} event={event} />
               ))}
             </ol>
-          </FormCard>
-        </SectionTabsPanel>
-      </SectionTabs>
+          ) : (
+            <p className="text-sm text-muted-foreground">No notes yet.</p>
+          )}
+          {canUpdate ? (
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (note.trim()) addNote.mutate(note.trim())
+              }}
+            >
+              {/* A note typed but not added is not dropped silently. */}
+              <UnsavedGuard
+                when={note.trim() !== ""}
+                scope={leadGuardScope(id)}
+              />
+              <FieldShell id={noteId} label="Add a note">
+                <Textarea
+                  ref={noteRef}
+                  id={noteId}
+                  rows={3}
+                  maxLength={5000}
+                  className={ADMIN_TEXTAREA}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                />
+              </FieldShell>
+              <Button
+                type="submit"
+                className={cn(FORM_ACTION, "self-start")}
+                disabled={addNote.isPending || !note.trim()}
+              >
+                Add note
+              </Button>
+            </form>
+          ) : null}
+        </Section>
+        <Section
+          id={`${uid}-activity`}
+          title="Activity"
+          description="Everything that happened to this lead, oldest first."
+        >
+          <ol className="flex flex-col gap-4">
+            {data.events.map((event) => (
+              <EventLine key={event.id} event={event} />
+            ))}
+          </ol>
+        </Section>
+        {canExport || canDelete ? (
+          <div className="flex flex-wrap gap-2 border-t pt-4">
+            {canExport ? (
+              <CsvDownloadButton
+                href={leadExportHref({ status: "all", email: data.email })}
+              >
+                Export this person&apos;s data
+              </CsvDownloadButton>
+            ) : null}
+            {canDelete ? (
+              <Button
+                type="button"
+                variant="destructive"
+                className={PRIMARY_ACTION}
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 aria-hidden />
+                Delete
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>

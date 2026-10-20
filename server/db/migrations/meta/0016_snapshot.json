@@ -1,5 +1,5 @@
 {
-  "id": "a61c8461-a8b7-4fb6-a513-76d61587b6d5",
+  "id": "ec7dfc04-a1d0-490b-bd3c-21d916385e76",
   "prevId": "61ae1745-e947-437d-875c-e2826fb3f890",
   "version": "7",
   "dialect": "postgresql",
@@ -2178,6 +2178,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "attribution": {
+          "name": "attribution",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -2454,13 +2460,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "enquiry_details": {
-          "name": "enquiry_details",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {

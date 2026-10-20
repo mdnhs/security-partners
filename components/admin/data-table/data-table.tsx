@@ -109,7 +109,15 @@ type DataTableProps<T extends Record<string, unknown> & { id: string }> = {
    * One synced table per page.
    */
   syncUrl?: boolean
+  /**
+   * A pointer click anywhere on a table row (not on its links, buttons or
+   * fields) opens the row. Keyboard users use the row's own link or button.
+   */
+  onRowClick?: (row: T) => void
 }
+
+/** Clicks on these inside a row are theirs, not the row's. */
+const ROW_CLICK_IGNORE = "a,button,input,select,textarea,label,[role=combobox]"
 
 type ListState = { page: number; sorting: SortingState; q: string }
 
@@ -197,6 +205,7 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
   filteredEmpty = "Nothing matches these filters",
   initialState,
   onStateChange,
+  onRowClick,
 }: DataTableProps<T> & {
   initialState?: ListState
   onStateChange?: (state: ListState) => void
@@ -460,7 +469,24 @@ function DataTableView<T extends Record<string, unknown> & { id: string }>({
                 </TableHeader>
                 <TableBody>
                   {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-muted/40">
+                    <TableRow
+                      key={row.id}
+                      className={cn(
+                        "hover:bg-muted/40",
+                        onRowClick && "cursor-pointer"
+                      )}
+                      onClick={
+                        onRowClick
+                          ? (event) => {
+                              const target = event.target as Element
+                              if (target.closest(ROW_CLICK_IGNORE)) return
+                              // Selecting text is not a click on the row.
+                              if (window.getSelection()?.toString()) return
+                              onRowClick(row.original as T)
+                            }
+                          : undefined
+                      }
+                    >
                       {row.getAllCells().map((cell) => (
                         // Cells wrap (titles, excerpts) as before the primitive.
                         <TableCell key={cell.id} className="whitespace-normal">

@@ -5,15 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const push = vi.fn()
 const replace = vi.fn()
 const refresh = vi.fn()
-let search = ""
+// The leads screen writes its URL with the native history API (Next keeps
+// useSearchParams in sync with it): read the live address.
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/leads",
   useRouter: () => ({ push, replace, refresh }),
-  useSearchParams: () => new URLSearchParams(search),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 
 import { useAssistant } from "@/components/admin/ai/assistant-context"
-import { LeadDetail } from "@/components/admin/leads/lead-detail"
+import { LeadDrawer } from "@/components/admin/leads/lead-drawer"
 import { LeadsScreen } from "@/components/admin/leads/leads-screen"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
@@ -38,6 +39,7 @@ const lead: LeadDto = {
   updatedAt: "2026-10-16T09:00:00.000Z",
   message: "Line one\nLine two",
   consent: true,
+  attribution: null,
   events: [
     {
       id: "e1",
@@ -60,14 +62,23 @@ const lead: LeadDto = {
 let holdPatch: Promise<void> | null = null
 let failPatch = false
 let exportStatus = 200
+/** What GET /leads/:id answers (D3.1 source section). */
+let detail: LeadDto = lead
 
 const calls: { url: string; method: string; body: unknown }[] = []
+const onClose = vi.fn()
+/** The lead drawer (D3.2) as the leads screen renders it. */
+const drawer = (id: string) => <LeadDrawer id={id} onClose={onClose} />
+const at = (url: string) => window.history.replaceState(null, "", url)
 beforeEach(() => {
+  // These tests drive the table view (the board is the default, D3.3).
+  window.localStorage.setItem("sp-leads-view", "table")
   calls.length = 0
-  search = ""
+  onClose.mockClear()
   holdPatch = null
   failPatch = false
   exportStatus = 200
+  detail = lead
   push.mockClear()
   replace.mockClear()
   refresh.mockClear()
@@ -141,7 +152,7 @@ beforeEach(() => {
           return reply({ ...lead, ...body })
         }
         if (method === "DELETE") return reply({ ok: true })
-        return reply(lead)
+        return reply(detail)
       }
       return reply({ items: [lead], page: 1, pageSize: 20, total: 1 })
     })
@@ -190,14 +201,14 @@ function captureDownloads() {
 }
 
 describe("leads inbox (master 7.4)", () => {
-  it("lists leads with status, link to the detail page, filters and CSV export", async () => {
-    search = "status=new&assignee=none"
+  it("lists leads with status, link to the drawer, filters and CSV export", async () => {
+    at("/admin/leads?status=new&assignee=none")
     const user = userEvent.setup()
     const saved = captureDownloads()
     renderAs(["intake"], <LeadsScreen />)
     const table = await screen.findByRole("table", { name: "Leads" })
     const link = await within(table).findByRole("link", { name: "Dinn Rí" })
-    expect(link).toHaveAttribute("href", `/admin/leads/${ID}`)
+    expect(link).toHaveAttribute("href", `/admin/leads?lead=${ID}`)
     expect(within(table).getByText("New")).toBeInTheDocument()
     expect(within(table).getByText("Unassigned")).toBeInTheDocument()
     expect(screen.getByLabelText("Status")).toHaveTextContent("New")
@@ -215,19 +226,19 @@ describe("leads inbox (master 7.4)", () => {
       "/api/v1/admin/leads/export.csv?status=new&assignee=none"
     )
 
-    await pickOption(user, screen.getByLabelText("Status"), "Spam")
+    // Spam is a tab of its own now (D3.2), not a status of the inbox.
+    await user.click(screen.getByLabelText("Status"))
+    const statuses = await screen.findByRole("listbox")
+    expect(within(statuses).queryByRole("option", { name: "Spam" })).toBeNull()
+    await user.keyboard("{Escape}")
+    await pickOption(user, screen.getByLabelText("Status"), "Contacted")
     await waitFor(() =>
-      expect(calls.some((c) => c.url.includes("status=spam"))).toBe(true)
+      expect(calls.some((c) => c.url.includes("status=contacted"))).toBe(true)
     )
     // The filters follow the URL, so a reload keeps them.
-    expect(replace).toHaveBeenLastCalledWith(
-      "/admin/leads?status=spam&assignee=none",
-      { scroll: false }
-    )
+    expect(window.location.search).toBe("?status=contacted&assignee=none")
     await pickOption(user, screen.getByLabelText("Assignee"), "Anyone")
-    expect(replace).toHaveBeenLastCalledWith("/admin/leads?status=spam", {
-      scroll: false,
-    })
+    expect(window.location.search).toBe("?status=contacted")
 
     // The search goes into the export too.
     await user.type(screen.getByRole("searchbox"), "Dinn")
@@ -238,7 +249,20 @@ describe("leads inbox (master 7.4)", () => {
     await waitFor(() =>
       expect(
         calls.filter((c) => c.url.includes("export.csv")).at(-1)!.url
-      ).toBe("/api/v1/admin/leads/export.csv?status=spam&q=Dinn")
+      ).toBe("/api/v1/admin/leads/export.csv?status=contacted&q=Dinn")
+    )
+  })
+
+  it("the Spam tab exports the spam folder", async () => {
+    at("/admin/leads?folder=spam")
+    const user = userEvent.setup()
+    const saved = captureDownloads()
+    renderAs(["intake"], <LeadsScreen />)
+    await screen.findByRole("table", { name: "Leads" })
+    await user.click(screen.getByRole("button", { name: "Export CSV" }))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(calls.find((c) => c.url.includes("export.csv"))!.url).toBe(
+      "/api/v1/admin/leads/export.csv?status=spam"
     )
   })
 
@@ -258,7 +282,7 @@ describe("leads inbox (master 7.4)", () => {
 
   it("keeps an unknown assignee filter as “Someone else”", async () => {
     const user = userEvent.setup()
-    search = `assignee=${GONE}`
+    at(`/admin/leads?assignee=${GONE}`)
     renderAs(["intake"], <LeadsScreen />)
     await screen.findByRole("table", { name: "Leads" })
     const select = screen.getByRole("combobox", { name: "Assignee" })
@@ -276,23 +300,26 @@ describe("leads inbox (master 7.4)", () => {
     expect(calls.some((c) => c.url.includes(`assignee=${GONE}`))).toBe(true)
   })
 
-  it("detail: vertical section tabs, message, immediate status change, notes", async () => {
+  it("drawer: sections, message, immediate status change, notes", async () => {
     const user = userEvent.setup()
     const saved = captureDownloads()
-    renderAs(["intake"], <LeadDetail id={ID} />)
+    renderAs(["intake"], drawer(ID))
+    const dialog = await screen.findByRole("dialog", { name: "Dinn Rí" })
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Dinn Rí" })
+      within(dialog).getByRole("heading", { level: 2, name: "Dinn Rí" })
     ).toBeInTheDocument()
-    const tablist = screen.getByRole("tablist", { name: "Lead sections" })
     expect(
-      within(tablist)
-        .getAllByRole("tab")
-        .map((t) => t.textContent?.replace(/\d*, \d+ notes?$/, "").trim())
-    ).toEqual(["Details", "Notes", "Activity"])
-    // Read as "Notes, 1 note", not "Notes1".
-    expect(
-      within(tablist).getByRole("tab", { name: /^Notes,\s*1 note$/ })
-    ).toBeInTheDocument()
+      within(dialog)
+        .getAllByRole("region")
+        .map((r) => r.querySelector("h3")?.textContent)
+    ).toEqual([
+      "Contact",
+      "Message",
+      "Source",
+      "Status & assignee",
+      "Notes",
+      "Activity",
+    ])
     expect(screen.getByText(/Line one/)).toHaveClass("whitespace-pre-wrap")
 
     await pickOption(user, screen.getByLabelText("Lead status"), "Contacted")
@@ -303,9 +330,8 @@ describe("leads inbox (master 7.4)", () => {
     )
     await waitFor(() => expect(refresh).toHaveBeenCalled())
 
-    await user.click(within(tablist).getByRole("tab", { name: /Notes/ }))
-    const panel = () => screen.getByRole("tabpanel")
-    expect(within(panel()).getByText("Rang back")).toBeInTheDocument()
+    const notes = within(dialog).getByRole("region", { name: "Notes" })
+    expect(within(notes).getByText("Rang back")).toBeInTheDocument()
     const box = screen.getByLabelText("Add a note")
     await user.type(box, "Sent a quote")
     await user.click(screen.getByRole("button", { name: "Add note" }))
@@ -314,14 +340,14 @@ describe("leads inbox (master 7.4)", () => {
         body: "Sent a quote",
       })
     )
-    expect(await within(panel()).findByText("Sent a quote")).toBeInTheDocument()
+    expect(await within(notes).findByText("Sent a quote")).toBeInTheDocument()
     // Focus goes back to the (now empty) box, not to the page.
     await waitFor(() => expect(box).toHaveFocus())
     expect(box).toHaveValue("")
 
-    await user.click(within(tablist).getByRole("tab", { name: "Activity" }))
-    expect(within(panel()).getByText("Sent from /contact")).toBeInTheDocument()
-    expect(within(panel()).getByText(/^Website ·/)).toBeInTheDocument()
+    const activity = within(dialog).getByRole("region", { name: "Activity" })
+    expect(within(activity).getByText("Sent from /contact")).toBeInTheDocument()
+    expect(within(activity).getByText(/^Website ·/)).toBeInTheDocument()
 
     // intake cannot delete (lead:delete is owner/admin)
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull()
@@ -338,9 +364,9 @@ describe("leads inbox (master 7.4)", () => {
     const user = userEvent.setup()
     let release!: () => void
     holdPatch = new Promise((resolve) => (release = resolve))
-    renderAs(["intake"], <LeadDetail id={ID} />)
+    renderAs(["intake"], drawer(ID))
     const select = await screen.findByLabelText("Lead status")
-    const card = screen.getByRole("region", { name: "Handling" })
+    const card = screen.getByRole("region", { name: "Status & assignee" })
     select.focus()
     await pickOption(user, select, "Contacted")
     await pickOption(user, select, "Qualified")
@@ -368,12 +394,51 @@ describe("leads inbox (master 7.4)", () => {
   it("a failed save toasts and puts the select back to the server's value", async () => {
     failPatch = true
     const user = userEvent.setup()
-    renderAs(["intake"], <LeadDetail id={ID} />)
+    renderAs(["intake"], drawer(ID))
     const select = await screen.findByLabelText("Lead status")
     await pickOption(user, select, "Won")
     expect(await screen.findByText("Not saved")).toBeInTheDocument()
     expect(screen.getByText("Someone else saved")).toBeInTheDocument()
     await waitFor(() => expect(select).toHaveTextContent("New"))
+  })
+
+  it("detail: a Source section shows attribution as plain text (D3.1)", async () => {
+    detail = {
+      ...lead,
+      attribution: {
+        referrer: "https://www.google.com/search",
+        landingPath: "/services/static-guarding",
+        utm: {
+          utm_source: "<script>alert(1)</script>",
+          utm_campaign: "=HYPERLINK(1)",
+        },
+        capturedAt: "2026-10-16T08:55:00.000Z",
+      },
+    }
+    renderAs(["intake"], drawer(ID))
+    const source = await screen.findByRole("region", { name: "Source" })
+    const facts = Object.fromEntries(
+      within(source)
+        .getAllByRole("term")
+        .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent])
+    )
+    expect(facts).toMatchObject({
+      Referrer: "https://www.google.com/search",
+      "Landing page": "/services/static-guarding",
+      "UTM source": "<script>alert(1)</script>",
+      "UTM campaign": "=HYPERLINK(1)",
+    })
+    // Missing UTM values read as "Not given", not blank.
+    expect(facts["UTM medium"]).toContain("Not given")
+    // Never a link or markup: hostile values stay text.
+    expect(within(source).queryByRole("link")).toBeNull()
+    expect(source.querySelector("script")).toBeNull()
+  })
+
+  it("detail: the Source section says when nothing was recorded (D3.1)", async () => {
+    renderAs(["intake"], drawer(ID))
+    const source = await screen.findByRole("region", { name: "Source" })
+    expect(source).toHaveTextContent("No source was recorded for this enquiry.")
   })
 
   it("the sidebar's Leads item shows the server's new-leads count", () => {
@@ -405,13 +470,15 @@ describe("leads inbox (master 7.4)", () => {
 
   it("admins can delete after confirming", async () => {
     const user = userEvent.setup()
-    renderAs(["admin"], <LeadDetail id={ID} />)
+    renderAs(["admin"], drawer(ID))
     await user.click(await screen.findByRole("button", { name: "Delete" }))
     await user.click(await screen.findByRole("button", { name: "Delete lead" }))
     await waitFor(() =>
       expect(calls.some((c) => c.method === "DELETE")).toBe(true)
     )
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/admin/leads"))
+    // The drawer closes (clears ?lead=) instead of navigating.
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(push).not.toHaveBeenCalled()
   })
 })
 
@@ -431,7 +498,7 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
       ["intake"],
       <>
         <SharedScreen />
-        <LeadDetail id={ID} />
+        {drawer(ID)}
       </>
     )
     const shared = screen.getByTestId("shared")
@@ -452,58 +519,42 @@ describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
       ["intake"],
       <>
         <SharedScreen />
-        <LeadDetail id={GONE} />
+        {drawer(GONE)}
       </>
     )
-    await screen.findByText("This lead does not exist")
+    await screen.findByText("This enquiry no longer exists")
     expect(screen.getByTestId("shared")).toHaveTextContent("nothing")
-  })
-
-  it("“All leads” returns to the list as it was left (final review I8)", async () => {
-    window.sessionStorage.setItem(
-      "sp-admin:list:/admin/leads",
-      "status=open&assignee=me&page=3"
-    )
-    renderAs(["intake"], <LeadDetail id={ID} />)
-    await screen.findByRole("heading", { level: 1, name: "Dinn Rí" })
-    expect(screen.getByRole("link", { name: "All leads" })).toHaveAttribute(
-      "href",
-      "/admin/leads?status=open&assignee=me&page=3"
-    )
   })
 
   it("filters keep the table's search and follow Back/Forward (I8, M9)", async () => {
     const user = userEvent.setup()
-    search = "status=open"
-    window.history.replaceState(null, "", "/admin/leads?status=open&q=Dinn")
+    at("/admin/leads?status=open&q=Dinn&page=2")
     renderAs(["intake"], <LeadsScreen />)
     expect(await screen.findByLabelText("Status")).toHaveTextContent("Open")
-    await pickOption(user, screen.getByLabelText("Status"), "Spam")
+    await pickOption(user, screen.getByLabelText("Status"), "Contacted")
     // The search stays; the page resets.
-    expect(replace).toHaveBeenLastCalledWith(
-      "/admin/leads?status=spam&q=Dinn",
-      { scroll: false }
-    )
-    // Back: the URL says "contacted" again; the screen follows it on its
+    expect(window.location.search).toBe("?status=contacted&q=Dinn")
+    // Back: the URL says "qualified" again; the screen follows it on its
     // next render (here: the search box's debounced update).
-    search = "status=contacted"
+    at("/admin/leads?status=qualified&q=Dinn")
     await user.type(screen.getByRole("searchbox"), "x")
     await waitFor(() =>
-      expect(screen.getByLabelText("Status")).toHaveTextContent("Contacted")
+      expect(screen.getByLabelText("Status")).toHaveTextContent("Qualified")
     )
-    search = ""
   })
 
-  it("a note typed but not added asks before leaving (final review I2)", async () => {
+  it("a note typed but not added asks before the drawer closes (final review I2)", async () => {
     const user = userEvent.setup()
-    renderAs(["intake"], <LeadDetail id={ID} />)
-    await screen.findByRole("heading", { level: 1, name: "Dinn Rí" })
-    await user.click(screen.getByRole("tab", { name: /^Notes/ }))
-    await user.type(screen.getByLabelText("Add a note"), "Rang them")
-    await user.click(screen.getByRole("link", { name: "All leads" }))
+    renderAs(["intake"], drawer(ID))
+    const dialog = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.type(
+      await within(dialog).findByLabelText("Add a note"),
+      "Rang them"
+    )
+    await user.click(within(dialog).getByRole("button", { name: "Close" }))
     expect(
       await screen.findByRole("alertdialog", { name: "Leave without saving?" })
     ).toBeInTheDocument()
-    expect(push).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

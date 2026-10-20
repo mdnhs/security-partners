@@ -1,0 +1,859 @@
+import { act, render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { useEffect, useState } from "react"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest"
+
+const push = vi.fn()
+const replace = vi.fn()
+const refresh = vi.fn()
+// The screen writes the URL with the native history API (Next keeps
+// useSearchParams in sync with it): read the live address.
+// Back/Forward (popstate) re-render it, as Next's router does.
+vi.mock("next/navigation", async () => {
+  const { useSyncExternalStore } = await import("react")
+  const subscribe = (onChange: () => void) => {
+    window.addEventListener("popstate", onChange)
+    return () => window.removeEventListener("popstate", onChange)
+  }
+  // One router object, as Next's is stable across renders.
+  let router: { push: unknown; replace: unknown; refresh: unknown } | null =
+    null
+  return {
+    usePathname: () => "/admin/leads",
+    useRouter: () => (router ??= { push, replace, refresh }),
+    useSearchParams: () =>
+      new URLSearchParams(
+        useSyncExternalStore(
+          subscribe,
+          () => window.location.search,
+          () => ""
+        )
+      ),
+  }
+})
+
+import {
+  UnsavedChangesProvider,
+  UnsavedGuard,
+} from "@/components/admin/editor/unsaved-guard"
+import { LeadDrawer } from "@/components/admin/leads/lead-drawer"
+import { LeadsScreen } from "@/components/admin/leads/leads-screen"
+import {
+  type LeadsParams,
+  useLeadsParams,
+} from "@/components/admin/leads/use-leads-params"
+import { makeQueryClient } from "@/components/admin/providers"
+import { AdminShell } from "@/components/admin/shell/admin-shell"
+import type { Role } from "@/lib/auth/roles"
+import type { LeadDto } from "@/lib/schemas/api/leads"
+
+const ID = "0190a6e0-0000-7000-8000-0000000000aa"
+const GONE = "0190a6e0-0000-7000-8000-0000000000bb"
+const lead: LeadDto = {
+  id: ID,
+  name: "Dinn Rí",
+  email: "dinn@example.ie",
+  phone: "085 000 0000",
+  company: "Rí Security",
+  service: null,
+  status: "new",
+  assignee: null,
+  sourcePage: "/contact",
+  createdAt: "2026-10-16T09:00:00.000Z",
+  updatedAt: "2026-10-16T09:00:00.000Z",
+  message: "Line one\nLine two",
+  consent: true,
+  attribution: null,
+  events: [
+    {
+      id: "e1",
+      type: "created",
+      body: "Sent from /contact",
+      actor: null,
+      createdAt: "2026-10-16T09:00:00.000Z",
+    },
+  ],
+}
+
+/** A second lead (D3.3 review m5), listed only when `twoLeads` is set. */
+const ID2 = "0190a6e0-0000-7000-8000-0000000000cc"
+const lead2: LeadDto = {
+  ...lead,
+  id: ID2,
+  name: "Brid Ní",
+  email: "brid@example.ie",
+  assignee: { id: "u", name: "Ian Intake" },
+}
+
+const calls: { url: string; method: string; body?: string }[] = []
+let listTotal = 1
+let patchStatus = 200
+let twoLeads = false
+beforeEach(() => {
+  calls.length = 0
+  listTotal = 1
+  patchStatus = 200
+  twoLeads = false
+  push.mockClear()
+  replace.mockClear()
+  refresh.mockClear()
+  window.history.replaceState(null, "", "/admin/leads")
+  // Most tests here drive the table; the board is the default (D3.3).
+  window.localStorage.setItem("sp-leads-view", "table")
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input)
+      const method =
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      const body =
+        typeof init?.body === "string"
+          ? init.body
+          : input instanceof Request && method !== "GET"
+            ? await input.clone().text()
+            : undefined
+      calls.push({ url, method, body })
+      const reply = (data: unknown, status = 200) =>
+        new Response(JSON.stringify(data), {
+          status,
+          headers: { "content-type": "application/json" },
+        })
+      if (url.includes("/leads/assignees"))
+        return reply({
+          items: [{ id: "u", name: "Ian Intake", email: "ian@x.test" }],
+        })
+      if (url.includes(`/leads/${GONE}`))
+        return reply(
+          { error: { code: "NOT_FOUND", message: "Not found" } },
+          404
+        )
+      if (url.includes(`/leads/${ID}`)) {
+        if (method === "DELETE") return reply({ ok: true })
+        if (method === "PATCH")
+          return patchStatus === 200
+            ? reply({ ...lead, ...JSON.parse(body ?? "{}") })
+            : reply(
+                { error: { code: "INTERNAL", message: "Down" } },
+                patchStatus
+              )
+        return reply(lead)
+      }
+      if (url.includes(`/leads/${ID2}`)) return reply(lead2)
+      return reply({
+        items: twoLeads ? [lead, lead2] : [lead],
+        page: 1,
+        pageSize: 20,
+        total: twoLeads ? Math.max(listTotal, 2) : listTotal,
+      })
+    })
+  )
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+function renderAs(roles: Role[] = ["intake"]) {
+  shellClient.current = makeQueryClient()
+  render(
+    <Shell roles={roles}>
+      <LeadsScreen />
+      <Probe />
+    </Shell>
+  )
+}
+
+const shellClient = { current: makeQueryClient() }
+function Shell({
+  roles = ["intake"],
+  children,
+}: {
+  roles?: Role[]
+  children: React.ReactNode
+}) {
+  return (
+    <AdminShell
+      queryClient={shellClient.current}
+      site={{ url: "http://localhost:3000", env: "development" }}
+      session={{
+        user: {
+          id: "u",
+          name: "Ian Intake",
+          email: "ian@x.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles,
+        impersonatedBy: null,
+      }}
+    >
+      {children}
+    </AdminShell>
+  )
+}
+
+/** The leads URL setter, for patches the screen's own UI never sends. */
+const probe: { current: ((patch: Partial<LeadsParams>) => void) | null } = {
+  current: null,
+}
+function Probe() {
+  const [, setParams] = useLeadsParams()
+  useEffect(() => {
+    probe.current = setParams
+  })
+  return null
+}
+
+const listCalls = () =>
+  calls.filter((c) => /\/api\/v1\/admin\/leads\?/.test(c.url))
+
+describe("leads screen: Inbox/Spam tabs, view toggle, drawer (D3.2)", () => {
+  it("the Spam tab requests status=spam and hides the board toggle", async () => {
+    const user = userEvent.setup()
+    renderAs()
+    await screen.findByRole("table", { name: "Leads" })
+    const tabs = screen.getByRole("tablist", { name: "Folders" })
+    expect(
+      within(tabs)
+        .getAllByRole("tab")
+        .map((t) => t.textContent)
+    ).toEqual(["Inbox", "Spam"])
+    expect(within(tabs).getByRole("tab", { name: "Inbox" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    // The inbox asks for everything but spam (no status filter).
+    expect(listCalls().every((c) => !c.url.includes("status="))).toBe(true)
+    const toggle = screen.getByRole("group", { name: "View" })
+    expect(
+      within(toggle).getByRole("button", { name: "Board" })
+    ).toBeInTheDocument()
+    expect(
+      within(toggle).getByRole("button", { name: "Table" })
+    ).toBeInTheDocument()
+
+    await user.click(within(tabs).getByRole("tab", { name: "Spam" }))
+    await waitFor(() =>
+      expect(listCalls().some((c) => c.url.includes("status=spam"))).toBe(true)
+    )
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull()
+    // Spam is its own folder: no status filter to pick.
+    expect(screen.queryByLabelText("Status")).toBeNull()
+    expect(window.location.search).toBe("?folder=spam")
+
+    await user.click(within(tabs).getByRole("tab", { name: "Inbox" }))
+    expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument()
+    expect(window.location.search).toBe("")
+  })
+
+  it("an old ?status=spam link opens the Spam tab", async () => {
+    window.history.replaceState(null, "", "/admin/leads?status=spam")
+    renderAs()
+    await screen.findByRole("table", { name: "Leads" })
+    expect(screen.getByRole("tab", { name: "Spam" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
+    expect(listCalls().some((c) => c.url.includes("status=spam"))).toBe(true)
+  })
+
+  it("remembers the chosen view in this browser", async () => {
+    const user = userEvent.setup()
+    renderAs()
+    await screen.findByRole("table", { name: "Leads" })
+    const toggle = screen.getByRole("group", { name: "View" })
+    expect(
+      within(toggle).getByRole("button", { name: "Table" })
+    ).toHaveAttribute("aria-pressed", "true")
+    await user.click(within(toggle).getByRole("button", { name: "Board" }))
+    expect(window.localStorage.getItem("sp-leads-view")).toBe("board")
+    expect(window.location.search).toBe("?view=board")
+    expect(
+      within(toggle).getByRole("button", { name: "Board" })
+    ).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("a row click opens the drawer with the lead name heading", async () => {
+    const user = userEvent.setup()
+    const pushState = vi.spyOn(window.history, "pushState")
+    renderAs()
+    const table = await screen.findByRole("table", { name: "Leads" })
+    const name = await within(table).findByRole("link", { name: "Dinn Rí" })
+    // A real link (opens in a new tab), handled in place on a plain click.
+    expect(name).toHaveAttribute("href", `/admin/leads?lead=${ID}`)
+    await user.click(within(table).getByText("Unassigned"))
+
+    const drawer = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    expect(
+      within(drawer).getByRole("heading", { name: "Dinn Rí" })
+    ).toBeInTheDocument()
+    // A history entry, so the browser's Back button closes it.
+    expect(pushState).toHaveBeenCalledTimes(1)
+    expect(window.location.search).toBe(`?lead=${ID}`)
+    for (const section of [
+      "Contact",
+      "Message",
+      "Source",
+      "Status & assignee",
+      "Notes",
+      "Activity",
+    ])
+      expect(
+        await within(drawer).findByRole("region", { name: section })
+      ).toBeInTheDocument()
+    expect(within(drawer).getByText("Sent from /contact")).toBeInTheDocument()
+
+    await user.click(within(drawer).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() => expect(window.location.search).toBe(""))
+    // Focus goes back to the lead's row (review M1), not to <body>.
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("table", { name: "Leads" })).getByRole("link", {
+          name: "Dinn Rí",
+        })
+      ).toHaveFocus()
+    )
+  })
+
+  it("the name link opens the drawer; Esc closes it", async () => {
+    const user = userEvent.setup()
+    renderAs()
+    const table = await screen.findByRole("table", { name: "Leads" })
+    await user.click(
+      await within(table).findByRole("link", { name: "Dinn Rí" })
+    )
+    await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(window.location.search).toBe("")
+  })
+
+  it("?lead= opens the drawer on load (detail-page redirect target)", async () => {
+    window.history.replaceState(null, "", `/admin/leads?lead=${ID}`)
+    renderAs()
+    expect(
+      await screen.findByRole("dialog", { name: "Dinn Rí" })
+    ).toBeInTheDocument()
+  })
+
+  it("a missing lead shows the message and clears the param", async () => {
+    window.history.replaceState(null, "", `/admin/leads?lead=${GONE}`)
+    const user = userEvent.setup()
+    renderAs()
+    const drawer = await screen.findByRole("dialog")
+    expect(
+      await within(drawer).findByText("This enquiry no longer exists")
+    ).toBeInTheDocument()
+    await waitFor(() => expect(window.location.search).toBe(""))
+    // The message stays until it is closed.
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    await user.click(within(drawer).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("a ?lead= that is not an id opens nothing and is never requested", async () => {
+    window.history.replaceState(null, "", "/admin/leads?lead=..%2Fusers")
+    renderAs()
+    await screen.findByRole("table", { name: "Leads" })
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(calls.some((c) => c.url.includes("users"))).toBe(false)
+  })
+
+  it("deleting from the drawer closes it and clears the param", async () => {
+    window.history.replaceState(null, "", `/admin/leads?lead=${ID}`)
+    const user = userEvent.setup()
+    renderAs(["admin"])
+    const drawer = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.click(
+      await within(drawer).findByRole("button", { name: "Delete" })
+    )
+    await user.click(await screen.findByRole("button", { name: "Delete lead" }))
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "DELETE")).toBe(true)
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Dinn Rí" })).toBeNull()
+    )
+    expect(window.location.search).toBe("")
+    expect(push).not.toHaveBeenCalled()
+  })
+})
+
+describe("leads screen: board view (D3.3)", () => {
+  it("the board is the default view (MK)", async () => {
+    window.localStorage.removeItem("sp-leads-view")
+    renderAs()
+    expect(
+      await screen.findByRole("region", { name: "Qualified" })
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole("group", { name: "View" })).getByRole("button", {
+        name: "Board",
+      })
+    ).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("?view=board shows the board from the latest 100 open, won and lost", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    listTotal = 101
+    renderAs()
+    const column = await screen.findByRole("region", { name: "New" })
+    expect(
+      within(column).getByRole("button", { name: /^Dinn Rí/ })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("table", { name: "Leads" })).toBeNull()
+    const board = listCalls().at(-1)!.url
+    expect(board).toContain("pageSize=100")
+    expect(board).not.toContain("status=")
+    expect(screen.getByText("Showing the latest 100")).toBeInTheDocument()
+  })
+
+  it("moving a card PATCHes the lead's status", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    const user = userEvent.setup()
+    renderAs()
+    await screen.findByRole("region", { name: "New" })
+    expect(screen.queryByText("Showing the latest 100")).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: "Move Dinn Rí to another column" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Qualified" }))
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.method === "PATCH" && c.url.includes(ID))?.body
+      ).toBe(JSON.stringify({ status: "qualified" }))
+    )
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "Qualified" })).getByRole(
+          "button",
+          { name: /^Dinn Rí/ }
+        )
+      ).toBeInTheDocument()
+    )
+  })
+
+  it("a failed PATCH snaps the card back", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    patchStatus = 500
+    const user = userEvent.setup()
+    renderAs()
+    await screen.findByRole("region", { name: "New" })
+    await user.click(
+      screen.getByRole("button", { name: "Move Dinn Rí to another column" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Lost" }))
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "PATCH")).toBe(true)
+    )
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "New" })).getByRole(
+          "button",
+          { name: /^Dinn Rí/ }
+        )
+      ).toBeInTheDocument()
+    )
+    // The board is fetched again after the failure (D3.3 review n5).
+    const patchAt = calls.findIndex((c) => c.method === "PATCH")
+    await waitFor(() =>
+      expect(
+        calls
+          .slice(patchAt + 1)
+          .some((c) => c.method === "GET" && /\/admin\/leads\?/.test(c.url))
+      ).toBe(true)
+    )
+  })
+
+  it("the CSV export takes what the board shows (D3.3 review n2)", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/admin/leads?view=board&status=won&assignee=me"
+    )
+    renderAs()
+    await screen.findByRole("region", { name: "New" })
+    expect(screen.getByRole("button", { name: "Export CSV" })).toHaveAttribute(
+      "data-href",
+      "/api/v1/admin/leads/export.csv?assignee=me"
+    )
+  })
+
+  it("closing the drawer gives focus back to the board card (review m5)", async () => {
+    window.history.replaceState(null, "", "/admin/leads?view=board")
+    const user = userEvent.setup()
+    renderAs()
+    const column = await screen.findByRole("region", { name: "New" })
+    await user.click(within(column).getByRole("button", { name: /^Dinn Rí/ }))
+    const drawer = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.click(within(drawer).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "New" })).getByRole(
+          "button",
+          { name: /^Dinn Rí/ }
+        )
+      ).toHaveFocus()
+    )
+  })
+})
+
+describe("leads drawer and the browser's Back/Forward (D3.2 review I1, I2)", () => {
+  /** An earlier list entry (status=won), then the screen's own entry. */
+  function startAfterWonList() {
+    window.history.pushState(null, "", "/admin/leads?status=won")
+    window.history.pushState(null, "", "/admin/leads")
+  }
+  const settle = () => act(() => new Promise((r) => setTimeout(r, 50)))
+  async function openFromRow(user: ReturnType<typeof userEvent.setup>) {
+    const table = await screen.findByRole("table", { name: "Leads" })
+    await user.click(await within(table).findByText("Unassigned"))
+    return screen.findByRole("dialog", { name: "Dinn Rí" })
+  }
+  async function addNote(
+    user: ReturnType<typeof userEvent.setup>,
+    drawer: HTMLElement
+  ) {
+    await user.type(
+      await within(drawer).findByLabelText("Add a note"),
+      "Rang them"
+    )
+    await user.click(within(drawer).getByRole("button", { name: "Add note" }))
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === "POST" && c.url.includes("/events"))
+      ).toBe(true)
+    )
+    await waitFor(() =>
+      expect(within(drawer).getByLabelText("Add a note")).toHaveValue("")
+    )
+  }
+  async function closeDrawer(
+    user: ReturnType<typeof userEvent.setup>,
+    drawer: HTMLElement
+  ) {
+    await user.click(within(drawer).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() => expect(window.location.search).toBe(""))
+  }
+
+  it("Back closes an open drawer and Forward opens it again", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    await openFromRow(user)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe(""))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    act(() => window.history.forward())
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+    expect(
+      await screen.findByRole("dialog", { name: "Dinn Rí" })
+    ).toBeInTheDocument()
+  })
+
+  it("open, close, Back: the list before it, not the drawer or a copy", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    await closeDrawer(user, await openFromRow(user))
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?status=won"))
+    await settle()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(screen.getByLabelText("Status")).toHaveTextContent("Won")
+  })
+
+  it("add a note, close, Back: the drawer does not open again", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const drawer = await openFromRow(user)
+    await addNote(user, drawer)
+    await closeDrawer(user, drawer)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?status=won"))
+    await settle()
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("a note typed in a drawer opened again: Back asks before it is lost", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const first = await openFromRow(user)
+    await addNote(user, first)
+    await closeDrawer(user, first)
+    await settle()
+
+    const again = await openFromRow(user)
+    await user.type(
+      await within(again).findByLabelText("Add a note"),
+      "Not sent yet"
+    )
+    await settle()
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+    // Still there to finish (hidden from the tree behind the prompt).
+    expect(
+      screen.getByRole("dialog", { name: "Dinn Rí", hidden: true })
+    ).toBeInTheDocument()
+    expect(screen.getByDisplayValue("Not sent yet")).toBeInTheDocument()
+  })
+
+  it("a note in another lead's drawer after one with a note: Back asks (review m5)", async () => {
+    twoLeads = true
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const first = await openFromRow(user)
+    await addNote(user, first)
+    await closeDrawer(user, first)
+    await settle()
+
+    const table = screen.getByRole("table", { name: "Leads" })
+    await user.click(within(table).getByRole("link", { name: "Brid Ní" }))
+    const second = await screen.findByRole("dialog", { name: "Brid Ní" })
+    await user.type(
+      await within(second).findByLabelText("Add a note"),
+      "Not sent yet"
+    )
+    await settle()
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+  })
+
+  it("reopening the same lead while the drawer is still closing: Back asks (review m3)", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const first = await openFromRow(user)
+    await addNote(user, first)
+    // Close and open again at once, inside the closing animation.
+    await user.click(within(first).getByRole("button", { name: "Close" }))
+    const table = screen.getByRole("table", { name: "Leads" })
+    await user.click(within(table).getByRole("link", { name: "Dinn Rí" }))
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+    const again = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await settle()
+    await user.type(
+      await within(again).findByLabelText("Add a note"),
+      "Not sent yet"
+    )
+    await settle()
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+  })
+
+  it("the guard arms again on a new entry for the same scope (review m3)", async () => {
+    // A drawer reopened inside its closing animation: the note's guard
+    // stays mounted (no release), on a new history entry.
+    function Note() {
+      const [dirty, setDirty] = useState(false)
+      return (
+        <>
+          <UnsavedGuard when={dirty} scope={`lead:${ID}`} />
+          <button type="button" onClick={() => setDirty((d) => !d)}>
+            Toggle note
+          </button>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    window.history.pushState(null, "", `/admin/leads?lead=${ID}`)
+    render(
+      <UnsavedChangesProvider>
+        <Note />
+      </UnsavedChangesProvider>
+    )
+    await user.click(screen.getByRole("button", { name: "Toggle note" }))
+    await user.click(screen.getByRole("button", { name: "Toggle note" }))
+    // Reopened: a new entry for the same lead; a note typed there.
+    window.history.pushState(null, "", `/admin/leads?lead=${ID}`)
+    await user.click(screen.getByRole("button", { name: "Toggle note" }))
+    await settle()
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+  })
+
+  it("a ?tab= editor without a scope keeps one guard: no extra entry, no false prompt (re-review R1)", async () => {
+    function Editor() {
+      const [dirty, setDirty] = useState(false)
+      return (
+        <>
+          <UnsavedGuard when={dirty} />
+          <button type="button" onClick={() => setDirty((d) => !d)}>
+            Toggle edit
+          </button>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    window.history.pushState(null, "", "/admin/services/x?tab=a")
+    render(
+      <UnsavedChangesProvider>
+        <Editor />
+      </UnsavedChangesProvider>
+    )
+    await user.click(screen.getByRole("button", { name: "Toggle edit" }))
+    await user.click(screen.getByRole("button", { name: "Toggle edit" }))
+    // Switch tab (useTabParam pushes an entry), then edit again.
+    window.history.pushState(null, "", "/admin/services/x?tab=b")
+    const length = window.history.length
+    await user.click(screen.getByRole("button", { name: "Toggle edit" }))
+    await settle()
+    expect(window.history.length).toBe(length)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?tab=a"))
+    await settle()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+  })
+
+  it("a note discarded on close is gone when the lead is reopened at once (re-review R2)", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    const first = await openFromRow(user)
+    await user.type(
+      await within(first).findByLabelText("Add a note"),
+      "Discard me"
+    )
+    await user.click(within(first).getByRole("button", { name: "Close" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "Leave without saving?",
+        })
+      ).getByRole("button", { name: "Leave page" })
+    )
+    // Reopened inside the closing animation.
+    const table = screen.getByRole("table", { name: "Leads" })
+    await user.click(within(table).getByRole("link", { name: "Dinn Rí" }))
+    const again = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+    expect(await within(again).findByLabelText("Add a note")).toHaveValue("")
+    expect(screen.queryByDisplayValue("Discard me")).toBeNull()
+
+    // A new note is guarded honestly: reload and Back both ask.
+    await user.type(within(again).getByLabelText("Add a note"), "Keep me")
+    await settle()
+    const unload = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+    act(() => window.history.back())
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+  })
+
+  it("closed and reopened before the closing animation ends: a fresh body, no stale note (re-review R2)", async () => {
+    shellClient.current = makeQueryClient()
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <Shell>
+        <LeadDrawer id={ID} onClose={onClose} />
+      </Shell>
+    )
+    const drawer = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.type(
+      await within(drawer).findByLabelText("Add a note"),
+      "Discard me"
+    )
+    // Closed, then opened again before the exit animation can end (an exit
+    // animation that never finishes; jsdom has none of its own).
+    const proto = Element.prototype as unknown as {
+      getAnimations?: () => { finished: Promise<unknown> }[]
+    }
+    proto.getAnimations = () => [{ finished: new Promise(() => {}) }]
+    onTestFinished(() => {
+      delete proto.getAnimations
+    })
+    act(() =>
+      rerender(
+        <Shell>
+          <LeadDrawer id={null} onClose={onClose} />
+        </Shell>
+      )
+    )
+    act(() =>
+      rerender(
+        <Shell>
+          <LeadDrawer id={ID} onClose={onClose} />
+        </Shell>
+      )
+    )
+    const again = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    expect(await within(again).findByLabelText("Add a note")).toHaveValue("")
+    expect(screen.queryByDisplayValue("Discard me")).toBeNull()
+  })
+
+  it("opened by URL: note, close, Back does not open it again (review m1)", async () => {
+    window.history.pushState(null, "", "/admin/leads?status=won")
+    window.history.pushState(null, "", `/admin/leads?lead=${ID}`)
+    const user = userEvent.setup()
+    renderAs()
+    const drawer = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await addNote(user, drawer)
+    await closeDrawer(user, drawer)
+    act(() => window.history.back())
+    await waitFor(() => expect(window.location.search).toBe("?status=won"))
+    await settle()
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("after a reload the drawer closes by replacing its entry (review m2)", async () => {
+    startAfterWonList()
+    // The entry the drawer pushed before the reload (another document).
+    window.history.pushState(
+      { spLeadDrawer: ID, spLeadsDoc: "before-reload" },
+      "",
+      `/admin/leads?lead=${ID}`
+    )
+    const back = vi.spyOn(window.history, "back")
+    const go = vi.spyOn(window.history, "go")
+    const user = userEvent.setup()
+    renderAs()
+    await closeDrawer(
+      user,
+      await screen.findByRole("dialog", { name: "Dinn Rí" })
+    )
+    expect(back).not.toHaveBeenCalled()
+    expect(go).not.toHaveBeenCalled()
+  })
+
+  it("closing with other changes keeps them (review m2)", async () => {
+    startAfterWonList()
+    const user = userEvent.setup()
+    renderAs()
+    await openFromRow(user)
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+    act(() => probe.current!({ lead: null, status: "qualified" }))
+    await waitFor(() =>
+      expect(window.location.search).toBe("?status=qualified")
+    )
+    await settle()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    // It stepped back: the drawer's entry is ahead, not under the list.
+    act(() => window.history.forward())
+    await waitFor(() => expect(window.location.search).toBe(`?lead=${ID}`))
+  })
+})

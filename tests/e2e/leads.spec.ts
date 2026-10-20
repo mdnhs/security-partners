@@ -84,23 +84,25 @@ test("public enquiry → lead in the intake inbox, worked by the intake user", a
   await nav.getByRole("link", { name: /^Leads/ }).click()
   await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
   await page.getByRole("link", { name }).first().click()
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible()
+  // D3.2: the enquiry opens in a side drawer over the inbox.
+  const drawer = page.getByRole("dialog", { name })
+  await expect(drawer.getByRole("heading", { name })).toBeVisible()
 
   // shadcn Select (MK parity A5): open the combobox, pick the option.
-  await page.getByRole("combobox", { name: "Lead status" }).click()
+  await drawer.getByRole("combobox", { name: "Lead status" }).click()
   await page.getByRole("option", { name: "Contacted" }).click()
   // No success toast (final review M8): the select and badge show it.
-  await expect(page.getByRole("combobox", { name: "Lead status" })).toHaveText(
-    "Contacted"
-  )
-  await page.getByRole("tab", { name: /Notes/ }).click()
-  await page.getByLabel("Add a note").fill("Called, sending a quote")
-  await page.getByRole("button", { name: "Add note" }).click()
   await expect(
-    page.getByRole("tabpanel").getByText("Called, sending a quote")
+    drawer.getByRole("combobox", { name: "Lead status" })
+  ).toHaveText("Contacted")
+  await drawer.getByLabel("Add a note").fill("Called, sending a quote")
+  await drawer.getByRole("button", { name: "Add note" }).click()
+  await expect(
+    drawer
+      .getByRole("region", { name: "Notes" })
+      .getByText("Called, sending a quote")
   ).toBeVisible()
-  await page.getByRole("tab", { name: "Activity" }).click()
-  const activity = page.getByRole("tabpanel")
+  const activity = drawer.getByRole("region", { name: "Activity" })
   await expect(activity.getByText("Sent from /contact")).toBeVisible()
   // Recipients come from settings.leads (seeded leads@e2e.test); the mailer
   // ran and recorded its outcome (no SMTP in this production server).
@@ -161,4 +163,85 @@ test("6th enquiry from one IP within 10 minutes → 429 with Retry-After", async
     "RATE_LIMITED"
   )
   await api.dispose()
+})
+
+test("first-touch attribution travels with the enquiry to the Source section (D3.1)", async ({
+  page,
+  browser,
+}) => {
+  const { intake } = readFixtures()
+  const name = `Attributed ${Date.now()}`
+
+  const visitor = await browser.newContext({
+    extraHTTPHeaders: { "x-forwarded-for": clientIpFor(`${name} visitor`) },
+  })
+  const tab = await visitor.newPage()
+  // Lands from an external search with UTM tags, then moves on to /contact:
+  // the first touch is kept for the visit.
+  await tab.goto("/?utm_source=e2e-search&utm_campaign=%3Cb%3Ed31%3C%2Fb%3E", {
+    referer: "https://www.example.org/results?q=private",
+  })
+  await sendEnquiry(tab, name)
+  await visitor.close()
+
+  await signIn(page, intake)
+  await page.goto("/admin/leads")
+  await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
+  await page.getByRole("link", { name }).first().click()
+  const source = page
+    .getByRole("dialog", { name })
+    .getByRole("region", { name: "Source" })
+  await expect(
+    source.getByText("https://www.example.org/results")
+  ).toBeVisible()
+  await expect(source.getByText("e2e-search")).toBeVisible()
+  // Visitor-supplied markup stays text.
+  await expect(source.getByText("<b>d31</b>")).toBeVisible()
+  await expect(source.getByText(/q=private/)).toHaveCount(0)
+})
+
+test("the detail URL lands on the drawer, and Back closes it (D3.2)", async ({
+  page,
+  browser,
+}) => {
+  const { intake } = readFixtures()
+  const name = `Drawer ${Date.now()}`
+  const visitor = await browser.newContext({
+    extraHTTPHeaders: { "x-forwarded-for": clientIpFor(`${name} visitor`) },
+  })
+  await sendEnquiry(await visitor.newPage(), name)
+  await visitor.close()
+
+  await signIn(page, intake)
+  const res = await page.request.get(
+    `/api/v1/admin/leads?q=${encodeURIComponent(name)}`
+  )
+  const { items } = (await res.json()) as { items: { id: string }[] }
+  const id = items[0]!.id
+
+  // Old links (notification email, search) redirect to the inbox drawer.
+  await page.goto(`/admin/leads/${id}`)
+  await expect(page).toHaveURL(`/admin/leads?lead=${id}`)
+  await expect(
+    page.getByRole("dialog", { name }).getByRole("heading", { name })
+  ).toBeVisible()
+  await page
+    .getByRole("dialog", { name })
+    .getByRole("button", { name: "Close" })
+    .click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page).toHaveURL("/admin/leads")
+
+  // Opening pushes a history entry: the browser's Back closes the drawer
+  // and stays on the inbox.
+  await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
+  await page.getByRole("link", { name }).first().click()
+  await expect(page.getByRole("dialog", { name })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get("lead")).toBe(id)
+  await page.goBack()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  expect(new URL(page.url()).searchParams.get("lead")).toBeNull()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Enquiries" })
+  ).toBeVisible()
 })

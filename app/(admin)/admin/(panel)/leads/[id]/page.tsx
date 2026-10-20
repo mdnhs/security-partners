@@ -1,27 +1,24 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
-import { Suspense } from "react"
+import { notFound, redirect } from "next/navigation"
 
-import { LeadDetail } from "@/components/admin/leads/lead-detail"
 import { idParam } from "@/lib/schemas/api/params"
 import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Lead" }
 
-export default function LeadPage({ params }: PageProps<"/admin/leads/[id]">) {
-  return (
-    <Suspense fallback={null}>
-      <Screen params={params} />
-    </Suspense>
-  )
-}
-
-async function Screen({
+/**
+ * Old lead address (notification emails, search results, bookmarks): the
+ * lead now opens in the inbox's drawer (MK parity D3.2), `?lead=<id>`.
+ * Nothing renders here, so the page needs no Suspense of its own (D3.2
+ * review M6); the panel layout's boundary covers the request data.
+ */
+export default async function LeadPage({
   params,
-}: Pick<PageProps<"/admin/leads/[id]">, "params">) {
+}: PageProps<"/admin/leads/[id]">) {
   const { id } = await params
   // Permission first: a 403 never leaks whether an id exists.
   await requirePage("/admin/leads")
+  // Only a UUID goes into the URL (and later the API path): SEC1.
   if (!idParam.safeParse({ id }).success) notFound()
-  return <LeadDetail id={id} />
+  redirect(`/admin/leads?lead=${encodeURIComponent(id.toLowerCase())}`)
 }

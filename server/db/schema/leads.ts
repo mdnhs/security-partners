@@ -3,11 +3,14 @@ import "server-only"
 import {
   boolean,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
   uuid,
 } from "drizzle-orm/pg-core"
+
+import type { Attribution } from "@/lib/leads/attribution"
 
 import { id, timestamps, tsz } from "./_shared"
 import { users } from "./auth"
@@ -42,6 +45,8 @@ export const leads = pgTable(
     sourcePage: text("source_page"),
     /** HMAC of the client IP (HKDF purpose "lead-ip"), never the raw IP. */
     ipHash: text("ip_hash"),
+    /** First-touch referrer/landing/UTM (D3.1); null = not recorded. */
+    attribution: jsonb("attribution").$type<Attribution>(),
     ...timestamps(),
   },
   (t) => [

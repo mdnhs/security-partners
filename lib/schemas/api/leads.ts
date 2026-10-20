@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+import {
+  type Attribution,
+  attributionSubmission,
+} from "@/lib/leads/attribution"
+
 import { listQuery, sortParam } from "./list"
 
 /** Same order as the DB enum lead_status (server/db/schema/leads.ts). */
@@ -100,6 +105,8 @@ export const leadSubmission = z.object({
   /** Honeypot: hidden from people, filled by bots. Any type is accepted (and fires when non-empty). */
   website: z.unknown().optional(),
   turnstileToken: z.string().max(2048).optional(),
+  /** First touch from sessionStorage (D3.1); oversized → 422, then plain text. */
+  attribution: attributionSubmission.optional(),
 })
 export type LeadSubmission = z.output<typeof leadSubmission>
 
@@ -172,6 +179,8 @@ export type LeadListItem = {
   email: string
   phone: string | null
   company: string | null
+  /** The service picked on the form (board cards, D3.3). */
+  service: string | null
   status: LeadStatus
   assignee: LeadPerson | null
   sourcePage: string | null
@@ -186,9 +195,10 @@ export type LeadEventItem = {
   createdAt: string
 }
 export type LeadDto = LeadListItem & {
-  service: string | null
   message: string
   consent: boolean
+  /** null = not recorded (older lead, blocked storage, or not sent). */
+  attribution: Attribution | null
   updatedAt: string
   events: LeadEventItem[]
 }
@@ -210,4 +220,11 @@ export const LEAD_CSV_HEADER = [
   "Assignee",
   "Notes",
   "Lead ID",
+  "Referrer",
+  "Landing page",
+  "UTM source",
+  "UTM medium",
+  "UTM campaign",
+  "UTM term",
+  "UTM content",
 ] as const

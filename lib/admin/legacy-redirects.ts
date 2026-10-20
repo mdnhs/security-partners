@@ -59,4 +59,7 @@ export const ADMIN_LEGACY_REDIRECTS: readonly AdminLegacyRedirect[] = [
     destination: "/admin/settings/ai-assistant",
     permanent: true,
   },
+  // D3.2: /admin/leads/:id → /admin/leads?lead=:id is not a rule here. The
+  // page itself redirects (app/(admin)/admin/(panel)/leads/[id]/page.tsx),
+  // after the permission check and only for a valid id.
 ]

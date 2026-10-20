@@ -316,3 +316,45 @@ describe("ContactForm (master 7.3)", () => {
     ).toBeUndefined()
   })
 })
+
+describe("ContactForm attribution (D3.1)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.sessionStorage.clear()
+  })
+
+  it("sends the stored first-touch attribution with the lead", async () => {
+    const attribution = {
+      referrer: "https://www.google.com/search",
+      landingPath: "/services",
+      utm: { utm_source: "google", utm_medium: "cpc" },
+      capturedAt: "2026-10-20T09:30:00.000Z",
+    }
+    window.sessionStorage.setItem("sp_attribution", JSON.stringify(attribution))
+    render(<ContactForm labels={labels} />)
+    await fillAndSend()
+    await screen.findByText(labels.successMessage)
+    expect(JSON.parse(String(leadPosts()[0][1]?.body)).attribution).toEqual(
+      attribution
+    )
+  })
+
+  it("sends no attribution when none is stored, it is corrupt, or storage is blocked", async () => {
+    window.sessionStorage.setItem("sp_attribution", "{broken")
+    render(<ContactForm labels={labels} />)
+    await fillAndSend()
+    await screen.findByText(labels.successMessage)
+    expect(JSON.parse(String(leadPosts()[0][1]?.body))).not.toHaveProperty(
+      "attribution"
+    )
+
+    vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => {
+      throw new DOMException("denied", "SecurityError")
+    })
+    await fillAndSend()
+    await waitFor(() => expect(leadPosts()).toHaveLength(2))
+    expect(JSON.parse(String(leadPosts()[1][1]?.body))).not.toHaveProperty(
+      "attribution"
+    )
+  })
+})
