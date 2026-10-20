@@ -26,8 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ROLE_INFO } from "@/lib/admin/user-roles"
-import { ROLES } from "@/lib/auth/roles"
 
 import { useShellSignOut } from "./sign-out-context"
 
@@ -38,18 +36,16 @@ const THEMES = [
 ] as const
 
 /**
- * The avatar in the topbar; from lg the trigger also shows name, email and
- * the primary role (MK). The menu repeats them with every role (Account,
- * Security, Theme, Sign out). A failed sign-out shows below the trigger and
- * clears when the menu reopens (a dock failure stays).
+ * The avatar in the topbar, on its own at every width (owner request): the
+ * menu shows name, email and every role (Account, Security, Theme, Sign
+ * out). A failed sign-out shows below the trigger and clears when the menu
+ * reopens (a dock failure stays).
  */
 export function UserMenu() {
   const { user, roles } = useAdminSession()
   const { theme, setTheme } = useTheme()
   const { signOut, pending, error, clearError } = useShellSignOut()
   const menuError = error?.source === "menu" ? error.message : null
-  // The highest role in ROLES order (owner first).
-  const primaryRole = ROLES.find((role) => roles.includes(role))
   return (
     <div className="relative">
       <DropdownMenu
@@ -60,37 +56,13 @@ export function UserMenu() {
       >
         <DropdownMenuTrigger
           aria-label={`Account menu for ${user.name}`}
-          className="flex shrink-0 items-center gap-3 rounded-full p-1 text-left outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 lg:pr-4"
+          className="flex shrink-0 items-center rounded-full p-1 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Avatar aria-hidden className="size-11">
             <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
-          {/* At lg (1024 px: a 688 px topbar beside the 20rem sidebar) the
-              identity caps at 144 px so search, AI, mail, bell, avatar and
-              the role chip still fit; xl gives it 224 px. Name and email
-              truncate inside. */}
-          <span
-            data-slot="user-identity"
-            className="hidden max-w-36 min-w-0 flex-col lg:flex xl:max-w-56"
-          >
-            <span className="truncate text-sm font-semibold text-foreground">
-              {user.name}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {user.email}
-            </span>
-          </span>
-          {primaryRole ? (
-            // MK: a grey chip of its own at the far right of the identity.
-            <span
-              data-slot="role-pill"
-              className="hidden shrink-0 items-center rounded-full bg-muted px-2.5 py-1 text-xs leading-none font-medium text-foreground lg:inline-flex"
-            >
-              {ROLE_INFO[primaryRole].label}
-            </span>
-          ) : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuGroup>

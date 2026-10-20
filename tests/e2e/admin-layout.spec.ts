@@ -104,7 +104,9 @@ test("topbar fits at 1024 px with role chip, AI, mail and bell", async ({
     topbar.getByRole("button", { name: "AI assistant" })
   ).toBeVisible()
   await expect(topbar.getByRole("link", { name: /^Enquiries/ })).toBeVisible()
-  await expect(topbar.locator("[data-slot=role-pill]")).toBeVisible()
+  await expect(
+    topbar.getByRole("button", { name: /^Account menu for / })
+  ).toBeVisible()
   await expectTopbarFits(page)
   // The search pill keeps at least its 44 px target.
   const pill = (await topbar
