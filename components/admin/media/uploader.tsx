@@ -123,7 +123,7 @@ export function useMediaUploads(onUploaded?: (item: MediaItem) => void) {
             progress: 0,
             status: "error",
             error:
-              "This type of file is not supported. Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file.",
+              "This type of file is not supported. Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file, or a Lottie animation (.json or .lottie).",
           })
           continue
         }
@@ -227,7 +227,8 @@ export function MediaDropzone({
         Choose files
       </Button>
       <p className="text-xs">
-        JPEG, PNG, WebP, AVIF, SVG or PDF, up to 20 MB each.
+        JPEG, PNG, WebP, AVIF, SVG or PDF, up to 20 MB each; Lottie animations
+        (.json, .lottie) up to 2 MB.
       </p>
       <div className="flex w-full max-w-md flex-col gap-1.5 text-left">
         <label htmlFor={altId} className="text-sm font-medium text-foreground">

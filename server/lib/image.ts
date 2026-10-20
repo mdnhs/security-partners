@@ -2,7 +2,7 @@ import "server-only"
 
 import sharp from "sharp"
 
-import type { UploadMime } from "./media-sniff"
+import type { InspectableMime } from "./media-sniff"
 
 /** Larger images are refused (decompression bombs; notes §5.6 `limitInputPixels`). */
 export const MAX_INPUT_PIXELS = 40_000_000
@@ -22,7 +22,7 @@ export type ImageInfo = {
  */
 export async function inspectImage(
   bytes: Uint8Array,
-  mime: UploadMime
+  mime: InspectableMime
 ): Promise<ImageInfo> {
   if (mime === "application/pdf")
     return { width: null, height: null, blurDataUrl: null }
@@ -55,11 +55,11 @@ export async function inspectImage(
 }
 
 export type RasterMime = Exclude<
-  UploadMime,
+  InspectableMime,
   "image/svg+xml" | "application/pdf"
 >
 
-export const isRasterMime = (mime: UploadMime): mime is RasterMime =>
+export const isRasterMime = (mime: InspectableMime): mime is RasterMime =>
   mime !== "image/svg+xml" && mime !== "application/pdf"
 
 /**

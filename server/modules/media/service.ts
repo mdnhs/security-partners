@@ -18,6 +18,8 @@ import { stripHiddenChars } from "@/lib/hidden-chars"
 import type { Paginated } from "@/lib/schemas/api/list"
 import {
   cleanAltText,
+  isLottieMime,
+  MAX_LOTTIE_BYTES,
   MAX_UPLOAD_BYTES,
   MEDIA_ALT_MAX,
   type MediaItem,
@@ -38,6 +40,14 @@ import {
   reencodeImage,
 } from "@/server/lib/image"
 import {
+  LottieError,
+  type LottieInfo,
+  validateDotLottie,
+  validateLottieJson,
+} from "@/server/lib/lottie"
+import {
+  isLottieUpload,
+  type LottieUploadMime,
   sniffMime,
   UPLOAD_TYPES,
   type UploadMime,
@@ -147,7 +157,11 @@ export async function prepareUpload(file: unknown): Promise<PreparedUpload> {
   if (file.size > MAX_UPLOAD_BYTES) throw fileError("Files can be up to 20 MB")
   let bytes = new Uint8Array(await file.arrayBuffer())
   const mime = sniffMime(bytes)
-  if (!mime) throw fileError("Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file")
+  if (!mime)
+    throw fileError(
+      "Upload a JPEG, PNG, WebP, AVIF, SVG or PDF file, or a Lottie animation (.json or .lottie)"
+    )
+  if (isLottieUpload(mime)) return prepareLottie(file, bytes, mime)
   if (mime === "image/svg+xml") {
     try {
       bytes = new TextEncoder().encode(
@@ -179,6 +193,41 @@ export async function prepareUpload(file: unknown): Promise<PreparedUpload> {
     size: bytes.byteLength,
     originalName: cleanFileName(file.name, ext),
     ...info,
+  }
+}
+
+/**
+ * Lottie JSON / dotLottie: at most 2 MB, validated (server/lib/lottie:
+ * required fields, dotLottie manifest, unpacked-size cap) and stored as
+ * uploaded. Width/height are the composition's size; no blur placeholder.
+ */
+function prepareLottie(
+  file: File,
+  bytes: Uint8Array<ArrayBuffer>,
+  mime: LottieUploadMime
+): PreparedUpload {
+  if (bytes.byteLength > MAX_LOTTIE_BYTES)
+    throw fileError("Lottie files can be up to 2 MB")
+  let info: LottieInfo
+  try {
+    info =
+      mime === "video/lottie+json"
+        ? validateLottieJson(bytes)
+        : validateDotLottie(bytes)
+  } catch (err) {
+    if (err instanceof LottieError) throw fileError(err.message)
+    throw err
+  }
+  const ext = UPLOAD_TYPES[mime]
+  return {
+    bytes,
+    mime,
+    ext,
+    size: bytes.byteLength,
+    originalName: cleanFileName(file.name, ext),
+    width: info.width,
+    height: info.height,
+    blurDataUrl: null,
   }
 }
 
@@ -317,7 +366,19 @@ export async function uploadMedia(
 }
 
 const kindOf = (mime: string) =>
-  mime.startsWith("image/") ? "image" : "document"
+  mime.startsWith("image/")
+    ? "image"
+    : isLottieMime(mime)
+      ? "lottie"
+      : "document"
+
+const REPLACE_SAME_KIND = {
+  image:
+    "Replace an image with another image, so the pages using it keep working",
+  lottie:
+    "Replace a Lottie animation with another Lottie file (.json or .lottie)",
+  document: "Replace a document with another PDF",
+} as const
 
 /**
  * Usage entity types → the resource whose `read` permission shows their
@@ -602,11 +663,7 @@ export async function replaceMedia(
   if (!existing) throw notFound("Media")
   const prepared = await prepareUpload(input.file)
   if (kindOf(prepared.mime) !== kindOf(existing.mime))
-    throw fileError(
-      kindOf(existing.mime) === "image"
-        ? "Replace an image with another image, so the pages using it keep working"
-        : "Replace a document with another PDF"
-    )
+    throw fileError(REPLACE_SAME_KIND[kindOf(existing.mime)])
   const { updated } = await storePrepared(prepared, async (tx, stored) => {
     // Locked: a concurrent replace or delete runs before or after this one,
     // so `current.key` is the key this commit really stops pointing at.

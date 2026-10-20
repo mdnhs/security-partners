@@ -9,15 +9,30 @@ export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 /** <input accept>: the server sniffs the bytes anyway. */
 export const ACCEPTED_IMAGE_TYPES =
   "image/jpeg,image/png,image/webp,image/avif,image/svg+xml"
-export const ACCEPTED_UPLOAD_TYPES = `${ACCEPTED_IMAGE_TYPES},application/pdf`
+/**
+ * Lottie animations as stored: Lottie JSON (IANA video/lottie+json) and
+ * dotLottie archives (dotLottie spec application/zip+dotlottie).
+ */
+export const LOTTIE_MIMES = [
+  "video/lottie+json",
+  "application/zip+dotlottie",
+] as const
+export const isLottieMime = (mime: string) =>
+  (LOTTIE_MIMES as readonly string[]).includes(mime)
+/** Largest accepted Lottie file (an animated logo, not a film). */
+export const MAX_LOTTIE_BYTES = 2 * 1024 * 1024
+/** <input accept> for Lottie: browsers know .lottie by its extension only. */
+export const ACCEPTED_LOTTIE_TYPES = ".json,.lottie,application/json"
+export const ACCEPTED_UPLOAD_TYPES = `${ACCEPTED_IMAGE_TYPES},application/pdf,${ACCEPTED_LOTTIE_TYPES}`
 
-export const MEDIA_KINDS = ["image", "document"] as const
+/** image = image/*, lottie = LOTTIE_MIMES, document = everything else (PDF). */
+export const MEDIA_KINDS = ["image", "document", "lottie"] as const
 export type MediaKind = (typeof MEDIA_KINDS)[number]
 
 /** GET /api/v1/admin/media (library + picker). */
 export const mediaListQuery = listQuery.extend({
   sort: sortParam(["createdAt", "alt"], { field: "createdAt", dir: "desc" }),
-  /** "image" = image/*, "document" = everything else (PDF); omitted = all. */
+  /** "image" = image/*, "lottie" = Lottie animations, "document" = everything else (PDF); omitted = all. */
   kind: z.enum(MEDIA_KINDS).optional(),
   /** "true" = images with no alt text that are not marked decorative. */
   missingAlt: z.literal("true").optional(),

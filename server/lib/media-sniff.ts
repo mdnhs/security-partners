@@ -8,10 +8,22 @@ export const UPLOAD_TYPES = {
   "image/avif": "avif",
   "image/svg+xml": "svg",
   "application/pdf": "pdf",
+  // Lottie animations (lib/schemas/api/media LOTTIE_MIMES): candidates by
+  // their first bytes, validated by server/lib/lottie before storage.
+  "video/lottie+json": "json",
+  "application/zip+dotlottie": "lottie",
 } as const
 export type UploadMime = keyof typeof UPLOAD_TYPES
+export type LottieUploadMime = "video/lottie+json" | "application/zip+dotlottie"
+/** Types sharp inspects (images) or that need no inspection (PDF). */
+export type InspectableMime = Exclude<UploadMime, LottieUploadMime>
+
+export const isLottieUpload = (mime: UploadMime): mime is LottieUploadMime =>
+  mime === "video/lottie+json" || mime === "application/zip+dotlottie"
 
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+/** ZIP local file header "PK\x03\x04" (dotLottie). */
+const ZIP = [0x50, 0x4b, 0x03, 0x04]
 
 const startsWith = (bytes: Uint8Array, signature: number[], offset = 0) =>
   bytes.length >= offset + signature.length &&
@@ -56,5 +68,14 @@ export function sniffMime(bytes: Uint8Array): UploadMime | null {
   if (bytes.length >= 5 && ascii(bytes, 0, 5) === "%PDF-")
     return "application/pdf"
   if (isSvg(bytes)) return "image/svg+xml"
+  // Only Lottie candidates: prepareUpload refuses JSON / ZIP files that
+  // are not Lottie animations.
+  if (startsWith(bytes, ZIP)) return "application/zip+dotlottie"
+  if (
+    /^\s*\{/.test(
+      ascii(bytes, 0, Math.min(bytes.length, 64)).replace(/^\xef\xbb\xbf/, "")
+    )
+  )
+    return "video/lottie+json"
   return null
 }

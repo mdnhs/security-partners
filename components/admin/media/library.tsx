@@ -34,8 +34,14 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePermission } from "@/hooks/use-permission"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import { isMediaId } from "@/lib/media"
-import type { MediaItem, MediaKind } from "@/lib/schemas/api/media"
+import {
+  isLottieMime,
+  type MediaItem,
+  type MediaKind,
+} from "@/lib/schemas/api/media"
 import { cn } from "@/lib/utils"
+
+import { LottieTile } from "./lottie-tile"
 
 import { formatBytes, mediaName, typeLabel } from "./format"
 import { MediaDetails } from "./media-details"
@@ -51,6 +57,7 @@ const KINDS: { value: MediaKind | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "image", label: "Images" },
   { value: "document", label: "Documents" },
+  { value: "lottie", label: "Animations" },
 ]
 
 /** Toolbar toggles: 36 px, 44 px on touch screens (WCAG 2.5.8). */
@@ -87,6 +94,8 @@ function Thumb({
           sizes={sizes}
           className="object-contain"
         />
+      ) : isLottieMime(item.mime) ? (
+        <LottieTile />
       ) : (
         <FileText aria-hidden className="size-8 text-muted-foreground" />
       )}
@@ -320,10 +329,14 @@ export function MediaLibrary() {
                 ? missingAlt
                   ? kind === "document"
                     ? "Documents don't need alt text. Turn off Missing alt text to see them."
-                    : "Every image has alt text or is marked decorative."
+                    : kind === "lottie"
+                      ? "Animations don't need alt text. Turn off Missing alt text to see them."
+                      : "Every image has alt text or is marked decorative."
                   : kind === "image"
                     ? "There are no images in the library."
-                    : "There are no documents in the library."
+                    : kind === "lottie"
+                      ? "There are no Lottie animations in the library."
+                      : "There are no documents in the library."
                 : canUpload
                   ? "Upload images and PDFs above; pages, services and articles can then use them."
                   : "Images and PDFs appear here once someone uploads them."
