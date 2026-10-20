@@ -92,7 +92,7 @@ test("editor creates Spring campaign, adds Stats, autosaves, publishes and sees 
   await signIn(page, editor.email)
   await removeBySlug(page, "spring-campaign", "spring-offers")
   await createThroughDialog(page, "Spring campaign")
-  await expect(page.getByText("/p/spring-campaign")).toBeVisible()
+  await expect(page.getByText("/p/spring-campaign").first()).toBeVisible()
 
   await deleteHero(page)
   // Focus does not fall to <body> after a delete (review D5.4 I1).
@@ -243,10 +243,16 @@ test("changing the address of a published page leaves a 301 from the old one", a
   expect(published.status()).toBe(200)
 
   await page.goto(`/admin/pages/custom/${dto.id}?tab=seo`)
-  const address = page.getByRole("textbox", { name: "Address" })
+  const address = page.getByRole("textbox", { name: "Address", exact: true })
   await address.fill("move-check-2")
+  // The field's help text follows the typing: wait for the save itself.
+  const savedMeta = page.waitForResponse(
+    (res) =>
+      res.request().method() === "PATCH" &&
+      res.url().endsWith(`/api/v1/admin/builder-pages/${dto.id}/meta`)
+  )
   await page.getByRole("button", { name: "Save title and address" }).click()
-  await expect(page.getByText("/p/move-check-2").first()).toBeVisible()
+  expect((await savedMeta).status()).toBe(200)
 
   const res = await request.get("/p/move-check", { maxRedirects: 0 })
   expect(res.status()).toBe(301)
@@ -270,8 +276,13 @@ test("a marketer sees the pages list read-only, without New page", async ({
 test("⌘K New page opens the new page dialog", async ({ page }) => {
   const { editor } = readFixtures()
   await signIn(page, editor.email)
-  await page.keyboard.press("ControlOrMeta+k")
   const palette = page.getByRole("dialog", { name: "Search the admin" })
+  // The shortcut listener attaches on hydration: a press that lands before
+  // it is lost, so press again until the palette opens.
+  await expect(async () => {
+    await page.keyboard.press("ControlOrMeta+k")
+    await expect(palette).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
   await palette.getByRole("option", { name: "New page" }).click()
   await expect(page.getByRole("dialog", { name: "New page" })).toBeVisible()
 })
