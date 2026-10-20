@@ -12,9 +12,10 @@ export default function AuthLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   // The published theme in the same boundary: these pages are otherwise
-  // static, and would paint in the default tokens first.
+  // static, and would paint in the default tokens first. `noscript` keeps
+  // them usable without JavaScript (forgot password posts natively).
   return (
-    <AdminThemed>
+    <AdminThemed noscript>
       <main className="grid min-h-svh gap-4 bg-background p-3 sm:p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
         <section
           aria-hidden
