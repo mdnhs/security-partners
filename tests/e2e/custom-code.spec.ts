@@ -103,7 +103,9 @@ test.describe.serial("custom code snippets (D2.3)", () => {
       await site.goto("/")
       await site.waitForLoadState("networkidle")
       expect(await probe(site)).toBeUndefined()
-      await expect(site.locator("#sp-custom-code-body")).toHaveCount(0)
+      // The loader ships on every page since the D2.3 fix (it checks the
+      // route at run time, so a client navigation to /blog/* still runs
+      // it); off-route the probe never ran (above).
       await visitor.close()
     } finally {
       await publishSetting(page, "customCode", () => NO_CODE)
