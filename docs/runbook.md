@@ -69,6 +69,16 @@ Owner decisions and the go-live checklist are in `docs/launch.md`.
 - Before a deploy that adds a migration, take a backup
   (`node scripts/dist/backup.mjs`, see "Running scripts in the container"):
   migrations only go forward.
+- The MK parity release adds migrations `0010_theme` to
+  `0019_ai_enquiry_details` (theme, AI settings, media alt, SEO robots,
+  redirect admin fields, marketing/custom code, lead attribution,
+  newsletter, builder pages, AI enquiry-details flag). Several carry data
+  migrations (the legacy custom code becomes `necessary` all-routes
+  snippets in `0015_marketing`). They must run before the new code serves
+  a request: the entrypoint does that on every start. If you start
+  `server.js` any other way (a custom command, a one-off container), run
+  `node scripts/dist/migrate.mjs` first. The data steps are guarded and safe
+  to re-run; a stored value always wins over the new default.
 - Health: `GET /api/v1/health/live` (no DB; the Docker `HEALTHCHECK`) and
   `GET /api/v1/health` (readiness; 503 when the DB is unreachable).
 - Port 3000 is only `expose`d to the Dokploy network, never published on the
@@ -137,9 +147,10 @@ what the entrypoint runs, seeds only a database with no pages;
 `--allow-production`: adds every missing fixture row, never on a live
 site), `admin-create`, `owner-recover`, `demo-seed`,
 `demo-remove`, `backup`, `restore-drill` (`--keep`), `secrets-rotate`,
-`db-sync`. Locally: `pnpm <name>` with `.env.development` (`db:migrate`,
-`db:seed`, `admin:create`, `owner:recover`, `demo:seed`, `demo:remove`,
-`backup`, `restore-drill`, `secrets:rotate`, `db:sync`). Every script prints
+`db-sync`, `custom-code-off`. Locally: `pnpm <name>` with
+`.env.development` (`db:migrate`, `db:seed`, `admin:create`,
+`owner:recover`, `demo:seed`, `demo:remove`, `backup`, `restore-drill`,
+`secrets:rotate`, `db:sync`, `custom-code:off`). Every script prints
 its usage when a required flag is missing.
 
 The scripts use the app's own database code, so they run with the
@@ -228,6 +239,15 @@ re-encrypts the integration secrets for this environment's key.
    the new key are reported, not changed.
 4. Tell staff to sign in again and re-enrol 2FA. Preview links and lead-IP
    rate-limit counters reset (their keys are derived from the secret).
+5. Newsletter: every unsubscribe link already emailed stops working. The
+   link is `<subscriber id>.<HMAC>` keyed by the `newsletter` key derived
+   from `BETTER_AUTH_SECRET`, and `secrets-rotate` does not (cannot)
+   re-issue sent emails; the old key is not accepted after the rotation.
+   A person who asks to be removed after that is deleted by an admin under
+   Newsletter (`newsletter:delete`). The per-email
+   sign-up rate-limit keys reset too. Pending confirm links survive: the
+   confirm token is random and stored as a SHA-256 hash, not derived from
+   the secret. Rotate only when needed (a leak), not on a schedule.
 
 ## Copy a database between environments (db:sync)
 
@@ -334,6 +354,13 @@ own process only.
   failures listed) and must be started again after fixing the files. One
   tick may block for up to ~40 s; an object copied to R2 whose database
   update then failed is logged by key and left in the bucket;
+- newsletter purge (`purge-newsletter`, daily): deletes **pending**
+  (never confirmed) sign-ups older than `settings.newsletter.pendingDays`
+  (1–90), counted from `created_at` (a row re-pended after an unsubscribe
+  counts from its latest confirm link). Confirmed and unsubscribed rows are
+  never purged here. Audited as `newsletter.purged` with the count. While
+  `settings.newsletter` is unpublished nothing is purged and the job shows a
+  warning;
 - replaced media files (one `delete-retired-media` row per old file): a
   replaced file stays servable at its old URL for 24 hours (pages already
   open keep their images), then it is deleted. Disconnecting or re-pointing
@@ -385,15 +412,44 @@ a sandboxing CSP. What a stricter CSP must allow is in the next section.
 
 ## Custom code and Content-Security-Policy
 
-Marketing › Custom code (owner only) adds the published `settings.customCode`
-snippets to every public page. Each snippet is sent as one inline loader
-`<script id="sp-custom-code-head|body">` that parses the HTML and appends it
-to `<head>` / the end of `<body>` after the page loads, so its scripts run
-once per page load. Drafts never run on the site; publishing applies at once.
+Marketing › Custom code (owner only) manages the published
+`settings.customCode` snippets (up to 20). Each snippet is either a script
+address (`https://` on a host listed under "Allowed hosts") or an HTML
+block, with a placement (`head` / end of `body`), route patterns (`/` is the
+home page only, `/blog/*` is `/blog` and everything under it; none = every
+page) and a consent category:
+
+- `necessary` runs without consent. The pre-MK "head"/"body end" blocks
+  were migrated as `necessary`, all-routes snippets (`0015_marketing`), so
+  they behave as before.
+- `analytics` / `marketing` wait until the visitor accepted that category
+  in the cookie banner. With "Load tracking" off there is no banner and no
+  consent, so these snippets never run.
+
+Each placement is sent as one inline loader
+`<script id="sp-custom-code-head|body">` holding the enabled snippets. In
+the browser it checks the path and the consent right before running a
+snippet, and checks again after each consent choice (`sp:consent`) and
+each client-side navigation (`sp:navigate`); a snippet runs at most once
+per page load. Drafts never run on the site; publishing applies at once.
 
 - Only paste code from vendors you trust: it runs with full access to every
-  visitor's page and is not covered by the cookie banner. Consent-dependent
-  tags (Google, Meta) belong under Marketing › Tracking.
+  visitor's page. A `necessary` snippet is not covered by the cookie
+  banner; put anything that sets cookies or tracks visitors in `analytics`
+  or `marketing`. Google and Meta tags belong under Marketing › Tracking.
+- **Kill switch.** "Switch all custom code off" (Marketing › Custom code,
+  `settings.customCode.disabled`) stops every snippet at once, enabled or
+  not. If a snippet breaks the admin itself (it shares the origin), switch
+  it off from the server without signing in:
+  `node scripts/dist/custom-code-off.mjs` in the container
+  (`pnpm custom-code:off` locally). It sets `disabled` on the draft and the
+  published value, bumps the version (an open editor cannot overwrite it),
+  audits `customCode.killSwitch` (no actor) and expires the cached settings.
+  Undo: Marketing › Custom code, turn the switch off again, publish. The
+  cache refresh reaches only the app process the script calls; with the
+  required single container that is the whole site. If the refresh fails
+  the script says so: the switch is already off in the database, restart
+  the app to apply it now.
 - The Tracking tag IDs (GTM, GA4, Meta Pixel) load third-party script, and
   a GTM container can carry any code ("Custom HTML" tags). The admin and API
   share the public origin, so such code runs with the session of any admin
@@ -426,9 +482,82 @@ once per page load. Drafts never run on the site; publishing applies at once.
     `https://www.facebook.com` (pixel beacons), plus any snippet endpoints.
   - `frame-src`: `https://challenges.cloudflare.com` (the Turnstile widget
     is an iframe) and whatever the snippets embed.
-- To remove everything quickly: clear both fields and publish (no deploy).
-  To stop all tracking at once: switch "Load tracking" off under
-  Marketing › Tracking and publish (the banner disappears too).
+- To remove everything quickly: turn on "Switch all custom code off" and
+  publish (no deploy), or run `custom-code-off` (above). To stop all
+  tracking at once: switch "Load tracking" off under Marketing › Tracking
+  and publish (the banner disappears too; analytics/marketing snippets and
+  enquiry attribution stop with it).
+- GA4 setup: in GA4 › Admin › Data streams › your web stream › Enhanced
+  measurement › Page views › Show advanced settings, turn off "Page changes
+  based on browser history events". The site (and `docs/gtm-container.json`)
+  sends page changes itself; with the GA4 option on, every client-side page
+  change is counted twice. Send GA4 either through the GTM container or
+  through the Google Analytics 4 switch on the Tracking page, not both
+  (every event would count twice). Both steps are also listed under
+  Marketing › Event catalogue.
+- Enquiry attribution (first touch: external referrer origin + path,
+  landing path, UTM tags) is stored in the visitor's `sessionStorage` only
+  after analytics consent and removed when it is refused or withdrawn; the
+  contact form sends it only with analytics consent. An invalid value is
+  dropped on the server (`[leads] invalid attribution dropped; enquiry
+  kept`), never rejecting the enquiry.
+
+## Newsletter
+
+- Sign-up is double opt-in: `POST /api/v1/public/newsletter` stores a
+  pending row and emails a confirm link (rate-limited per IP and per email
+  address; the per-email key is an HMAC, so the table never holds the
+  address).
+- Every state change is a `POST`. Mail gateways pre-fetch links, so the
+  emailed confirm link opens the `/newsletter/confirm` page, whose button
+  POSTs the token; `GET /api/v1/public/newsletter/confirm` (older links)
+  only redirects (303) to that page. Unsubscribe is the same: the
+  `/newsletter/unsubscribe` page POSTs. The pages strip the token from the
+  address bar after load.
+- `/newsletter/*` is sent with `Cache-Control: private, no-store,
+  max-age=0`, `Referrer-Policy: no-referrer` and
+  `X-Robots-Tag: noindex, nofollow` (next.config.ts). A CDN or proxy in
+  front must not cache these pages or strip those headers: the URLs carry
+  tokens. Also keep access-log retention short ("Logs").
+- Settings › Newsletter (placement, copy, `pendingDays`, confirmation
+  email) is owner/admin only. Unconfirmed sign-ups are purged daily
+  ("Background jobs"). Unsubscribe links depend on `BETTER_AUTH_SECRET`
+  ("Rotate BETTER_AUTH_SECRET").
+
+## AI assistant
+
+- Settings › AI assistant: provider, model, API key (encrypted), allowed
+  roles. The OpenAI-compatible provider takes a base URL; every request to
+  it (model list, test connection, chat) goes through an SSRF guard
+  (`server/lib/ai-target.ts`): the host is resolved once per connection and
+  refused if **any** address is private, loopback, link-local or a metadata
+  address, the socket connects only to the checked addresses (undici
+  `connect.lookup`, so DNS cannot be rebound) and redirects are refused (a
+  redirect would carry the key). In development only
+  (`NODE_ENV !== "production"`) `http://localhost` and loopback literals
+  are allowed for a local model server; production needs `https://` to a
+  public address. The fixed providers (Anthropic, OpenAI, Google) use their
+  own URLs.
+- `undici` is a direct, exact-pinned dependency bundled into the server for
+  this guard; keep it on a patched 6.x release when Dependabot or
+  `pnpm audit:deps` reports one.
+- "Share enquiry details" lets the assistant read enquiry contents. Only an
+  owner can turn it on, with an acknowledgement; the server stamps who and
+  when. Changing the provider or the OpenAI-compatible base URL turns it
+  off again (the new processor was never acknowledged) unless the owner
+  re-acknowledges in the same save. Anyone who may save the settings can
+  turn it off. Contact details in other screens are redacted before they
+  reach the provider (best effort).
+
+## Appearance (theme)
+
+Appearance (`appearance:update` saves the draft, `appearance:publish`
+publishes; owner and admin) sets the public and admin colours. Publish is
+gated: the server refuses a draft with contrast failures (text pairs below
+4.5:1, large/UI pairs below 3:1, for the site and both admin modes) with
+"Fix the contrast issues before publishing". The default theme renders
+exactly the original site. A bad stored value falls back to the default
+theme with `[theme] stored theme invalid; using default` in the log.
 
 ## Logs
 
