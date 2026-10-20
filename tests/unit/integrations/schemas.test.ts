@@ -87,6 +87,38 @@ describe("integration schemas", () => {
     expect(r2.safeParse({ ...valid, accessKeyId: "" }).success).toBe(false)
   })
 
+  it("r2: the optional folder (keyPrefix) is lowercase segments joined by single slashes", () => {
+    const valid = {
+      accountId: "0123456789abcdef0123456789abcdef",
+      jurisdiction: "default",
+      bucket: "sp-media",
+      accessKeyId: "AKID",
+      secretAccessKey: "SECRET",
+    }
+    // Absent or empty: back-compatible, no folder.
+    expect(r2.safeParse(valid).success).toBe(true)
+    expect(r2.safeParse({ ...valid, keyPrefix: "" }).success).toBe(true)
+    for (const ok of ["sp", "sp/media", "a-b_c/0-9", "x".repeat(64)])
+      expect(r2.safeParse({ ...valid, keyPrefix: ok }).success, ok).toBe(true)
+    for (const bad of [
+      "/sp",
+      "sp/",
+      "sp//media",
+      "..",
+      "sp/../x",
+      "sp/./x",
+      "SP",
+      "sp media",
+      "sp.media",
+      "x".repeat(65),
+    ])
+      expect(r2.safeParse({ ...valid, keyPrefix: bad }).success, bad).toBe(
+        false
+      )
+    expect(INTEGRATIONS["integrations.r2"].fields).toContain("keyPrefix")
+    expect(INTEGRATIONS["integrations.r2"].secrets).not.toContain("keyPrefix")
+  })
+
   it("turnstile: keys are required only while it is on", () => {
     expect(
       turnstile.safeParse({ enabled: false, siteKey: "", secretKey: "" })

@@ -10,7 +10,7 @@ import {
 } from "@aws-sdk/client-s3"
 
 import type { R2Config } from "@/lib/schemas/integrations"
-import { r2Failure, sharedR2Client } from "@/server/lib/r2-client"
+import { r2Failure, r2ObjectKey, sharedR2Client } from "@/server/lib/r2-client"
 
 import { IMMUTABLE_CACHE, keySegments, mediaFileUrl } from "./paths"
 import type { ByteRange, StorageDriver } from "./types"
@@ -36,6 +36,8 @@ export function r2Storage(
   client: S3Client = sharedR2Client(config)
 ): StorageDriver {
   const Bucket = config.bucket
+  // Media rows keep the bare key; the folder (keyPrefix) applies in R2 only.
+  const objectKey = (key: string) => r2ObjectKey(config, key)
   const send = async <T>(run: () => Promise<T>): Promise<T> => {
     try {
       return await run()
@@ -51,7 +53,7 @@ export function r2Storage(
         client.send(
           new PutObjectCommand({
             Bucket,
-            Key: key,
+            Key: objectKey(key),
             Body: body,
             ContentType: contentType,
             ContentLength: body.byteLength,
@@ -64,7 +66,7 @@ export function r2Storage(
       keySegments(key)
       try {
         const out = await client.send(
-          new GetObjectCommand({ Bucket, Key: key })
+          new GetObjectCommand({ Bucket, Key: objectKey(key) })
         )
         return out.Body ? await out.Body.transformToByteArray() : null
       } catch (err) {
@@ -78,7 +80,7 @@ export function r2Storage(
         const out = await client.send(
           new GetObjectCommand({
             Bucket,
-            Key: key,
+            Key: objectKey(key),
             ...(asked ? { Range: `bytes=${asked.start}-${asked.end}` } : {}),
           })
         )
@@ -108,7 +110,7 @@ export function r2Storage(
     async delete(key) {
       keySegments(key)
       await send(() =>
-        client.send(new DeleteObjectCommand({ Bucket, Key: key }))
+        client.send(new DeleteObjectCommand({ Bucket, Key: objectKey(key) }))
       )
     },
     url: mediaFileUrl,

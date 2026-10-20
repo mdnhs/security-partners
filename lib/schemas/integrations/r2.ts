@@ -6,10 +6,30 @@ export const R2_FIELDS = [
   "bucket",
   "accessKeyId",
   "secretAccessKey",
+  "keyPrefix",
 ] as const
 export const R2_SECRETS = ["accessKeyId", "secretAccessKey"] as const
 /** EU-jurisdiction buckets live behind <account>.eu.r2.cloudflarestorage.com. */
 export const R2_JURISDICTIONS = ["default", "eu"] as const
+
+/** Lowercase [a-z0-9-_] segments joined by single "/" (no leading/trailing slash, no dots). */
+export const R2_KEY_PREFIX_PATTERN = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*$/
+export const R2_KEY_PREFIX_MAX = 64
+
+/**
+ * Optional folder inside the bucket ("" = the bucket root, the behaviour of
+ * settings saved before it existed). The driver writes `<folder>/<key>`;
+ * media rows keep the bare key, so changing it does not move stored files.
+ */
+export const r2KeyPrefix = z
+  .string()
+  .trim()
+  .max(R2_KEY_PREFIX_MAX, `At most ${R2_KEY_PREFIX_MAX} characters`)
+  .refine(
+    (value) => value === "" || R2_KEY_PREFIX_PATTERN.test(value),
+    "Lowercase letters, digits, - or _, in folders separated by single /, with no / at the start or end"
+  )
+  .optional()
 
 /**
  * Settings ▸ Integrations ▸ Media storage (spec §5.4, §11). Media is served
@@ -44,6 +64,7 @@ export const r2Config = z.object({
     .trim()
     .min(1, "Required")
     .max(256),
+  keyPrefix: r2KeyPrefix,
 })
 export type R2Config = z.output<typeof r2Config>
 
@@ -51,4 +72,5 @@ export const R2_DEFAULTS = {
   accountId: "",
   jurisdiction: "default",
   bucket: "",
+  keyPrefix: "",
 } as const

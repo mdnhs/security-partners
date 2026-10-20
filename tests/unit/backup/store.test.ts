@@ -238,4 +238,46 @@ describe("R2 backup store", () => {
       input: { Key: `backups/${stamp(1)}.dump` },
     })
   })
+
+  it("with a folder (keyPrefix) every key and the listing prefix live under it", async () => {
+    const sent: { name: string; input: Record<string, unknown> }[] = []
+    const send = vi.fn(async (command: { input: Record<string, unknown> }) => {
+      const name = command.constructor.name
+      sent.push({ name, input: command.input })
+      if (name === "ListObjectsV2Command")
+        return {
+          Contents: [
+            {
+              Key: `sp/backups/${stamp(3)}.dump`,
+              Size: 5,
+              LastModified: new Date(),
+            },
+          ],
+          IsTruncated: false,
+        }
+      if (name === "GetObjectCommand")
+        return {
+          Body: {
+            transformToByteArray: async () => new TextEncoder().encode("x"),
+          },
+        }
+      return {}
+    })
+    const store = r2BackupStore({ ...config, keyPrefix: "sp" }, {
+      send,
+    } as unknown as S3Client)
+    expect(store.location).toBe("r2://sp-media/sp/backups/")
+    await store.put(`${stamp(3)}.dump`, src)
+    expect((await store.list()).map((o) => o.name)).toEqual([
+      `${stamp(3)}.dump`,
+    ])
+    await store.download(`${stamp(3)}.dump`, join(dir, "o.bin"))
+    await store.delete(`${stamp(3)}.dump`)
+    expect(sent.map((s) => s.input.Key ?? s.input.Prefix)).toEqual([
+      `sp/backups/${stamp(3)}.dump`,
+      "sp/backups/",
+      `sp/backups/${stamp(3)}.dump`,
+      `sp/backups/${stamp(3)}.dump`,
+    ])
+  })
 })

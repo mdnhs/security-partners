@@ -566,6 +566,7 @@ describe("PUT integrations.r2 while files are stored there (final review I2)", (
     ["bucket", { bucket: "sp-media-2" }],
     ["account", { accountId: "fedcba9876543210fedcba9876543210" }],
     ["jurisdiction", { jurisdiction: "eu" }],
+    ["folder", { keyPrefix: "sp" }],
   ])(
     "a new %s → 409 naming the stored files; the row is unchanged",
     async (_name, change) => {
@@ -603,6 +604,17 @@ describe("PUT integrations.r2 while files are stored there (final review I2)", (
       bucket: "sp-media-2",
     })
     expect(res.status).toBe(200)
+  })
+
+  it("without stored files the folder may change and is saved (no keys again); an invalid one → 422", async () => {
+    await put(owner, "integrations.r2", 0, r2Values)
+    const bad = await put(owner, "integrations.r2", 1, { keyPrefix: "/sp/" })
+    expect(bad.status).toBe(422)
+    const res = await put(owner, "integrations.r2", 1, { keyPrefix: "sp" })
+    expect(res.status).toBe(200)
+    expect((await readIntegrationConfig("integrations.r2"))?.keyPrefix).toBe(
+      "sp"
+    )
   })
 })
 

@@ -343,13 +343,20 @@ async function assertR2NotRetargetedWithFiles(
   next: Values
 ): Promise<void> {
   const targets = RETARGET_RULES["integrations.r2"]?.targets ?? []
-  if (targets.every((field) => sameValue(next[field], previous[field]))) return
+  // The folder moves every object key too (stored files are not moved), but
+  // it sends no secret anywhere new, so it is not a RETARGET_RULES target.
+  const sameFolder = (next.keyPrefix ?? "") === (previous.keyPrefix ?? "")
+  if (
+    sameFolder &&
+    targets.every((field) => sameValue(next[field], previous[field]))
+  )
+    return
   const stored = await countMediaByDriver(tx, "r2")
   if (stored === 0) return
   const one = stored === 1
   throw new AppError(
     "CONFLICT",
-    `${stored} uploaded file${one ? " is" : "s are"} stored in the current R2 bucket. The account, location and bucket cannot change while ${one ? "it is" : "they are"} there: delete ${one ? "it" : "them"} from the media library first.`
+    `${stored} uploaded file${one ? " is" : "s are"} stored in the current R2 bucket. The account, location, bucket and folder cannot change while ${one ? "it is" : "they are"} there: delete ${one ? "it" : "them"} from the media library first.`
   )
 }
 

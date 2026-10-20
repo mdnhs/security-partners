@@ -9,6 +9,7 @@ import type { R2Config } from "@/lib/schemas/integrations"
 import {
   createR2Client,
   r2Endpoint,
+  r2ObjectKey,
   resetR2Client,
   sharedR2Client,
 } from "@/server/lib/r2-client"
@@ -257,6 +258,64 @@ describe("r2Storage", () => {
     await expect(r2Storage(config, client).read(KEY)).rejects.toThrow(
       /^R2 answered with HTTP 404\.$/
     )
+  })
+})
+
+describe("r2Storage with a folder (keyPrefix)", () => {
+  const prefixed = { ...config, keyPrefix: "sp" }
+
+  it("r2ObjectKey joins the folder and the key; no folder leaves the key as it is", () => {
+    expect(r2ObjectKey(prefixed, KEY)).toBe(`sp/${KEY}`)
+    expect(r2ObjectKey({ ...config, keyPrefix: "sp/media" }, KEY)).toBe(
+      `sp/media/${KEY}`
+    )
+    expect(r2ObjectKey(config, KEY)).toBe(KEY)
+    expect(r2ObjectKey({ ...config, keyPrefix: "" }, KEY)).toBe(KEY)
+  })
+
+  it("every object call uses <folder>/<key>; the public URL keeps the bare key", async () => {
+    const { client, send } = fakeClient((command) => {
+      if (command.constructor.name === "GetObjectCommand")
+        return command.input.Range
+          ? {
+              ContentRange: "bytes 0-0/1",
+              Body: { transformToWebStream: () => new Response("a").body! },
+            }
+          : {
+              ContentLength: 1,
+              Body: {
+                transformToByteArray: async () => new Uint8Array([1]),
+                transformToWebStream: () => new Response("a").body!,
+              },
+            }
+      return {}
+    })
+    const r2 = r2Storage(prefixed, client)
+    await r2.put(KEY, new Uint8Array([1]), "image/png")
+    await r2.read(KEY)
+    await r2.stream(KEY)
+    await r2.stream(KEY, { start: 0, end: 0 })
+    await r2.delete(KEY)
+    await r2.test()
+    const calls = send.mock.calls.map((c) => [
+      c[0].constructor.name,
+      c[0].input.Key,
+    ])
+    expect(calls).toEqual([
+      ["PutObjectCommand", `sp/${KEY}`],
+      ["GetObjectCommand", `sp/${KEY}`],
+      ["GetObjectCommand", `sp/${KEY}`],
+      ["GetObjectCommand", `sp/${KEY}`],
+      ["DeleteObjectCommand", `sp/${KEY}`],
+      ["HeadBucketCommand", undefined],
+    ])
+    expect(r2.url(KEY)).toBe(`/api/v1/media/file/${KEY}`)
+  })
+
+  it("without a folder the keys are unchanged", async () => {
+    const { client, send } = fakeClient(() => ({}))
+    await r2Storage(config, client).put(KEY, new Uint8Array([1]), "image/png")
+    expect(send.mock.calls[0][0].input.Key).toBe(KEY)
   })
 })
 
