@@ -6,6 +6,7 @@ import { type JSX, type ReactNode, useMemo } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Table as UiTable } from "@/components/ui/table"
 
 /**
  * A safe Markdown subset for assistant replies (MK parity C9): paragraphs,
@@ -306,7 +307,7 @@ function Table({ block }: { block: Extract<MdBlock, { kind: "table" }> }) {
       aria-label="Table"
       className="max-w-full overflow-x-auto rounded-xl border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <table className="w-full border-collapse text-[0.8125rem]">
+      <UiTable scroll={false} className="border-collapse text-[0.8125rem]">
         <thead className="bg-muted/60">
           <tr>
             {block.head.map((cell, i) => (
@@ -331,7 +332,7 @@ function Table({ block }: { block: Extract<MdBlock, { kind: "table" }> }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </UiTable>
     </div>
   )
 }

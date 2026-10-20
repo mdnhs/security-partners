@@ -252,6 +252,7 @@ export function AssistantPanel({
           ref={scroller}
           // Not a live region: streamed pieces would flood screen readers.
           // The status line below announces a summary instead.
+          role="region"
           aria-label="Conversation"
           aria-busy={chat.busy}
           // Focused after Regenerate and Save & resend.

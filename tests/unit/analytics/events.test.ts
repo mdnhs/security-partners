@@ -127,6 +127,7 @@ describe("typed analytics events", () => {
     ])
     expect(win.gtag).toHaveBeenCalledWith("event", "newsletter_sign_up", {
       method: "newsletter",
+      page_location: "https://www.example.ie/contact",
     })
     expect(win.fbq).toHaveBeenCalledWith("track", "CompleteRegistration")
     expect(win.fbq).not.toHaveBeenCalledWith("track", "Lead")

@@ -219,9 +219,9 @@ const req = (resource: Resource, action: string) =>
   ({ [resource]: [action] }) as PermissionRequest
 
 describe("permission matrix (spec §6.1): every role × resource × action", () => {
-  it("covers 17 resources and 57 actions", () => {
-    expect(Object.keys(statements)).toHaveLength(17)
-    expect(ALL_PAIRS).toHaveLength(57)
+  it("covers 18 resources and 60 actions", () => {
+    expect(Object.keys(statements)).toHaveLength(18)
+    expect(ALL_PAIRS).toHaveLength(60)
   })
 
   it("page:create/delete (builder pages, D5.2) go to owner, admin, editor only", () => {

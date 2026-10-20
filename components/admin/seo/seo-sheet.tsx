@@ -61,6 +61,7 @@ export function SeoSheet({
     // Esc, the close button or a click outside: never drop edits silently.
     <Sheet open onOpenChange={close.onOpenChange}>
       <SheetContent
+        role="dialog"
         aria-busy={loading || undefined}
         className="w-full overflow-y-auto bg-card sm:max-w-xl"
       >

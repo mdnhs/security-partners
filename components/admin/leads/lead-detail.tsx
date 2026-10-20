@@ -462,6 +462,7 @@ export function LeadDetailBody({
         <LeadSource id={`${uid}-source`} attribution={data.attribution} />
         <Section
           id={`${uid}-handling`}
+          role="region"
           title="Status & assignee"
           description={
             canUpdate
