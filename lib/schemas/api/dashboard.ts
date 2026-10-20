@@ -4,8 +4,9 @@ import type { QaFinding } from "@/lib/content/qa"
 export type DashboardDto = {
   kpis: {
     /**
-     * Non-spam enquiries in the last 30 Irish calendar days (today
-     * included), and in the 30 days before that (the delta's baseline).
+     * Non-spam enquiries in the last 30 Irish calendar days (today so far
+     * included), and in the 30 days before that up to the same Irish
+     * wall-clock time on its last day (the delta's baseline: equal spans).
      */
     leads30d: { value: number; previous: number } | null
     openLeads: number | null
@@ -22,12 +23,16 @@ export type DashboardDto = {
   }
   /**
    * Non-spam enquiries per Irish day, this week (Monday → Sunday) beside
-   * the same weekday last week (lead:read). Totals are the two weeks'.
+   * the same weekday last week (lead:read). `current` is this week so far,
+   * `previous` all of last week, and `previousToDate` last week up to the
+   * same weekday and Irish wall-clock time as now: the fair comparison
+   * for `current`.
    */
   enquiriesWeek: {
     days: { key: string; label: string; current: number; previous: number }[]
     current: number
     previous: number
+    previousToDate: number
   } | null
   /**
    * Published records by their SEO checks (seo:read): `missing` when the

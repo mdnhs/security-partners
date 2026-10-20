@@ -22,6 +22,11 @@ export const tag = {
   newsletter: "newsletter",
   builderPages: "builder-pages",
   builderPage: (slug: string) => `builder-page:${slug}`,
+  /**
+   * The admin dashboard's SEO health and content QA (D3.5): expired by
+   * every draft save, publish, restore, SEO save and media change.
+   */
+  contentReview: "content-review",
 } as const
 
 /**

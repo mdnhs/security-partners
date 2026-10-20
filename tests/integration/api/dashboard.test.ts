@@ -1,10 +1,40 @@
 import { eq, isNotNull } from "drizzle-orm"
 import { Client } from "pg"
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+// Outside Next there is no "use cache" scope: record the cache tags, and let
+// a test make a cached content reader fail (review M2).
+const { cacheTag, failing } = vi.hoisted(() => ({
+  cacheTag: vi.fn(),
+  failing: { seo: false, qa: false },
+}))
+vi.mock("next/cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/cache")>()),
+  cacheLife: vi.fn(),
+  cacheTag,
+}))
+vi.mock("@/server/modules/dashboard/content-review", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/server/modules/dashboard/content-review")
+    >()
+  return {
+    ...actual,
+    cachedSeoHealth: () =>
+      failing.seo
+        ? Promise.reject(new TypeError("settings row no longer parses"))
+        : actual.cachedSeoHealth(),
+    cachedQa: (scope: Parameters<typeof actual.cachedQa>[0]) =>
+      failing.qa
+        ? Promise.reject(new Error("bad jsonb"))
+        : actual.cachedQa(scope),
+  }
+})
 
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
+import type { Actor } from "@/server/lib/actor"
 import { getDb } from "@/server/db/client"
-import { articles, leads, settings } from "@/server/db/schema"
+import { articles, builderPages, leads, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import {
   countLeadsFromDay,
@@ -18,8 +48,23 @@ import { adminRequest, signedInUser } from "../helpers/auth"
 const DAY = 86_400_000
 
 beforeEach(async () => {
+  failing.seo = false
+  failing.qa = false
+  cacheTag.mockClear()
   await resetDb()
   await seedContent(getDb())
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+const actorFor = (userId: string, roles: Actor["roles"]): Actor => ({
+  userId,
+  roles,
+  ip: null,
+  userAgent: null,
+  impersonatorId: null,
 })
 
 async function dashboard(cookie: string) {
@@ -30,7 +75,8 @@ async function dashboard(cookie: string) {
 
 describe("dashboard (master 4.7)", () => {
   it("counts leads (30 d vs the 30 d before, open) and published content", async () => {
-    const now = Date.now()
+    // Fixed clock: 15:00 GMT on Wednesday 28 Oct 2026.
+    const now = Date.parse("2026-10-28T15:00:00Z")
     const lead = (
       daysAgo: number,
       status: "new" | "won" | "spam" | "contacted"
@@ -60,10 +106,13 @@ describe("dashboard (master 4.7)", () => {
         { ...lead(0, "won"), createdAt: new Date(`${firstDay}T12:00:00Z`) },
         { ...lead(0, "won"), createdAt: new Date(`${dayBefore}T12:00:00Z`) },
       ])
-    const { cookie } = await signedInUser(["admin"])
-    // kpis.leads30d.previous counts the 30 Irish days before: the day before
-    // the window and 40 days ago count; 70 days ago and spam do not.
+    const { cookie, user } = await signedInUser(["admin"])
+    // kpis.leads30d.previous counts the 30 Irish days before, cut on its
+    // last day (28 Sep, the day before the window) at the same Irish time
+    // as now, 15:00 (review M6): noon UTC (13:00 IST) that day and 40 days
+    // ago count; 15:30 IST that day, 70 days ago and spam do not.
     const [firstPreviousDay] = trendDays(new Date(now), 60)
+    expect(dayBefore).toBe("2026-09-28")
     await getDb()
       .insert(leads)
       .values([
@@ -73,9 +122,14 @@ describe("dashboard (master 4.7)", () => {
           ...lead(0, "won"),
           createdAt: new Date(`${firstPreviousDay}T12:00:00Z`),
         },
+        { ...lead(0, "won"), createdAt: new Date("2026-09-28T14:30:00Z") },
       ])
+    const service = await getDashboard(
+      actorFor(user.id, ["admin"]),
+      new Date(now)
+    )
+    expect(service.kpis.leads30d).toEqual({ value: 4, previous: 3 })
     const dto = await dashboard(cookie)
-    expect(dto.kpis.leads30d).toEqual({ value: 4, previous: 3 })
     expect(dto.kpis.openLeads).toBe(3)
     expect(dto.kpis.published).toEqual({
       pages: 8,
@@ -85,6 +139,34 @@ describe("dashboard (master 4.7)", () => {
     expect(dto.kpis.published!.articles).toBeGreaterThan(0)
     expect(dto.kpis.inReview).toBe(0)
     expect(dto).not.toHaveProperty("leadsTrend")
+  })
+
+  it("Monday morning: previousToDate counts last week only up to the same weekday and Irish time (review I1)", async () => {
+    const at = (iso: string) => ({
+      name: "N",
+      email: "n@example.ie",
+      message: "Hello",
+      createdAt: new Date(iso),
+    })
+    await getDb()
+      .insert(leads)
+      .values([
+        at("2026-10-19T07:00:00Z"), // last Mon 08:00 IST: before the cut
+        at("2026-10-19T08:30:00Z"), // last Mon 09:30 IST: after the cut
+        at("2026-10-21T10:00:00Z"), // last Wed
+        at("2026-10-26T08:00:00Z"), // this Mon 08:00 GMT
+      ])
+    const owner = await signedInUser(["owner"])
+    // Monday 26 Oct, 09:15 GMT (summer time ended on Sunday).
+    const dto = await getDashboard(
+      actorFor(owner.user.id, ["owner"]),
+      new Date("2026-10-26T09:15:00Z")
+    )
+    expect(dto.enquiriesWeek).toMatchObject({
+      current: 1,
+      previous: 3,
+      previousToDate: 1,
+    })
   })
 
   it("enquiriesWeek counts per Irish day, this week (Mon–Sun) vs last week", async () => {
@@ -313,6 +395,65 @@ describe("dashboard (master 4.7)", () => {
     expect(intake.enquiriesWeek!.days).toHaveLength(7)
     expect(intake.kpis.published).toBeNull()
     expect(intake.nextUp.map((i) => i.id)).toEqual(["unassigned-leads"])
+  })
+
+  it("a failing SEO health or QA scan hides only that part, and says why in the log (review M1/M2)", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {})
+    failing.seo = true
+    failing.qa = true
+    const dto = await dashboard((await signedInUser(["admin"])).cookie)
+    expect(dto.kpis.seoScore).toBeNull()
+    expect(dto.contentHealth).toBeNull()
+    expect(dto.qa).toBeNull()
+    expect(dto.kpis.openLeads).toBe(0)
+    expect(errors.mock.calls.map(([line]) => line)).toEqual(
+      expect.arrayContaining([
+        "[dashboard] SEO health unavailable, part hidden (TypeError: settings row no longer parses)",
+        "[dashboard] Content QA unavailable, part hidden (Error: bad jsonb)",
+      ])
+    )
+  })
+
+  it("SEO health and QA come from cached readers tagged for content writes (review M3)", async () => {
+    await dashboard((await signedInUser(["admin"])).cookie)
+    const tags = cacheTag.mock.calls.flat()
+    expect(tags).toEqual(
+      expect.arrayContaining([
+        "content-review",
+        "services",
+        "articles",
+        "builder-pages",
+        "page:privacy",
+        "settings:contact",
+        "settings:seo.defaults",
+      ])
+    )
+  })
+
+  it("QA scans builder pages for page readers (review M8)", async () => {
+    const [page] = await getDb()
+      .insert(builderPages)
+      .values({
+        slug: "spring-offer",
+        title: "Spring offer",
+        draft: {
+          blocks: [
+            {
+              id: "0190a1b2-c3d4-7e5f-8a9b-000000000001",
+              type: "rich-text",
+              data: { heading: "Lorem ipsum dolor" },
+            },
+          ],
+        } as never,
+      })
+      .returning({ id: builderPages.id })
+    const finding = expect.objectContaining({
+      rule: "placeholder-copy",
+      label: "Spring offer",
+      href: `/admin/pages/custom/${page!.id}`,
+    })
+    const marketer = await dashboard((await signedInUser(["marketer"])).cookie)
+    expect(marketer.qa).toContainEqual(finding)
   })
 
   it("counts a live article with a scheduled update as published (final review minor 5)", async () => {

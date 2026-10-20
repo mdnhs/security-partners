@@ -315,12 +315,14 @@ export async function seoHealth(actor: Actor): Promise<ToolResult> {
  * here, whatever the enquiry-details switch says).
  */
 export async function dashboardSummary(actor: Actor): Promise<ToolResult> {
-  const dashboard = await getDashboard(actor)
+  // The cached SEO figures; no QA scan (only the KPIs and Next up go to the model).
+  const dashboard = await getDashboard(actor, new Date(), { qa: false })
   const week = dashboard.enquiriesWeek
   return {
     kpis: dashboard.kpis,
     enquiriesThisWeek: week ? week.current : null,
     enquiriesLastWeek: week ? week.previous : null,
+    enquiriesLastWeekToDate: week ? week.previousToDate : null,
     nextUp: dashboard.nextUp.map((item) => ({
       id: item.id,
       title:

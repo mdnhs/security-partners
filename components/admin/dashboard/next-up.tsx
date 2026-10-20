@@ -35,7 +35,8 @@ export function NextUp({
           </p>
         </div>
         {items.length > 1 ? (
-          <ul aria-label="Setup checklist" className="flex flex-col gap-1">
+          // Setup steps and day-to-day work (e.g. "Reply to …") alike.
+          <ul aria-label="Next steps" className="flex flex-col gap-1">
             {items.map((item) => (
               <li key={item.id}>
                 <Link

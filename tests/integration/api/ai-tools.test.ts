@@ -328,6 +328,7 @@ describe("getDashboardSummary (D3.5)", () => {
     })
     expect(out.enquiriesThisWeek).toBe(1)
     expect(out.enquiriesLastWeek).toBe(0)
+    expect(out.enquiriesLastWeekToDate).toBe(0)
   })
 })
 

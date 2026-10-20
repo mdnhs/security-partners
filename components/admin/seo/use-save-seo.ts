@@ -37,6 +37,8 @@ export function useSaveSeo(kind: SeoKind, id: string) {
       )
       // The overview and the health (title-unique depends on other records).
       void queryClient.invalidateQueries({ queryKey: ["seo"] })
+      // The dashboard's SEO health KPI, gauge and QA (D3.5 review M4).
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       toast.success("SEO saved", { description: "The live page uses it now." })
       return saved
     },

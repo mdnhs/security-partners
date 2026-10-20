@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { weekWindow } from "@/lib/dashboard/week"
+import { sameTimeOn, startOfDay, weekWindow } from "@/lib/dashboard/week"
 
 const keys = (days: { key: string }[]) => days.map((d) => d.key)
 const LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -71,6 +71,34 @@ describe("weekWindow (Europe/Dublin, Monday 00:00 to Sunday 23:59)", () => {
     expect(weekWindow(new Date("2026-07-19T23:00:00Z")).days[0]!.key).toBe(
       "2026-07-20"
     )
+  })
+
+  it("previousCut: last week up to the same weekday and Irish wall-clock time", () => {
+    // Monday 26 Oct 09:15 GMT → Monday 19 Oct 09:15 IST (08:15 UTC).
+    const monday = weekWindow(new Date("2026-10-26T09:15:00Z"))
+    expect(monday.previousCut.toISOString()).toBe("2026-10-19T08:15:00.000Z")
+    // Wednesday 1 Apr 10:00 IST → Wednesday 25 Mar 10:00 GMT.
+    const spring = weekWindow(new Date("2026-04-01T09:00:00Z"))
+    expect(spring.previousCut.toISOString()).toBe("2026-03-25T10:00:00.000Z")
+    // Sunday 23:59 → last Sunday 23:59, still before this week's start.
+    const sunday = weekWindow(new Date("2026-11-01T23:59:00Z"))
+    expect(sunday.previousCut.toISOString()).toBe("2026-10-25T23:59:00.000Z")
+    expect(sunday.previousCut.getTime()).toBeLessThanOrEqual(
+      sunday.start.getTime()
+    )
+  })
+
+  it("startOfDay and sameTimeOn follow the Dublin clock", () => {
+    expect(startOfDay("2026-07-15").toISOString()).toBe(
+      "2026-07-14T23:00:00.000Z"
+    )
+    expect(startOfDay("2026-12-15").toISOString()).toBe(
+      "2026-12-15T00:00:00.000Z"
+    )
+    // 15:00 GMT on 28 Oct → 15:00 IST on 28 Sep.
+    expect(
+      sameTimeOn(new Date("2026-10-28T15:00:00Z"), "2026-09-28").toISOString()
+    ).toBe("2026-09-28T14:00:00.000Z")
   })
 
   it("crosses month and year ends", () => {

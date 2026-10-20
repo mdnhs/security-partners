@@ -51,22 +51,64 @@ function offsetAt(at: number, tz: string): number {
 }
 
 /**
- * The instant of local midnight on calendar day `utcDay` (a UTC-midnight
- * timestamp standing for the date). Irish clocks change at 01:00 UTC, so
- * midnight always exists and is unique.
+ * The instant whose wall clock in `tz` reads `wall` (a UTC timestamp
+ * standing for the local date and time). Irish clocks change at 01:00 UTC,
+ * so midnight always exists and is unique; a time in the skipped spring
+ * hour lands an hour later, one in the repeated autumn hour on its first
+ * occurrence.
  */
+function localInstant(wall: number, tz: string): number {
+  const at = wall - offsetAt(wall, tz)
+  return wall - offsetAt(at, tz)
+}
+
 function localMidnight(utcDay: number, tz: string): Date {
-  let at = utcDay - offsetAt(utcDay, tz)
-  at = utcDay - offsetAt(at, tz)
-  return new Date(at)
+  return new Date(localInstant(utcDay, tz))
 }
 
 const isoOf = (utcDay: number) => new Date(utcDay).toISOString().slice(0, 10)
+
+/** Today's date in `tz` as a UTC-midnight timestamp, and the wall time into it. */
+function localDay(now: Date, tz: string) {
+  const p = wallClock(now, tz)
+  const day = Date.UTC(p.year, p.month - 1, p.day)
+  const intoDay =
+    ((p.hour * 60 + p.minute) * 60 + p.second) * 1000 + now.getUTCMilliseconds()
+  return { day, intoDay }
+}
+
+/** Local midnight (`tz`) at the start of calendar day `day` ("2026-10-26"). */
+export function startOfDay(
+  day: string,
+  tz: "Europe/Dublin" = "Europe/Dublin"
+): Date {
+  const [y, m, d] = day.split("-").map(Number)
+  return localMidnight(Date.UTC(y!, m! - 1, d!), tz)
+}
+
+/**
+ * The instant on calendar day `day` whose wall clock (`tz`) reads the same
+ * time as `now`: the cut-off that makes a partial period comparable with
+ * an earlier one ("this time last week", the 30-day KPI's baseline).
+ * Never later than the next day's midnight.
+ */
+export function sameTimeOn(
+  now: Date,
+  day: string,
+  tz: "Europe/Dublin" = "Europe/Dublin"
+): Date {
+  const [y, m, d] = day.split("-").map(Number)
+  const utcDay = Date.UTC(y!, m! - 1, d!)
+  const at = localInstant(utcDay + localDay(now, tz).intoDay, tz)
+  return new Date(Math.min(at, localMidnight(utcDay + DAY, tz).getTime()))
+}
 
 /**
  * This week (Monday → Sunday, Irish calendar days) and the week before,
  * as instants for querying and as day keys for bucketing. `end` is the
  * next Monday 00:00 (exclusive); `start` doubles as the previous week's end.
+ * `previousCut` is the same weekday and wall-clock time last week: last
+ * week "so far", comparable with this week so far.
  */
 export function weekWindow(
   now: Date,
@@ -75,20 +117,22 @@ export function weekWindow(
   start: Date
   end: Date
   previousStart: Date
+  previousCut: Date
   days: WeekDay[]
   previousDays: WeekDay[]
 } {
-  const today = wallClock(now, tz)
-  const todayUtc = Date.UTC(today.year, today.month - 1, today.day)
+  const { day: todayUtc } = localDay(now, tz)
   // getUTCDay: 0 = Sunday … 6 = Saturday; Monday-based index 0 … 6.
   const sinceMonday = (new Date(todayUtc).getUTCDay() + 6) % 7
   const monday = todayUtc - sinceMonday * DAY
   const daysFrom = (first: number): WeekDay[] =>
     LABELS.map((label, i) => ({ key: isoOf(first + i * DAY), label }))
+  const start = localMidnight(monday, tz)
   return {
-    start: localMidnight(monday, tz),
+    start,
     end: localMidnight(monday + 7 * DAY, tz),
     previousStart: localMidnight(monday - 7 * DAY, tz),
+    previousCut: sameTimeOn(now, isoOf(todayUtc - 7 * DAY), tz),
     days: daysFrom(monday),
     previousDays: daysFrom(monday - 7 * DAY),
   }

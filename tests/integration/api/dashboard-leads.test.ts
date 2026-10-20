@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+// The dashboard's cached content readers (D3.5) run outside a "use cache"
+// scope here: record nothing, compute directly.
+vi.mock("next/cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/cache")>()),
+  cacheLife: vi.fn(),
+  cacheTag: vi.fn(),
+}))
+
 import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"

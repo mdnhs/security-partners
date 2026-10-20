@@ -37,6 +37,7 @@ const dto: DashboardDto = {
     })),
     current: 4,
     previous: 3,
+    previousToDate: 3,
   },
   contentHealth: { complete: 14, needsWork: 5, missing: 3 },
   qa: [
@@ -202,12 +203,46 @@ describe("dashboard (JW layout)", () => {
     expect(hero).not.toHaveTextContent(/∞|NaN|Infinity/)
   })
 
+  it("Monday morning: this week so far is compared with last week up to the same time, not all of it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input), "http://localhost").pathname
+        if (path.endsWith("/dashboard"))
+          return Response.json({
+            ...dto,
+            enquiriesWeek: {
+              days: dto.enquiriesWeek!.days.map((d) => ({
+                ...d,
+                current: 0,
+                previous: 2,
+              })),
+              current: 0,
+              previous: 14,
+              previousToDate: 0,
+            },
+          } satisfies DashboardDto)
+        return Response.json(audit)
+      })
+    )
+    renderDashboard(["owner"])
+    const card = await screen.findByRole("region", {
+      name: "Enquiries this week",
+    })
+    expect(card).toHaveTextContent(
+      "0 so far, 0 by this time last week · 14 in all of last week"
+    )
+    expect(card).not.toHaveTextContent(/-100|%/)
+  })
+
   it("Enquiries this week: Mon–Sun pills beside last week, with a data table", async () => {
     renderDashboard(["owner"])
     const card = await screen.findByRole("region", {
       name: "Enquiries this week",
     })
-    expect(card).toHaveTextContent("4 this week, 3 last week (+33.3%)")
+    expect(card).toHaveTextContent(
+      "4 so far, 3 by this time last week (+33.3%) · 3 in all of last week"
+    )
     const table = within(card).getByRole("table", {
       name: "Enquiries this week",
     })
@@ -319,7 +354,7 @@ describe("dashboard (JW layout)", () => {
     const next = await screen.findByRole("region", { name: "Next up" })
     expect(next).toHaveTextContent("Set up email (SMTP)")
     expect(next).toHaveTextContent("So enquiries and invites reach people.")
-    const list = within(next).getByRole("list", { name: "Setup checklist" })
+    const list = within(next).getByRole("list", { name: "Next steps" })
     expect(
       within(list).getByRole("link", {
         name: /Set up email \(SMTP\).*\(to do\)/,
@@ -336,7 +371,7 @@ describe("dashboard (JW layout)", () => {
   it("A9: Next up rows sit at MK's 28 px pitch, 44 px on touch", async () => {
     renderDashboard(["owner"])
     const next = await screen.findByRole("region", { name: "Next up" })
-    const list = within(next).getByRole("list", { name: "Setup checklist" })
+    const list = within(next).getByRole("list", { name: "Next steps" })
     // 24 px rows (the WCAG 2.2 AA minimum) 4 px apart; 44 px on coarse pointers.
     expect(list).toHaveClass("gap-1")
     for (const link of within(list).getAllByRole("link")) {
@@ -383,7 +418,7 @@ describe("dashboard (JW layout)", () => {
       "Spam protection is off" +
         "Turnstile settings can't be read — re-enter the keys in Integrations."
     )
-    const list = within(next).getByRole("list", { name: "Setup checklist" })
+    const list = within(next).getByRole("list", { name: "Next steps" })
     expect(
       within(list).getByRole("link", {
         name: /Spam protection is off.*\(to do\)/,
@@ -487,6 +522,7 @@ describe("dashboard (JW layout)", () => {
               })),
               current: 0,
               previous: 0,
+              previousToDate: 0,
             },
           } satisfies DashboardDto)
         return Response.json(audit)
@@ -496,7 +532,9 @@ describe("dashboard (JW layout)", () => {
     const card = await screen.findByRole("region", {
       name: "Enquiries this week",
     })
-    expect(card).toHaveTextContent("0 this week, 0 last week")
+    expect(card).toHaveTextContent(
+      "0 so far, 0 by this time last week · 0 in all of last week"
+    )
     expect(card).not.toHaveTextContent(/∞|NaN/)
     // The overlay is real text inside the labelled figure, not decoration.
     const overlay = within(card).getByText("No enquiries this week or last")
@@ -554,6 +592,8 @@ describe("dashboard (JW layout)", () => {
       "/admin/seo",
       "/admin/insights?status=in_review",
     ])
+    // MK: the four brief KPIs share one row on wide screens; the fifth wraps.
+    expect(cards[0]!.parentElement).toHaveClass("xl:grid-cols-4")
   })
 
   it("omits parts the API returned as null and keeps Next up when empty", async () => {

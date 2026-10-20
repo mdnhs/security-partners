@@ -2,8 +2,7 @@ import "server-only"
 
 import { readableSettingsKeys } from "@/lib/admin/settings-keys"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
-import { scanContent } from "@/lib/content/qa"
-import { weekWindow } from "@/lib/dashboard/week"
+import { sameTimeOn, startOfDay, weekWindow } from "@/lib/dashboard/week"
 import type {
   DashboardDto,
   NextUpItem,
@@ -11,7 +10,7 @@ import type {
 } from "@/lib/schemas/api/dashboard"
 import type { SeoHealthDto } from "@/lib/schemas/api/seo"
 import { PUBLIC_SETTINGS_KEYS } from "@/lib/schemas/settings"
-import { type DbOrTx, getDb } from "@/server/db/client"
+import { getDb } from "@/server/db/client"
 import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
 import { integrationReadState } from "@/server/modules/integrations/service"
@@ -19,8 +18,7 @@ import {
   countSubscribers,
   newsletterAcceptsSignups,
 } from "@/server/modules/newsletter/service"
-import { getSeoHealth } from "@/server/modules/seo/service"
-
+import { cachedQa, cachedSeoHealth } from "./content-review"
 import { trendDays } from "./days"
 import * as repo from "./repo"
 
@@ -49,29 +47,34 @@ export function contentHealthOf(
 }
 
 /**
- * The SEO health figures, or null when they can't be computed (e.g. a
- * settings row that no longer parses): the rest of the dashboard still
- * loads, as it did while the card fetched /seo/health on its own. Logs
- * the error's name only.
+ * A dashboard part that scans content (SEO health, QA), or null when it
+ * can't be computed (e.g. a settings row that no longer parses): the rest
+ * of the dashboard still loads. Logs the part, the error's name and a
+ * clipped message (no request data reaches these errors).
  */
-async function seoHealthOrNull(actor: Actor): Promise<SeoHealthDto | null> {
+async function orNull<T>(
+  part: string,
+  read: () => Promise<T>
+): Promise<T | null> {
   try {
-    return await getSeoHealth(actor)
+    return await read()
   } catch (error) {
-    console.error(
-      `[dashboard] SEO health unavailable (${error instanceof Error ? error.name : typeof error})`
-    )
+    const detail =
+      error instanceof Error
+        ? `${error.name}: ${error.message.replace(/\s+/g, " ").slice(0, 200)}`
+        : typeof error
+    console.error(`[dashboard] ${part} unavailable, part hidden (${detail})`)
     return null
   }
 }
 
 /**
  * Content QA over what the actor may read: the public settings they can
- * open, pages (page:read) and services (service:read). Null without
- * settings:read and page:read.
+ * open, pages and builder pages (page:read) and services (service:read).
+ * Null without settings:read and page:read. The scan itself is cached per
+ * scope (content-review.ts).
  */
 async function contentQa(
-  db: DbOrTx,
   actor: Actor,
   can: (req: PermissionRequest) => boolean
 ): Promise<DashboardDto["qa"]> {
@@ -79,24 +82,12 @@ async function contentQa(
   const canPages = can({ page: ["read"] })
   if (!canSettings && !canPages) return null
   const publicKeys = new Set<string>(PUBLIC_SETTINGS_KEYS)
-  const settingsKeys = canSettings
-    ? readableSettingsKeys(actor.roles).filter((key) => publicKeys.has(key))
-    : []
-  const sources = await repo.qaSources(db, {
+  return cachedQa({
     pages: canPages,
     services: can({ service: ["read"] }),
-    settingsKeys,
-  })
-  // Settings in their tab order, whatever order the rows came back in.
-  const byKey = new Map(sources.settings.map((row) => [row.key, row.data]))
-  return scanContent({
-    settings: Object.fromEntries(
-      settingsKeys
-        .filter((key) => byKey.has(key))
-        .map((key) => [key, byKey.get(key)])
-    ),
-    pages: sources.pages,
-    services: sources.services,
+    settingsKeys: canSettings
+      ? readableSettingsKeys(actor.roles).filter((key) => publicKeys.has(key))
+      : [],
   })
 }
 
@@ -107,7 +98,9 @@ async function contentQa(
  */
 export async function getDashboard(
   actor: Actor,
-  now = new Date()
+  now = new Date(),
+  /** qa: false skips the content QA scan (the assistant's dashboard tool). */
+  options: { qa?: boolean } = {}
 ): Promise<DashboardDto> {
   const db = getDb()
   const can = (req: PermissionRequest) => hasPermission(actor.roles, req)
@@ -121,9 +114,12 @@ export async function getDashboard(
   const canSeo = can({ seo: ["read"] })
   const isOwnerOrAdmin =
     actor.roles.includes("owner") || actor.roles.includes("admin")
-  // The 30-day KPI is calendar-aligned: the last 30 Irish days, and the
-  // 30 before them for the delta.
-  const [firstPreviousDay] = trendDays(now, 60)
+  // The 30-day KPI is calendar-aligned: the last 30 Irish days (today so
+  // far), against the 30 before them cut at the same wall-clock time on
+  // their last day, so both sides span the same time (review M6).
+  const previousDays = trendDays(now, 60).slice(0, 30)
+  const firstPreviousDay = previousDays[0]!
+  const lastPreviousDay = previousDays.at(-1)!
   const [firstKpiDay] = trendDays(now, 30)
   const week = weekWindow(now)
 
@@ -132,6 +128,7 @@ export async function getDashboard(
     leadsPrevious30d,
     openLeads,
     perDay,
+    weekPreviousToDate,
     oldestNew,
     published,
     inReview,
@@ -148,10 +145,17 @@ export async function getDashboard(
   ] = await Promise.all([
     canLeads ? repo.countLeadsFromDay(db, firstKpiDay!) : null,
     canLeads
-      ? repo.countLeadsBetweenDays(db, firstPreviousDay!, firstKpiDay!)
+      ? repo.countLeadsBetween(
+          db,
+          startOfDay(firstPreviousDay),
+          sameTimeOn(now, lastPreviousDay)
+        )
       : null,
     canLeads ? repo.countOpenLeads(db) : null,
     canLeads ? repo.leadsPerDay(db, week.previousStart, week.end) : null,
+    canLeads
+      ? repo.countLeadsBetween(db, week.previousStart, week.previousCut)
+      : null,
     canLeads ? repo.oldestNewLead(db) : null,
     canContent ? repo.publishedCounts(db) : null,
     canArticles ? repo.countArticlesInReview(db) : null,
@@ -167,8 +171,10 @@ export async function getDashboard(
     can({ integration: ["update"] }) ? getAiStatus(actor) : null,
     canNewsletter ? countSubscribers(now) : null,
     canNewsletter ? newsletterAcceptsSignups() : false,
-    canSeo ? seoHealthOrNull(actor) : null,
-    contentQa(db, actor, can),
+    canSeo ? orNull("SEO health", cachedSeoHealth) : null,
+    options.qa === false
+      ? null
+      : orNull("Content QA", () => contentQa(actor, can)),
   ])
   const subscribers =
     subscriberCounts && (newsletterLive || subscriberCounts.confirmed > 0)
@@ -187,6 +193,7 @@ export async function getDashboard(
         days: weekDays,
         current: weekDays.reduce((n, day) => n + day.current, 0),
         previous: weekDays.reduce((n, day) => n + day.previous, 0),
+        previousToDate: weekPreviousToDate ?? 0,
       }
     : null
 

@@ -79,10 +79,11 @@ function pageLabel(key: string): string {
 }
 
 /**
- * QA findings, in order: settings (contact then copy), pages, services,
- * then the legal pages. One finding per record and rule. Callers pass
- * only what the viewer may read: with no pages at all (no page:read) the
- * legal rule is skipped rather than reporting both pages missing.
+ * QA findings, in order: settings (contact then copy), pages, builder
+ * pages (/p/<slug>), services, then the legal pages. One finding per
+ * record and rule. Callers pass only what the viewer may read: with no
+ * pages at all (no page:read) the legal rule is skipped rather than
+ * reporting both pages missing.
  */
 export function scanContent(input: {
   settings: Record<string, unknown>
@@ -93,6 +94,8 @@ export function scanContent(input: {
     updatedSinceSeed: boolean
   }[]
   services: { id: string; title: string; data: unknown }[]
+  /** Page-builder pages (page:read), edited at /admin/pages/custom/<id>. */
+  builderPages?: { id: string; title: string; data: unknown }[]
 }): QaFinding[] {
   const findings: QaFinding[] = []
   const add = (
@@ -125,6 +128,14 @@ export function scanContent(input: {
   for (const page of input.pages)
     add(
       { label: pageLabel(page.key), href: `/admin/pages/${page.key}` },
+      scan(page.data, false)
+    )
+  for (const page of input.builderPages ?? [])
+    add(
+      {
+        label: page.title.trim() || "Untitled page",
+        href: `/admin/pages/custom/${page.id}`,
+      },
       scan(page.data, false)
     )
   for (const service of input.services)

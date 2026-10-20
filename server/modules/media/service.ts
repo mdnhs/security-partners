@@ -492,7 +492,8 @@ export async function updateMedia(
     })
     return updated
   })
-  invalidate(tag.media(id))
+  // contentReview: alt text feeds the dashboard's SEO health (D3.5).
+  invalidate(tag.media(id), tag.contentReview)
   return toItem(row)
 }
 
@@ -528,7 +529,8 @@ export async function deleteMedia(
     return existing
   })
   await deleteStoredFile(row, id)
-  invalidate(tag.media(id))
+  // contentReview: alt text feeds the dashboard's SEO health (D3.5).
+  invalidate(tag.media(id), tag.contentReview)
   return { ok: true }
 }
 
@@ -652,7 +654,8 @@ export async function replaceMedia(
       })
     return { updated: row }
   })
-  invalidate(tag.media(id))
+  // contentReview: alt text feeds the dashboard's SEO health (D3.5).
+  invalidate(tag.media(id), tag.contentReview)
   return toItem(updated)
 }
 

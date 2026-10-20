@@ -58,6 +58,7 @@ const DASHBOARD = {
     })),
     current: 7,
     previous: 5,
+    previousToDate: 4,
   },
   contentHealth: { complete: 14, needsWork: 5, missing: 3 },
   qa: [

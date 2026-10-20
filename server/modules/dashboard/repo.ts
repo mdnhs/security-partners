@@ -17,6 +17,7 @@ import {
 import type { DbOrTx } from "@/server/db/client"
 import {
   articles,
+  builderPages,
   jobs,
   leads,
   pages,
@@ -53,16 +54,14 @@ export async function countLeadsFromDay(
 }
 
 /**
- * Non-spam leads on the Irish calendar days `fromDay` (inclusive) to
- * `toDay` (exclusive), both "2026-09-20". Constant bounds, as above.
+ * Non-spam leads created in [from, to) (instants: the KPI baseline and
+ * "last week up to now"). Constant bounds, as above.
  */
-export async function countLeadsBetweenDays(
+export async function countLeadsBetween(
   db: DbOrTx,
-  fromDay: string,
-  toDay: string
+  from: Date,
+  to: Date
 ): Promise<number> {
-  const from = sql`(${fromDay}::date::timestamp at time zone 'Europe/Dublin')`
-  const to = sql`(${toDay}::date::timestamp at time zone 'Europe/Dublin')`
   const [row] = await db
     .select({ n: count() })
     .from(leads)
@@ -122,15 +121,15 @@ export function leadsPerDay(db: DbOrTx, since: Date, until: Date) {
 
 /**
  * What content QA scans, each part only when asked for: the live version
- * of pages, services and the given settings keys (the draft until first
- * published). A page is "updated since the seed" once its version moved
- * past 1 (every save and publish bumps it).
+ * of pages and builder pages (`pages`), services and the given settings
+ * keys (the draft until first published). A page is "updated since the
+ * seed" once its version moved past 1 (every save and publish bumps it).
  */
 export async function qaSources(
   db: DbOrTx,
   want: { pages: boolean; services: boolean; settingsKeys: string[] }
 ) {
-  const [pageRows, serviceRows, settingRows] = await Promise.all([
+  const [pageRows, serviceRows, settingRows, builderRows] = await Promise.all([
     want.pages
       ? db
           .select({
@@ -162,6 +161,17 @@ export async function qaSources(
           .from(settings)
           .where(inArray(settings.key, want.settingsKeys))
       : [],
+    want.pages
+      ? db
+          .select({
+            id: builderPages.id,
+            title: builderPages.title,
+            draft: builderPages.draft,
+            published: builderPages.published,
+          })
+          .from(builderPages)
+          .orderBy(asc(builderPages.title), asc(builderPages.id))
+      : [],
   ])
   return {
     pages: pageRows.map((row) => ({
@@ -176,6 +186,11 @@ export async function qaSources(
     }),
     settings: settingRows.map((row) => ({
       key: row.key,
+      data: row.published ?? row.draft,
+    })),
+    builderPages: builderRows.map((row) => ({
+      id: row.id,
+      title: row.title,
       data: row.published ?? row.draft,
     })),
   }

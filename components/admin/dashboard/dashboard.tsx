@@ -281,10 +281,9 @@ function Body({
       <div
         className={cn(
           "grid gap-4 sm:grid-cols-2",
-          // Full rows: 4 across, or 3 across for 3, 5 and 6 cards.
-          kpis.length === 4 || kpis.length > 6
-            ? "xl:grid-cols-4"
-            : "xl:grid-cols-3"
+          // MK: the first four KPIs share one row on wide screens (4 across
+          // from 4 cards up; extra cards wrap below). Fewer: 3 across.
+          kpis.length >= 4 ? "xl:grid-cols-4" : "xl:grid-cols-3"
         )}
       >
         {kpis.map((kpi, index) => (
@@ -332,15 +331,19 @@ function EnquiriesWeekCard({
 }: {
   week: NonNullable<DashboardDto["enquiriesWeek"]>
 }) {
-  const delta = formatDelta(week.current, week.previous)
+  // This week so far against last week up to the same weekday and time
+  // (review I1): a Monday morning is not "-100%" against a full week.
+  const delta = formatDelta(week.current, week.previousToDate)
   return (
     <DashboardCard title="Enquiries this week">
       <p className="text-sm text-muted-foreground">
         <span className="font-semibold text-foreground tabular-nums">
           {formatNumber(week.current)}
         </span>{" "}
-        this week, {formatNumber(week.previous)} last week
+        so far, {formatNumber(week.previousToDate)} by this time last week
         {delta && delta.direction !== "flat" ? ` (${delta.label})` : null}
+        {" · "}
+        {formatNumber(week.previous)} in all of last week
       </p>
       <PillBarChart
         ariaLabel="Enquiries this week"

@@ -153,6 +153,34 @@ describe("scanContent (content QA)", () => {
     expect(findings[1]!.message).toMatch(/missing/i)
   })
 
+  it("scans builder pages (/p/<slug>) and links to their editor", () => {
+    const findings = scanContent({
+      ...clean,
+      builderPages: [
+        {
+          id: "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+          title: "Spring offer",
+          data: {
+            blocks: [
+              {
+                id: "0190a1b2-c3d4-7e5f-8a9b-000000000001",
+                data: { heading: "Lorem ipsum dolor" },
+              },
+            ],
+          },
+        },
+        { id: "b2", title: "Clean page", data: { blocks: [] } },
+      ],
+    })
+    expect(findings).toEqual([
+      expect.objectContaining({
+        rule: "placeholder-copy",
+        label: "Spring offer",
+        href: "/admin/pages/custom/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+      }),
+    ])
+  })
+
   it("skips the legal rule when no pages are passed (the viewer can't read pages)", () => {
     expect(scanContent({ ...clean, pages: [] })).toEqual([])
   })
