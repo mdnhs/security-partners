@@ -1,6 +1,6 @@
 import type { z } from "zod"
 
-import { newSnippetId } from "@/lib/analytics/snippets"
+import { randomId } from "@/lib/ids"
 import { link, mediaRef, paragraphsText, richText } from "@/lib/schemas/common"
 import { snippetId } from "@/lib/schemas/settings/custom-code"
 
@@ -21,7 +21,7 @@ export function emptyValue(schema: z.ZodType): unknown {
   if (inner === link) return { label: "", href: "" }
   // Only the custom code snippet id is generated (a hidden field); any
   // other uuid stays empty, so a missing reference fails "required".
-  if (inner === snippetId) return newSnippetId()
+  if (inner === snippetId) return randomId()
   const def = (inner as unknown as { def: { type: string } }).def
   switch (def.type) {
     case "object": {

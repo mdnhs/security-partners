@@ -8,6 +8,7 @@ import { createElement } from "react"
 import { NewsletterConfirmation } from "@/emails/newsletter-confirmation"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { CSV_BOM, toCsv } from "@/lib/csv"
+import { isUuid } from "@/lib/ids"
 import { exportPermission } from "@/lib/newsletter/export"
 import {
   confirmTokenHash,
@@ -68,7 +69,6 @@ export const NEWSLETTER_TOKEN_LIMIT = {
   windowMs: 600_000,
 } as const
 const TOKEN_MAX_LENGTH = 200
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DEFAULT_SUBJECT = "Confirm your subscription"
 /** Public confirm view; renders a button that POSTs `{ token }` to the API. */
 export const CONFIRM_VIEW_PATH = "/newsletter/confirm"
@@ -90,7 +90,7 @@ export function readUnsubscribeToken(token: string): string | null {
   const dot = token.indexOf(".")
   if (dot < 0) return null
   const id = token.slice(0, dot)
-  if (!UUID.test(id)) return null
+  if (!isUuid(id)) return null
   const given = Buffer.from(token.slice(dot + 1))
   const expected = Buffer.from(
     mac("unsubscribe", id).slice(0, UNSUBSCRIBE_MAC_LENGTH)

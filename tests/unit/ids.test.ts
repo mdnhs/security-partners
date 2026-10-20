@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { isUuid } from "@/lib/ids"
+import { isUuid, randomId } from "@/lib/ids"
 
 describe("isUuid (ids that may go into an API path)", () => {
   it.each([
@@ -23,4 +23,28 @@ describe("isUuid (ids that may go into an API path)", () => {
     "0190a6e0000070008000000000000ff",
     "0190a6e0-0000-0000-8000-0000000000ff",
   ])("rejects %j", (value) => expect(isUuid(value)).toBe(false))
+})
+
+describe("randomId (client ids, secure context or not)", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const V4 =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  it("is a v4 uuid from crypto.randomUUID", () => {
+    const a = randomId()
+    expect(a).toMatch(V4)
+    expect(isUuid(a)).toBe(true)
+    expect(randomId()).not.toBe(a)
+  })
+
+  it("falls back to getRandomValues without crypto.randomUUID (plain http)", () => {
+    const real = globalThis.crypto
+    vi.stubGlobal("crypto", {
+      getRandomValues: real.getRandomValues.bind(real),
+    })
+    const a = randomId()
+    expect(a).toMatch(V4)
+    expect(randomId()).not.toBe(a)
+  })
 })

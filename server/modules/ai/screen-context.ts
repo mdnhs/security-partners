@@ -8,6 +8,7 @@ import type { Actor } from "@/server/lib/actor"
 import { AppError } from "@/server/lib/errors"
 import { getLead } from "@/server/modules/leads/service"
 
+import { clipWithEllipsis } from "./clip"
 import { oneLine } from "./prompt"
 import { REDACT_LINE_MAX, redactContacts } from "./redact"
 import { knownServices, serviceBucket } from "./tool-data"
@@ -19,13 +20,23 @@ import { knownServices, serviceBucket } from "./tool-data"
  */
 const SITE_COPY = new Set(["page", "service", "article", "settings"])
 
+/**
+ * Settings keys whose record is not website copy: Settings › Leads holds
+ * the staff notification addresses (final review minor 6). Their record is
+ * dropped like any other non-copy screen; the focused field stays.
+ */
+const PRIVATE_SETTINGS = new Set(["leads"])
+
+const isSiteCopy = (context: ChatContext) =>
+  context.entityType !== undefined &&
+  SITE_COPY.has(context.entityType) &&
+  !(
+    context.entityType === "settings" &&
+    PRIVATE_SETTINGS.has(context.entityId ?? "")
+  )
+
 /** Longest enquiry message or note put into the screen context. */
 const LEAD_TEXT_MAX = 2000
-
-const clip = (text: string, max: number) => {
-  const chars = [...text]
-  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : text
-}
 
 export type ScreenContext = {
   context: ChatContext | undefined
@@ -54,8 +65,7 @@ export async function screenContextFor(
   if (context.entityType !== "lead") {
     // Site copy only: any other entity type (or none) sends no record
     // (C9 review M6). The field the user focused stays: it is their text.
-    if (context.entityType && SITE_COPY.has(context.entityType))
-      return { context, enquiryDetails: false }
+    if (isSiteCopy(context)) return { context, enquiryDetails: false }
     const rest: ChatContext = { ...context }
     delete rest.record
     return { context: rest, enquiryDetails: false }
@@ -102,12 +112,16 @@ export async function screenContextFor(
     company: lead.company
       ? redactContacts(oneLine(lead.company), REDACT_LINE_MAX)
       : null,
-    message: redactContacts(clip(lead.message.trim(), LEAD_TEXT_MAX)),
+    message: redactContacts(
+      clipWithEllipsis(lead.message.trim(), LEAD_TEXT_MAX)
+    ),
     notes: lead.events
       .filter((event) => event.type === "note" && event.body)
       .map((event) => ({
         at: event.createdAt,
-        text: redactContacts(clip(event.body!.trim(), LEAD_TEXT_MAX)),
+        text: redactContacts(
+          clipWithEllipsis(event.body!.trim(), LEAD_TEXT_MAX)
+        ),
       })),
   }
   return { context: safe, enquiryDetails: true }

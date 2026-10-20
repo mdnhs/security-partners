@@ -14,6 +14,8 @@ import "server-only"
  */
 import { AI_MAX_FIELD_CHARS } from "@/lib/schemas/api/ai"
 
+import { clipUnits } from "./clip"
+
 /** Longest text redacted (the screen field's cap); the rest is dropped. */
 export const REDACT_MAX = AI_MAX_FIELD_CHARS
 /** A one-line enquiry field: name, company, service (the form's cap). */
@@ -21,13 +23,18 @@ export const REDACT_LINE_MAX = 200
 
 /**
  * Email addresses (after NFKC, so fullwidth "＠" is "@"), also typed with
- * spaces around the "@" ("john @ gmail.com").
+ * spaces around the "@" ("john @ gmail.com"). Brackets (including "{}")
+ * end an address, so a bracketed "@" is left to SPELLED_EMAIL (C9 N5).
  */
 const EMAIL =
-  /(?<![^\s@<>()[\]",;:])[^\s@<>()[\]",;:]+\s*@\s*[^\s@<>()[\]",;:]+/gu
+  /(?<![^\s@<>()[\]{}",;:])[^\s@<>()[\]{}",;:]+\s*@\s*[^\s@<>()[\]{}",;:]+/gu
 
-/** " at ", "[at]", "(at)" and a bracketed "@": "(@)", "[@]", "{@}", "<@>". */
-const AT = String.raw`(?:\s*[[({<]\s*(?:at|@)\s*[\])}>]\s*|\s+at\s+)`
+/**
+ * " at ", "[at]", "(at)" and a bracketed "@": "(@)", "[@]", "{@}", "<@>",
+ * with or without spaces; also with only one bracket ("(@", "@)", "(at",
+ * " at]"; C9 N5). Errs on removing too much.
+ */
+const AT = String.raw`(?:\s*[[({<]\s*(?:at|@)\s*[\])}>]\s*|\s*[[({<]\s*(?:at|@)\s*|(?:\s+at|\s*@)\s*[\])}>]\s*|\s+at\s+)`
 const DOT = String.raw`(?:\s*[[({<]\s*dot\s*[\])}>]\s*|\s+dot\s+|\.)`
 /** "john at gmail dot com", "john[at]gmail[dot]com", "john (@) gmail.com". */
 const SPELLED_EMAIL = new RegExp(
@@ -89,13 +96,6 @@ function isDateOrTime(part: string): boolean {
 
 const digits = (text: string) => text.replace(/\D/gu, "").length
 
-/** At most `max` UTF-16 units, never ending inside a surrogate pair. */
-function clip(text: string, max: number): string {
-  if (text.length <= max) return text
-  const end = /[\ud800-\udbff]/.test(text[max - 1]!) ? max - 1 : max
-  return text.slice(0, end)
-}
-
 /**
  * @param max longest input looked at (pass the field's own cap when it is
  *   shorter); anything after it is dropped, never sent unredacted.
@@ -105,8 +105,8 @@ export function redactContacts(text: string, max = REDACT_MAX): string {
   // characters (zero-width spaces and joiners, bidi marks, word joiner,
   // BOM: NFKC keeps them), then digits of other scripts.
   const plain = asciiDigits(
-    clip(
-      clip(text, max)
+    clipUnits(
+      clipUnits(text, max)
         .normalize("NFKC")
         .replace(/\p{Cf}/gu, ""),
       max

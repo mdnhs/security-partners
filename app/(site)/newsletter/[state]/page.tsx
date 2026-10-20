@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, unstable_rethrow } from "next/navigation"
 import { connection } from "next/server"
 
 import { PageHero } from "@/components/home/page-hero"
@@ -41,7 +41,8 @@ export async function generateMetadata({
           title: settings.pages[newsletterView(state, query.token).state].title,
         }
       : PRIVATE
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
     return PRIVATE
   }
 }

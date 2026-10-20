@@ -583,6 +583,38 @@ describe("enquiry details on a lead screen (C8 review: privacy)", () => {
     expect(promptText(0, 1)).toContain("Safer nights")
   })
 
+  it("Settings › Leads sends no record: staff recipient emails stay out (final review minor 6)", async () => {
+    await configureAi()
+    await events(
+      await chat(owner.cookie, {
+        message: "Hi",
+        context: {
+          screen: "Leads",
+          entityType: "settings",
+          entityId: "leads",
+          record: {
+            recipients: ["staff.inbox@example.ie"],
+            retentionMonths: 24,
+            acknowledgement: true,
+          },
+        },
+      })
+    )
+    expect(promptText(0)).not.toContain("staff.inbox")
+    await events(
+      await chat(owner.cookie, {
+        message: "Hi",
+        context: {
+          screen: "Newsletter",
+          entityType: "settings",
+          entityId: "newsletter",
+          record: { title: "Stay in the loop" },
+        },
+      })
+    )
+    expect(promptText(0, 1)).toContain("Stay in the loop")
+  })
+
   it("turning the switch off removes earlier detailed answers from the history (review M8)", async () => {
     await configureAi()
     await turnSharingOn()

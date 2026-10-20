@@ -21,6 +21,7 @@ import * as servicesRepo from "@/server/modules/services/repo"
 import { getServiceAdmin } from "@/server/modules/services/service"
 import { isPageKey } from "@/templates/registry"
 
+import { clipWithEllipsis } from "./clip"
 import { oneLine } from "./prompt"
 import { REDACT_LINE_MAX, redactContacts } from "./redact"
 import {
@@ -58,11 +59,6 @@ const notFoundResult = (what: string): ToolResult => ({
 
 const isNotFound = (error: unknown) =>
   error instanceof AppError && error.code === "NOT_FOUND"
-
-function clip(text: string, max: number): string {
-  const chars = [...text]
-  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : text
-}
 
 // ------------------------------------------------------------ text
 
@@ -122,7 +118,7 @@ export function flattenText(value: Json, max = TEXT_MAX): string {
     }
   }
   walk(value, "")
-  return clip(lines.join("\n"), max)
+  return clipWithEllipsis(lines.join("\n"), max)
 }
 
 /**
@@ -174,7 +170,7 @@ export async function searchContent(
     items: found.map((item) => ({
       kind: item.type,
       id: item.id,
-      title: clip(item.title, 200),
+      title: clipWithEllipsis(item.title, 200),
       path: item.subtitle,
       status: statuses.get(`${item.type}:${item.id}`) ?? "draft",
     })),
@@ -294,7 +290,7 @@ export async function seoHealth(actor: Actor): Promise<ToolResult> {
     entry.issues.map((issue) => ({
       kind: entry.kind,
       id: entry.id,
-      name: clip(entry.name, 120),
+      name: clipWithEllipsis(entry.name, 120),
       path: entry.path,
       check: issue.check,
       message: issue.message,
@@ -440,7 +436,9 @@ export async function enquiryStats(
           ? redactContacts(oneLine(row.service), REDACT_LINE_MAX)
           : null,
         status: row.status,
-        message: redactContacts(clip(row.message.trim(), MESSAGE_MAX)),
+        message: redactContacts(
+          clipWithEllipsis(row.message.trim(), MESSAGE_MAX)
+        ),
         createdAt: row.createdAt.toISOString(),
       }
       // Every text field counts toward the budget (C8 review M5).

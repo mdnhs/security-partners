@@ -251,17 +251,21 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
     [readOnly]
   )
 
-  /** Their document (restore, conflict reload, discard) replaces mine. */
+  /**
+   * Their document (restore, conflict reload, discard) replaces mine. False
+   * when the result was older than a save since and was skipped (D5 N4):
+   * the caller then shows no success message.
+   */
   const replaceDoc = useCallback(
-    (dto: BuilderPageDto) => {
+    (dto: BuilderPageDto): boolean => {
       // An older result than what was saved since never goes on screen.
-      if (!autosave.accept(dto)) return
+      if (!autosave.accept(dto)) return false
       const read = readDraft(dto.draft)
       syncRecord(dto)
       setBlockErrors({})
       if (!read.ok) {
         setBroken(read.problems)
-        return
+        return true
       }
       setBroken(null)
       const next = read.doc
@@ -273,6 +277,7 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
           ? current
           : (next.blocks[0]?.id ?? null)
       )
+      return true
     },
     [autosave, syncRecord]
   )
@@ -362,8 +367,8 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
       )
     },
     onSuccess: (dto) => {
-      replaceDoc(dto)
       setDiscardOpen(false)
+      if (!replaceDoc(dto)) return
       toast.success("Changes discarded", {
         description: "The draft is the published page again.",
       })
@@ -727,8 +732,10 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
                 ),
               { replaces: true }
             )
-            replaceDoc(dto)
-            toast.success(`Version ${revision.version} restored into the draft`)
+            if (replaceDoc(dto))
+              toast.success(
+                `Version ${revision.version} restored into the draft`
+              )
           } catch (error) {
             if (error instanceof ApiError && error.isConflict) {
               setHistoryOpen(false)

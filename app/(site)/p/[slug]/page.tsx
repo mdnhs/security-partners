@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, unstable_rethrow } from "next/navigation"
 import { connection } from "next/server"
 
 import { SiteThemed } from "@/components/site-themed"
@@ -63,6 +63,7 @@ async function newsletterCopyFor(
     return null
   const settings = await readPublishedSettings("newsletter").catch(
     (error: unknown) => {
+      unstable_rethrow(error)
       console.error(
         `[newsletter] builder block not rendered (${error instanceof Error ? error.name : "unknown"})`
       )

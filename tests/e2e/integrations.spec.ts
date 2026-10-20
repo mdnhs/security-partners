@@ -21,12 +21,13 @@ import {
 // SMTP host (SSRF guard). The main flow saves 192.0.2.1 (TEST-NET-1, RFC
 // 5737: allowed by the guard, never answers), so it is the same on every
 // machine, online or not. A separate round trip to the dev Mailpit runs
-// only where this machine has an RFC 1918 address.
+// only where this machine has an RFC 1918 address and Mailpit answers on it
+// (a TCP probe first; otherwise the test is skipped, never failed).
 
 const PASSWORD = E2E_SMTP_PASSWORD
 const TEST_NET = "192.0.2.1"
 
-/** This machine's first RFC 1918 IPv4 address (Mailpit listens on all). */
+/** This machine’s first RFC 1918 IPv4 address (Mailpit may not listen on it: see reachable). */
 function privateAddress(): string | undefined {
   for (const list of Object.values(networkInterfaces()))
     for (const entry of list ?? []) {

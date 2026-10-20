@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Table as UiTable } from "@/components/ui/table"
+import { isSafeHref } from "@/lib/href"
 
 /**
  * A safe Markdown subset for assistant replies (MK parity C9): paragraphs,
@@ -169,8 +170,13 @@ export function parseBlocks(source: string): MdBlock[] {
  * http:, protocol-relative (`//host`, `/\host`) or the API: a GET there can
  * download data (an export), and a reply's links can be steered by text the
  * model read (prompt injection). null = show the link as text.
+ *
+ * A narrower subset of the site's link guard (`isSafeHref`, lib/href.ts),
+ * which it applies first: content links may also be http:, tel:, a
+ * prefilled mailto:, an #anchor or a {placeholder}, which a reply may not.
  */
 export function safeHref(raw: string): string | null {
+  if (!isSafeHref(raw)) return null
   if (/[\u0000-\u001f\u007f\s]/.test(raw)) return null
   if (raw.startsWith("/")) {
     if (/^\/[/\\]/.test(raw)) return null

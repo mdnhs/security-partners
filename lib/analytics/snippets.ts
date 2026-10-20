@@ -1,4 +1,5 @@
 import type { ConsentChoice } from "@/lib/analytics/consent"
+import { randomId } from "@/lib/ids"
 import type {
   CustomCodeSettings,
   Snippet,
@@ -97,16 +98,6 @@ export const SNIPPET_RULES_JS = [
 
 const hasCode = (html: string) => /\S/.test(html)
 
-/** UUID v4 in browsers outside a secure context too (no crypto.randomUUID). */
-export function newSnippetId(): string {
-  if (typeof crypto.randomUUID === "function") return crypto.randomUUID()
-  const b = crypto.getRandomValues(new Uint8Array(16))
-  b[6] = (b[6]! & 0x0f) | 0x40
-  b[8] = (b[8]! & 0x3f) | 0x80
-  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
-}
-
 /**
  * The pre-D2.3 value ({ headHtml, bodyEndHtml }) as snippets: each non-blank
  * block becomes a necessary, all-routes snippet (it ran without consent
@@ -124,7 +115,7 @@ export function convertLegacyCustomCode(old: {
     hasCode(html)
       ? [
           {
-            id: newSnippetId(),
+            id: randomId(),
             name,
             placement,
             src: "",

@@ -71,7 +71,11 @@ export function useBuilderAutosave(input: {
   exclusive(
     request: (version: number) => Promise<BuilderPageDto>,
     options?: {
-      /** Discard: pending edits are about to be replaced, do not send them. */
+      /**
+       * Discard: pending edits are about to be replaced, do not send them.
+       * Implies `replaces` (D5 N3): without it a waiting ⌘S would re-send
+       * the discarded edits.
+       */
       discardPending?: boolean
       /**
        * Discard / Restore: the result replaces the editor's document, so a
@@ -245,7 +249,8 @@ export function useBuilderAutosave(input: {
           const read = readDraft(dto.draft)
           const saved = read.ok ? read.doc : (dto.draft as DraftDocumentValue)
           markSaved(saved)
-          if (options?.replaces) latest.current = saved
+          if (options?.replaces || options?.discardPending)
+            latest.current = saved
         }
         return dto
       } catch (err) {
