@@ -107,10 +107,15 @@ export type AiStatusDto = {
   readOnly: boolean
 }
 
-/** POST /ai/models: the models the saved key can use at this provider. */
+/**
+ * POST /ai/models: the models a key can use at this provider. `apiKey` is a
+ * key typed in the form and not saved yet (sent only to that provider or
+ * guarded base URL, never stored); without it the saved key is used.
+ */
 export const listModelsInput = z.object({
   provider: z.enum(AI_PROVIDERS, { error: "Choose a provider" }),
   baseUrl: z.string().max(AI_BASE_URL_MAX).default(""),
+  apiKey: z.string().trim().max(500).optional(),
 })
 export type ListModelsInput = z.output<typeof listModelsInput>
 

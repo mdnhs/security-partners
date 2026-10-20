@@ -552,6 +552,76 @@ describe("POST /ai/models", () => {
     expect((init.headers as Record<string, string>)["x-api-key"]).toBe(API_KEY)
   })
 
+  it("lists a provider's models with a typed key before it is saved", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        models: [
+          {
+            name: "models/gemini-2.5-pro",
+            supportedGenerationMethods: ["generateContent"],
+          },
+          {
+            name: "models/text-embedding-004",
+            supportedGenerationMethods: ["embedContent"],
+          },
+        ],
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    const res = await models(owner, {
+      provider: "google",
+      baseUrl: "",
+      apiKey: "AIza-typed-key-1234567890",
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ models: ["gemini-2.5-pro"] })
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ]
+    expect(url).toMatch(
+      /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models/
+    )
+    expect(JSON.stringify(init.headers)).toContain("AIza-typed-key-1234567890")
+  })
+
+  it("Gemini's 400 API_KEY_INVALID reads as a rejected key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: {
+              code: 400,
+              status: "INVALID_ARGUMENT",
+              details: [{ reason: "API_KEY_INVALID" }],
+            },
+          },
+          { status: 400 }
+        )
+      )
+    )
+    const res = await models(owner, {
+      provider: "google",
+      baseUrl: "",
+      apiKey: "AIza-bad-key-1234567890",
+    })
+    expect(res.status).toBe(422)
+    expect(await res.text()).toContain("The API key was rejected.")
+  })
+
+  it("a typed key still goes through the base URL guard", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ data: [] }))
+    vi.stubGlobal("fetch", fetchMock)
+    const blocked = await models(owner, {
+      provider: "openai-compatible",
+      baseUrl: "https://10.0.0.1/v1",
+      apiKey: "gsk-typed-key-1234567890",
+    })
+    expect(blocked.status).toBe(422)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("never sends the saved key to another provider or base URL", async () => {
     await put(owner, 0, base)
     const fetchMock = vi.fn(async () => Response.json({ data: [] }))

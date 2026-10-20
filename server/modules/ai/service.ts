@@ -276,24 +276,30 @@ export async function listModels(
     })
     if (problem) throw invalid(problem, "baseUrl")
   }
-  let config: AiConfig | null
-  try {
-    config = await readIntegrationConfig("integrations.ai")
-  } catch (error) {
-    // A key that no longer decrypts, or stored values that no longer
-    // validate (e.g. a development-only base URL read in production).
-    if (error instanceof AppError)
+  let config: Pick<AiConfig, "provider" | "baseUrl" | "apiKey"> | null
+  if (input.apiKey) {
+    // A key typed in the form: it goes only to the chosen provider (or the
+    // base URL checked above), and is never stored here.
+    config = { provider: input.provider, baseUrl, apiKey: input.apiKey }
+  } else {
+    try {
+      config = await readIntegrationConfig("integrations.ai")
+    } catch (error) {
+      // A key that no longer decrypts, or stored values that no longer
+      // validate (e.g. a development-only base URL read in production).
+      if (error instanceof AppError)
+        throw invalid(
+          "The saved settings can't be used. Check them, enter the API key again and save."
+        )
+      throw error
+    }
+    if (!config?.apiKey) throw invalid("Enter an API key first.", "apiKey")
+    if (config.provider !== input.provider || config.baseUrl !== baseUrl)
       throw invalid(
-        "The saved settings can't be used. Check them, enter the API key again and save."
+        "Enter the new provider's API key to list its models.",
+        "apiKey"
       )
-    throw error
   }
-  if (!config?.apiKey) throw invalid("Save an API key first.", "apiKey")
-  if (config.provider !== input.provider || config.baseUrl !== baseUrl)
-    throw invalid(
-      "Save the new provider with its API key first, then list its models.",
-      "apiKey"
-    )
   let res: Response
   try {
     // A user-set base URL goes through the SSRF guard (server/lib/ai-target).
@@ -318,6 +324,13 @@ export async function listModels(
     )
   }
   if (res.status === 401 || res.status === 403)
+    throw invalid("The API key was rejected.", "apiKey")
+  // Gemini answers a bad key with 400 INVALID_ARGUMENT, reason API_KEY_INVALID.
+  if (
+    res.status === 400 &&
+    config.provider === "google" &&
+    (await res.text().catch(() => "")).includes("API_KEY_INVALID")
+  )
     throw invalid("The API key was rejected.", "apiKey")
   if (!res.ok) throw invalid(`The provider answered ${res.status}.`)
   let body: unknown

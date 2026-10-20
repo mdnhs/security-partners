@@ -88,6 +88,7 @@ const SHARE_ACK =
   "I confirm that sending enquirers' names, topics and messages to the AI provider has been approved for this site. I understand that conversations may then contain enquiry details."
 
 const SAVE_FIRST = "Save first"
+const KEY_FIRST = "Enter the API key first"
 
 /** Same look as the integration forms: focus stays on unavailable buttons. */
 const SOFT_DISABLED =
@@ -301,9 +302,9 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
   const losesKey = hasKey && !keyFollows && typedKey === ""
   const canShare = isOwner && !impersonating
   const shareChanged = canShare && form.share !== saved.share
-  // The server lists models only with the saved key, for the saved
-  // provider and base URL: anything else must be saved first.
-  const canListModels = hasKey && keyFollows
+  // A typed key lists models for the chosen provider before saving; without
+  // one, the saved key works only for the saved provider and base URL.
+  const canListModels = typedKey !== "" || (hasKey && keyFollows)
 
   const dirty =
     JSON.stringify(form) !== JSON.stringify(saved) ||
@@ -404,6 +405,7 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
           json: {
             provider: form.provider,
             baseUrl: compatible ? form.baseUrl.trim() : "",
+            ...(typedKey ? { apiKey: typedKey } : {}),
           },
         })
       ) as Promise<{ models: string[] }>,
@@ -581,7 +583,7 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
               <FieldShell
                 id={id("model")}
                 label="Model"
-                help="The model ID from the provider. List models shows what the saved key can use."
+                help="The model ID from the provider. List models shows what the key can use."
                 error={error("model")}
               >
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -636,12 +638,12 @@ function SettingsForm({ dto }: { dto: IntegrationDto }) {
                         ) : null}
                         List models
                       </TooltipTrigger>
-                      <TooltipContent>{SAVE_FIRST}</TooltipContent>
+                      <TooltipContent>{KEY_FIRST}</TooltipContent>
                     </Tooltip>
                   ) : null}
                   {canEdit && !canListModels ? (
                     <span id={id("models-save-first")} className="sr-only">
-                      {SAVE_FIRST}
+                      {KEY_FIRST}
                     </span>
                   ) : null}
                 </div>

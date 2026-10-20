@@ -218,16 +218,38 @@ describe("AiSettingsView (MK parity C7)", () => {
     expect(body.values).not.toHaveProperty("shareEnquiryDetails")
   })
 
-  it("List models says “Save first” while the provider is unsaved, and asks nothing", async () => {
+  it("List models asks for a key while the provider is unsaved, and asks nothing", async () => {
     const user = userEvent.setup()
     renderView()
     await ready()
     await user.click(screen.getByRole("radio", { name: "OpenAI" }))
     const list = screen.getByRole("button", { name: "List models" })
     expect(list).toHaveAttribute("aria-disabled", "true")
-    expect(list).toHaveAccessibleDescription("Save first")
+    expect(list).toHaveAccessibleDescription("Enter the API key first")
     await user.click(list)
     expect(calls.some((c) => c.path === "/api/v1/admin/ai/models")).toBe(false)
+  })
+
+  it("List models uses a typed key for an unsaved provider", async () => {
+    const user = userEvent.setup()
+    renderView()
+    await ready()
+    await user.click(screen.getByRole("radio", { name: "Google Gemini" }))
+    await user.type(
+      screen.getByLabelText(/^(New )?API key$/),
+      "AIza-typed-key-1234567890"
+    )
+    const list = screen.getByRole("button", { name: "List models" })
+    expect(list).not.toHaveAttribute("aria-disabled")
+    await user.click(list)
+    await waitFor(() =>
+      expect(calls.some((c) => c.path === "/api/v1/admin/ai/models")).toBe(true)
+    )
+    const call = calls.find((c) => c.path === "/api/v1/admin/ai/models")!
+    expect(call.body).toMatchObject({
+      provider: "google",
+      apiKey: "AIza-typed-key-1234567890",
+    })
   })
 
   it("an admin does not see the enquiry-details fieldset; an owner does", async () => {
