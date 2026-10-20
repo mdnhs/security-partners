@@ -10,7 +10,7 @@ import {
   type PermissionRequest,
 } from "@/lib/auth/permissions"
 import { CSV_BOM, toCsv } from "@/lib/csv"
-import { UTM_KEYS } from "@/lib/leads/attribution"
+import { submittedAttribution, UTM_KEYS } from "@/lib/leads/attribution"
 import type { TurnstileConfig } from "@/lib/schemas/integrations"
 import {
   LEAD_CSV_HEADER,
@@ -104,6 +104,10 @@ export async function submitLead(
     console.info("[leads] honeypot filled; submission dropped")
     return { ok: true, leadId: null }
   }
+  const attribution = submittedAttribution(input.attribution)
+  if (attribution === null && input.attribution != null)
+    // Never the value itself: it is visitor-supplied and may hold PII.
+    console.warn("[leads] invalid attribution dropped; enquiry kept")
   const lead = await getDb().transaction(async (tx) => {
     const row = await repo.insertLead(tx, {
       name: input.name,
@@ -114,7 +118,7 @@ export async function submitLead(
       message: input.message,
       consent: input.consent,
       sourcePage: input.sourcePage ?? null,
-      attribution: input.attribution ?? null,
+      attribution,
       ipHash: meta.ip ? hashIp(meta.ip) : null,
     })
     await repo.insertLeadEvent(tx, {

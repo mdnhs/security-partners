@@ -87,29 +87,72 @@ describe("lead attribution (D3.1)", () => {
     expect(dto.attribution).toBeNull()
   })
 
-  it("an oversized value returns 422 and stores nothing", async () => {
-    for (const attribution of [
-      {
-        ...ATTRIBUTION,
-        utm: { utm_source: "x".repeat(10_000) },
-      },
+  it("invalid attribution never loses the enquiry: dropped, warned, lead saved (M5)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    const invalid = [
+      { ...ATTRIBUTION, utm: { utm_source: "x".repeat(10_000) } },
       { ...ATTRIBUTION, referrer: `https://e.example/${"r".repeat(300)}` },
       { ...ATTRIBUTION, landingPath: `/${"p".repeat(300)}` },
       { ...ATTRIBUTION, utm: { gclid: "abc" } },
       { ...ATTRIBUTION, capturedAt: "not a date" },
-    ]) {
-      const res = await post({ ...BODY, attribution })
-      expect(res.status).toBe(422)
-      const body = (await res.json()) as {
-        error: { fieldErrors: Record<string, string[]> }
-      }
-      expect(
-        Object.keys(body.error.fieldErrors).some((k) =>
-          k.startsWith("attribution")
-        )
-      ).toBe(true)
+      "a string",
+      42,
+    ]
+    for (const [i, attribution] of invalid.entries()) {
+      const res = await post({
+        ...BODY,
+        email: `m5-${i}@example.ie`,
+        attribution,
+      })
+      expect(res.status).toBe(200)
     }
-    expect(await getDb().select().from(leads)).toHaveLength(0)
+    const rows = await getDb().select().from(leads)
+    expect(rows).toHaveLength(invalid.length)
+    expect(rows.every((r) => r.attribution === null)).toBe(true)
+    expect(warn).toHaveBeenCalledTimes(invalid.length)
+    expect(warn).toHaveBeenCalledWith(
+      "[leads] invalid attribution dropped; enquiry kept"
+    )
+    // The log line never carries the visitor's values.
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("e.example")
+  })
+
+  it("a lone surrogate or an emoji at the cap still saves the lead (I2)", async () => {
+    const res = await post({
+      ...BODY,
+      attribution: {
+        ...ATTRIBUTION,
+        utm: {
+          utm_source: "\ud800x",
+          utm_content: `${"a".repeat(198)}\u{1F680}`,
+          utm_term: `${"b".repeat(199)}\ud83d`,
+        },
+      },
+    })
+    expect(res.status).toBe(200)
+    const row = await onlyLead()
+    expect(row.attribution?.utm).toEqual({
+      utm_source: "x",
+      utm_content: `${"a".repeat(198)}\u{1F680}`,
+      utm_term: "b".repeat(199),
+    })
+  })
+
+  it("the server strips a referrer query and forces a site landing path (M1, M2)", async () => {
+    const res = await post({
+      ...BODY,
+      attribution: {
+        ...ATTRIBUTION,
+        referrer: "https://www.google.com/search?q=private#x",
+        landingPath: "https://evil.example/x",
+      },
+    })
+    expect(res.status).toBe(200)
+    const row = await onlyLead()
+    expect(row.attribution).toMatchObject({
+      referrer: "https://www.google.com/search",
+      landingPath: "/",
+    })
   })
 
   it("hostile values are stored as plain text: control/bidi characters stripped, non-web referrers dropped", async () => {

@@ -1,5 +1,6 @@
-import { expect, type Page, test } from "@playwright/test"
+import { type Browser, expect, type Page, test } from "@playwright/test"
 
+import { E2E_OWNER } from "./admin-accounts"
 import { BASE_URL } from "./env"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 import { deleteLeadsFrom } from "./lead-cleanup"
@@ -165,24 +166,98 @@ test("6th enquiry from one IP within 10 minutes → 429 with Retry-After", async
   await api.dispose()
 })
 
-test("first-touch attribution travels with the enquiry to the Source section (D3.1)", async ({
+/**
+ * Publishes settings.tracking as the owner (D3.1: attribution needs the
+ * consent banner, which shows only while tracking is on). Returns the
+ * previous draft so the caller can put it back.
+ */
+async function publishTracking(
+  browser: Browser,
+  change: (draft: Record<string, unknown>) => Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const context = await browser.newContext({
+    extraHTTPHeaders: { "x-forwarded-for": clientIpFor("leads tracking") },
+  })
+  const page = await context.newPage()
+  try {
+    await signIn(page, E2E_OWNER)
+    const same = { origin: BASE_URL }
+    const dto = (await (
+      await page.request.get("/api/v1/admin/marketing/tracking")
+    ).json()) as { draft: Record<string, unknown>; version: number }
+    const saved = await page.request.put(
+      "/api/v1/admin/marketing/tracking/draft",
+      {
+        headers: same,
+        data: { draft: change(dto.draft), version: dto.version },
+      }
+    )
+    expect(saved.status()).toBe(200)
+    const { version } = (await saved.json()) as { version: number }
+    const published = await page.request.post(
+      "/api/v1/admin/marketing/tracking/publish",
+      { headers: same, data: { version } }
+    )
+    expect(published.status()).toBe(200)
+    return dto.draft
+  } finally {
+    await context.close()
+  }
+}
+
+test("first-touch attribution travels with the enquiry, only with analytics consent (D3.1)", async ({
   page,
   browser,
 }) => {
   const { intake } = readFixtures()
   const name = `Attributed ${Date.now()}`
+  const refused = `Unattributed ${Date.now()}`
+  // Banner on, every tag off: consent without loading third-party scripts.
+  const before = await publishTracking(browser, (d) => ({
+    ...d,
+    enabled: true,
+    gtmEnabled: false,
+    ga4Enabled: false,
+    metaEnabled: false,
+  }))
+  try {
+    const landing = "/?utm_source=e2e-search&utm_campaign=%3Cb%3Ed31%3C%2Fb%3E"
+    const referer = "https://www.example.org/results?q=private"
 
-  const visitor = await browser.newContext({
-    extraHTTPHeaders: { "x-forwarded-for": clientIpFor(`${name} visitor`) },
-  })
-  const tab = await visitor.newPage()
-  // Lands from an external search with UTM tags, then moves on to /contact:
-  // the first touch is kept for the visit.
-  await tab.goto("/?utm_source=e2e-search&utm_campaign=%3Cb%3Ed31%3C%2Fb%3E", {
-    referer: "https://www.example.org/results?q=private",
-  })
-  await sendEnquiry(tab, name)
-  await visitor.close()
+    // Accepts analytics on the landing page, then moves on to /contact:
+    // the first touch is kept for the visit.
+    const visitor = await browser.newContext({
+      extraHTTPHeaders: { "x-forwarded-for": clientIpFor(`${name} visitor`) },
+    })
+    const tab = await visitor.newPage()
+    await tab.goto(landing, { referer })
+    await tab
+      .locator("[data-consent-banner]")
+      .getByRole("button", { name: "Accept all" })
+      .click()
+    await sendEnquiry(tab, name)
+    await visitor.close()
+
+    // Refuses: nothing is stored or sent.
+    const other = await browser.newContext({
+      extraHTTPHeaders: {
+        "x-forwarded-for": clientIpFor(`${refused} visitor`),
+      },
+    })
+    const tab2 = await other.newPage()
+    await tab2.goto(landing, { referer })
+    await tab2
+      .locator("[data-consent-banner]")
+      .getByRole("button", { name: "Reject non-essential" })
+      .click()
+    expect(
+      await tab2.evaluate(() => sessionStorage.getItem("sp_attribution"))
+    ).toBeNull()
+    await sendEnquiry(tab2, refused)
+    await other.close()
+  } finally {
+    await publishTracking(browser, () => before)
+  }
 
   await signIn(page, intake)
   await page.goto("/admin/leads")
@@ -198,6 +273,15 @@ test("first-touch attribution travels with the enquiry to the Source section (D3
   // Visitor-supplied markup stays text.
   await expect(source.getByText("<b>d31</b>")).toBeVisible()
   await expect(source.getByText(/q=private/)).toHaveCount(0)
+
+  await page.goto("/admin/leads")
+  await page.getByRole("searchbox", { name: "Search leads" }).fill(refused)
+  await page.getByRole("link", { name: refused }).first().click()
+  await expect(
+    page
+      .getByRole("dialog", { name: refused })
+      .getByRole("region", { name: "Source" })
+  ).toContainText("No source was recorded for this enquiry.")
 })
 
 test("the detail URL lands on the drawer, and Back closes it (D3.2)", async ({

@@ -4,7 +4,10 @@ import {
   ATTRIBUTION_KEY,
   attributionSchema,
   captureAttribution,
+  cleanAttributionText,
+  clearAttribution,
   readAttribution,
+  submittedAttribution,
   UTM_KEYS,
 } from "@/lib/leads/attribution"
 
@@ -193,5 +196,79 @@ describe("lead attribution (D3.1)", () => {
     expect(
       attributionSchema.safeParse({ ...base, capturedAt: "yesterday" }).success
     ).toBe(false)
+  })
+})
+
+describe("lead attribution review fixes (D3.1 I2, M1-M3)", () => {
+  const isWellFormed = (s: string) =>
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(
+      s
+    )
+
+  it("never splits an emoji at the cap and drops lone surrogates", () => {
+    const atCap = cleanAttributionText(`${"a".repeat(199)}\u{1F680}`)
+    expect(atCap).toBe("a".repeat(199))
+    expect(isWellFormed(atCap)).toBe(true)
+    const fits = cleanAttributionText(`${"a".repeat(198)}\u{1F680}`)
+    expect(fits).toBe(`${"a".repeat(198)}\u{1F680}`)
+    expect(fits).toHaveLength(200)
+    expect(cleanAttributionText("\ud800x\udc00y")).toBe("xy")
+
+    const store = memoryStore()
+    captureAttribution(
+      loc(
+        "/",
+        `?utm_content=${"a".repeat(199)}${encodeURIComponent("\u{1F680}")}`
+      ),
+      "",
+      store
+    )
+    const a = readAttribution(store)!
+    expect(isWellFormed(a.utm.utm_content!)).toBe(true)
+  })
+
+  it("strips zero-width, directional marks and BOM", () => {
+    expect(cleanAttributionText("g​o‌o‍g‎l‏e؜⁠﻿")).toBe("google")
+  })
+
+  it("submittedAttribution strips the referrer query, forces a site path and drops invalid input", () => {
+    const base = {
+      referrer: "https://www.google.com/search?q=secret#frag",
+      landingPath: "javascript:alert(1)",
+      utm: { utm_source: "\ud800google" },
+      capturedAt: NOW.toISOString(),
+    }
+    expect(submittedAttribution(base)).toEqual({
+      referrer: "https://www.google.com/search",
+      landingPath: "/",
+      utm: { utm_source: "google" },
+      capturedAt: NOW.toISOString(),
+    })
+    expect(
+      submittedAttribution({ ...base, landingPath: "https://evil.example/x" })
+        ?.landingPath
+    ).toBe("/")
+    expect(
+      submittedAttribution({ ...base, referrer: "data:text/html,x" })?.referrer
+    ).toBeNull()
+    expect(submittedAttribution(undefined)).toBeNull()
+    expect(submittedAttribution(null)).toBeNull()
+    expect(submittedAttribution("nope")).toBeNull()
+    expect(
+      submittedAttribution({ ...base, utm: { utm_source: "x".repeat(201) } })
+    ).toBeNull()
+  })
+
+  it("clearAttribution removes the key and survives blocked storage", () => {
+    const data = new Map([[ATTRIBUTION_KEY, "{}"]])
+    clearAttribution({ removeItem: (k: string) => void data.delete(k) })
+    expect(data.has(ATTRIBUTION_KEY)).toBe(false)
+    expect(() =>
+      clearAttribution({
+        removeItem: () => {
+          throw new DOMException("denied", "SecurityError")
+        },
+      })
+    ).not.toThrow()
   })
 })
