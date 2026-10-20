@@ -1,0 +1,26 @@
+{
+  "base": "4d5a6f7",
+  "files": {
+    "components/about/stats.tsx": "a91927452b43a0578fa401310c885acd60e7c34c2b2dfbba2044ed45ebdd170b",
+    "components/blog/article.tsx": "8ef4c27f45b65a57958f37772e2c85420d7a630bbb565234706ec68185ae0804",
+    "components/blog/blog-card.tsx": "20fadb4f4436a95988273ae63396b685e500fcef1200b1209e841ced64fe4321",
+    "components/blog/blog-posts.tsx": "b5c26df2997a84fc17b55a0b8c901da968d55d5299c12425fca599620cc99f66",
+    "components/blog/share-links.tsx": "deab406ab2c091a6ffc14a0aa40d6a27c30b24e877db5817e3b14a38ce22b4cb",
+    "components/contact/departments.tsx": "26e419a8e8117a6aab7cfd84226044fea0d2efdd899c9c00b201779975108f12",
+    "components/home/about.tsx": "2abac167422ca90ca6aa21f7d8336f166c356f17ebcbdfbbe1d4930282ff7424",
+    "components/home/clients-team-blog.tsx": "5c45416c6a4111032c17689840ff5f5d622720dff88229e08f7f799ae1461e71",
+    "components/home/contact-form.tsx": "58733651ea45211d9372b2bfd1ca7491c96946fa31e5b13175dc023fc2ced4f3",
+    "components/home/contact.tsx": "77cf1e22044c719886371b3fb20670e5ce741f689ca86eb1759df8700625c4ec",
+    "components/home/hero.tsx": "94ff667790155cd2ffa7b3d60c037c25ae7e6b854d448c5a7431af250083a0d8",
+    "components/home/icon-cards.tsx": "a1ca08f193f132fee977265b7d1c267283e628b25bb14c86d903fb824d8a778f",
+    "components/home/page-hero.tsx": "1e8d6c06f18b63f4fd07a2a4d2f96cc5cab698f5f65950c1eeb00b1f36c56a5b",
+    "components/home/section.tsx": "7cd1f542350298a6d4558f1bb039c4e4ae146e20b5435163a9710918b5ee659a",
+    "components/home/services.tsx": "436c406df1041f8d60ded0edb58484743b1bd0ef80002558c63fcb2d46d85e05",
+    "components/home/site-footer.tsx": "fce46498becd2ac0dc5192aec3f6730fb18b02e9f1a37ccbc7687da6a5469ec4",
+    "components/home/site-header.tsx": "31f6220fc1e17b2ec08d3e8280c956de8ede5e7caf931ab6800ee1f3f274d35c",
+    "components/home/use-turnstile.ts": "b4a40efafe1ddd7f471e82dfcf9ddd0e194e517cb2f3f440871e5b240fa4b711",
+    "components/services/other-services.tsx": "24370f1c79845ff860e7bc728e0c839c0ed8af9db3f0c63fd32ea217123dacbc",
+    "components/services/service-body.tsx": "716122902d38d182c790183cfe7d4ccbb496586b8e351ef25c457c47cef3e9a9",
+    "components/services/why-choose-us.tsx": "7d461838160d921c678b491ac46dbd549bbec6fd06a16b63e7840214f8a5e128"
+  }
+}

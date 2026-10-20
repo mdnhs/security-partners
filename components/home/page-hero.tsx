@@ -5,6 +5,19 @@ import Link from "next/link"
 import { Container } from "@/components/home/section"
 import { cn } from "@/lib/utils"
 
+export type PageHeroProps = {
+  image: string
+  trail?: { label: string; href: string }[]
+  crumb: string
+  title: string
+  /** Omitted (undefined) renders no paragraph; every content page passes one. */
+  description?: string
+  wideDescription?: boolean
+  /** Breadcrumb "Home" label and the nav's aria-label (settings.microcopy). */
+  homeLabel: string
+  ariaLabel: string
+}
+
 export function PageHero({
   image,
   trail = [],
@@ -12,14 +25,9 @@ export function PageHero({
   title,
   description,
   wideDescription,
-}: {
-  image: string
-  trail?: { label: string; href: string }[]
-  crumb: string
-  title: string
-  description: string
-  wideDescription?: boolean
-}) {
+  homeLabel,
+  ariaLabel,
+}: PageHeroProps) {
   return (
     <section
       data-hero
@@ -41,11 +49,11 @@ export function PageHero({
 
       <Container className="relative">
         <div data-hero-content className="flex flex-col items-start gap-[22px]">
-          <nav data-hero-item aria-label="Breadcrumb">
+          <nav data-hero-item aria-label={ariaLabel}>
             <ol className="flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[13px] leading-[normal] font-bold">
               <li>
                 <Link href="/" className="text-white/85 hover:text-white">
-                  Home
+                  {homeLabel}
                 </Link>
               </li>
               {trail.map((item) => (
@@ -78,15 +86,17 @@ export function PageHero({
           >
             {title}
           </h1>
-          <p
-            data-hero-item
-            className={cn(
-              "text-lg leading-[1.6] text-white/85 md:text-[19px]",
-              wideDescription ? "max-w-[760px]" : "max-w-[640px]"
-            )}
-          >
-            {description}
-          </p>
+          {description !== undefined && (
+            <p
+              data-hero-item
+              className={cn(
+                "text-lg leading-[1.6] text-white/85 md:text-[19px]",
+                wideDescription ? "max-w-[760px]" : "max-w-[640px]"
+              )}
+            >
+              {description}
+            </p>
+          )}
         </div>
       </Container>
     </section>

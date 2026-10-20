@@ -1,0 +1,333 @@
+/*
+ * The admin's own Tailwind entry (spec 2026-10-19-mk-parity §4.1). It is
+ * independent of the public site's stylesheet: the public site keeps its
+ * own entry and tokens, and nothing here can reach it.
+ * Layout and type: the James Whitfield (MK) admin. Colours: Security
+ * Partners green, mint and navy on near-grey neutrals. The palette's single
+ * source is lib/theme/sp-admin.ts; tests/unit/admin/admin-tokens.test.ts
+ * keeps the two equal. Every token is scoped to <html data-admin>.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* The admin never renders the public site (its routes, sections and
+   templates; admin imports only templates' schemas and editor metadata), and
+   the planning docs are full of example class names: scanning either only
+   bloats this file. */
+@source not "../../../docs";
+@source not "../../(site)";
+@source not "../../../templates";
+/* prettier-ignore */
+@source not "../../../components/{about,blog,contact,home,services,consent,motion,seo}";
+/* prettier-ignore */
+@source not "../../../components/{preview-bar,site-extras,site-locale,theme-provider}.tsx";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Type scale and card radius (MK). */
+@theme {
+  --text-title: 2.25rem;
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.025em;
+  --text-title--font-weight: 600;
+  --text-card-title: 1.125rem;
+  --text-card-title--line-height: 1.35;
+  --text-card-title--font-weight: 600;
+  --text-kpi: 2.75rem;
+  --text-kpi--line-height: 1;
+  --text-kpi--letter-spacing: -0.03em;
+  --text-kpi--font-weight: 600;
+  --radius-card: 1.375rem;
+}
+
+@theme inline {
+  /* next/font variables set on <html> (app/(admin)/admin/layout.tsx). */
+  --font-sans: var(--font-jakarta);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-skeleton: var(--skeleton);
+  --color-hatch: var(--hatch);
+  --color-hero-from: var(--hero-from);
+  --color-hero-to: var(--hero-to);
+  --color-hero-foreground: var(--hero-foreground);
+  --color-hero-chip: var(--hero-chip);
+  --color-hero-chip-foreground: var(--hero-chip-foreground);
+  --color-hero-delta: var(--hero-delta);
+  --color-promo-from: var(--promo-from);
+  --color-promo-to: var(--promo-to);
+  --color-promo-foreground: var(--promo-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* White canvas, near-grey panels (sidebar, topbar, content), white cards. */
+html[data-admin] {
+  --radius: 0.75rem;
+  --background: #ffffff;
+  --foreground: #0f1726;
+  --card: #ffffff;
+  --card-foreground: #0f1726;
+  --popover: #ffffff;
+  --popover-foreground: #0f1726;
+  --primary: #367318;
+  --primary-foreground: #ffffff;
+  --secondary: #eceff3;
+  --secondary-foreground: #0f1726;
+  --muted: #eff1f4;
+  --muted-foreground: #5d6575;
+  --accent: #eef6e8;
+  --accent-foreground: #2f5f14;
+  --destructive: #b91c1c;
+  --border: #e3e6eb;
+  --input: #7b8494;
+  --ring: #4e9a22;
+  --chart-1: #2f6a15;
+  --chart-2: #4e9a22;
+  --chart-3: #67bd31;
+  --chart-4: #0d1b36;
+  --chart-5: #a7d98a;
+  --sidebar: #f2f3f5;
+  --sidebar-foreground: #0f1726;
+  --sidebar-primary: #367318;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef6e8;
+  --sidebar-accent-foreground: #2f5f14;
+  --sidebar-border: #e3e6eb;
+  --sidebar-ring: #4e9a22;
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #92400e;
+  --warning-soft: #fef3c7;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --skeleton: #e1e4e9;
+  --hatch: #709f53;
+  --hero-from: #0d1b36;
+  --hero-to: #1b3566;
+  --hero-foreground: #ffffff;
+  --hero-chip: #ffffff;
+  --hero-chip-foreground: #0d1b36;
+  --hero-delta: #b7e892;
+  --promo-from: #071022;
+  --promo-to: #13284d;
+  --promo-foreground: #ffffff;
+}
+
+/* Elevation: canvas darkest, then panels, then cards. Hero and promo
+   surfaces keep their navy gradient in both themes. */
+html[data-admin].dark {
+  --background: #0b0e13;
+  --foreground: #eceff3;
+  --card: #1c212a;
+  --card-foreground: #eceff3;
+  --popover: #1c212a;
+  --popover-foreground: #eceff3;
+  --primary: #7cc84a;
+  --primary-foreground: #0a1408;
+  --secondary: #1b2029;
+  --secondary-foreground: #eceff3;
+  --muted: #1b2029;
+  --muted-foreground: #9aa1ad;
+  --accent: #1f3318;
+  --accent-foreground: #cfeab8;
+  --destructive: #fca5a5;
+  --border: #262c36;
+  --input: #6b7382;
+  --ring: #7cc84a;
+  --chart-1: #7cc84a;
+  --chart-2: #67bd31;
+  --chart-3: #a7d98a;
+  --chart-4: #c7d3ea;
+  --chart-5: #3f6b25;
+  --sidebar: #151920;
+  --sidebar-foreground: #eceff3;
+  --sidebar-primary: #7cc84a;
+  --sidebar-primary-foreground: #0a1408;
+  --sidebar-accent: #1f3318;
+  --sidebar-accent-foreground: #cfeab8;
+  --sidebar-border: #262c36;
+  --sidebar-ring: #7cc84a;
+  --success: #4ade80;
+  --success-soft: #12301c;
+  --warning: #fbbf24;
+  --warning-soft: #33270c;
+  --danger: #f87171;
+  --danger-soft: #3a1414;
+  --skeleton: #29303b;
+  --hatch: #4a7731;
+}
+
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--hatch) 0 3px,
+    transparent 3px 7px
+  );
+}
+
+@utility bg-hero {
+  background-image: linear-gradient(160deg, var(--hero-from), var(--hero-to));
+  color: var(--hero-foreground);
+}
+
+@utility bg-promo {
+  background-image: linear-gradient(160deg, var(--promo-from), var(--promo-to));
+  color: var(--promo-foreground);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* Narrow, quiet scrollbars across the admin (sidebar, tab rows, tables). */
+  html[data-admin] * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* Restrained motion, and none for people who ask for less. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin] *,
+  html[data-admin] *::before,
+  html[data-admin] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Rich text editing surface (components/admin/rich-text/editor.tsx). */
+html[data-admin] .rich-text-content {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+html[data-admin] .rich-text-content > * + * {
+  margin-top: 0.75em;
+}
+html[data-admin] .rich-text-content h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+html[data-admin] .rich-text-content h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+html[data-admin] .rich-text-content ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+html[data-admin] .rich-text-content ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+html[data-admin] .rich-text-content blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  font-style: italic;
+}
+html[data-admin] .rich-text-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/*
+ * The editor's sticky header (components/admin/editor/editor-layout.tsx):
+ * a strip in main's grey above it (--strip-h) and in the corners beside its
+ * rounded top, so content scrolled under it never shows through. Behind the
+ * bar's content (z -1 inside the bar's stacking context); the corner tiles
+ * are transparent inside the radius, so the bar's own fill stays white.
+ */
+html[data-admin] [data-slot="editor-bar"]::before {
+  --r: var(--radius-card);
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset-inline: calc(-1 * var(--bar-border, 0px));
+  bottom: calc(100% - var(--r) + var(--bar-border, 0px));
+  height: calc(var(--strip-h, 0px) + var(--r));
+  background:
+    linear-gradient(var(--sidebar), var(--sidebar)) top / 100%
+      var(--strip-h, 0px) no-repeat,
+    radial-gradient(
+        circle at 100% 100%,
+        transparent calc(var(--r) - 0.5px),
+        var(--sidebar) var(--r)
+      )
+      left bottom / var(--r) var(--r) no-repeat,
+    radial-gradient(
+        circle at 0 100%,
+        transparent calc(var(--r) - 0.5px),
+        var(--sidebar) var(--r)
+      )
+      right bottom / var(--r) var(--r) no-repeat;
+}
+
+/*
+ * Colour picker (react-colorful, components/admin/appearance/colour-field.tsx):
+ * its own focus cue is a slight scale of the pointer; a keyboard user gets
+ * the admin's ring as well (WCAG 2.4.7).
+ */
+html[data-admin]
+  .react-colorful__interactive:focus-visible
+  .react-colorful__pointer {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

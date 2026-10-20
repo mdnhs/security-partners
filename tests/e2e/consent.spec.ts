@@ -1,0 +1,411 @@
+import AxeBuilder from "@axe-core/playwright"
+import { expect, type Page, test } from "@playwright/test"
+
+import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
+import { BASE_URL } from "./env"
+import { clientIpFor, E2E_PASSWORD } from "./fixtures"
+
+// Master 8.3: no banner/scripts while tracking is off; with tracking on the
+// banner gates GTM, GA4 and the Meta pixel; consent cookie 6 months (the
+// re-consent interval), versioned;
+// custom code owner-only. Trackers are stubbed (no network to Google/Meta).
+
+const SAME_ORIGIN = { origin: BASE_URL }
+const TRACKER = /googletagmanager\.com|connect\.facebook\.net/
+const TRACKING_OFF = {
+  enabled: false,
+  gtmEnabled: false,
+  gtmId: null,
+  ga4Enabled: false,
+  ga4Id: null,
+  metaEnabled: false,
+  metaPixelId: null,
+}
+
+const NO_CODE = { disabled: false, allowedHosts: [], snippets: [] }
+const necessary = (placement: "head" | "body", html: string) => ({
+  id: crypto.randomUUID(),
+  name: `E2E ${placement}`,
+  placement,
+  src: "",
+  html,
+  category: "necessary",
+  routes: [],
+  enabled: true,
+})
+
+// The consent version can never go down (review D2.2 I1: 422), so tests
+// only reset the interval and read the version that is live.
+const CONSENT_RESET = { reconsentMonths: 6 }
+
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    "x-forwarded-for": clientIpFor(testInfo.title),
+  })
+})
+
+async function signIn(page: Page, email: string) {
+  await page.goto("/admin/sign-in")
+  await page.getByLabel("Email").fill(email)
+  await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD)
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.waitForURL((url) => url.pathname === "/admin")
+}
+
+async function publishSetting(
+  page: Page,
+  key: string,
+  change: (draft: Record<string, unknown>) => Record<string, unknown>
+) {
+  const dto = (await (
+    await page.request.get(`/api/v1/admin/marketing/${key}`)
+  ).json()) as { draft: Record<string, unknown>; version: number }
+  const saved = await page.request.put(`/api/v1/admin/marketing/${key}/draft`, {
+    headers: SAME_ORIGIN,
+    data: { draft: change(dto.draft), version: dto.version },
+  })
+  expect(saved.status()).toBe(200)
+  const { version } = (await saved.json()) as { version: number }
+  const published = await page.request.post(
+    `/api/v1/admin/marketing/${key}/publish`,
+    { headers: SAME_ORIGIN, data: { version } }
+  )
+  expect(published.status()).toBe(200)
+}
+
+async function stubTrackers(page: Page): Promise<string[]> {
+  const requested: string[] = []
+  await page.route(TRACKER, (route) => {
+    requested.push(route.request().url())
+    return route.fulfill({ contentType: "text/javascript", body: "" })
+  })
+  return requested
+}
+
+test.describe.serial("consent and tracking (master 8.3)", () => {
+  // Start from tracking off and no custom code, even if an earlier run was
+  // interrupted before its `finally` reset them.
+  test.beforeAll(async ({ browser }) => {
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "x-forwarded-for": clientIpFor("consent beforeAll") },
+    })
+    const page = await context.newPage()
+    await signIn(page, E2E_OWNER.email)
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      ...TRACKING_OFF,
+    }))
+    await publishSetting(page, "customCode", () => NO_CODE)
+    await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_RESET }))
+    await context.close()
+  })
+
+  test("tracking off: no banner, no reopen button, no tracker requests", async ({
+    page,
+  }) => {
+    const requested = await stubTrackers(page)
+    await page.goto("/")
+    await page.waitForLoadState("networkidle")
+    await expect(page.locator("[data-consent-banner]")).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "Cookie settings" })
+    ).toHaveCount(0)
+    expect(requested).toEqual([])
+  })
+
+  test("tracking on: the banner gates GTM, GA4 and the Meta pixel", async ({
+    page,
+    browser,
+  }) => {
+    await signIn(page, E2E_OWNER.email)
+    await page.goto("/admin/marketing")
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Tracking" })
+    ).toBeVisible()
+    await expect(page.getByLabel(/^Google Tag Manager ID/)).toBeVisible()
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      enabled: true,
+      gtmEnabled: true,
+      gtmId: "GTM-E2ETEST",
+      ga4Enabled: true,
+      ga4Id: "G-E2ETEST1",
+      metaEnabled: true,
+      metaPixelId: "1234567890",
+    }))
+    try {
+      const visitor = await browser.newContext()
+      const site = await visitor.newPage()
+      const requested = await stubTrackers(site)
+      await site.goto("/")
+      const banner = site.locator("[data-consent-banner]")
+      await expect(banner).toBeVisible()
+      await expect(
+        banner.getByRole("heading", { name: "We use cookies" })
+      ).toBeVisible()
+      await expect(
+        banner.getByRole("link", { name: "Privacy Policy" })
+      ).toHaveAttribute("href", "/privacy")
+      const axe = await new AxeBuilder({ page: site })
+        .include("[data-consent-banner]")
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+      expect(axe.violations.map((v) => v.id)).toEqual([])
+      await site.waitForLoadState("networkidle")
+      expect(requested).toEqual([])
+
+      await banner.getByRole("button", { name: "Accept all" }).click()
+      await expect(banner).toBeHidden()
+      await expect
+        .poll(() => requested.map((u) => new URL(u).pathname).sort())
+        .toEqual(["/en_US/fbevents.js", "/gtag/js", "/gtm.js"])
+      const cookie = (await visitor.cookies()).find(
+        (c) => c.name === "sp_consent"
+      )!
+      expect(cookie.value).toMatch(/^\d+\.1\.1\.\d+$/)
+      const days = (cookie.expires * 1000 - Date.now()) / 86_400_000
+      expect(days).toBeGreaterThan(179)
+      expect(days).toBeLessThanOrEqual(180)
+
+      requested.length = 0
+      await site.reload()
+      await expect(site.locator("[data-consent-banner]")).toHaveCount(0)
+      await expect(
+        site.getByRole("button", { name: "Cookie settings" })
+      ).toBeVisible()
+      await expect.poll(() => requested.length).toBeGreaterThan(0)
+      await visitor.close()
+
+      const other = await browser.newContext()
+      const page2 = await other.newPage()
+      const none = await stubTrackers(page2)
+      await page2.goto("/")
+      await page2
+        .locator("[data-consent-banner]")
+        .getByRole("button", { name: "Reject non-essential" })
+        .click()
+      await page2.waitForLoadState("networkidle")
+      expect(none).toEqual([])
+      expect(
+        (await other.cookies()).find((c) => c.name === "sp_consent")?.value
+      ).toMatch(/^\d+\.0\.0\./)
+      await other.close()
+    } finally {
+      await publishSetting(page, "tracking", (d) => ({
+        ...d,
+        ...TRACKING_OFF,
+      }))
+    }
+  })
+
+  test("channel switches, status panel and the test event (D2.1)", async ({
+    page,
+    browser,
+  }) => {
+    await signIn(page, E2E_OWNER.email)
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      enabled: true,
+      gtmEnabled: false,
+      gtmId: "GTM-E2ETEST",
+      ga4Enabled: true,
+      ga4Id: "G-E2ETEST1",
+      metaEnabled: false,
+      metaPixelId: null,
+    }))
+    try {
+      await page.goto("/admin/marketing")
+      const status = page.getByRole("region", { name: "Status" })
+      const rows = status.getByRole("listitem")
+      await expect(rows.nth(0)).toContainText("Off")
+      await expect(rows.nth(1)).toContainText("Ready")
+      await expect(rows.nth(2)).toContainText("Off")
+      await expect(
+        status.getByRole("button", { name: "Send test event" })
+      ).toBeVisible()
+
+      const visitor = await browser.newContext()
+      const site = await visitor.newPage()
+      const requested = await stubTrackers(site)
+      await site.goto("/?sp_tracking_test=abcdefgh-1")
+      const banner = site.locator("[data-consent-banner]")
+      await expect(banner).toBeVisible()
+      await site.waitForLoadState("networkidle")
+      const testEvents = () =>
+        site.evaluate(() =>
+          (
+            ((window as unknown as { dataLayer?: unknown[] }).dataLayer ??
+              []) as { event?: string; test_id?: string }[]
+          )
+            .filter((e) => e.event === "tracking_test")
+            .map((e) => e.test_id)
+        )
+      expect(await testEvents()).toEqual([])
+      await banner.getByRole("button", { name: "Accept all" }).click()
+      await expect.poll(testEvents).toEqual(["abcdefgh-1"])
+      // GTM is switched off even though its ID is still saved.
+      await expect
+        .poll(() => requested.map((u) => new URL(u).pathname))
+        .toEqual(["/gtag/js"])
+      await visitor.close()
+    } finally {
+      await publishSetting(page, "tracking", (d) => ({
+        ...d,
+        ...TRACKING_OFF,
+      }))
+    }
+  })
+
+  test("a new consent version asks again; the interval sets the cookie's life (D2.2)", async ({
+    page,
+    browser,
+  }) => {
+    await signIn(page, E2E_OWNER.email)
+    await publishSetting(page, "tracking", (d) => ({
+      ...d,
+      enabled: true,
+      gtmEnabled: true,
+      gtmId: "GTM-E2ETEST",
+    }))
+    const live = (await (
+      await page.request.get("/api/v1/admin/marketing/consent")
+    ).json()) as { published: { version: number } }
+    const v = live.published.version
+    try {
+      await page.goto("/admin/marketing/consent")
+      const preview = page.getByRole("region", { name: "Preview" })
+      await expect(
+        preview.getByRole("button", { name: "First layer", pressed: true })
+      ).toBeVisible()
+      await expect(
+        preview.getByRole("heading", { name: "We use cookies" })
+      ).toBeVisible()
+
+      const visitor = await browser.newContext()
+      const site = await visitor.newPage()
+      const requested = await stubTrackers(site)
+      await site.goto("/")
+      await site
+        .locator("[data-consent-banner]")
+        .getByRole("button", { name: "Accept all" })
+        .click()
+      const consentCookie = async () =>
+        (await visitor.cookies()).find((c) => c.name === "sp_consent")!
+      await expect
+        .poll(async () => (await consentCookie()).value)
+        .toMatch(new RegExp(`^${v}\\.1\\.1\\.`))
+
+      await publishSetting(page, "consent", (d) => ({
+        ...d,
+        version: v + 1,
+        reconsentMonths: 2,
+      }))
+      requested.length = 0
+      await site.reload()
+      const banner = site.locator("[data-consent-banner]")
+      await expect(banner).toBeVisible()
+      await site.waitForLoadState("networkidle")
+      expect(requested).toEqual([])
+
+      await banner.getByRole("button", { name: "Accept all" }).click()
+      await expect
+        .poll(async () => (await consentCookie()).value)
+        .toMatch(new RegExp(`^${v + 1}\\.1\\.1\\.\\d+$`))
+      const days =
+        ((await consentCookie()).expires * 1000 - Date.now()) / 86_400_000
+      expect(days).toBeGreaterThan(59)
+      expect(days).toBeLessThanOrEqual(60)
+      await expect.poll(() => requested.length).toBeGreaterThan(0)
+      await visitor.close()
+    } finally {
+      await publishSetting(page, "consent", (d) => ({ ...d, ...CONSENT_RESET }))
+      await publishSetting(page, "tracking", (d) => ({
+        ...d,
+        ...TRACKING_OFF,
+      }))
+    }
+  })
+
+  test("custom code: admins cannot see or change it", async ({ page }) => {
+    await signIn(page, E2E_ADMIN.email)
+    expect(
+      (await page.request.get("/api/v1/admin/marketing/customCode")).status()
+    ).toBe(403)
+    await page.goto("/admin/marketing")
+    await expect(
+      page.getByRole("navigation", { name: "Marketing" })
+    ).not.toContainText("Custom code")
+  })
+
+  test("a marketer sees the Event catalogue tab and table (D2.4)", async ({
+    page,
+  }) => {
+    await signIn(page, "marketer@demo.local")
+    await page.goto("/admin/marketing")
+    const tabs = page.getByRole("navigation", { name: "Marketing" })
+    await tabs.getByRole("link", { name: "Event catalogue" }).click()
+    await page.waitForURL("**/admin/marketing/events")
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Event catalogue" })
+    ).toBeVisible()
+    const table = page.getByRole("table")
+    await expect(table.getByRole("columnheader")).toHaveText([
+      "Event",
+      "Fires when",
+      "Params",
+      "GA4",
+      "Meta",
+    ])
+    // Header + 7 events (newsletter_sign_up joined at the D4 integration).
+    await expect(table.getByRole("row")).toHaveCount(8)
+    await expect(
+      table.getByRole("row").filter({ hasText: "newsletter_sign_up" })
+    ).toContainText("sign_up")
+    await expect(
+      table.getByRole("row").filter({ hasText: "page_view_virtual" })
+    ).toContainText("page_view")
+    await expect(page.getByText("docs/gtm-container.json")).toBeVisible()
+    const axe = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+      .analyze()
+    expect(axe.violations.map((v) => v.id)).toEqual([])
+  })
+
+  test("custom code: the owner's snippets run on public pages", async ({
+    page,
+    browser,
+  }) => {
+    await signIn(page, E2E_OWNER.email)
+    await page.goto("/admin/marketing/code")
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Custom code" })
+    ).toBeVisible()
+    await publishSetting(page, "customCode", () => ({
+      ...NO_CODE,
+      snippets: [
+        necessary(
+          "head",
+          '<meta name="sp-e2e" content="head"><script>window.__spHead = 1</script>'
+        ),
+        necessary("body", "<script>window.__spBody = 2</script>"),
+      ],
+    }))
+    try {
+      const visitor = await browser.newContext()
+      const site = await visitor.newPage()
+      await site.goto("/about")
+      await expect
+        .poll(() =>
+          site.evaluate(() => {
+            const w = window as unknown as Record<string, unknown>
+            return [w.__spHead, w.__spBody]
+          })
+        )
+        .toEqual([1, 2])
+      await expect(site.locator('head meta[name="sp-e2e"]')).toHaveCount(1)
+      await visitor.close()
+    } finally {
+      await publishSetting(page, "customCode", () => NO_CODE)
+    }
+  })
+})

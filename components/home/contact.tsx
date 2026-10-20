@@ -1,43 +1,31 @@
 import Image from "next/image"
 
-import { ContactForm } from "@/components/home/contact-form"
+import {
+  ContactForm,
+  type ContactFormProps,
+} from "@/components/home/contact-form"
 import { Container, SectionHeading } from "@/components/home/section"
-import { contact } from "@/components/home/data"
+import { interpolate } from "@/lib/interpolate"
 
-const infoItems = [
-  {
-    title: "Office Hours",
-    icon: "/images/clock.svg",
-    lines: [{ text: "Monday–Friday: 9am to 6pm" }],
-  },
-  {
-    title: "24 Hour Number",
-    icon: "/images/phone.svg",
-    lines: [{ text: contact.phone24h, href: contact.phone24hHref }],
-  },
-  {
-    title: "Address",
-    icon: "/images/pin.svg",
-    lines: [{ text: contact.addressLine1 }, { text: contact.addressLine2 }],
-  },
-  {
-    title: "Operations",
-    icon: "/images/mail.svg",
-    lines: [
-      { text: `Tel: ${contact.office} Ext 2`, href: contact.officeHref },
-      {
-        text: `or ${contact.operationsMobile}`,
-        href: contact.operationsMobileHref,
-      },
-      {
-        text: contact.operationsEmail,
-        href: `mailto:${contact.operationsEmail}`,
-      },
-    ],
-  },
-]
+export type ContactProps = {
+  eyebrow: string
+  heading: string
+  intro: string
+  infoItems: {
+    title: string
+    icon: string
+    lines: { text: string; href?: string }[]
+  }[]
+  form: ContactFormProps
+}
 
-export function Contact() {
+export function Contact({
+  eyebrow,
+  heading,
+  intro,
+  infoItems,
+  form,
+}: ContactProps) {
   return (
     <section
       id="contact"
@@ -50,12 +38,12 @@ export function Contact() {
         >
           <SectionHeading
             align="start"
-            eyebrow="Contact"
-            title="Get In Touch"
+            eyebrow={eyebrow}
+            title={heading}
             className="[&_h2]:text-[36px] [&_p:last-child]:text-base"
-            description="Send us a message and we'll get back to you within one working day."
+            description={intro}
           />
-          <ContactForm />
+          <ContactForm {...form} />
         </div>
 
         <ul
@@ -72,7 +60,7 @@ export function Contact() {
                   {item.title}
                 </p>
                 {item.lines.map((line) =>
-                  "href" in line && line.href ? (
+                  line.href ? (
                     <a
                       key={line.text}
                       href={line.href}
@@ -98,18 +86,33 @@ export function Contact() {
   )
 }
 
+export type LocationMapProps = {
+  href: string
+  ariaLabel: string
+  label: string
+  logo: string
+  /** Tile URL template with {col} (0–8) and {row} (0–1). */
+  tiles: string
+}
+
 // Static map tiles from the design, laid out on a 9×2 grid of 256px tiles.
 const mapTiles = Array.from({ length: 9 }, (_, col) =>
   [0, 1].map((row) => ({ col, row }))
 ).flat()
 
-export function LocationMap() {
+export function LocationMap({
+  href,
+  ariaLabel,
+  label,
+  logo,
+  tiles,
+}: LocationMapProps) {
   return (
     <a
-      href={contact.mapsHref}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Open Security Partners Ltd. location in Google Maps"
+      aria-label={ariaLabel}
       data-map
       className="relative block h-[480px] overflow-hidden bg-brand-map"
     >
@@ -121,7 +124,7 @@ export function LocationMap() {
           {mapTiles.map(({ col, row }) => (
             <Image
               key={`${col}-${row}`}
-              src={`/images/map/tile-${col}-${row}.png`}
+              src={interpolate(tiles, { col, row })}
               alt=""
               width={256}
               height={256}
@@ -140,7 +143,7 @@ export function LocationMap() {
           <div className="relative size-9 overflow-hidden rounded-full border border-brand-green/25 bg-white">
             <div className="absolute top-px left-px size-8">
               <Image
-                src="/images/logo.png"
+                src={logo}
                 alt=""
                 fill
                 sizes="32px"
@@ -149,7 +152,7 @@ export function LocationMap() {
             </div>
           </div>
           <p className="text-base font-black whitespace-nowrap text-brand-navy">
-            Security Partners Ltd.
+            {label}
           </p>
         </div>
         <Image

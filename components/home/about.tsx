@@ -1,9 +1,26 @@
 import Image from "next/image"
 
 import { Container, Eyebrow } from "@/components/home/section"
-import { highlights } from "@/components/home/data"
+import { renderInline } from "@/lib/rich-text/render"
+import type { ParagraphsDoc } from "@/lib/schemas/common"
 
-export function About() {
+export type AboutProps = {
+  eyebrow: string
+  heading: string
+  body: ParagraphsDoc
+  image: { src: string; alt: string }
+  badge: { value: string; label: string; caption: string }
+  highlights: string[]
+}
+
+export function About({
+  eyebrow,
+  heading,
+  body,
+  image,
+  badge,
+  highlights,
+}: AboutProps) {
   return (
     <section
       id="about"
@@ -16,28 +33,20 @@ export function About() {
           className="flex flex-1 flex-col gap-[22px] rounded-[28px] bg-brand-blue p-8 md:p-14"
         >
           <div data-about-copy className="flex flex-col gap-3.5">
-            <Eyebrow>Who we are</Eyebrow>
+            <Eyebrow>{eyebrow}</Eyebrow>
             <h2 className="text-4xl leading-[1.15] font-black tracking-[-0.01em] text-white md:text-[44px]">
-              A family-run security company you can trust
+              {heading}
             </h2>
           </div>
-          <p
-            data-about-copy
-            className="text-[17px] leading-[1.65] text-white/88"
-          >
-            Security Partners Ltd is a privately owned security company based in
-            Mountmellick, Co. Laois. We are strategically based in the midlands,
-            allowing us to provide services across Ireland.
-          </p>
-          <p
-            data-about-copy
-            className="text-[17px] leading-[1.65] text-white/88"
-          >
-            Since our foundation in 2008, our objective has been and still is to
-            provide a first class service to all sectors of business. We are
-            dedicated to safeguarding our clients&apos; business and investment,
-            and giving them peace of mind.
-          </p>
+          {body.content.map((paragraph, i) => (
+            <p
+              key={i}
+              data-about-copy
+              className="text-[17px] leading-[1.65] text-white/88"
+            >
+              {renderInline(paragraph.content)}
+            </p>
+          ))}
           <ul className="flex flex-col gap-3.5 pt-2.5">
             {highlights.map((item) => (
               <li
@@ -69,8 +78,8 @@ export function About() {
             className="absolute inset-x-0 -top-[8%] h-[116%] will-change-transform"
           >
             <Image
-              src="/images/about.png"
-              alt="Security Partners officer reviewing paperwork"
+              src={image.src}
+              alt={image.alt}
               fill
               sizes="(min-width: 1024px) 480px, 100vw"
               className="object-cover"
@@ -80,12 +89,12 @@ export function About() {
             data-about-badge
             className="relative flex w-fit items-center gap-3.5 rounded-[18px] bg-white px-5 py-4 shadow-[0px_8px_24px_0px_rgba(0,0,0,0.15)]"
           >
-            <p className="text-[30px] font-black text-brand-blue">2008</p>
+            <p className="text-[30px] font-black text-brand-blue">
+              {badge.value}
+            </p>
             <div className="flex flex-col gap-0.5">
-              <p className="text-sm font-bold text-brand-navy">Established</p>
-              <p className="text-[13px] text-brand-ink">
-                Mountmellick, Co. Laois
-              </p>
+              <p className="text-sm font-bold text-brand-navy">{badge.label}</p>
+              <p className="text-[13px] text-brand-ink">{badge.caption}</p>
             </div>
           </div>
         </div>

@@ -5,19 +5,21 @@ import { cn } from "@/lib/utils"
 
 type IconCard = { title: string; description: string; icon: string }
 
+export type IconCardsProps = {
+  eyebrow: string
+  title: string
+  description: string
+  items: IconCard[]
+  className?: string
+}
+
 export function IconCards({
   eyebrow,
   title,
   description,
   items,
   className,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-  items: IconCard[]
-  className?: string
-}) {
+}: IconCardsProps) {
   return (
     <section className={cn("bg-white px-6 py-20 md:px-10 lg:py-28", className)}>
       <Container className="flex flex-col gap-14">

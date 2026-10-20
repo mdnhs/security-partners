@@ -1,0 +1,638 @@
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Eye, History, Send } from "lucide-react"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import type { z } from "zod"
+
+import type { StatusPillSpec } from "@/components/admin/kit/content-status"
+import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
+import { useAssistantScreen } from "@/components/admin/ai/assistant-context"
+import {
+  type FocusedTextField,
+  SchemaForm,
+} from "@/components/admin/schema-form/schema-form"
+import { Button, buttonClassName } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useAutosave } from "@/hooks/use-autosave"
+import { ApiError, errorMessage } from "@/lib/api-client"
+import { isDeepEqual } from "@/lib/json"
+import type { RevisionEntity, VersionedDto } from "@/lib/schemas/api/content"
+
+import { useAdminSession } from "@/components/admin/session-provider"
+import { useMediaQuery } from "@/hooks/use-media-query"
+
+import { ConflictDialog } from "./conflict-dialog"
+import { EDITOR_ACTION, EditorLayout } from "./editor-layout"
+import { EditorTabs, SEO_TAB, useEditorTab } from "./editor-tabs"
+import { LivePreviewToggle, useLivePreview } from "./live-preview-toggle"
+import { PreviewPane } from "./preview-pane"
+import { PublishDialog } from "./publish-dialog"
+import { RevisionDrawer } from "./revision-drawer"
+import { SaveStateIndicator } from "./save-state"
+import { UnsavedGuard } from "./unsaved-guard"
+
+/** Zod issues → `{ "hero.heading": ["Required"] }` (client-side, before save/publish). */
+export function issuesToFieldErrors(
+  error: z.ZodError
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const issue of error.issues) {
+    const key = issue.path.length ? issue.path.map(String).join(".") : "_root"
+    ;(out[key] ??= []).push(issue.message)
+  }
+  return out
+}
+
+export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
+  title: string
+  /** One line of page copy under the title (see EditorLayout). */
+  description?: ReactNode
+  /** Omit inside route tabs (Settings): the tab rail is the way back. */
+  backHref?: string
+  backLabel?: string
+  /** Public path shown in the header (e.g. "/services/x"). */
+  path?: string
+  queryKey: readonly unknown[]
+  load: () => Promise<Dto>
+  saveDraft: (draft: unknown, version: number) => Promise<Dto>
+  publish: (version: number) => Promise<Dto>
+  restore: (revisionId: string, version: number) => Promise<Dto>
+  schema: z.ZodObject
+  meta: EditorMeta
+  revisions: { entity: RevisionEntity; id: string }
+  previewHref?: string
+  publicHref?: string
+  canEdit: boolean
+  canPublish: boolean
+  /** Extra header actions (e.g. delete a service, an article's workflow). */
+  actions?: EditorSlot<Dto>
+  /** Side panel (e.g. a service's slug, an article's settings). */
+  aside?: EditorSlot<Dto>
+  /** See EditorLayout: "xl" puts the side panel beside the form sooner. */
+  asideColumnFrom?: "xl" | "2xl"
+  /** See EditorLayout: long titles keep room beside the actions. */
+  longTitle?: boolean
+  /**
+   * Status pills (default: Draft / Published / Unpublished changes), from
+   * the record and whether it has edits the site does not show.
+   */
+  status?: (record: Dto, dirty: boolean) => readonly StatusPillSpec[]
+  /**
+   * The record's SEO tab (MK D1.4): top Content / SEO tabs, the SEO one
+   * selected by ?tab=seo. Both stay mounted once shown (unsaved edits on
+   * either side survive a switch).
+   */
+  seo?: EditorSlot<Dto>
+}
+
+/** A plain node, or one rendered from the editor's state. */
+export type EditorSlot<Dto> =
+  ReactNode | ((ctx: EditorActionContext<Dto>) => ReactNode)
+
+/** Renders an EditorSlot: a plain node as is, a function with the context. */
+function Slot<Dto>({
+  value,
+  ctx,
+}: {
+  value: EditorSlot<Dto>
+  ctx: EditorActionContext<Dto>
+}) {
+  return typeof value === "function" ? value(ctx) : value
+}
+
+/** What render-prop actions and side panels get from the editor. */
+export type EditorActionContext<Dto> = {
+  /** The record as last returned by the API. */
+  record: Dto
+  /** The form's current (possibly unsaved) draft. */
+  draft: unknown
+  /** Saves pending edits now; false when the draft is invalid or the save failed. */
+  flush: () => Promise<boolean>
+  /** The version to send with the next request (updated after every save). */
+  version: () => number
+  /** Takes a record returned by another request (new status/version). */
+  accept: (dto: Dto) => void
+  /**
+   * Someone else changed the record (a 409's `current`): the form, the
+   * header and the version switch to their record, so a retry is current.
+   */
+  takeTheirs: (dto: Dto) => void
+  /** Marks every invalid field; true when there were errors. */
+  showAllErrors: () => boolean
+  /** True while the form may be edited. */
+  canEdit: boolean
+}
+
+/**
+ * Draft editor for any versioned record (spec §8.2): autosave (1.5 s),
+ * ⌘S, save-state, unsaved guard, publish with diff, history + restore,
+ * conflict dialog on 409, optimistic cache with rollback.
+ */
+export function VersionedEditor<Dto extends VersionedDto<unknown>>(
+  props: VersionedEditorProps<Dto>
+) {
+  const query = useQuery({
+    queryKey: props.queryKey,
+    queryFn: props.load,
+    staleTime: 0,
+  })
+  if (query.isPending)
+    return (
+      <div role="status" className="flex flex-col gap-4">
+        {/* Text, not aria-label/aria-busy: a live region reads its content. */}
+        <span className="sr-only">Loading editor…</span>
+        <Skeleton className="bg-skeleton rounded-card h-20" />
+        <Skeleton className="bg-skeleton rounded-card h-64" />
+        <Skeleton className="bg-skeleton rounded-card h-64" />
+      </div>
+    )
+  if (query.isError)
+    return (
+      <div
+        role="alert"
+        className="rounded-card flex flex-col items-start gap-3 border bg-card p-6"
+      >
+        <p className="font-medium">This editor could not be loaded.</p>
+        <p className="text-sm text-muted-foreground">
+          {errorMessage(query.error)}
+        </p>
+        <Button type="button" variant="outline" onClick={() => query.refetch()}>
+          Try again
+        </Button>
+      </div>
+    )
+  return <LoadedEditor {...props} initial={query.data} />
+}
+
+function LoadedEditor<Dto extends VersionedDto<unknown>>({
+  initial,
+  ...props
+}: VersionedEditorProps<Dto> & { initial: Dto }) {
+  const queryClient = useQueryClient()
+  const [draft, setDraft] = useState<unknown>(initial.draft)
+  const [base, setBase] = useState({
+    version: initial.version,
+    saved: initial.draft,
+  })
+  const [record, setRecord] = useState<Dto>(initial)
+  const [resetKey, setResetKey] = useState(0)
+  // Live preview (ruling D9): an opt-in switch, only where the pane fits
+  // (2xl). Never a hidden pane: the preview route switches draft mode on.
+  const { user } = useAdminSession()
+  const [livePreview, setLivePreview] = useLivePreview(user.id)
+  const wide = useMediaQuery("(min-width: 1536px)")
+  const paneAvailable = !!props.previewHref && wide
+  const [fieldErrors, setFieldErrors] = useState<
+    Record<string, string[]> | undefined
+  >()
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  // The version to send next. Updated synchronously (a publish right after
+  // a save must use the version that save returned).
+  const baseRef = useRef(base)
+
+  const accept = (dto: Dto, savedDraft: unknown = dto.draft) => {
+    const next = { version: dto.version, saved: savedDraft }
+    baseRef.current = next
+    setBase(next)
+    setRecord(dto)
+    queryClient.setQueryData(props.queryKey, dto)
+    // Lists of this resource (["services"], ["services", { page: 2 }], …)
+    // show status badges: refetch them when next shown. Not this editor's own
+    // query, which now holds `dto`.
+    void queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === props.queryKey[0] &&
+        !isDeepEqual(query.queryKey, props.queryKey),
+      refetchType: "none",
+    })
+  }
+  // Until the user interacts with the form, whatever it emits is its own
+  // normalization of the loaded draft (e.g. a composed stat value): that is
+  // the saved baseline, not an edit to autosave.
+  const touched = useRef(false)
+  const markTouched = () => {
+    touched.current = true
+  }
+  // AI assistant (spec §8.3): the open record and the focused text field.
+  const assistant = useAssistantScreen({
+    title: props.title,
+    entityType: props.revisions.entity,
+    entityId: props.revisions.id,
+    record: draft,
+  })
+  const onFieldFocus = (field: FocusedTextField) =>
+    assistant.setField({
+      path: field.path,
+      label: field.label,
+      maxLength: field.maxLength,
+      multiline: field.multiline,
+      elementId: field.elementId,
+      read: field.read,
+      // An inserted suggestion is an edit like typing: autosave picks it up.
+      apply: (text) => {
+        markTouched()
+        return field.setValue(text)
+      },
+    })
+  const onFormChange = (value: unknown) => {
+    if (!touched.current) {
+      baseRef.current = { ...baseRef.current, saved: value }
+      setBase(baseRef.current)
+    }
+    setDraft(value)
+  }
+  const replaceDraft = (dto: Dto) => {
+    touched.current = false
+    accept(dto)
+    setDraft(dto.draft)
+    setFieldErrors(undefined)
+    setResetKey((k) => k + 1)
+  }
+
+  // The 409 of the latest draft save (if any): a publish whose pre-save hit
+  // it is already handled by the autosave conflict dialog.
+  const saveConflict = useRef<ApiError | null>(null)
+  // A 409 from a publish or restore call (someone saved after our last save).
+  const [requestConflict, setRequestConflict] = useState<ApiError | null>(null)
+  // "Overwrite with mine" saves once the new base has rendered (the
+  // autosave hook compares against it).
+  const [flushRequest, setFlushRequest] = useState(0)
+  // The open conflict came from a restore (which did not run); kept for the
+  // overwrite toast.
+  const restoreConflict = useRef(false)
+  const overwroteRestore = useRef(false)
+
+  const save = useMutation({
+    mutationFn: (value: unknown) => {
+      saveConflict.current = null
+      return props.saveDraft(value, baseRef.current.version)
+    },
+    onMutate: async (value) => {
+      await queryClient.cancelQueries({ queryKey: props.queryKey })
+      const previous = queryClient.getQueryData<Dto>(props.queryKey)
+      if (previous)
+        queryClient.setQueryData(props.queryKey, { ...previous, draft: value })
+      return { previous }
+    },
+    onError: (error, _value, context) => {
+      if (context?.previous)
+        queryClient.setQueryData(props.queryKey, context.previous)
+      if (error instanceof ApiError && error.status === 422)
+        setFieldErrors(error.fieldErrors)
+      if (error instanceof ApiError && error.isConflict)
+        saveConflict.current = error
+    },
+    onSuccess: (dto, value) => {
+      accept(dto, value)
+      setFieldErrors(undefined)
+    },
+  })
+
+  const { schema } = props
+  const isValid = useCallback(
+    (value: unknown) => schema.safeParse(value).success,
+    [schema]
+  )
+  const autosave = useAutosave({
+    value: draft,
+    savedValue: base.saved,
+    save: async (value) => {
+      await save.mutateAsync(value)
+    },
+    isValid,
+    enabled: props.canEdit,
+  })
+  const { flush } = autosave
+  useEffect(() => {
+    if (flushRequest === 0) return
+    const afterRestore = overwroteRestore.current
+    overwroteRestore.current = false
+    void flush().then((saved) => {
+      if (!saved) return
+      const hints = [
+        afterRestore ? "The restore did not run: restore again if needed." : "",
+        record.published ? "Publish to put it on the site." : "",
+      ].filter(Boolean)
+      toast.success("Your version replaced theirs", {
+        description: hints.length ? hints.join(" ") : undefined,
+      })
+    })
+    // Runs once per overwrite request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flushRequest, flush])
+
+  const showAllErrors = () => {
+    const result = props.schema.safeParse(draft)
+    if (result.success) return false
+    const errors = issuesToFieldErrors(result.error)
+    setFieldErrors(errors)
+    toast.error(`Fix ${Object.keys(errors).length} field(s) first`, {
+      description: "The fields with problems are marked in red.",
+    })
+    return true
+  }
+
+  // ⌘S asked for a save: "Saved" is announced when it lands, until the next
+  // edit (autosaves stay silent, final review M4).
+  const [savedOnRequest, setSavedOnRequest] = useState(false)
+  if (savedOnRequest && autosave.state === "unsaved") setSavedOnRequest(false)
+  // ⌘S / Ctrl+S saves now.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key?.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey))
+        return
+      event.preventDefault()
+      if (!props.canEdit || showAllErrors()) return
+      setSavedOnRequest(true)
+      void autosave.flush()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  })
+
+  const publish = useMutation({
+    mutationFn: async () => {
+      saveConflict.current = null
+      if (!(await autosave.flush()))
+        throw (
+          saveConflict.current ??
+          // An open conflict (the flush refused to send): show it again.
+          autosave.conflict ??
+          requestConflict ??
+          new Error("Save your changes before publishing.")
+        )
+      return props.publish(baseRef.current.version)
+    },
+    onSuccess: (dto) => {
+      accept(dto)
+      setPublishOpen(false)
+      void queryClient.invalidateQueries({
+        queryKey: ["revisions", props.revisions.entity, props.revisions.id],
+      })
+      toast.success("Published", {
+        description: "The site shows the new version now.",
+        action: props.publicHref
+          ? {
+              label: "View",
+              onClick: () =>
+                window.open(props.publicHref, "_blank", "noopener"),
+            }
+          : undefined,
+      })
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.isConflict) {
+        // Resolve the conflict first; the conflict dialog takes over.
+        setPublishOpen(false)
+        if (error !== saveConflict.current) setRequestConflict(error)
+        return
+      }
+      toast.error("Not published", { description: errorMessage(error) })
+    },
+  })
+
+  const conflict = autosave.conflict ?? requestConflict
+  const current = (conflict?.current ?? null) as Dto | null
+  const actionContext: EditorActionContext<Dto> = {
+    record,
+    draft,
+    flush: autosave.flush,
+    version: () => baseRef.current.version,
+    accept: (dto) => accept(dto),
+    takeTheirs: (dto) => {
+      replaceDraft(dto)
+      void queryClient.invalidateQueries({
+        queryKey: ["revisions", props.revisions.entity, props.revisions.id],
+      })
+    },
+    showAllErrors,
+    canEdit: props.canEdit,
+  }
+  // Rendered by a child (Slot): the context's functions read refs, which
+  // only event handlers may call, never this render.
+  const slot = (value: EditorSlot<Dto>) =>
+    value == null || value === false ? null : (
+      <Slot value={value} ctx={actionContext} />
+    )
+  const dirty = autosave.dirty || record.dirty
+  const resolveConflict = () => {
+    restoreConflict.current = false
+    autosave.resolveConflict()
+    setRequestConflict(null)
+  }
+  const seoTab = useEditorTab(!!props.seo)
+  // Field errors (a failed publish, a 422) are all in the content: leave the
+  // SEO tab so they show. The form's section tabs usually move to the
+  // errored section first (then ?tab= is no longer "seo" and this is a no-op).
+  const { select: selectEditorTab } = seoTab
+  const contentRef = useRef<HTMLDivElement>(null)
+  const focusInvalid = useRef(false)
+  useEffect(() => {
+    if (!fieldErrors || Object.keys(fieldErrors).length === 0) return
+    if (new URLSearchParams(window.location.search).get("tab") === SEO_TAB) {
+      focusInvalid.current = true
+      selectEditorTab("content", { replace: true })
+    }
+    // Once per new set of errors.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrors])
+  // A form without section tabs (no FormTabs to do it): once Content shows,
+  // focus its first invalid field.
+  useEffect(() => {
+    if (!focusInvalid.current || seoTab.active) return
+    focusInvalid.current = false
+    const root = contentRef.current
+    if (!root || root.contains(document.activeElement)) return
+    root.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  })
+  const form = (
+    <div
+      ref={contentRef}
+      onKeyDownCapture={markTouched}
+      onPointerDownCapture={markTouched}
+      onInputCapture={markTouched}
+      onPasteCapture={markTouched}
+      onDropCapture={markTouched}
+    >
+      <SchemaForm
+        schema={props.schema}
+        meta={props.meta}
+        value={draft as never}
+        onChange={onFormChange}
+        errors={fieldErrors}
+        resetKey={resetKey}
+        disabled={!props.canEdit}
+        sectionTabs="Sections"
+        onFieldFocus={props.canEdit ? onFieldFocus : undefined}
+      />
+    </div>
+  )
+
+  return (
+    <>
+      <UnsavedGuard when={autosave.state !== "saved"} />
+      <EditorLayout
+        backHref={props.backHref}
+        backLabel={props.backLabel}
+        title={props.title}
+        description={props.description}
+        path={props.path}
+        status={
+          props.status
+            ? props.status(record, dirty)
+            : { published: record.published, dirty }
+        }
+        saveState={
+          props.canEdit ? (
+            <SaveStateIndicator
+              state={autosave.state}
+              onRetry={() => void autosave.flush()}
+              savedOnRequest={savedOnRequest}
+            />
+          ) : null
+        }
+        actions={
+          <>
+            {slot(props.actions)}
+            {paneAvailable ? (
+              <LivePreviewToggle
+                checked={livePreview}
+                onCheckedChange={setLivePreview}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className={EDITOR_ACTION}
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History aria-hidden />
+              {/* Icon only on phones; the name stays (WCAG 2.5.3). */}
+              <span className="max-sm:sr-only">History</span>
+            </Button>
+            {props.previewHref ? (
+              <a
+                href={props.previewHref}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  buttonClassName({ variant: "outline" }),
+                  EDITOR_ACTION
+                )}
+              >
+                <Eye aria-hidden />
+                <span className="max-sm:sr-only">Preview</span>
+              </a>
+            ) : null}
+            {props.canPublish ? (
+              <Button
+                type="button"
+                className={EDITOR_ACTION}
+                // Resolve an open conflict first (its dialog says how).
+                disabled={conflict !== null}
+                onClick={() => {
+                  if (showAllErrors()) return
+                  setPublishOpen(true)
+                }}
+              >
+                <Send aria-hidden />
+                Publish
+              </Button>
+            ) : null}
+          </>
+        }
+        aside={slot(props.aside)}
+        asideHidden={seoTab.active}
+        asideColumnFrom={props.asideColumnFrom}
+        longTitle={props.longTitle}
+        preview={
+          // The SEO tab has its own previews: no content preview beside it.
+          paneAvailable && livePreview && !seoTab.active ? (
+            <PreviewPane src={props.previewHref!} refreshKey={base.version} />
+          ) : undefined
+        }
+      >
+        {props.seo ? (
+          <EditorTabs state={seoTab} content={form} seo={slot(props.seo)} />
+        ) : (
+          form
+        )}
+      </EditorLayout>
+      <PublishDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        meta={props.meta}
+        published={record.published}
+        draft={draft}
+        pending={publish.isPending}
+        onConfirm={() => publish.mutate()}
+      />
+      <RevisionDrawer
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        entity={props.revisions.entity}
+        entityId={props.revisions.id}
+        canRestore={props.canEdit}
+        onRestore={async (revision) => {
+          try {
+            const dto = await props.restore(
+              revision.id,
+              baseRef.current.version
+            )
+            replaceDraft(dto)
+            toast.success(`Version ${revision.version} restored into the draft`)
+          } catch (error) {
+            if (error instanceof ApiError && error.isConflict) {
+              // Someone saved meanwhile: resolve it like a save conflict.
+              setHistoryOpen(false)
+              restoreConflict.current = true
+              setRequestConflict(error)
+              return
+            }
+            toast.error("Not restored", { description: errorMessage(error) })
+            throw error
+          }
+        }}
+      />
+      <ConflictDialog
+        open={conflict !== null}
+        updatedBy={current?.updatedBy?.name ?? null}
+        updatedAt={current?.updatedAt ?? null}
+        onReload={() => {
+          if (current) replaceDraft(current)
+          resolveConflict()
+        }}
+        onOverwrite={() => {
+          if (!current) {
+            // Without their version we cannot know which version to send.
+            toast.error("Their version could not be loaded", {
+              description: "Copy yours, then reload the page.",
+            })
+            return
+          }
+          // Their record becomes the base; saving mine over it sends their
+          // version, so the server accepts it.
+          baseRef.current = { version: current.version, saved: current.draft }
+          setBase(baseRef.current)
+          overwroteRestore.current = restoreConflict.current
+          resolveConflict()
+          setFlushRequest((n) => n + 1)
+        }}
+        onCopyMine={async () => {
+          try {
+            await navigator.clipboard.writeText(JSON.stringify(draft, null, 2))
+            toast.success("Your version is on the clipboard")
+          } catch {
+            toast.error("Could not copy to the clipboard")
+          }
+          if (current) replaceDraft(current)
+          resolveConflict()
+        }}
+      />
+    </>
+  )
+}

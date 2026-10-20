@@ -1,0 +1,208 @@
+name: CI
+
+# Pull requests run it directly (one run per PR update, not also per branch
+# push); main runs it from deploy.yml (workflow_call), so a failing check
+# blocks the deploy. workflow_dispatch: run it by hand on any branch.
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a PR cancels its older run. Called from deploy.yml (the
+# caller's event is push/workflow_dispatch) every run gets its own group, so
+# a deploy's checks are never cancelled.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  static:
+    name: Lint, types, unit, audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.23.3
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec next typegen
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - run: pnpm exec vitest run --project dom
+      - run: pnpm audit:deps
+
+  integration:
+    name: Integration (Postgres + Mailpit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: sp
+          POSTGRES_PASSWORD: sp
+          POSTGRES_DB: sp_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sp -d sp_dev"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      mailpit:
+        image: axllent/mailpit:v1.31.4
+        ports: ["1025:1025", "8025:8025"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.23.3
+          cache: pnpm
+      - name: PostgreSQL 17 client (pg_dump/pg_restore for backup tests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Create sp_test and sp_e2e
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U sp -d sp_dev -c "CREATE DATABASE sp_test" -c "CREATE DATABASE sp_e2e"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+
+  build:
+    name: Build without env
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.23.3
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Spec §1.2 #4: no DATABASE_URL / BETTER_AUTH_* in this job.
+      - run: pnpm build
+      - run: pnpm scripts:build
+
+  e2e:
+    name: E2E (Postgres + Mailpit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: sp
+          POSTGRES_PASSWORD: sp
+          POSTGRES_DB: sp_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sp -d sp_dev"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      mailpit:
+        image: axllent/mailpit:v1.31.4
+        ports: ["1025:1025", "8025:8025"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.23.3
+          cache: pnpm
+      - name: Create sp_test and sp_e2e
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U sp -d sp_dev -c "CREATE DATABASE sp_test" -c "CREATE DATABASE sp_e2e"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      # Visual baselines are macOS-only (ledger ruling): E2E only here.
+      - name: E2E
+        run: |
+          set -o pipefail
+          pnpm test:e2e 2>&1 | tee e2e.log
+      - name: No secrets in the server and test output
+        run: pnpm exec tsx scripts/check-log-secrets.ts e2e.log
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-results
+          path: |
+            test-results/
+            e2e.log
+          retention-days: 7
+
+  image:
+    name: Docker image smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: sp
+          POSTGRES_PASSWORD: sp
+          POSTGRES_DB: sp_smoke
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sp -d sp_smoke"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # The app's three variables, for every `docker run` below.
+      - name: Smoke env file
+        run: |
+          {
+            echo "DATABASE_URL=postgres://sp:sp@127.0.0.1:5432/sp_smoke"
+            echo "BETTER_AUTH_SECRET=ci-smoke-secret-0123456789abcdef0123456789"
+            echo "BETTER_AUTH_URL=http://localhost:3000"
+          } > smoke.env
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          load: true
+          push: false
+          tags: sp:ci
+          cache-from: type=gha
+      # Entrypoint migrates, then auto-seeds the empty database (seed.mjs
+      # --if-empty needs sharp + public/images, P03 carry), then starts.
+      - run: docker run -d --name sp --network host --env-file smoke.env sp:ci
+      - name: Server ready (readiness touches the DB)
+        run: |
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3000/api/v1/health && exit 0
+            sleep 2
+          done
+          docker logs sp
+          exit 1
+      - run: curl -fsS -o /dev/null http://127.0.0.1:3000/
+      # First start seeded the empty database; a second run changes nothing.
+      - run: |
+          docker logs sp 2>&1 | grep -F "[db:seed] empty database (no pages): content seeded"
+      - run: docker exec sp node scripts/dist/seed.mjs --if-empty | grep -F "auto-seed skipped, no data changed"
+      # Loopback reachable inside the container (scheduler, HEALTHCHECK).
+      - run: docker exec sp wget -qO- http://127.0.0.1:3000/api/v1/health/live
+      # pg_dump in the image, /data writable, scratch restore works.
+      - run: docker exec sp node scripts/dist/backup.mjs
+      - run: docker exec sp node scripts/dist/restore-drill.mjs
+      - if: always()
+        run: docker logs sp || true
+      - run: docker stop -t 15 sp

@@ -1,0 +1,21 @@
+import "server-only"
+
+// Every table/enum module is re-exported here; drizzle.config.ts and
+// getDb() both read this file. Later phases append `export * from "./<module>"`.
+export { contentStatus } from "./_shared"
+export * from "./auth"
+export * from "./audit"
+export * from "./media"
+export * from "./pages"
+export * from "./services"
+export * from "./articles"
+export * from "./collections"
+export * from "./settings"
+export * from "./revisions"
+export * from "./redirects"
+export * from "./leads"
+export * from "./jobs"
+export * from "./ai"
+export * from "./rate-limits"
+export * from "./newsletter"
+export * from "./builder-pages"

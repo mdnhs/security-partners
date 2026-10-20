@@ -1,0 +1,663 @@
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const push = vi.fn()
+const replace = vi.fn()
+const refresh = vi.fn()
+// The leads screen writes its URL with the native history API (Next keeps
+// useSearchParams in sync with it): read the live address.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/leads",
+  useRouter: () => ({ push, replace, refresh }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}))
+
+import { useAssistant } from "@/components/admin/ai/assistant-context"
+import { LeadDrawer } from "@/components/admin/leads/lead-drawer"
+import { LeadsScreen } from "@/components/admin/leads/leads-screen"
+import { makeQueryClient } from "@/components/admin/providers"
+import { AdminShell } from "@/components/admin/shell/admin-shell"
+import type { Role } from "@/lib/auth/roles"
+import type { LeadDto } from "@/lib/schemas/api/leads"
+
+import { pickOption } from "./select-helper"
+
+const ID = "0190a6e0-0000-7000-8000-0000000000aa"
+const GONE = "0190a6e0-0000-7000-8000-0000000000bb"
+const lead: LeadDto = {
+  id: ID,
+  name: "Dinn Rí",
+  email: "dinn@example.ie",
+  phone: "085 000 0000",
+  company: null,
+  service: null,
+  status: "new",
+  assignee: null,
+  sourcePage: "/contact",
+  createdAt: "2026-10-16T09:00:00.000Z",
+  updatedAt: "2026-10-16T09:00:00.000Z",
+  message: "Line one\nLine two",
+  consent: true,
+  attribution: null,
+  events: [
+    {
+      id: "e1",
+      type: "created",
+      body: "Sent from /contact",
+      actor: null,
+      createdAt: "2026-10-16T09:00:00.000Z",
+    },
+    {
+      id: "e2",
+      type: "note",
+      body: "Rang back",
+      actor: { id: "u", name: "Ian Intake" },
+      createdAt: "2026-10-16T10:00:00.000Z",
+    },
+  ],
+}
+
+/** Test knobs: hold PATCH replies until released; fail them; export reply. */
+let holdPatch: Promise<void> | null = null
+let failPatch = false
+let exportStatus = 200
+/** What GET /leads/:id answers (D3.1 source section). */
+let detail: LeadDto = lead
+/** The newsletter lookup's answer for the lead's address (privacy helper). */
+let onNewsletter = false
+
+const calls: { url: string; method: string; body: unknown }[] = []
+const onClose = vi.fn()
+/** The lead drawer (D3.2) as the leads screen renders it. */
+const drawer = (id: string) => <LeadDrawer id={id} onClose={onClose} />
+const at = (url: string) => window.history.replaceState(null, "", url)
+beforeEach(() => {
+  // These tests drive the table view (the board is the default, D3.3).
+  window.localStorage.setItem("sp-leads-view", "table")
+  calls.length = 0
+  onClose.mockClear()
+  holdPatch = null
+  failPatch = false
+  exportStatus = 200
+  detail = lead
+  onNewsletter = false
+  push.mockClear()
+  replace.mockClear()
+  refresh.mockClear()
+  window.history.replaceState(null, "", "/admin/leads")
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input)
+      const method =
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined
+      calls.push({ url, method, body })
+      const reply = (data: unknown, status = 200) =>
+        new Response(JSON.stringify(data), {
+          status,
+          headers: { "content-type": "application/json" },
+        })
+      if (url.includes("/leads/export.csv"))
+        return exportStatus === 200
+          ? new Response("﻿Name\r\nDinn Rí\r\n", {
+              headers: {
+                "content-type": "text/csv; charset=utf-8",
+                "content-disposition":
+                  'attachment; filename="leads-2026-10-16.csv"',
+              },
+            })
+          : reply(
+              {
+                error: {
+                  code: "VALIDATION",
+                  message:
+                    "More than 50,000 enquiries match. Narrow the filters to export.",
+                },
+              },
+              exportStatus
+            )
+      if (url.includes("/newsletter/lookup"))
+        return reply({
+          subscriber: onNewsletter
+            ? {
+                id: "0190a6e0-0000-7000-8000-0000000000dd",
+                email: body.email,
+                status: "confirmed",
+                sourcePath: "/blog",
+                createdAt: "2026-10-01T09:00:00.000Z",
+                confirmedAt: "2026-10-01T09:00:00.000Z",
+                unsubscribedAt: null,
+              }
+            : null,
+        })
+      if (url.includes("/newsletter/erase")) {
+        onNewsletter = false
+        return reply({ erased: 1 })
+      }
+      if (url.includes("/leads/assignees"))
+        return reply({
+          items: [{ id: "u", name: "Ian Intake", email: "ian@x.test" }],
+        })
+      if (url.includes(`/leads/${ID}/events`))
+        return reply(
+          {
+            ...lead,
+            events: [
+              ...lead.events,
+              {
+                id: "e3",
+                type: "note",
+                body: body.body,
+                actor: { id: "u", name: "Ian Intake" },
+                createdAt: "2026-10-16T11:00:00.000Z",
+              },
+            ],
+          },
+          201
+        )
+      if (url.includes(`/leads/${GONE}`))
+        return reply(
+          { error: { code: "NOT_FOUND", message: "Not found" } },
+          404
+        )
+      if (url.includes(`/leads/${ID}`)) {
+        if (method === "PATCH") {
+          if (holdPatch) await holdPatch
+          if (failPatch)
+            return reply(
+              { error: { code: "CONFLICT", message: "Someone else saved" } },
+              409
+            )
+          return reply({ ...lead, ...body })
+        }
+        if (method === "DELETE") return reply({ ok: true })
+        return reply(detail)
+      }
+      return reply({ items: [lead], page: 1, pageSize: 20, total: 1 })
+    })
+  )
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+function renderAs(roles: Role[], ui: React.ReactNode) {
+  render(
+    <AdminShell
+      queryClient={makeQueryClient()}
+      site={{ url: "http://localhost:3000", env: "development" }}
+      session={{
+        user: {
+          id: "u",
+          name: "Ian Intake",
+          email: "ian@x.test",
+          title: null,
+          twoFactorEnabled: true,
+        },
+        roles,
+        impersonatedBy: null,
+      }}
+    >
+      {ui}
+    </AdminShell>
+  )
+}
+
+/** Stubs the blob download; returns the clicked <a download> names. */
+function captureDownloads() {
+  const saved: string[] = []
+  Object.assign(URL, {
+    createObjectURL: vi.fn(() => "blob:csv"),
+    revokeObjectURL: vi.fn(),
+  })
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+    this: HTMLAnchorElement
+  ) {
+    saved.push(this.download)
+  })
+  return saved
+}
+
+describe("leads inbox (master 7.4)", () => {
+  it("lists leads with status, link to the drawer, filters and CSV export", async () => {
+    at("/admin/leads?status=new&assignee=none")
+    const user = userEvent.setup()
+    const saved = captureDownloads()
+    renderAs(["intake"], <LeadsScreen />)
+    const table = await screen.findByRole("table", { name: "Leads" })
+    const link = await within(table).findByRole("link", { name: "Dinn Rí" })
+    expect(link).toHaveAttribute("href", `/admin/leads?lead=${ID}`)
+    expect(within(table).getByText("New")).toBeInTheDocument()
+    expect(within(table).getByText("Unassigned")).toBeInTheDocument()
+    expect(screen.getByLabelText("Status")).toHaveTextContent("New")
+    expect(screen.getByLabelText("Assignee")).toHaveTextContent("Unassigned")
+    expect(
+      calls.some(
+        (c) => c.url.includes("status=new") && c.url.includes("assignee=none")
+      )
+    ).toBe(true)
+
+    await user.click(screen.getByRole("button", { name: "Export CSV" }))
+    await waitFor(() => expect(saved).toEqual(["leads-2026-10-16.csv"]))
+    expect(calls.some((c) => c.url.includes("/leads/export.csv"))).toBe(true)
+    expect(calls.find((c) => c.url.includes("export.csv"))!.url).toBe(
+      "/api/v1/admin/leads/export.csv?status=new&assignee=none"
+    )
+
+    // Spam is a tab of its own now (D3.2), not a status of the inbox.
+    await user.click(screen.getByLabelText("Status"))
+    const statuses = await screen.findByRole("listbox")
+    expect(within(statuses).queryByRole("option", { name: "Spam" })).toBeNull()
+    await user.keyboard("{Escape}")
+    await pickOption(user, screen.getByLabelText("Status"), "Contacted")
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("status=contacted"))).toBe(true)
+    )
+    // The filters follow the URL, so a reload keeps them.
+    expect(window.location.search).toBe("?status=contacted&assignee=none")
+    await pickOption(user, screen.getByLabelText("Assignee"), "Anyone")
+    expect(window.location.search).toBe("?status=contacted")
+
+    // The search goes into the export too.
+    await user.type(screen.getByRole("searchbox"), "Dinn")
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("q=Dinn"))).toBe(true)
+    )
+    await user.click(screen.getByRole("button", { name: "Export CSV" }))
+    await waitFor(() =>
+      expect(
+        calls.filter((c) => c.url.includes("export.csv")).at(-1)!.url
+      ).toBe("/api/v1/admin/leads/export.csv?status=contacted&q=Dinn")
+    )
+  })
+
+  it("the Spam tab exports the spam folder", async () => {
+    at("/admin/leads?folder=spam")
+    const user = userEvent.setup()
+    const saved = captureDownloads()
+    renderAs(["intake"], <LeadsScreen />)
+    await screen.findByRole("table", { name: "Leads" })
+    await user.click(screen.getByRole("button", { name: "Export CSV" }))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(calls.find((c) => c.url.includes("export.csv"))!.url).toBe(
+      "/api/v1/admin/leads/export.csv?status=spam"
+    )
+  })
+
+  it("a refused export is a toast, not a saved file", async () => {
+    exportStatus = 422
+    const user = userEvent.setup()
+    const saved = captureDownloads()
+    renderAs(["intake"], <LeadsScreen />)
+    await screen.findByRole("table", { name: "Leads" })
+    await user.click(screen.getByRole("button", { name: "Export CSV" }))
+    expect(await screen.findByText("Export failed")).toBeInTheDocument()
+    expect(
+      screen.getByText(/More than 50,000 enquiries match/)
+    ).toBeInTheDocument()
+    expect(saved).toEqual([])
+  })
+
+  it("keeps an unknown assignee filter as “Someone else”", async () => {
+    const user = userEvent.setup()
+    at(`/admin/leads?assignee=${GONE}`)
+    renderAs(["intake"], <LeadsScreen />)
+    await screen.findByRole("table", { name: "Leads" })
+    const select = screen.getByRole("combobox", { name: "Assignee" })
+    expect(select).toHaveTextContent("Someone else")
+    await user.click(select)
+    const listbox = await screen.findByRole("listbox")
+    expect(
+      await within(listbox).findByRole("option", { name: "Ian Intake" })
+    ).toBeInTheDocument()
+    expect(
+      within(listbox).getByRole("option", { name: "Someone else" })
+    ).toHaveAttribute("aria-selected", "true")
+    await user.keyboard("{Escape}")
+    expect(select).toHaveTextContent("Someone else")
+    expect(calls.some((c) => c.url.includes(`assignee=${GONE}`))).toBe(true)
+  })
+
+  it("drawer: sections, message, immediate status change, notes", async () => {
+    const user = userEvent.setup()
+    const saved = captureDownloads()
+    renderAs(["intake"], drawer(ID))
+    const dialog = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    expect(
+      within(dialog).getByRole("heading", { level: 2, name: "Dinn Rí" })
+    ).toBeInTheDocument()
+    expect(
+      within(dialog)
+        .getAllByRole("region")
+        .map((r) => r.querySelector("h3")?.textContent)
+    ).toEqual([
+      "Contact",
+      "Message",
+      "Source",
+      "Status & assignee",
+      "Notes",
+      "Activity",
+    ])
+    expect(screen.getByText(/Line one/)).toHaveClass("whitespace-pre-wrap")
+
+    await pickOption(user, screen.getByLabelText("Lead status"), "Contacted")
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
+        status: "contacted",
+      })
+    )
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+
+    const notes = within(dialog).getByRole("region", { name: "Notes" })
+    expect(within(notes).getByText("Rang back")).toBeInTheDocument()
+    const box = screen.getByLabelText("Add a note")
+    await user.type(box, "Sent a quote")
+    await user.click(screen.getByRole("button", { name: "Add note" }))
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+        body: "Sent a quote",
+      })
+    )
+    expect(await within(notes).findByText("Sent a quote")).toBeInTheDocument()
+    // Focus goes back to the (now empty) box, not to the page.
+    await waitFor(() => expect(box).toHaveFocus())
+    expect(box).toHaveValue("")
+
+    const activity = within(dialog).getByRole("region", { name: "Activity" })
+    expect(within(activity).getByText("Sent from /contact")).toBeInTheDocument()
+    expect(within(activity).getByText(/^Website ·/)).toBeInTheDocument()
+
+    // intake cannot delete (lead:delete is owner/admin)
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: "Export this person's data" })
+    )
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(calls.find((c) => c.url.includes("export.csv"))!.url).toBe(
+      "/api/v1/admin/leads/export.csv?status=all&email=dinn%40example.ie"
+    )
+  })
+
+  it("status select keeps focus and stays enabled while saving; saves run in order", async () => {
+    const user = userEvent.setup()
+    let release!: () => void
+    holdPatch = new Promise((resolve) => (release = resolve))
+    renderAs(["intake"], drawer(ID))
+    const select = await screen.findByLabelText("Lead status")
+    const card = screen.getByRole("region", { name: "Status & assignee" })
+    select.focus()
+    await pickOption(user, select, "Contacted")
+    await pickOption(user, select, "Qualified")
+    // Both choices show at once; the first save is still waiting.
+    expect(select).toHaveTextContent("Qualified")
+    expect(select).toBeEnabled()
+    expect(select).toHaveFocus()
+    expect(card).toHaveAttribute("aria-busy", "true")
+    // The busy card shows a progress cursor over its selects.
+    expect(select).toHaveClass("in-aria-busy:cursor-progress")
+    // Scoped: the second PATCH waits for the first.
+    expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1)
+    release()
+    await waitFor(() =>
+      expect(
+        calls.filter((c) => c.method === "PATCH").map((c) => c.body)
+      ).toEqual([{ status: "contacted" }, { status: "qualified" }])
+    )
+    await waitFor(() => expect(card).not.toHaveAttribute("aria-busy"))
+    // The older reply never overwrote the newer choice.
+    expect(select).toHaveTextContent("Qualified")
+    expect(select).toHaveFocus()
+  })
+
+  it("a failed save toasts and puts the select back to the server's value", async () => {
+    failPatch = true
+    const user = userEvent.setup()
+    renderAs(["intake"], drawer(ID))
+    const select = await screen.findByLabelText("Lead status")
+    await pickOption(user, select, "Won")
+    expect(await screen.findByText("Not saved")).toBeInTheDocument()
+    expect(screen.getByText("Someone else saved")).toBeInTheDocument()
+    await waitFor(() => expect(select).toHaveTextContent("New"))
+  })
+
+  it("detail: a Source section shows attribution as plain text (D3.1)", async () => {
+    detail = {
+      ...lead,
+      attribution: {
+        referrer: "https://www.google.com/search",
+        landingPath: "/services/static-guarding",
+        utm: {
+          utm_source: "<script>alert(1)</script>",
+          utm_campaign: "=HYPERLINK(1)",
+        },
+        capturedAt: "2026-10-16T08:55:00.000Z",
+      },
+    }
+    renderAs(["intake"], drawer(ID))
+    const source = await screen.findByRole("region", { name: "Source" })
+    const facts = Object.fromEntries(
+      within(source)
+        .getAllByRole("term")
+        .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent])
+    )
+    expect(facts).toMatchObject({
+      Referrer: "https://www.google.com/search",
+      "Landing page": "/services/static-guarding",
+      "UTM source": "<script>alert(1)</script>",
+      "UTM campaign": "=HYPERLINK(1)",
+    })
+    // Missing UTM values read as "Not given", not blank.
+    expect(facts["UTM medium"]).toContain("Not given")
+    // Never a link or markup: hostile values stay text.
+    expect(within(source).queryByRole("link")).toBeNull()
+    expect(source.querySelector("script")).toBeNull()
+  })
+
+  it("detail: the Source section says when nothing was recorded (D3.1)", async () => {
+    renderAs(["intake"], drawer(ID))
+    const source = await screen.findByRole("region", { name: "Source" })
+    expect(source).toHaveTextContent("No source was recorded for this enquiry.")
+  })
+
+  it("the sidebar's Leads item shows the server's new-leads count", () => {
+    render(
+      <AdminShell
+        queryClient={makeQueryClient()}
+        badges={{ "new-leads": 3 }}
+        session={{
+          user: {
+            id: "u",
+            name: "Ian Intake",
+            email: "ian@x.test",
+            title: null,
+            twoFactorEnabled: true,
+          },
+          roles: ["intake"],
+          impersonatedBy: null,
+        }}
+      >
+        <p>Body</p>
+      </AdminShell>
+    )
+    const nav = screen.getByRole("navigation", { name: "Admin" })
+    const leads = within(nav).getByRole("link", { name: /Enquiries/ })
+    expect(leads).toHaveAttribute("href", "/admin/leads")
+    expect(leads).toHaveAttribute("aria-current", "page")
+    expect(within(nav).getByLabelText("3 new enquiries")).toHaveTextContent("3")
+  })
+
+  it("admins can delete after confirming", async () => {
+    const user = userEvent.setup()
+    renderAs(["admin"], drawer(ID))
+    await user.click(await screen.findByRole("button", { name: "Delete" }))
+    await user.click(await screen.findByRole("button", { name: "Delete lead" }))
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "DELETE")).toBe(true)
+    )
+    // The drawer closes (clears ?lead=) instead of navigating.
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(push).not.toHaveBeenCalled()
+  })
+})
+
+describe("lead detail privacy helper: newsletter (D4.3)", () => {
+  const lookups = () =>
+    calls.filter((c) => c.url.includes("/newsletter/lookup"))
+  /** The lookup runs (and is audited) only on request (MK integration). */
+  async function check(user = userEvent.setup()) {
+    await user.click(
+      await screen.findByRole("button", { name: "Check the newsletter list" })
+    )
+    return user
+  }
+
+  it("never looks the address up just because the lead opened", async () => {
+    renderAs(["admin"], drawer(ID))
+    await screen.findByRole("button", { name: "Check the newsletter list" })
+    await screen.findByRole("heading", { name: "Dinn Rí" })
+    expect(lookups()).toEqual([])
+  })
+
+  it("says whether the address is also on the newsletter list", async () => {
+    onNewsletter = true
+    // Intake opens the lead; marketer adds newsletter:read (not delete).
+    renderAs(["intake", "marketer"], drawer(ID))
+    await check()
+    expect(
+      await screen.findByText("Also on the newsletter list: Yes")
+    ).toBeInTheDocument()
+    expect(lookups()[0]).toMatchObject({
+      method: "POST",
+      body: { email: "dinn@example.ie" },
+    })
+    // A marketer may read the list but not erase from it.
+    expect(
+      screen.queryByRole("button", { name: "Erase from newsletter" })
+    ).toBeNull()
+  })
+
+  it("No when absent; nothing at all without newsletter:read", async () => {
+    renderAs(["admin"], drawer(ID))
+    await check()
+    expect(
+      await screen.findByText("Also on the newsletter list: No")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Erase from newsletter" })
+    ).toBeNull()
+  })
+
+  it("is not shown (nor looked up) for intake", async () => {
+    renderAs(["intake"], drawer(ID))
+    await screen.findByRole("heading", { name: "Dinn Rí" })
+    expect(
+      screen.queryByRole("button", { name: "Check the newsletter list" })
+    ).toBeNull()
+    expect(screen.queryByText(/Also on the newsletter list/)).toBeNull()
+    expect(lookups()).toEqual([])
+  })
+
+  it("newsletter:delete erases the address after confirming", async () => {
+    onNewsletter = true
+    renderAs(["admin"], drawer(ID))
+    const user = await check()
+    const erase = await screen.findByRole("button", {
+      name: "Erase from newsletter",
+    })
+    // A 44 px target on touch.
+    expect(erase).toHaveClass("pointer-coarse:h-11", "pointer-coarse:min-w-11")
+    await user.click(erase)
+    const dialog = await screen.findByRole("alertdialog")
+    expect(dialog).toHaveTextContent("dinn@example.ie")
+    expect(calls.some((c) => c.url.includes("/newsletter/erase"))).toBe(false)
+    await user.click(within(dialog).getByRole("button", { name: "Erase" }))
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.url.includes("/newsletter/erase"))
+      ).toMatchObject({ method: "POST", body: { email: "dinn@example.ie" } })
+    )
+    expect(
+      await screen.findByText("Also on the newsletter list: No")
+    ).toBeInTheDocument()
+  })
+})
+
+describe("lead detail shares the lead with the assistant (spec §8.3)", () => {
+  /** Shows what the assistant would receive with the next message. */
+  function SharedScreen() {
+    const { screen: info, snapshot } = useAssistant()
+    return (
+      <output data-testid="shared">
+        {info ? JSON.stringify(snapshot()) : "nothing"}
+      </output>
+    )
+  }
+
+  it("shares which lead is open, no personal data (C9 review M5)", async () => {
+    renderAs(
+      ["intake"],
+      <>
+        <SharedScreen />
+        {drawer(ID)}
+      </>
+    )
+    const shared = screen.getByTestId("shared")
+    await waitFor(() => expect(shared).not.toHaveTextContent("nothing"))
+    const sent = JSON.parse(shared.textContent!)
+    // The server reads the lead itself and applies the owner's switch.
+    expect(sent).toEqual({
+      title: "Lead details",
+      entityType: "lead",
+      entityId: ID,
+    })
+    for (const pii of ["dinn@example.ie", "085 000 0000", "Dinn", "Line one"])
+      expect(shared.textContent).not.toContain(pii)
+  })
+
+  it("shares nothing for a lead that does not load", async () => {
+    renderAs(
+      ["intake"],
+      <>
+        <SharedScreen />
+        {drawer(GONE)}
+      </>
+    )
+    await screen.findByText("This enquiry no longer exists")
+    expect(screen.getByTestId("shared")).toHaveTextContent("nothing")
+  })
+
+  it("filters keep the table's search and follow Back/Forward (I8, M9)", async () => {
+    const user = userEvent.setup()
+    at("/admin/leads?status=open&q=Dinn&page=2")
+    renderAs(["intake"], <LeadsScreen />)
+    expect(await screen.findByLabelText("Status")).toHaveTextContent("Open")
+    await pickOption(user, screen.getByLabelText("Status"), "Contacted")
+    // The search stays; the page resets.
+    expect(window.location.search).toBe("?status=contacted&q=Dinn")
+    // Back: the URL says "qualified" again; the screen follows it on its
+    // next render (here: the search box's debounced update).
+    at("/admin/leads?status=qualified&q=Dinn")
+    await user.type(screen.getByRole("searchbox"), "x")
+    await waitFor(() =>
+      expect(screen.getByLabelText("Status")).toHaveTextContent("Qualified")
+    )
+  })
+
+  it("a note typed but not added asks before the drawer closes (final review I2)", async () => {
+    const user = userEvent.setup()
+    renderAs(["intake"], drawer(ID))
+    const dialog = await screen.findByRole("dialog", { name: "Dinn Rí" })
+    await user.type(
+      await within(dialog).findByLabelText("Add a note"),
+      "Rang them"
+    )
+    await user.click(within(dialog).getByRole("button", { name: "Close" }))
+    expect(
+      await screen.findByRole("alertdialog", { name: "Leave without saving?" })
+    ).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})

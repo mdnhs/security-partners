@@ -1,0 +1,3745 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "layout.meta.title",
+      "source": "app/(site)/layout.tsx:21",
+      "kind": "meta",
+      "value": "Security Partners Ltd. | Watching Over You",
+      "target": "settings.seo.defaults.title",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "layout.meta.description",
+      "source": "app/(site)/layout.tsx:23",
+      "kind": "meta",
+      "value": "Proactive, flexible and customer-focused security services across Ireland, backed by a dedicated 24/7 operations team. Based in Mountmellick, Co. Laois since 2008.",
+      "target": "settings.seo.defaults.description",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "layout.html.lang",
+      "source": "app/(site)/layout.tsx:33",
+      "kind": "meta",
+      "value": "en",
+      "target": "settings.site.locale",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.phone24h",
+      "source": "components/home/data.ts:2",
+      "kind": "tel",
+      "value": "(085) 8018746",
+      "target": "settings.contact.phone24h",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.phone24hHref",
+      "source": "components/home/data.ts:3",
+      "kind": "tel",
+      "value": "tel:+353858018746",
+      "target": "settings.contact.phone24hHref",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.office",
+      "source": "components/home/data.ts:4",
+      "kind": "tel",
+      "value": "057 8697670",
+      "target": "settings.contact.office",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.officeHref",
+      "source": "components/home/data.ts:5",
+      "kind": "tel",
+      "value": "tel:+353578697670",
+      "target": "settings.contact.officeHref",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.operationsMobile",
+      "source": "components/home/data.ts:6",
+      "kind": "tel",
+      "value": "085 859 1299",
+      "target": "settings.contact.operationsMobile",
+      "pages": [
+        "/",
+        "/services/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.operationsMobileHref",
+      "source": "components/home/data.ts:7",
+      "kind": "tel",
+      "value": "tel:+353858591299",
+      "target": "settings.contact.operationsMobileHref",
+      "pages": [
+        "/",
+        "/services/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.email",
+      "source": "components/home/data.ts:8",
+      "kind": "mailto",
+      "value": "info@securitypartnersltd.com",
+      "target": "settings.contact.email",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.operationsEmail",
+      "source": "components/home/data.ts:9",
+      "kind": "mailto",
+      "value": "operations@securitypartnersltd.com",
+      "target": "settings.contact.operationsEmail",
+      "pages": [
+        "/",
+        "/services/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.hours",
+      "source": "components/home/data.ts:10",
+      "kind": "text",
+      "value": "Monday–Friday, 9am to 6pm",
+      "target": "settings.contact.hours",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.addressLine1",
+      "source": "components/home/data.ts:11",
+      "kind": "text",
+      "value": "Derryguile, Mountmellick",
+      "target": "settings.contact.addressLine1",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.addressLine2",
+      "source": "components/home/data.ts:12",
+      "kind": "text",
+      "value": "Co. Laois, R32 YX49",
+      "target": "settings.contact.addressLine2",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.mapsHref",
+      "source": "components/home/data.ts:14",
+      "kind": "href",
+      "value": "https://www.google.com/maps/search/?api=1&query=Security+Partners+Ltd+Derryguile+Mountmellick+Co.+Laois+R32+YX49",
+      "target": "settings.contact.mapsHref",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "navigation.headerLinks",
+      "source": "components/home/data.ts:17",
+      "kind": "list",
+      "value": "5",
+      "target": "settings.navigation.headerLinks",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "navigation.headerLinks.label",
+      "source": "components/home/data.ts:18",
+      "kind": "text",
+      "value": "About",
+      "target": "settings.navigation.headerLinks[].label",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "navigation.headerLinks.href",
+      "source": "components/home/data.ts:18",
+      "kind": "href",
+      "value": "/about",
+      "target": "settings.navigation.headerLinks[].href",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.topbar.phone24hLabel",
+      "source": "components/home/site-header.tsx:26",
+      "kind": "text",
+      "value": "24 Hour Number:",
+      "target": "settings.microcopy.header.phone24hLabel",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.topbar.hoursLabel",
+      "source": "components/home/site-header.tsx:36",
+      "kind": "text",
+      "value": "Office hours:",
+      "target": "settings.microcopy.header.hoursLabel",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.logo.image",
+      "source": "components/home/site-header.tsx:53",
+      "kind": "image",
+      "value": "/images/logo.png",
+      "target": "settings.site.logo",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.logo.alt",
+      "source": "components/home/site-header.tsx:54",
+      "kind": "alt",
+      "value": "Security Partners Ltd.",
+      "target": "settings.site.logoAlt",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.nav.aria",
+      "source": "components/home/site-header.tsx:63",
+      "kind": "aria",
+      "value": "Main",
+      "target": "settings.microcopy.aria.mainNav",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.cta.label",
+      "source": "components/home/site-header.tsx:89",
+      "kind": "text",
+      "value": "Get a Quote",
+      "target": "settings.navigation.headerCta.label",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.cta.href",
+      "source": "components/home/site-header.tsx:83",
+      "kind": "href",
+      "value": "/contact",
+      "target": "settings.navigation.headerCta.href",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.menu.openAria",
+      "source": "components/home/site-header.tsx:93",
+      "kind": "aria",
+      "value": "Open menu",
+      "target": "settings.microcopy.aria.openMenu",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.menu.closeAria",
+      "source": "components/home/site-header.tsx:93",
+      "kind": "aria",
+      "value": "Close menu",
+      "target": "settings.microcopy.aria.closeMenu",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "header.mobileNav.aria",
+      "source": "components/home/site-header.tsx:111",
+      "kind": "aria",
+      "value": "Mobile",
+      "target": "settings.microcopy.aria.mobileNav",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.logo.image",
+      "source": "components/home/site-footer.tsx:22",
+      "kind": "image",
+      "value": "/images/logo.png",
+      "target": "settings.site.logo",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.logo.alt",
+      "source": "components/home/site-footer.tsx:23",
+      "kind": "alt",
+      "value": "Security Partners Ltd.",
+      "target": "settings.site.logoAlt",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.tagline",
+      "source": "components/home/site-footer.tsx:31",
+      "kind": "text",
+      "value": "A family-run security company based in Mountmellick, Co. Laois, providing first class security services across Ireland since 2008.",
+      "target": "settings.footer.tagline",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.nav.aria",
+      "source": "components/home/site-footer.tsx:36",
+      "kind": "aria",
+      "value": "Footer",
+      "target": "settings.microcopy.aria.footerNav",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.quickLinks.heading",
+      "source": "components/home/site-footer.tsx:37",
+      "kind": "text",
+      "value": "Quick Links",
+      "target": "settings.footer.quickLinksHeading",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.contact.heading",
+      "source": "components/home/site-footer.tsx:46",
+      "kind": "text",
+      "value": "Contact",
+      "target": "settings.footer.contactHeading",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.contact.telLabel",
+      "source": "components/home/site-footer.tsx:50",
+      "kind": "text",
+      "value": "Tel:",
+      "target": "settings.footer.contact.telLabel",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.contact.phone24hLabel",
+      "source": "components/home/site-footer.tsx:53",
+      "kind": "text",
+      "value": "24hr:",
+      "target": "settings.footer.contact.phone24hLabel",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.group.heading",
+      "source": "components/home/site-footer.tsx:61",
+      "kind": "text",
+      "value": "OTHER SERVICES IN THE GROUP",
+      "target": "settings.footer.groupHeading",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.group.telLabel",
+      "source": "components/home/site-footer.tsx:86",
+      "kind": "text",
+      "value": "Tel:",
+      "target": "settings.footer.groupTelLabel",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.group.href",
+      "source": "components/home/site-footer.tsx:65",
+      "kind": "href",
+      "value": "https://{site}",
+      "target": "groupCompanies[].site",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.copyright",
+      "source": "components/home/site-footer.tsx:98",
+      "kind": "text",
+      "value": "© 2026 Security Partners Ltd. All rights reserved.",
+      "target": "settings.site.copyright",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.legal.privacy.label",
+      "source": "components/home/site-footer.tsx:101",
+      "kind": "text",
+      "value": "Privacy Policy",
+      "target": "settings.footer.legal.privacy.label",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.legal.privacy.href",
+      "source": "components/home/site-footer.tsx:100",
+      "kind": "href",
+      "value": "#",
+      "target": "settings.footer.legal.privacy.href",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.legal.terms.label",
+      "source": "components/home/site-footer.tsx:105",
+      "kind": "text",
+      "value": "Terms",
+      "target": "settings.footer.legal.terms.label",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "footer.legal.terms.href",
+      "source": "components/home/site-footer.tsx:104",
+      "kind": "href",
+      "value": "#",
+      "target": "settings.footer.legal.terms.href",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "groupCompanies",
+      "source": "components/home/data.ts:373",
+      "kind": "list",
+      "value": "2",
+      "target": "groupCompanies[].*",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "groupCompanies.name",
+      "source": "components/home/data.ts:375",
+      "kind": "text",
+      "value": "MJS Eco",
+      "target": "groupCompanies[].name",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "groupCompanies.phone",
+      "source": "components/home/data.ts:376",
+      "kind": "tel",
+      "value": "(087) 924 8880",
+      "target": "groupCompanies[].phone",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "groupCompanies.phoneHref",
+      "source": "components/home/data.ts:377",
+      "kind": "tel",
+      "value": "tel:+353879248880",
+      "target": "groupCompanies[].phoneHref",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "groupCompanies.site",
+      "source": "components/home/data.ts:378",
+      "kind": "text",
+      "value": "www.mjseco.ie",
+      "target": "groupCompanies[].site",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "groupCompanies.logo",
+      "source": "components/home/data.ts:379",
+      "kind": "image",
+      "value": "/images/group-mjs-eco.png",
+      "target": "groupCompanies[].logo",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/blog/[slug]",
+        "/contact"
+      ]
+    },
+    {
+      "id": "home.hero.stats",
+      "source": "components/home/hero.tsx:7",
+      "kind": "list",
+      "value": "3",
+      "target": "pages.home.hero.stats",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.stats.value",
+      "source": "components/home/hero.tsx:8",
+      "kind": "text",
+      "value": "18+",
+      "target": "pages.home.hero.stats[].value",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.stats.label",
+      "source": "components/home/hero.tsx:8",
+      "kind": "text",
+      "value": "Years in business",
+      "target": "pages.home.hero.stats[].label",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.stats.count",
+      "source": "components/home/hero.tsx:8",
+      "kind": "text",
+      "value": "18",
+      "target": "pages.home.hero.stats[].count",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.stats.suffix",
+      "source": "components/home/hero.tsx:8",
+      "kind": "text",
+      "value": "+",
+      "target": "pages.home.hero.stats[].suffix",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.backgroundImage",
+      "source": "components/home/hero.tsx:23",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "pages.home.hero.backgroundImage",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.eyebrow",
+      "source": "components/home/hero.tsx:45",
+      "kind": "text",
+      "value": "Mountmellick, Co. Laois  •  Since 2008",
+      "target": "pages.home.hero.eyebrow",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.heading",
+      "source": "components/home/hero.tsx:53",
+      "kind": "text",
+      "value": "Security Partners Ltd.",
+      "target": "pages.home.hero.heading",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.tagline",
+      "source": "components/home/hero.tsx:59",
+      "kind": "text",
+      "value": "Watching Over You",
+      "target": "pages.home.hero.tagline",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.subheading",
+      "source": "components/home/hero.tsx:65",
+      "kind": "text",
+      "value": "Proactive, flexible and customer-focused security services across Ireland, backed by a dedicated 24/7 operations team.",
+      "target": "pages.home.hero.subheading",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.primaryCta.label",
+      "source": "components/home/hero.tsx:74",
+      "kind": "text",
+      "value": "Our Services",
+      "target": "pages.home.hero.primaryCta.label",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.primaryCta.href",
+      "source": "components/home/hero.tsx:71",
+      "kind": "href",
+      "value": "#services",
+      "target": "pages.home.hero.primaryCta.href",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.hero.secondaryCta.label",
+      "source": "components/home/hero.tsx:83",
+      "kind": "text",
+      "value": "Call 24/7: {phone24h}",
+      "target": "pages.home.hero.secondaryCta.label",
+      "pages": [
+        "/"
+      ],
+      "template": true
+    },
+    {
+      "id": "home.hero.secondaryCta.href",
+      "source": "components/home/hero.tsx:77",
+      "kind": "tel",
+      "value": "{phone24hHref}",
+      "target": "pages.home.hero.secondaryCta.href",
+      "pages": [
+        "/"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.about.eyebrow",
+      "source": "components/home/about.tsx:19",
+      "kind": "text",
+      "value": "Who we are",
+      "target": "settings.sections.about.eyebrow",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.heading",
+      "source": "components/home/about.tsx:21",
+      "kind": "text",
+      "value": "A family-run security company you can trust",
+      "target": "settings.sections.about.heading",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.body.paragraph1",
+      "source": "components/home/about.tsx:28",
+      "kind": "richText",
+      "value": "Security Partners Ltd is a privately owned security company based in Mountmellick, Co. Laois. We are strategically based in the midlands, allowing us to provide services across Ireland.",
+      "target": "settings.sections.about.body",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.body.paragraph2",
+      "source": "components/home/about.tsx:36",
+      "kind": "richText",
+      "value": "Since our foundation in 2008, our objective has been and still is to provide a first class service to all sectors of business. We are dedicated to safeguarding our clients' business and investment, and giving them peace of mind.",
+      "target": "settings.sections.about.body",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.image",
+      "source": "components/home/about.tsx:72",
+      "kind": "image",
+      "value": "/images/about.png",
+      "target": "settings.sections.about.image",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.imageAlt",
+      "source": "components/home/about.tsx:73",
+      "kind": "alt",
+      "value": "Security Partners officer reviewing paperwork",
+      "target": "settings.sections.about.imageAlt",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.badge.value",
+      "source": "components/home/about.tsx:83",
+      "kind": "text",
+      "value": "2008",
+      "target": "settings.sections.about.badge.value",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.badge.label",
+      "source": "components/home/about.tsx:85",
+      "kind": "text",
+      "value": "Established",
+      "target": "settings.sections.about.badge.label",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.badge.caption",
+      "source": "components/home/about.tsx:87",
+      "kind": "text",
+      "value": "Mountmellick, Co. Laois",
+      "target": "settings.sections.about.badge.caption",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.highlights",
+      "source": "components/home/data.ts:25",
+      "kind": "list",
+      "value": "5",
+      "target": "settings.sections.about.highlights",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "sections.about.highlights.item",
+      "source": "components/home/data.ts:26",
+      "kind": "text",
+      "value": "Dedicated 24/7 Operations Team for all your security requirements",
+      "target": "settings.sections.about.highlights[]",
+      "pages": [
+        "/",
+        "/about"
+      ]
+    },
+    {
+      "id": "home.services.eyebrow",
+      "source": "components/home/services.tsx:22",
+      "kind": "text",
+      "value": "What we do",
+      "target": "pages.home.services.eyebrow",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.services.heading",
+      "source": "components/home/services.tsx:9",
+      "kind": "text",
+      "value": "Our Services",
+      "target": "pages.home.services.heading",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.services.intro",
+      "source": "components/home/services.tsx:10",
+      "kind": "text",
+      "value": "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
+      "target": "pages.home.services.intro",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "services.servicesSection.eyebrow",
+      "source": "components/home/services.tsx:22",
+      "kind": "text",
+      "value": "What we do",
+      "target": "pages.services.servicesSection.eyebrow",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "serviceCard.readMore",
+      "source": "components/home/services.tsx:68",
+      "kind": "text",
+      "value": "Read More",
+      "target": "settings.microcopy.serviceCard.readMore",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceCard.readMoreAria",
+      "source": "components/home/services.tsx:66",
+      "kind": "aria",
+      "value": "Read more about {title}",
+      "target": "settings.microcopy.aria.serviceCardReadMore",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ],
+      "template": true
+    },
+    {
+      "id": "serviceCard.href",
+      "source": "components/home/services.tsx:64",
+      "kind": "href",
+      "value": "/services/{slug}",
+      "target": "services[].slug",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.image",
+      "source": "components/home/services.tsx:88",
+      "kind": "image",
+      "value": "/images/banner.png",
+      "target": "settings.sections.enquireBanner.image",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.eyebrow",
+      "source": "components/home/services.tsx:98",
+      "kind": "text",
+      "value": "Get in touch",
+      "target": "settings.sections.enquireBanner.eyebrow",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.heading",
+      "source": "components/home/services.tsx:104",
+      "kind": "text",
+      "value": "Enquire About Our Services",
+      "target": "settings.sections.enquireBanner.heading",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.copy",
+      "source": "components/home/services.tsx:110",
+      "kind": "text",
+      "value": "Tell us what you need protecting and our team will come back to you with a tailored, no-obligation quote.",
+      "target": "settings.sections.enquireBanner.copy",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.cta.label",
+      "source": "components/home/services.tsx:121",
+      "kind": "text",
+      "value": "Get a Quote",
+      "target": "settings.sections.enquireBanner.cta.label",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.cta.href",
+      "source": "components/home/services.tsx:118",
+      "kind": "href",
+      "value": "/contact",
+      "target": "settings.sections.enquireBanner.cta.href",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ]
+    },
+    {
+      "id": "sections.enquireBanner.secondaryCta.label",
+      "source": "components/home/services.tsx:130",
+      "kind": "text",
+      "value": "Call {office}",
+      "target": "settings.sections.enquireBanner.secondaryCta.label",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.enquireBanner.secondaryCta.href",
+      "source": "components/home/services.tsx:124",
+      "kind": "tel",
+      "value": "{officeHref}",
+      "target": "settings.sections.enquireBanner.secondaryCta.href",
+      "pages": [
+        "/",
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog"
+      ],
+      "template": true
+    },
+    {
+      "id": "services",
+      "source": "components/home/data.ts:49",
+      "kind": "list",
+      "value": "6",
+      "target": "services[].*",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.slug",
+      "source": "components/home/data.ts:51",
+      "kind": "text",
+      "value": "alarm-responses",
+      "target": "services[].slug",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.title",
+      "source": "components/home/data.ts:52",
+      "kind": "text",
+      "value": "Alarm Responses",
+      "target": "services[].title",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.description",
+      "source": "components/home/data.ts:53",
+      "kind": "text",
+      "value": "Rapid response to alarm activations, day or night.",
+      "target": "services[].description",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.icon",
+      "source": "components/home/data.ts:54",
+      "kind": "image",
+      "value": "/images/service-alarm.png",
+      "target": "services[].icon",
+      "pages": [
+        "/",
+        "/services",
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.detail.intro",
+      "source": "components/home/data.ts:57",
+      "kind": "text",
+      "value": "Our highly trained security team will be dispatched to your premises and deal with the situation, day or night.",
+      "target": "services[].detail.intro",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.detail.heading",
+      "source": "components/home/data.ts:58",
+      "kind": "text",
+      "value": "Fast, professional alarm response",
+      "target": "services[].detail.heading",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.detail.overview",
+      "source": "components/home/data.ts:60",
+      "kind": "richText",
+      "value": "Security Partners Ltd specialise in alarm response and key holding services. Our highly trained security team will be dispatched to your premises and deal with the situation, giving you the peace of mind your premises is safe and secure in our hands.",
+      "target": "services[].detail.overview",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.detail.included",
+      "source": "components/home/data.ts:61",
+      "kind": "list",
+      "value": "5",
+      "target": "services[].detail.included",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.detail.included.item",
+      "source": "components/home/data.ts:62",
+      "kind": "text",
+      "value": "Rapid dispatch of trained, uniformed officers to your premises",
+      "target": "services[].detail.included[]",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "services.detail.callout",
+      "source": "components/home/data.ts:68",
+      "kind": "text",
+      "value": "Alarm activated? Call our 24 Hour Number",
+      "target": "services[].detail.callout",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "sections.clients.eyebrow",
+      "source": "components/home/clients-team-blog.tsx:13",
+      "kind": "text",
+      "value": "Trusted by",
+      "target": "settings.sections.clients.eyebrow",
+      "pages": [
+        "/",
+        "/about",
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.clients.heading",
+      "source": "components/home/clients-team-blog.tsx:13",
+      "kind": "text",
+      "value": "Our Clients",
+      "target": "settings.sections.clients.heading",
+      "pages": [
+        "/",
+        "/about",
+        "/services"
+      ]
+    },
+    {
+      "id": "clients.logoAlt",
+      "source": "components/home/clients-team-blog.tsx:23",
+      "kind": "alt",
+      "value": "{name}",
+      "target": "clients[].name",
+      "pages": [
+        "/",
+        "/about",
+        "/services"
+      ]
+    },
+    {
+      "id": "clients",
+      "source": "components/home/data.ts:179",
+      "kind": "list",
+      "value": "8",
+      "target": "clients[].*",
+      "pages": [
+        "/",
+        "/about",
+        "/services"
+      ]
+    },
+    {
+      "id": "clients.name",
+      "source": "components/home/data.ts:180",
+      "kind": "text",
+      "value": "Dinn Rí",
+      "target": "clients[].name",
+      "pages": [
+        "/",
+        "/about",
+        "/services"
+      ]
+    },
+    {
+      "id": "clients.logo",
+      "source": "components/home/data.ts:180",
+      "kind": "image",
+      "value": "/images/client-dinn-ri.png",
+      "target": "clients[].logo",
+      "pages": [
+        "/",
+        "/about",
+        "/services"
+      ]
+    },
+    {
+      "id": "home.team.heading",
+      "source": "components/home/clients-team-blog.tsx:38",
+      "kind": "text",
+      "value": "Meet The Team",
+      "target": "pages.home.team.heading",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.team.intro",
+      "source": "components/home/clients-team-blog.tsx:39",
+      "kind": "text",
+      "value": "The people behind Security Partners.",
+      "target": "pages.home.team.intro",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.team.eyebrow",
+      "source": "components/home/clients-team-blog.tsx:51",
+      "kind": "text",
+      "value": "Our people",
+      "target": "pages.home.team.eyebrow",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "team.leadership.eyebrow",
+      "source": "components/home/clients-team-blog.tsx:51",
+      "kind": "text",
+      "value": "Our people",
+      "target": "pages.team.leadership.eyebrow",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.member.photoUnderlay",
+      "source": "components/home/clients-team-blog.tsx:68",
+      "kind": "image",
+      "value": "/images/team-temp.jpg",
+      "target": "pages.team.leadership.photoPlaceholder",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.member.photo",
+      "source": "components/home/clients-team-blog.tsx:75",
+      "kind": "image",
+      "value": "/images/about.png",
+      "target": "team[].photo",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.member.photoAlt",
+      "source": "components/home/clients-team-blog.tsx:76",
+      "kind": "alt",
+      "value": "{name}",
+      "target": "team[].name",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.member.emailHref",
+      "source": "components/home/clients-team-blog.tsx:98",
+      "kind": "mailto",
+      "value": "mailto:{email}",
+      "target": "team[].email",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team",
+      "source": "components/home/data.ts:190",
+      "kind": "list",
+      "value": "4",
+      "target": "team[].*",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.name",
+      "source": "components/home/data.ts:192",
+      "kind": "text",
+      "value": "Michael McDonald",
+      "target": "team[].name",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.role",
+      "source": "components/home/data.ts:193",
+      "kind": "text",
+      "value": "Managing Director",
+      "target": "team[].role",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.bio",
+      "source": "components/home/data.ts:194",
+      "kind": "text",
+      "value": "Michael has over 20 years experience in the security industry. Having worked on the ground, he started his own security business in 2008 and takes pride in the reputation he has grown.",
+      "target": "team[].bio",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "team.email",
+      "source": "components/home/data.ts:195",
+      "kind": "mailto",
+      "value": "info@securitypartnersltd.com",
+      "target": "team[].email",
+      "pages": [
+        "/",
+        "/team"
+      ]
+    },
+    {
+      "id": "home.blog.eyebrow",
+      "source": "components/home/clients-team-blog.tsx:122",
+      "kind": "text",
+      "value": "News & insights",
+      "target": "pages.home.blog.eyebrow",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.blog.heading",
+      "source": "components/home/clients-team-blog.tsx:123",
+      "kind": "text",
+      "value": "From Our Blog",
+      "target": "pages.home.blog.heading",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.blog.intro",
+      "source": "components/home/clients-team-blog.tsx:124",
+      "kind": "text",
+      "value": "Security tips, company news and advice from the Security Partners team.",
+      "target": "pages.home.blog.intro",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.blog.cta.label",
+      "source": "components/home/clients-team-blog.tsx:135",
+      "kind": "text",
+      "value": "View All Posts",
+      "target": "pages.home.blog.cta.label",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.blog.cta.href",
+      "source": "components/home/clients-team-blog.tsx:128",
+      "kind": "href",
+      "value": "/blog",
+      "target": "pages.home.blog.cta.href",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "home.blog.count",
+      "source": "components/home/clients-team-blog.tsx:140",
+      "kind": "text",
+      "value": "3",
+      "target": "pages.home.blog.count",
+      "pages": [
+        "/"
+      ]
+    },
+    {
+      "id": "sections.contact.infoItems",
+      "source": "components/home/contact.tsx:7",
+      "kind": "list",
+      "value": "4",
+      "target": "settings.sections.contact.infoItems",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.infoItems.title",
+      "source": "components/home/contact.tsx:9",
+      "kind": "text",
+      "value": "Office Hours",
+      "target": "settings.sections.contact.infoItems[].title",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.infoItems.icon",
+      "source": "components/home/contact.tsx:10",
+      "kind": "image",
+      "value": "/images/clock.svg",
+      "target": "settings.sections.contact.infoItems[].icon",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.infoItems.lines.text",
+      "source": "components/home/contact.tsx:11",
+      "kind": "text",
+      "value": "Monday–Friday: 9am to 6pm",
+      "target": "settings.sections.contact.infoItems[].lines[].text",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.infoItems.lines.href",
+      "source": "components/home/contact.tsx:16",
+      "kind": "href",
+      "value": "{phone24hHref}",
+      "target": "settings.sections.contact.infoItems[].lines[].href",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.infoItems.operationsTel",
+      "source": "components/home/contact.tsx:27",
+      "kind": "text",
+      "value": "Tel: {office} Ext 2",
+      "target": "settings.sections.contact.infoItems[].lines[].text",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.infoItems.operationsMobile",
+      "source": "components/home/contact.tsx:29",
+      "kind": "text",
+      "value": "or {operationsMobile}",
+      "target": "settings.sections.contact.infoItems[].lines[].text",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.infoItems.operationsEmailHref",
+      "source": "components/home/contact.tsx:34",
+      "kind": "mailto",
+      "value": "mailto:{operationsEmail}",
+      "target": "settings.sections.contact.infoItems[].lines[].href",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.eyebrow",
+      "source": "components/home/contact.tsx:53",
+      "kind": "text",
+      "value": "Contact",
+      "target": "settings.sections.contact.eyebrow",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.heading",
+      "source": "components/home/contact.tsx:54",
+      "kind": "text",
+      "value": "Get In Touch",
+      "target": "settings.sections.contact.heading",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.intro",
+      "source": "components/home/contact.tsx:56",
+      "kind": "text",
+      "value": "Send us a message and we'll get back to you within one working day.",
+      "target": "settings.sections.contact.intro",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.map.aria",
+      "source": "components/home/contact.tsx:112",
+      "kind": "aria",
+      "value": "Open Security Partners Ltd. location in Google Maps",
+      "target": "settings.sections.contact.map.ariaLabel",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.map.href",
+      "source": "components/home/contact.tsx:109",
+      "kind": "href",
+      "value": "{mapsHref}",
+      "target": "settings.sections.contact.map.link",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.map.tiles",
+      "source": "components/home/contact.tsx:124",
+      "kind": "image",
+      "value": "/images/map/tile-{col}-{row}.png",
+      "target": "settings.sections.contact.map.tiles",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.map.logo",
+      "source": "components/home/contact.tsx:143",
+      "kind": "image",
+      "value": "/images/logo.png",
+      "target": "settings.site.logo",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.map.label",
+      "source": "components/home/contact.tsx:152",
+      "kind": "text",
+      "value": "Security Partners Ltd.",
+      "target": "settings.sections.contact.map.label",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.name.label",
+      "source": "components/home/contact-form.tsx:54",
+      "kind": "text",
+      "value": "Your Name",
+      "target": "settings.sections.contact.form.nameLabel",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.name.placeholder",
+      "source": "components/home/contact-form.tsx:60",
+      "kind": "text",
+      "value": "John Smith",
+      "target": "settings.sections.contact.form.namePlaceholder",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.email.label",
+      "source": "components/home/contact-form.tsx:64",
+      "kind": "text",
+      "value": "Email",
+      "target": "settings.sections.contact.form.emailLabel",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.email.placeholder",
+      "source": "components/home/contact-form.tsx:71",
+      "kind": "text",
+      "value": "you@company.ie",
+      "target": "settings.sections.contact.form.emailPlaceholder",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.phone.label",
+      "source": "components/home/contact-form.tsx:76",
+      "kind": "text",
+      "value": "Phone",
+      "target": "settings.sections.contact.form.phoneLabel",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.phone.placeholder",
+      "source": "components/home/contact-form.tsx:82",
+      "kind": "text",
+      "value": "085 000 0000",
+      "target": "settings.sections.contact.form.phonePlaceholder",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.message.label",
+      "source": "components/home/contact-form.tsx:86",
+      "kind": "text",
+      "value": "Message",
+      "target": "settings.sections.contact.form.messageLabel",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.message.placeholder",
+      "source": "components/home/contact-form.tsx:91",
+      "kind": "text",
+      "value": "Tell us about your security requirements...",
+      "target": "settings.sections.contact.form.messagePlaceholder",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.submit",
+      "source": "components/home/contact-form.tsx:102",
+      "kind": "text",
+      "value": "Send Message",
+      "target": "settings.sections.contact.form.submitLabel",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "sections.contact.form.mailtoSubject",
+      "source": "components/home/contact-form.tsx:46",
+      "kind": "text",
+      "value": "Website enquiry from {name}",
+      "target": "settings.sections.contact.form.mailtoSubject",
+      "pages": [
+        "/",
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "sections.contact.form.mailtoTarget",
+      "source": "components/home/contact-form.tsx:47",
+      "kind": "mailto",
+      "value": "mailto:{email}",
+      "target": "settings.contact.email",
+      "pages": [
+        "/",
+        "/contact"
+      ]
+    },
+    {
+      "id": "pageHero.breadcrumb.aria",
+      "source": "components/home/page-hero.tsx:44",
+      "kind": "aria",
+      "value": "Breadcrumb",
+      "target": "settings.microcopy.aria.breadcrumb",
+      "pages": [
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/contact"
+      ]
+    },
+    {
+      "id": "pageHero.breadcrumb.home",
+      "source": "components/home/page-hero.tsx:48",
+      "kind": "text",
+      "value": "Home",
+      "target": "settings.microcopy.breadcrumb.home",
+      "pages": [
+        "/about",
+        "/services",
+        "/services/[slug]",
+        "/team",
+        "/blog",
+        "/contact"
+      ]
+    },
+    {
+      "id": "about.meta.title",
+      "source": "app/(site)/about/page.tsx:15",
+      "kind": "meta",
+      "value": "About Us | Security Partners Ltd.",
+      "target": "pages.about.seo.title",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.meta.description",
+      "source": "app/(site)/about/page.tsx:17",
+      "kind": "meta",
+      "value": "A family-run security company based in Mountmellick, Co. Laois, providing first class security services across Ireland since 2008.",
+      "target": "pages.about.seo.description",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.hero.image",
+      "source": "app/(site)/about/page.tsx:26",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "pages.about.hero.image",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.hero.crumb",
+      "source": "app/(site)/about/page.tsx:27",
+      "kind": "text",
+      "value": "About Us",
+      "target": "pages.about.hero.crumb",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.hero.title",
+      "source": "app/(site)/about/page.tsx:28",
+      "kind": "text",
+      "value": "About Security Partners",
+      "target": "pages.about.hero.title",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.hero.description",
+      "source": "app/(site)/about/page.tsx:29",
+      "kind": "text",
+      "value": "A family-run security company based in Mountmellick, Co. Laois, providing first class security services across Ireland since 2008.",
+      "target": "pages.about.hero.description",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.eyebrow",
+      "source": "app/(site)/about/page.tsx:34",
+      "kind": "text",
+      "value": "Our values",
+      "target": "pages.about.values.eyebrow",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.title",
+      "source": "app/(site)/about/page.tsx:35",
+      "kind": "text",
+      "value": "What We Stand For",
+      "target": "pages.about.values.title",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.description",
+      "source": "app/(site)/about/page.tsx:36",
+      "kind": "text",
+      "value": "Security Partners Ltd has an excellent reputation for providing a proactive, flexible and quality service that is completely customer focused.",
+      "target": "pages.about.values.description",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.stats",
+      "source": "components/about/data.ts:1",
+      "kind": "list",
+      "value": "4",
+      "target": "pages.about.stats",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.stats.value",
+      "source": "components/about/data.ts:3",
+      "kind": "text",
+      "value": "2008",
+      "target": "pages.about.stats[].value",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.stats.label",
+      "source": "components/about/data.ts:4",
+      "kind": "text",
+      "value": "Founded",
+      "target": "pages.about.stats[].label",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.stats.description",
+      "source": "components/about/data.ts:5",
+      "kind": "text",
+      "value": "Family-run, and grown through the years by word of mouth.",
+      "target": "pages.about.stats[].description",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.items",
+      "source": "components/about/data.ts:25",
+      "kind": "list",
+      "value": "3",
+      "target": "pages.about.values.items",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.items.title",
+      "source": "components/about/data.ts:27",
+      "kind": "text",
+      "value": "Proactive",
+      "target": "pages.about.values.items[].title",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.items.description",
+      "source": "components/about/data.ts:29",
+      "kind": "text",
+      "value": "We deal with risks early, safeguarding your business, your investment and your peace of mind.",
+      "target": "pages.about.values.items[].description",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "about.values.items.icon",
+      "source": "components/about/data.ts:30",
+      "kind": "image",
+      "value": "/images/icon-shield.svg",
+      "target": "pages.about.values.items[].icon",
+      "pages": [
+        "/about"
+      ]
+    },
+    {
+      "id": "services.meta.title",
+      "source": "app/(site)/services/page.tsx:12",
+      "kind": "meta",
+      "value": "Our Services | Security Partners Ltd.",
+      "target": "pages.services.seo.title",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.meta.description",
+      "source": "app/(site)/services/page.tsx:14",
+      "kind": "meta",
+      "value": "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
+      "target": "pages.services.seo.description",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.hero.image",
+      "source": "app/(site)/services/page.tsx:23",
+      "kind": "image",
+      "value": "/images/banner.png",
+      "target": "pages.services.hero.image",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.hero.crumb",
+      "source": "app/(site)/services/page.tsx:24",
+      "kind": "text",
+      "value": "Services",
+      "target": "pages.services.hero.crumb",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.hero.title",
+      "source": "app/(site)/services/page.tsx:25",
+      "kind": "text",
+      "value": "Our Services",
+      "target": "pages.services.hero.title",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.hero.description",
+      "source": "app/(site)/services/page.tsx:26",
+      "kind": "text",
+      "value": "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
+      "target": "pages.services.hero.description",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.servicesSection.heading",
+      "source": "app/(site)/services/page.tsx:29",
+      "kind": "text",
+      "value": "Security For Every Sector",
+      "target": "pages.services.servicesSection.heading",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "services.servicesSection.intro",
+      "source": "app/(site)/services/page.tsx:30",
+      "kind": "text",
+      "value": "Six specialist services, all backed by our dedicated 24/7 Operations Team.",
+      "target": "pages.services.servicesSection.intro",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.eyebrow",
+      "source": "components/services/why-choose-us.tsx:14",
+      "kind": "text",
+      "value": "Why Security Partners",
+      "target": "settings.sections.whyChooseUs.eyebrow",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.heading",
+      "source": "components/services/why-choose-us.tsx:16",
+      "kind": "text",
+      "value": "Why Choose Us",
+      "target": "settings.sections.whyChooseUs.heading",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.copy",
+      "source": "components/services/why-choose-us.tsx:19",
+      "kind": "text",
+      "value": "We are dedicated to providing our clients with the best possible services.",
+      "target": "settings.sections.whyChooseUs.copy",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.features",
+      "source": "components/services/data.ts:1",
+      "kind": "list",
+      "value": "4",
+      "target": "settings.sections.whyChooseUs.features",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.features.title",
+      "source": "components/services/data.ts:3",
+      "kind": "text",
+      "value": "24/7 Operations Team",
+      "target": "settings.sections.whyChooseUs.features[].title",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.features.description",
+      "source": "components/services/data.ts:5",
+      "kind": "text",
+      "value": "A dedicated team who are there for all your security requirements.",
+      "target": "settings.sections.whyChooseUs.features[].description",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "sections.whyChooseUs.features.icon",
+      "source": "components/services/data.ts:6",
+      "kind": "image",
+      "value": "/images/icon-clock.svg",
+      "target": "settings.sections.whyChooseUs.features[].icon",
+      "pages": [
+        "/services"
+      ]
+    },
+    {
+      "id": "serviceDetail.meta.titleTemplate",
+      "source": "app/(site)/services/[slug]/page.tsx:28",
+      "kind": "meta",
+      "value": "{title} | Security Partners Ltd.",
+      "target": "settings.seo.defaults.titleTemplate",
+      "pages": [
+        "/services/[slug]"
+      ],
+      "template": true
+    },
+    {
+      "id": "serviceDetail.meta.description",
+      "source": "app/(site)/services/[slug]/page.tsx:29",
+      "kind": "meta",
+      "value": "{detail.intro}",
+      "target": "services[].detail.intro",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.hero.image",
+      "source": "app/(site)/services/[slug]/page.tsx:44",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "services[].heroImage",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.hero.trailLabel",
+      "source": "app/(site)/services/[slug]/page.tsx:45",
+      "kind": "text",
+      "value": "Services",
+      "target": "settings.microcopy.breadcrumb.services",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.hero.trailHref",
+      "source": "app/(site)/services/[slug]/page.tsx:45",
+      "kind": "href",
+      "value": "/services",
+      "target": "settings.microcopy.breadcrumb.servicesHref",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.hero.crumb",
+      "source": "app/(site)/services/[slug]/page.tsx:46",
+      "kind": "text",
+      "value": "{title}",
+      "target": "services[].title",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.hero.description",
+      "source": "app/(site)/services/[slug]/page.tsx:48",
+      "kind": "text",
+      "value": "{detail.intro}",
+      "target": "services[].detail.intro",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.body.image",
+      "source": "components/services/service-body.tsx:25",
+      "kind": "image",
+      "value": "/images/about.png",
+      "target": "services[].image",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.body.imageAlt",
+      "source": "components/services/service-body.tsx:26",
+      "kind": "alt",
+      "value": "Security Partners officer at work",
+      "target": "services[].imageAlt",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.body.overviewEyebrow",
+      "source": "components/services/service-body.tsx:35",
+      "kind": "text",
+      "value": "Service overview",
+      "target": "settings.microcopy.service.overviewEyebrow",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.body.includedHeading",
+      "source": "components/services/service-body.tsx:45",
+      "kind": "text",
+      "value": "What's included",
+      "target": "settings.microcopy.service.includedHeading",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.body.calloutPhone",
+      "source": "components/services/service-body.tsx:81",
+      "kind": "tel",
+      "value": "{phone24h}",
+      "target": "settings.contact.phone24h",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.navAria",
+      "source": "components/services/service-body.tsx:89",
+      "kind": "aria",
+      "value": "All services",
+      "target": "settings.microcopy.aria.allServices",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.allServicesHeading",
+      "source": "components/services/service-body.tsx:93",
+      "kind": "text",
+      "value": "All Services",
+      "target": "settings.microcopy.service.allServicesHeading",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.helpEyebrow",
+      "source": "components/services/service-body.tsx:125",
+      "kind": "text",
+      "value": "Need help?",
+      "target": "settings.microcopy.service.helpEyebrow",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.helpHeading",
+      "source": "components/services/service-body.tsx:127",
+      "kind": "text",
+      "value": "Talk to our Operations Team",
+      "target": "settings.microcopy.service.helpHeading",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.telLabel",
+      "source": "components/services/service-body.tsx:131",
+      "kind": "text",
+      "value": "Tel:",
+      "target": "settings.microcopy.service.telLabel",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.operationsExtension",
+      "source": "components/services/service-body.tsx:133",
+      "kind": "text",
+      "value": "Ext 2",
+      "target": "settings.contact.operationsExtension",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.orLabel",
+      "source": "components/services/service-body.tsx:135",
+      "kind": "text",
+      "value": "or",
+      "target": "settings.microcopy.service.orLabel",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.phone24hLabel",
+      "source": "components/services/service-body.tsx:152",
+      "kind": "text",
+      "value": "24 Hour Number",
+      "target": "settings.microcopy.service.phone24hLabel",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.cta.label",
+      "source": "components/services/service-body.tsx:167",
+      "kind": "text",
+      "value": "Get a Quote",
+      "target": "settings.microcopy.service.ctaLabel",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.sidebar.cta.href",
+      "source": "components/services/service-body.tsx:161",
+      "kind": "href",
+      "value": "/contact",
+      "target": "settings.microcopy.service.ctaHref",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.other.eyebrow",
+      "source": "components/services/other-services.tsx:16",
+      "kind": "text",
+      "value": "More services",
+      "target": "settings.microcopy.service.otherEyebrow",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.other.heading",
+      "source": "components/services/other-services.tsx:17",
+      "kind": "text",
+      "value": "Other Services",
+      "target": "settings.microcopy.service.otherHeading",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "serviceDetail.other.intro",
+      "source": "components/services/other-services.tsx:18",
+      "kind": "text",
+      "value": "Explore the rest of our security services.",
+      "target": "settings.microcopy.service.otherIntro",
+      "pages": [
+        "/services/[slug]"
+      ]
+    },
+    {
+      "id": "team.meta.title",
+      "source": "app/(site)/team/page.tsx:13",
+      "kind": "meta",
+      "value": "Our Team | Security Partners Ltd.",
+      "target": "pages.team.seo.title",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.meta.description",
+      "source": "app/(site)/team/page.tsx:15",
+      "kind": "meta",
+      "value": "The experienced people behind Security Partners, from operations to HR and accounts.",
+      "target": "pages.team.seo.description",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.hero.image",
+      "source": "app/(site)/team/page.tsx:24",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "pages.team.hero.image",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.hero.crumb",
+      "source": "app/(site)/team/page.tsx:25",
+      "kind": "text",
+      "value": "Our Team",
+      "target": "pages.team.hero.crumb",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.hero.title",
+      "source": "app/(site)/team/page.tsx:26",
+      "kind": "text",
+      "value": "Meet The Team",
+      "target": "pages.team.hero.title",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.hero.description",
+      "source": "app/(site)/team/page.tsx:27",
+      "kind": "text",
+      "value": "The experienced people behind Security Partners, from operations to HR and accounts.",
+      "target": "pages.team.hero.description",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.leadership.heading",
+      "source": "app/(site)/team/page.tsx:30",
+      "kind": "text",
+      "value": "Leadership & Management",
+      "target": "pages.team.leadership.heading",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.leadership.intro",
+      "source": "app/(site)/team/page.tsx:31",
+      "kind": "text",
+      "value": "Contact the right person directly for your query.",
+      "target": "pages.team.leadership.intro",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.eyebrow",
+      "source": "app/(site)/team/page.tsx:34",
+      "kind": "text",
+      "value": "On the ground",
+      "target": "pages.team.officers.eyebrow",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.title",
+      "source": "app/(site)/team/page.tsx:35",
+      "kind": "text",
+      "value": "Our Officers",
+      "target": "pages.team.officers.title",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.description",
+      "source": "app/(site)/team/page.tsx:36",
+      "kind": "text",
+      "value": "Behind our management team is a team of licensed, uniformed officers working across Ireland.",
+      "target": "pages.team.officers.description",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.qualities",
+      "source": "components/team/data.ts:1",
+      "kind": "list",
+      "value": "3",
+      "target": "pages.team.officers.qualities",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.qualities.title",
+      "source": "components/team/data.ts:3",
+      "kind": "text",
+      "value": "Exceptional Training",
+      "target": "pages.team.officers.qualities[].title",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.qualities.description",
+      "source": "components/team/data.ts:5",
+      "kind": "text",
+      "value": "Exceptional training is provided to our staff so you get a first class service.",
+      "target": "pages.team.officers.qualities[].description",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "team.officers.qualities.icon",
+      "source": "components/team/data.ts:6",
+      "kind": "image",
+      "value": "/images/icon-award.svg",
+      "target": "pages.team.officers.qualities[].icon",
+      "pages": [
+        "/team"
+      ]
+    },
+    {
+      "id": "blog.meta.title",
+      "source": "app/(site)/blog/page.tsx:11",
+      "kind": "meta",
+      "value": "News & Insights | Security Partners Ltd.",
+      "target": "pages.blog.seo.title",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.meta.description",
+      "source": "app/(site)/blog/page.tsx:13",
+      "kind": "meta",
+      "value": "Security tips, company news and advice from the Security Partners team.",
+      "target": "pages.blog.seo.description",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.hero.image",
+      "source": "app/(site)/blog/page.tsx:23",
+      "kind": "image",
+      "value": "/images/banner.png",
+      "target": "pages.blog.hero.image",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.hero.crumb",
+      "source": "app/(site)/blog/page.tsx:24",
+      "kind": "text",
+      "value": "Blog",
+      "target": "pages.blog.hero.crumb",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.hero.title",
+      "source": "app/(site)/blog/page.tsx:25",
+      "kind": "text",
+      "value": "News & Insights",
+      "target": "pages.blog.hero.title",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.hero.description",
+      "source": "app/(site)/blog/page.tsx:26",
+      "kind": "text",
+      "value": "Security tips, company news and advice from the Security Partners team.",
+      "target": "pages.blog.hero.description",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.filters.all",
+      "source": "components/blog/blog-posts.tsx:12",
+      "kind": "text",
+      "value": "All Posts",
+      "target": "settings.microcopy.blog.allPostsFilter",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.filters.pageSize",
+      "source": "components/blog/blog-posts.tsx:13",
+      "kind": "text",
+      "value": "6",
+      "target": "pages.blog.pageSize",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.filters.aria",
+      "source": "components/blog/blog-posts.tsx:53",
+      "kind": "aria",
+      "value": "Filter posts by category",
+      "target": "settings.microcopy.aria.blogFilter",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.featured.readArticle",
+      "source": "components/blog/blog-posts.tsx:109",
+      "kind": "text",
+      "value": "Read Article  →",
+      "target": "settings.microcopy.blog.readArticle",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.empty",
+      "source": "components/blog/blog-posts.tsx:126",
+      "kind": "text",
+      "value": "No posts in {category} yet. Check back soon.",
+      "target": "settings.microcopy.blog.emptyCategory",
+      "pages": [
+        "/blog"
+      ],
+      "template": true
+    },
+    {
+      "id": "blog.pagination.aria",
+      "source": "components/blog/blog-posts.tsx:132",
+      "kind": "aria",
+      "value": "Pagination",
+      "target": "settings.microcopy.aria.pagination",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.pagination.previous",
+      "source": "components/blog/blog-posts.tsx:137",
+      "kind": "aria",
+      "value": "Previous page",
+      "target": "settings.microcopy.aria.previousPage",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.pagination.page",
+      "source": "components/blog/blog-posts.tsx:151",
+      "kind": "aria",
+      "value": "Page {n}",
+      "target": "settings.microcopy.aria.pageNumber",
+      "pages": [
+        "/blog"
+      ],
+      "template": true
+    },
+    {
+      "id": "blog.pagination.next",
+      "source": "components/blog/blog-posts.tsx:166",
+      "kind": "aria",
+      "value": "Next page",
+      "target": "settings.microcopy.aria.nextPage",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blogCard.readArticle",
+      "source": "components/blog/blog-card.tsx:33",
+      "kind": "text",
+      "value": "Read Article  →",
+      "target": "settings.microcopy.blog.readArticle",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "blogCard.href",
+      "source": "components/blog/blog-card.tsx:30",
+      "kind": "href",
+      "value": "/blog/{slug}",
+      "target": "articles[].slug",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "blogCard.featuredBadge",
+      "source": "components/blog/blog-card.tsx:55",
+      "kind": "text",
+      "value": "Featured",
+      "target": "settings.microcopy.blog.featuredBadge",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "blog.featuredArticle",
+      "source": "components/home/data.ts:243",
+      "kind": "text",
+      "value": "18-years-of-watching-over-ireland",
+      "target": "pages.blog.featuredArticle",
+      "pages": [
+        "/blog"
+      ]
+    },
+    {
+      "id": "articles.featured.slug",
+      "source": "components/home/data.ts:244",
+      "kind": "text",
+      "value": "18-years-of-watching-over-ireland",
+      "target": "articles[18-years-of-watching-over-ireland].slug",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.title",
+      "source": "components/home/data.ts:245",
+      "kind": "text",
+      "value": "18 Years of Watching Over Ireland",
+      "target": "articles[18-years-of-watching-over-ireland].title",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.excerpt",
+      "source": "components/home/data.ts:247",
+      "kind": "text",
+      "value": "Since 2008, Security Partners has grown from a family business in Mountmellick into a security team trusted by hotels, retailers and businesses across Ireland. Here's how we got here.",
+      "target": "articles[18-years-of-watching-over-ireland].excerpt",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.category",
+      "source": "components/home/data.ts:248",
+      "kind": "text",
+      "value": "Company News",
+      "target": "articles[18-years-of-watching-over-ireland].categoryId",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.date",
+      "source": "components/home/data.ts:249",
+      "kind": "text",
+      "value": "2026-09-20",
+      "target": "articles[18-years-of-watching-over-ireland].publishedAt",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.displayDate",
+      "source": "components/home/data.ts:250",
+      "kind": "text",
+      "value": "20 Sep 2026",
+      "target": "articles[18-years-of-watching-over-ireland].publishedAt",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.cover",
+      "source": "components/home/data.ts:251",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "articles[18-years-of-watching-over-ireland].cover",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.featured.author",
+      "source": "components/home/data.ts:252",
+      "kind": "text",
+      "value": "Michael McDonald",
+      "target": "articles[18-years-of-watching-over-ireland].authorId",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.author.name",
+      "source": "components/home/data.ts:241",
+      "kind": "text",
+      "value": "Michael McDonald",
+      "target": "articles[].author.name",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.author.role",
+      "source": "components/home/data.ts:241",
+      "kind": "text",
+      "value": "Managing Director",
+      "target": "articles[].author.role",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles",
+      "source": "components/home/data.ts:256",
+      "kind": "list",
+      "value": "6",
+      "target": "articles[].*",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.slug",
+      "source": "components/home/data.ts:258",
+      "kind": "text",
+      "value": "mobile-patrols-protect-your-business-after-hours",
+      "target": "articles[].slug",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.title",
+      "source": "components/home/data.ts:259",
+      "kind": "text",
+      "value": "How Mobile Patrols Protect Your Business After Hours",
+      "target": "articles[].title",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.excerpt",
+      "source": "components/home/data.ts:261",
+      "kind": "text",
+      "value": "What a scheduled patrol actually covers, and why visible security deters break-ins.",
+      "target": "articles[].excerpt",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.category",
+      "source": "components/home/data.ts:262",
+      "kind": "text",
+      "value": "Mobile Patrols",
+      "target": "articles[].categoryId",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.date",
+      "source": "components/home/data.ts:263",
+      "kind": "text",
+      "value": "2026-09-12",
+      "target": "articles[].publishedAt",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.displayDate",
+      "source": "components/home/data.ts:264",
+      "kind": "text",
+      "value": "12 Sep 2026",
+      "target": "articles[].publishedAt",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.cover",
+      "source": "components/home/data.ts:265",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "articles[].cover",
+      "pages": [
+        "/",
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.author",
+      "source": "components/home/data.ts:266",
+      "kind": "text",
+      "value": "Michael McDonald",
+      "target": "articles[].authorId",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.readTime",
+      "source": "components/home/data.ts:267",
+      "kind": "text",
+      "value": "5 min read",
+      "target": "articles[].readTimeMinutes",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.lead",
+      "source": "components/home/data.ts:268",
+      "kind": "text",
+      "value": "What a scheduled patrol actually covers, and why a visible security presence deters break-ins.",
+      "target": "articles[].lead",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.tags",
+      "source": "components/home/data.ts:269",
+      "kind": "list",
+      "value": "3",
+      "target": "articles[].tags",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.body",
+      "source": "components/home/data.ts:270",
+      "kind": "richText",
+      "value": "10 blocks (p, h2, list, quote, image)",
+      "target": "articles[].body",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.body.quoteCite",
+      "source": "components/home/data.ts:292",
+      "kind": "text",
+      "value": "Security Partners Operations Team",
+      "target": "articles[].body",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.body.imageSrc",
+      "source": "components/home/data.ts:301",
+      "kind": "image",
+      "value": "/images/about.png",
+      "target": "articles[].body",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "articles.body.imageAlt",
+      "source": "components/home/data.ts:302",
+      "kind": "alt",
+      "value": "Security Partners officer completing a patrol report",
+      "target": "articles[].body",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "categories",
+      "source": "components/home/data.ts:365",
+      "kind": "list",
+      "value": "7",
+      "target": "categories[].*",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "categories.name",
+      "source": "components/home/data.ts:366",
+      "kind": "text",
+      "value": "Company News",
+      "target": "categories[].name",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "categories.showInFilter",
+      "source": "components/home/data.ts:366",
+      "kind": "text",
+      "value": "true",
+      "target": "categories[].showInFilter",
+      "pages": [
+        "/blog",
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.meta.titleTemplate",
+      "source": "app/(site)/blog/[slug]/page.tsx:26",
+      "kind": "meta",
+      "value": "{title} | Security Partners Ltd.",
+      "target": "settings.seo.defaults.titleTemplate",
+      "pages": [
+        "/blog/[slug]"
+      ],
+      "template": true
+    },
+    {
+      "id": "article.meta.description",
+      "source": "app/(site)/blog/[slug]/page.tsx:27",
+      "kind": "meta",
+      "value": "{excerpt}",
+      "target": "articles[].excerpt",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.related.eyebrow",
+      "source": "app/(site)/blog/[slug]/page.tsx:52",
+      "kind": "text",
+      "value": "Keep reading",
+      "target": "settings.microcopy.article.relatedEyebrow",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.related.heading",
+      "source": "app/(site)/blog/[slug]/page.tsx:52",
+      "kind": "text",
+      "value": "Related Articles",
+      "target": "settings.microcopy.article.relatedHeading",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.breadcrumb.aria",
+      "source": "components/blog/article.tsx:20",
+      "kind": "aria",
+      "value": "Breadcrumb",
+      "target": "settings.microcopy.aria.breadcrumb",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.breadcrumb.home",
+      "source": "components/blog/article.tsx:24",
+      "kind": "text",
+      "value": "Home",
+      "target": "settings.microcopy.breadcrumb.home",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.breadcrumb.blog",
+      "source": "components/blog/article.tsx:35",
+      "kind": "text",
+      "value": "Blog",
+      "target": "settings.microcopy.breadcrumb.blog",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.breadcrumb.blogHref",
+      "source": "components/blog/article.tsx:32",
+      "kind": "href",
+      "value": "/blog",
+      "target": "settings.microcopy.breadcrumb.blogHref",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.tagsLabel",
+      "source": "components/blog/article.tsx:172",
+      "kind": "text",
+      "value": "Tags:",
+      "target": "settings.microcopy.article.tagsLabel",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.recentPosts",
+      "source": "components/blog/article.tsx:189",
+      "kind": "text",
+      "value": "Recent Posts",
+      "target": "settings.microcopy.article.recentPostsHeading",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.categories.aria",
+      "source": "components/blog/article.tsx:220",
+      "kind": "aria",
+      "value": "Categories",
+      "target": "settings.microcopy.aria.categories",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.categories.heading",
+      "source": "components/blog/article.tsx:221",
+      "kind": "text",
+      "value": "Categories",
+      "target": "settings.microcopy.article.categoriesHeading",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.categories.href",
+      "source": "components/blog/article.tsx:225",
+      "kind": "href",
+      "value": "/blog?category={name}",
+      "target": "categories[].name",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.cta.eyebrow",
+      "source": "components/blog/article.tsx:237",
+      "kind": "text",
+      "value": "Need security?",
+      "target": "settings.microcopy.article.ctaEyebrow",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.cta.heading",
+      "source": "components/blog/article.tsx:239",
+      "kind": "text",
+      "value": "Protect your premises after hours",
+      "target": "settings.microcopy.article.ctaHeading",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.cta.copy",
+      "source": "components/blog/article.tsx:242",
+      "kind": "text",
+      "value": "Tell us about your site and we'll come back with a tailored, no-obligation quote.",
+      "target": "settings.microcopy.article.ctaCopy",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.cta.label",
+      "source": "components/blog/article.tsx:252",
+      "kind": "text",
+      "value": "Get a Quote",
+      "target": "settings.microcopy.article.ctaLabel",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.cta.href",
+      "source": "components/blog/article.tsx:246",
+      "kind": "href",
+      "value": "/contact",
+      "target": "settings.microcopy.article.ctaHref",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.share.label",
+      "source": "components/blog/share-links.tsx:29",
+      "kind": "text",
+      "value": "Share:",
+      "target": "settings.microcopy.article.shareLabel",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.share.aria",
+      "source": "components/blog/share-links.tsx:35",
+      "kind": "aria",
+      "value": "Share on {name}",
+      "target": "settings.microcopy.aria.shareOn",
+      "pages": [
+        "/blog/[slug]"
+      ],
+      "template": true
+    },
+    {
+      "id": "article.share.networks",
+      "source": "components/blog/share-links.tsx:3",
+      "kind": "list",
+      "value": "3",
+      "target": "settings.microcopy.share.networks",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.share.networks.label",
+      "source": "components/blog/share-links.tsx:5",
+      "kind": "text",
+      "value": "f",
+      "target": "settings.microcopy.share.networks[].label",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.share.networks.name",
+      "source": "components/blog/share-links.tsx:6",
+      "kind": "text",
+      "value": "Facebook",
+      "target": "settings.microcopy.share.networks[].name",
+      "pages": [
+        "/blog/[slug]"
+      ]
+    },
+    {
+      "id": "article.share.networks.href",
+      "source": "components/blog/share-links.tsx:8",
+      "kind": "href",
+      "value": "https://www.facebook.com/sharer/sharer.php?u={url}",
+      "target": "settings.microcopy.share.networks[].href",
+      "pages": [
+        "/blog/[slug]"
+      ],
+      "template": true
+    },
+    {
+      "id": "contact.meta.title",
+      "source": "app/(site)/contact/page.tsx:12",
+      "kind": "meta",
+      "value": "Contact Us | Security Partners Ltd.",
+      "target": "pages.contact.seo.title",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.meta.description",
+      "source": "app/(site)/contact/page.tsx:13",
+      "kind": "meta",
+      "value": "Get in touch with our team. For urgent matters, our 24 Hour Number is {phone24h}.",
+      "target": "pages.contact.seo.description",
+      "pages": [
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "contact.hero.image",
+      "source": "app/(site)/contact/page.tsx:22",
+      "kind": "image",
+      "value": "/images/hero.jpg",
+      "target": "pages.contact.hero.image",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.hero.crumb",
+      "source": "app/(site)/contact/page.tsx:23",
+      "kind": "text",
+      "value": "Contact",
+      "target": "pages.contact.hero.crumb",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.hero.title",
+      "source": "app/(site)/contact/page.tsx:25",
+      "kind": "text",
+      "value": "Contact Us",
+      "target": "pages.contact.hero.title",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.hero.description",
+      "source": "app/(site)/contact/page.tsx:26",
+      "kind": "text",
+      "value": "Get in touch with our team. For urgent matters, our 24 Hour Number is {phone24h}.",
+      "target": "pages.contact.hero.description",
+      "pages": [
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "contact.departments.eyebrow",
+      "source": "components/contact/departments.tsx:57",
+      "kind": "text",
+      "value": "Departments",
+      "target": "pages.contact.departments.eyebrow",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.heading",
+      "source": "components/contact/departments.tsx:58",
+      "kind": "text",
+      "value": "Reach The Right Team",
+      "target": "pages.contact.departments.heading",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.intro",
+      "source": "components/contact/departments.tsx:59",
+      "kind": "text",
+      "value": "Contact the right person directly for faster help with your query.",
+      "target": "pages.contact.departments.intro",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.items",
+      "source": "components/contact/departments.tsx:6",
+      "kind": "list",
+      "value": "3",
+      "target": "pages.contact.departments.items",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.items.title",
+      "source": "components/contact/departments.tsx:8",
+      "kind": "text",
+      "value": "Operations",
+      "target": "pages.contact.departments.items[].title",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.items.icon",
+      "source": "components/contact/departments.tsx:9",
+      "kind": "image",
+      "value": "/images/icon-shield.svg",
+      "target": "pages.contact.departments.items[].icon",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.items.name",
+      "source": "components/contact/departments.tsx:10",
+      "kind": "text",
+      "value": "John McDonald",
+      "target": "pages.contact.departments.items[].name",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.items.role",
+      "source": "components/contact/departments.tsx:11",
+      "kind": "text",
+      "value": "Operations Director",
+      "target": "pages.contact.departments.items[].role",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.items.lines.text",
+      "source": "components/contact/departments.tsx:13",
+      "kind": "text",
+      "value": "Tel: {office} Ext 2",
+      "target": "pages.contact.departments.items[].lines[].text",
+      "pages": [
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "contact.departments.items.lines.href",
+      "source": "components/contact/departments.tsx:13",
+      "kind": "tel",
+      "value": "{officeHref}",
+      "target": "pages.contact.departments.items[].lines[].href",
+      "pages": [
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "contact.departments.ops.mobile",
+      "source": "components/contact/departments.tsx:15",
+      "kind": "text",
+      "value": "or {operationsMobile}",
+      "target": "pages.contact.departments.items[].lines[].text",
+      "pages": [
+        "/contact"
+      ],
+      "template": true
+    },
+    {
+      "id": "contact.departments.hr.phone",
+      "source": "components/contact/departments.tsx:30",
+      "kind": "text",
+      "value": "Tel: (085) 8062369",
+      "target": "pages.contact.departments.items[].lines[].text",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.hr.phoneHref",
+      "source": "components/contact/departments.tsx:30",
+      "kind": "tel",
+      "value": "tel:+353858062369",
+      "target": "pages.contact.departments.items[].lines[].href",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.hr.email",
+      "source": "components/contact/departments.tsx:32",
+      "kind": "text",
+      "value": "HR@securitypartnersltd.com",
+      "target": "pages.contact.departments.items[].lines[].text",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.hr.emailHref",
+      "source": "components/contact/departments.tsx:33",
+      "kind": "mailto",
+      "value": "mailto:HR@securitypartnersltd.com",
+      "target": "pages.contact.departments.items[].lines[].href",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.accounts.phone",
+      "source": "components/contact/departments.tsx:43",
+      "kind": "text",
+      "value": "Tel: (057) 8697670 Ext 3",
+      "target": "pages.contact.departments.items[].lines[].text",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.accounts.email",
+      "source": "components/contact/departments.tsx:45",
+      "kind": "text",
+      "value": "accounts@securitypartnersltd.com",
+      "target": "pages.contact.departments.items[].lines[].text",
+      "pages": [
+        "/contact"
+      ]
+    },
+    {
+      "id": "contact.departments.accounts.emailHref",
+      "source": "components/contact/departments.tsx:46",
+      "kind": "mailto",
+      "value": "mailto:accounts@securitypartnersltd.com",
+      "target": "pages.contact.departments.items[].lines[].href",
+      "pages": [
+        "/contact"
+      ]
+    }
+  ]
+}

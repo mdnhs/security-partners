@@ -1,65 +1,32 @@
 import Image from "next/image"
 
 import { Container, SectionHeading } from "@/components/home/section"
-import { contact } from "@/components/home/data"
 
-const departments = [
-  {
-    title: "Operations",
-    icon: "/images/icon-shield.svg",
-    name: "John McDonald",
-    role: "Operations Director",
-    lines: [
-      { text: `Tel: ${contact.office} Ext 2`, href: contact.officeHref },
-      {
-        text: `or ${contact.operationsMobile}`,
-        href: contact.operationsMobileHref,
-      },
-      {
-        text: contact.operationsEmail,
-        href: `mailto:${contact.operationsEmail}`,
-      },
-    ],
-  },
-  {
-    title: "HR",
-    icon: "/images/icon-users.svg",
-    name: "Sarah Moran",
-    role: "HR/Operations Manager",
-    lines: [
-      { text: "Tel: (085) 8062369", href: "tel:+353858062369" },
-      {
-        text: "HR@securitypartnersltd.com",
-        href: "mailto:HR@securitypartnersltd.com",
-      },
-    ],
-  },
-  {
-    title: "Accounts",
-    icon: "/images/icon-file.svg",
-    name: "Louise Sheeran",
-    role: "Accounts Manager",
-    lines: [
-      { text: "Tel: (057) 8697670 Ext 3", href: contact.officeHref },
-      {
-        text: "accounts@securitypartnersltd.com",
-        href: "mailto:accounts@securitypartnersltd.com",
-      },
-    ],
-  },
-]
+export type DepartmentsProps = {
+  eyebrow: string
+  heading: string
+  intro: string
+  items: {
+    title: string
+    icon: string
+    name: string
+    role: string
+    lines: { text: string; href: string }[]
+  }[]
+}
 
-export function Departments() {
+export function Departments({
+  eyebrow,
+  heading,
+  intro,
+  items,
+}: DepartmentsProps) {
   return (
     <section className="bg-brand-surface px-6 py-20 md:px-10 lg:py-28">
       <Container className="flex flex-col gap-14">
-        <SectionHeading
-          eyebrow="Departments"
-          title="Reach The Right Team"
-          description="Contact the right person directly for faster help with your query."
-        />
+        <SectionHeading eyebrow={eyebrow} title={heading} description={intro} />
         <ul data-stagger className="grid gap-6 lg:grid-cols-3">
-          {departments.map((department) => (
+          {items.map((department) => (
             <li
               key={department.title}
               className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)]"

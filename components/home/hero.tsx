@@ -2,15 +2,31 @@ import Image from "next/image"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container } from "@/components/home/section"
-import { contact } from "@/components/home/data"
 
-const stats = [
-  { value: "18+", label: "Years in business", count: 18, suffix: "+" },
-  { value: "24/7", label: "Operations team" },
-  { value: "Nationwide", label: "Coverage across Ireland" },
-]
+type HeroLink = { label: string; href: string }
 
-export function Hero() {
+export type HeroProps = {
+  eyebrow: string
+  heading: string
+  tagline: string
+  subheading: string
+  backgroundImage: string
+  primaryCta: HeroLink
+  /** Label as text parts (lib/interpolate interpolateParts). */
+  secondaryCta: { label: string[]; href: string }
+  stats: { value: string; label: string; count?: number; suffix?: string }[]
+}
+
+export function Hero({
+  eyebrow,
+  heading,
+  tagline,
+  subheading,
+  backgroundImage,
+  primaryCta,
+  secondaryCta,
+  stats,
+}: HeroProps) {
   return (
     <section
       id="top"
@@ -20,7 +36,7 @@ export function Hero() {
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div data-hero-media className="absolute inset-0 will-change-transform">
           <Image
-            src="/images/hero.jpg"
+            src={backgroundImage}
             alt=""
             fill
             priority
@@ -42,7 +58,7 @@ export function Hero() {
           >
             <Image src="/images/ellipse.svg" alt="" width={8} height={8} />
             <p className="text-[13px] font-bold tracking-[0.04em] whitespace-pre text-white">
-              {"Mountmellick, Co. Laois  •  Since 2008"}
+              {eyebrow}
             </p>
           </div>
 
@@ -50,37 +66,36 @@ export function Hero() {
             data-hero-title
             className="text-5xl leading-[1.05] font-black tracking-[-0.01em] text-white md:text-[68px] md:whitespace-nowrap"
           >
-            Security Partners Ltd.
+            {heading}
           </h1>
           <p
             data-hero-item
             className="text-2xl font-bold text-brand-green md:text-[28px]"
           >
-            Watching Over You
+            {tagline}
           </p>
           <p
             data-hero-item
             className="text-lg leading-[1.55] text-white/85 md:text-[19px]"
           >
-            Proactive, flexible and customer-focused security services across
-            Ireland, backed by a dedicated 24/7 operations team.
+            {subheading}
           </p>
 
           <div data-hero-item className="flex flex-wrap gap-4 pt-3">
             <a
-              href="#services"
+              href={primaryCta.href}
               className={buttonClassName({ variant: "brand", size: "pill" })}
             >
-              Our Services
+              {primaryCta.label}
             </a>
             <a
-              href={contact.phone24hHref}
+              href={secondaryCta.href}
               className={buttonClassName({
                 variant: "brand-outline",
                 size: "pill",
               })}
             >
-              Call 24/7: {contact.phone24h}
+              {secondaryCta.label}
             </a>
           </div>
 

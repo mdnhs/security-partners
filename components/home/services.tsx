@@ -3,15 +3,33 @@ import Link from "next/link"
 
 import { buttonClassName } from "@/components/ui/button"
 import { Container, Eyebrow, SectionHeading } from "@/components/home/section"
-import { contact, services, type Service } from "@/components/home/data"
+import { interpolate } from "@/lib/interpolate"
+
+export type ServiceCardData = {
+  slug: string
+  title: string
+  description: string
+  icon: string
+}
+
+/** "Read More" and the aria-label template "Read more about {title}". */
+export type ServiceCardLabels = { readMore: string; ariaReadMore: string }
+
+export type ServicesProps = {
+  eyebrow: string
+  title: string
+  description: string
+  services: ServiceCardData[]
+  labels: ServiceCardLabels
+}
 
 export function Services({
-  title = "Our Services",
-  description = "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
-}: {
-  title?: string
-  description?: string
-}) {
+  eyebrow,
+  title,
+  description,
+  services,
+  labels,
+}: ServicesProps) {
   return (
     <section
       id="services"
@@ -19,7 +37,7 @@ export function Services({
     >
       <Container className="flex flex-col items-center gap-14">
         <SectionHeading
-          eyebrow="What we do"
+          eyebrow={eyebrow}
           title={title}
           description={description}
         />
@@ -29,7 +47,7 @@ export function Services({
           className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3"
         >
           {services.map((service) => (
-            <ServiceCard key={service.slug} service={service} />
+            <ServiceCard key={service.slug} service={service} labels={labels} />
           ))}
         </ul>
       </Container>
@@ -37,7 +55,13 @@ export function Services({
   )
 }
 
-export function ServiceCard({ service }: { service: Service }) {
+export function ServiceCard({
+  service,
+  labels,
+}: {
+  service: ServiceCardData
+  labels: ServiceCardLabels
+}) {
   return (
     <li className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
       <div
@@ -63,15 +87,35 @@ export function ServiceCard({ service }: { service: Service }) {
       <Link
         href={`/services/${service.slug}`}
         className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue hover:underline"
-        aria-label={`Read more about ${service.title}`}
+        aria-label={interpolate(labels.ariaReadMore, { title: service.title })}
       >
-        Read More <span aria-hidden>→</span>
+        {`${labels.readMore} `}
+        <span aria-hidden>→</span>
       </Link>
     </li>
   )
 }
 
-export function EnquireBanner() {
+type BannerLink = { label: string; href: string }
+
+export type EnquireBannerProps = {
+  image: string
+  eyebrow: string
+  heading: string
+  copy: string
+  cta: BannerLink
+  /** Label as text parts (lib/interpolate interpolateParts). */
+  secondaryCta: { label: string[]; href: string }
+}
+
+export function EnquireBanner({
+  image,
+  eyebrow,
+  heading,
+  copy,
+  cta,
+  secondaryCta,
+}: EnquireBannerProps) {
   return (
     <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
       <Container>
@@ -85,7 +129,7 @@ export function EnquireBanner() {
               className="absolute inset-x-0 -top-[15%] h-[130%] will-change-transform"
             >
               <Image
-                src="/images/banner.png"
+                src={image}
                 alt=""
                 fill
                 sizes="(min-width: 1280px) 1200px, 100vw"
@@ -95,39 +139,38 @@ export function EnquireBanner() {
             <div className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85" />
           </div>
           <Eyebrow data-banner-item className="relative">
-            Get in touch
+            {eyebrow}
           </Eyebrow>
           <h2
             data-banner-item
             className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
           >
-            Enquire About Our Services
+            {heading}
           </h2>
           <p
             data-banner-item
             className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
           >
-            Tell us what you need protecting and our team will come back to you
-            with a tailored, no-obligation quote.
+            {copy}
           </p>
           <div
             data-banner-item
             className="relative flex flex-wrap justify-center gap-4 pt-2"
           >
             <Link
-              href="/contact"
+              href={cta.href}
               className={buttonClassName({ variant: "brand", size: "pill" })}
             >
-              Get a Quote
+              {cta.label}
             </Link>
             <a
-              href={contact.officeHref}
+              href={secondaryCta.href}
               className={buttonClassName({
                 variant: "brand-outline",
                 size: "pill",
               })}
             >
-              Call {contact.office}
+              {secondaryCta.label}
             </a>
           </div>
         </div>

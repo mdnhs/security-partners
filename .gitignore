@@ -37,3 +37,21 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright / local data
+test-results/
+playwright-report/
+.data/
+
+# vitest
+/.vitest/
+!.env.example
+
+# bundled ops scripts (Docker builder output)
+/scripts/dist/
+
+# e2e fixtures written by tests/e2e/seed.ts
+/tests/e2e/.state/
+
+# Agent worktrees
+.claude/worktrees/

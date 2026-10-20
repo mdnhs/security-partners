@@ -1,9 +1,20 @@
 import Image from "next/image"
 
 import { Container, Eyebrow } from "@/components/home/section"
-import { features } from "@/components/services/data"
 
-export function WhyChooseUs() {
+export type WhyChooseUsProps = {
+  eyebrow: string
+  heading: string
+  copy: string
+  features: { title: string; description: string; icon: string }[]
+}
+
+export function WhyChooseUs({
+  eyebrow,
+  heading,
+  copy,
+  features,
+}: WhyChooseUsProps) {
   return (
     <section className="bg-brand-blue px-6 py-20 md:px-10 lg:py-28">
       <Container className="flex flex-col gap-14">
@@ -11,13 +22,12 @@ export function WhyChooseUs() {
           data-stagger
           className="flex flex-col items-center gap-3.5 text-center"
         >
-          <Eyebrow>Why Security Partners</Eyebrow>
+          <Eyebrow>{eyebrow}</Eyebrow>
           <h2 className="text-4xl leading-[1.15] font-black tracking-[-0.01em] text-white md:text-[44px]">
-            Why Choose Us
+            {heading}
           </h2>
           <p className="max-w-[680px] text-lg leading-[1.6] text-white/85">
-            We are dedicated to providing our clients with the best possible
-            services.
+            {copy}
           </p>
         </div>
 

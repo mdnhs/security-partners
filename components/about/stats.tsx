@@ -1,7 +1,10 @@
 import { Container } from "@/components/home/section"
-import { stats } from "@/components/about/data"
 
-export function Stats() {
+export type StatsProps = {
+  stats: { value: string; label: string; description: string }[]
+}
+
+export function Stats({ stats }: StatsProps) {
   return (
     <section className="bg-brand-navy px-6 py-16 md:px-10 lg:py-20">
       <Container>
