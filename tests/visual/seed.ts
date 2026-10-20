@@ -18,6 +18,7 @@ import {
   VISUAL_EDITOR,
   VISUAL_OWNER,
 } from "./admin-user"
+import { seedVisualBuilderPage } from "./builder-fixture"
 
 const { DATABASE_URL } = getEnv()
 assertE2eDatabase(DATABASE_URL)
@@ -26,6 +27,8 @@ const name = new URL(DATABASE_URL).pathname
 await runMigrations(DATABASE_URL)
 await resetDb()
 const report = await seedContent(getDb())
+// /p/visual-fixture (builder-pages.spec.ts); never part of `pnpm db:seed`.
+await seedVisualBuilderPage(getDb())
 const auth = getAuth()
 await auth.api.createUser({
   body: {
@@ -61,5 +64,5 @@ await auth.api.createUser({
 })
 await closeDb()
 console.log(
-  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, 1 admin, 1 editor, 1 author, 1 owner)`
+  `[visual] ${name.slice(1)} reset and seeded (${report.pages} pages, /p/visual-fixture, 1 admin, 1 editor, 1 author, 1 owner)`
 )

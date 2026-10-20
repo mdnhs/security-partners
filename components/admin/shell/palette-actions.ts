@@ -71,6 +71,14 @@ export function buildActions({
       run: () => navigate("/admin/insights/new"),
     },
     {
+      id: "new-page",
+      label: "New page",
+      keywords: ["create", "add", "builder", "landing"],
+      permission: { page: ["create"] },
+      // Pages opens its New page dialog for ?new=1 (D5.5).
+      run: () => navigate("/admin/pages?new=1"),
+    },
+    {
       id: "new-service",
       label: "New service",
       keywords: ["create", "add", "offering"],

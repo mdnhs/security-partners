@@ -47,6 +47,8 @@ import {
 
 const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
+/** Builder pages: /p/<slug> (D5.2). */
+const BUILDER = /^\/p\/([^/]+)$/
 
 function assertCan(actor: Actor, req: PermissionRequest) {
   if (!hasPermission(actor.roles, req)) throw forbidden()
@@ -117,6 +119,12 @@ async function assertFromIsFree(db: DbOrTx, fromPath: string) {
   if (STATIC_PATHS.has(fromPath))
     throw invalid("fromPath", "This address is a live page of the site")
   if (await isLivePage(db, fromPath))
+    throw invalid(
+      "fromPath",
+      "This address is a live page. Rename or unpublish it first."
+    )
+  const builder = BUILDER.exec(fromPath)
+  if (builder && (await isPublishedSlug(db, "builder", builder[1])))
     throw invalid(
       "fromPath",
       "This address is a live page. Rename or unpublish it first."
@@ -631,7 +639,8 @@ export async function importRedirects(
 }
 
 /**
- * A published service/article changed address or was deleted: 301 the old
+ * A published service/article/builder page (/p/<slug>) changed address or
+ * was deleted: 301 the old
  * address (ledger ruling). Runs inside the caller's transaction, as a side
  * effect of an action the caller was allowed to take (editors have no
  * redirect permission of their own). Redirects that led to the old address

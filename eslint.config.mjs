@@ -65,6 +65,8 @@ const restrict = (...patterns) => ({
 
 const ISOMORPHIC = [
   `lib/**/*.${CODE}`,
+  // Page-builder block registry and document rules (admin + public).
+  `blocks/**/*.${CODE}`,
   "templates/*/schema.ts",
   "templates/*/editor-meta.ts",
   "templates/editor-meta.ts",

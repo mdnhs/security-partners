@@ -37,13 +37,13 @@ export function absoluteUrl(origin: string, path: string): string {
 
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const
 
-export const OG_KINDS = ["page", "service", "article"] as const
+export const OG_KINDS = ["page", "service", "article", "builder"] as const
 export type OgKind = (typeof OG_KINDS)[number]
 
 export function isOgKind(value: string): value is OgKind {
   return (OG_KINDS as readonly string[]).includes(value)
 }
 
-/** The generated share card of a page (key), service or article (slug). */
+/** The generated share card of a page (key), service or article (slug), builder page (id). */
 export const ogImagePath = (kind: OgKind, id: string) =>
   `/og/${kind}/${encodeURIComponent(id)}`

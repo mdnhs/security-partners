@@ -4,6 +4,7 @@ import { cookies, draftMode, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { cache } from "react"
 
+import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { REQUEST_PATH_HEADER } from "@/lib/request-path"
 import { getSessionContext } from "@/server/auth/session"
 
@@ -28,6 +29,18 @@ export const isPreviewing: () => Promise<boolean> = cache(async () => {
     canPreview(session.actor.roles)
   )
 })
+
+/**
+ * A verified previewer (isPreviewing) who also holds `req`. Preview is
+ * entered per entity (`/admin/preview` checks that entity's read), but the
+ * draft cookie covers the whole site: a public route that shows drafts of
+ * one kind asks for that kind's permission here (D5.3 review minor 1).
+ */
+export async function previewerCan(req: PermissionRequest): Promise<boolean> {
+  if (!(await isPreviewing())) return false
+  const session = await getSessionContext()
+  return !!session && hasPermission(session.actor.roles, req)
+}
 
 /**
  * Public pages call this before reading data. Draft mode without a verified

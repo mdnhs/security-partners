@@ -135,6 +135,11 @@ describe("nav registry (MK IA, spec §5.1)", () => {
       integration: ["read"],
     })
     expect(permissionFor("/admin/design")).toEqual({ customCode: ["update"] })
+    // The page builder (D5.5) sits under the "pages" item.
+    expect(permissionFor("/admin/pages/custom/x")).toEqual({ page: ["read"] })
+    expect(
+      permissionFor("/admin/pages/custom/0199a000-0000-7000-8000-000000000000")
+    ).toEqual({ page: ["read"] })
     expect(permissionFor("/admin/nope")).toBeUndefined()
     expect(permissionFor("/admin/insightsx")).toBeUndefined()
   })

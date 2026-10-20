@@ -18,6 +18,16 @@ describe("noteProblem (review D1.8 #2)", () => {
   })
 })
 
+describe("redirect rules: builder pages (D5.2)", () => {
+  it("from: /p and /p/ alone are refused; /p/<slug> is a normal source", () => {
+    expect(fromPathProblem("/p")).not.toBeNull()
+    expect(fromPathProblem("/P")).not.toBeNull()
+    expect(fromPathProblem("/p/")).not.toBeNull()
+    expect(fromPathProblem("/p/old-landing")).toBeNull()
+    expect(fromPathProblem("/pages")).toBeNull()
+  })
+})
+
 describe("redirect rules (review fix round 1)", () => {
   it("from: no %-escapes of unreserved characters (aliases)", () => {
     for (const bad of [

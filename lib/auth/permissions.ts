@@ -4,7 +4,7 @@ import { ROLES, type Role } from "./roles"
 
 /** Every resource and action the platform authorises (spec §6.1). Isomorphic: safe in client code. */
 export const statements = {
-  page: ["read", "update", "publish"],
+  page: ["read", "create", "update", "publish", "delete"], // fixed pages + builder pages (create/delete: /p/<slug> only)
   service: ["read", "create", "update", "publish", "delete"],
   article: [
     "read",

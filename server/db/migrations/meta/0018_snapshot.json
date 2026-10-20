@@ -1,5 +1,5 @@
 {
-  "id": "a61c8461-a8b7-4fb6-a513-76d61587b6d5",
+  "id": "a3570022-8c8a-4518-a3c3-ec2255268d28",
   "prevId": "9458ea49-34f4-4644-8a54-3a493c8a2f03",
   "version": "7",
   "dialect": "postgresql",
@@ -2460,13 +2460,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "enquiry_details": {
-          "name": "enquiry_details",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {
@@ -2690,6 +2683,149 @@
         "newsletter_status": {
           "name": "newsletter_status",
           "value": "\"newsletter_subscribers\".\"status\" in ('pending', 'confirmed', 'unsubscribed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.builder_pages": {
+      "name": "builder_pages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seo": {
+          "name": "seo",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "draft": {
+          "name": "draft",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published": {
+          "name": "published",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "status": {
+          "name": "status",
+          "type": "content_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "builder_pages_updated_by_users_id_fk": {
+          "name": "builder_pages_updated_by_users_id_fk",
+          "tableFrom": "builder_pages",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "builder_pages_created_by_users_id_fk": {
+          "name": "builder_pages_created_by_users_id_fk",
+          "tableFrom": "builder_pages",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "builder_pages_slug_unique": {
+          "name": "builder_pages_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "builder_pages_slug_format": {
+          "name": "builder_pages_slug_format",
+          "value": "\"builder_pages\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(\"builder_pages\".\"slug\") <= 60"
         }
       },
       "isRLSEnabled": false

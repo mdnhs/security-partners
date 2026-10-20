@@ -337,6 +337,7 @@ const USAGE_ACCESS: Record<
   team: { resource: "collection", hidden: "A team member" },
   client: { resource: "collection", hidden: "A client" },
   groupCompany: { resource: "collection", hidden: "A group company" },
+  "builder-page": { resource: "page", hidden: "A page" },
 }
 
 const canReadUsage = (actor: Actor, entityType: string) => {
@@ -386,6 +387,8 @@ function describeUsage(
         `Group company: ${name}`,
         `/admin/collections/group-companies?edit=${id}`
       )
+    case "builder-page":
+      return with_(`Custom page: ${name}`, `/admin/pages/custom/${id}`)
     default:
       return with_(`${type} ${id}`, null)
   }

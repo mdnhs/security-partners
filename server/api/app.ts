@@ -17,6 +17,7 @@ import { getAuth } from "@/server/auth/auth"
 import { aiRoutes } from "@/server/modules/ai/routes"
 import { articlesRoutes } from "@/server/modules/articles/routes"
 import { auditRoutes } from "@/server/modules/audit/routes"
+import { builderPagesRoutes } from "@/server/modules/builder-pages/routes"
 import {
   categoriesRoutes,
   clientsRoutes,
@@ -56,6 +57,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/users", usersRoutes)
   .route("/search", searchRoutes)
   .route("/pages", pagesRoutes)
+  .route("/builder-pages", builderPagesRoutes)
   .route("/articles", articlesRoutes)
   .route("/revisions", revisionsRoutes)
   .route("/media", mediaRoutes)

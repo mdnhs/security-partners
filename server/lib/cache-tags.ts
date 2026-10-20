@@ -20,6 +20,8 @@ export const tag = {
   media: (id: string) => `media:${id}`,
   /** Newsletter subscriber counts (admin dashboard only). */
   newsletter: "newsletter",
+  builderPages: "builder-pages",
+  builderPage: (slug: string) => `builder-page:${slug}`,
 } as const
 
 /**

@@ -1,5 +1,6 @@
 import "server-only"
 
+import { isBuilderSlug } from "@/lib/builder-slug"
 import { isNewsletterState } from "@/lib/newsletter/placement"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 import {
@@ -43,6 +44,8 @@ const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
 /** /newsletter is reserved (lib/seo/redirects): no redirect can live under it. */
 const NEWSLETTER = /^\/newsletter(?:\/(.*))?$/
+/** A builder page address (app/(site)/p/[slug]); the slug is checked below. */
+const BUILDER = /^\/p\/([^/]+)$/
 
 /**
  * Only the SQLSTATE (or the error's class) is logged: a driver message can
@@ -106,8 +109,9 @@ function countHit(id: string): Promise<void> {
 
 /**
  * What proxy.ts does with a public GET: fixed pages and files pass without
- * a query; /services/:slug and /blog/:slug pass only when published (else
- * a redirect, else a real 404); any other path gets the redirect lookup
+ * a query; /services/:slug, /blog/:slug and builder pages /p/:slug pass
+ * only when published (else a redirect, else a real 404 — also for a
+ * draft-only or deleted builder page); any other path gets the redirect lookup
  * and otherwise reaches the catch-all 404. Previews (draft mode) skip the
  * slug check. A database failure never blocks the page (fail-open: the
  * page's own error boundary reports it).
@@ -133,13 +137,19 @@ export async function resolvePublicPath(
       ? PASS
       : MISSING
   const detail = DETAIL.exec(pathname)
-  if (detail && options.draft) return PASS
+  const builder = BUILDER.exec(pathname)
+  if ((detail || builder) && options.draft) return PASS
   try {
     const db = getDb()
     if (detail) {
       const slug = detail[2]
       const kind = detail[1] === "services" ? "service" : "article"
       if (SLUG_PATTERN.test(slug) && (await isPublishedSlug(db, kind, slug)))
+        return PASS
+    }
+    if (builder) {
+      const slug = builder[1]
+      if (isBuilderSlug(slug) && (await isPublishedSlug(db, "builder", slug)))
         return PASS
     }
     const redirect = await findRedirectByFrom(db, pathname)
@@ -150,7 +160,7 @@ export async function resolvePublicPath(
         code: redirectCode(redirect.code),
         recordHit: () => countHit(redirect.id),
       }
-    return detail ? MISSING : PASS
+    return detail || builder ? MISSING : PASS
   } catch (error) {
     console.error(`[proxy] public path lookup failed (${errorCode(error)})`)
     return PASS

@@ -19,6 +19,7 @@ import type { DbOrTx } from "@/server/db/client"
 import { containsPattern } from "@/server/db/like"
 import {
   articles,
+  builderPages,
   clients,
   groupCompanies,
   media,
@@ -356,6 +357,15 @@ export async function usageTargets(
         .from(groupCompanies)
         .where(inArray(groupCompanies.id, groupIds))
     )
+  const builderIds = ids("builder-page")
+  if (builderIds.length)
+    add(
+      "builder-page",
+      await db
+        .select({ id: builderPages.id, name: builderPages.title })
+        .from(builderPages)
+        .where(inArray(builderPages.id, builderIds))
+    )
   return names
 }
 
@@ -412,6 +422,10 @@ export async function listMediaReferencingEntities(
     ...of(
       "groupCompany",
       await db.select({ id: groupCompanies.id }).from(groupCompanies)
+    ),
+    ...of(
+      "builder-page",
+      await db.select({ id: builderPages.id }).from(builderPages)
     ),
   ]
 }
@@ -495,6 +509,18 @@ export async function lockMediaReferencingEntity(
         .where(eq(groupCompanies.id, entityId))
         .for("update")
       return row ? [{ logo: { mediaId: row.logoId } }] : null
+    }
+    case "builder-page": {
+      const [row] = await db
+        .select({
+          draft: builderPages.draft,
+          published: builderPages.published,
+          seo: builderPages.seo,
+        })
+        .from(builderPages)
+        .where(eq(builderPages.id, entityId))
+        .for("update")
+      return row ? [row.draft, row.published, { seo: row.seo }] : null
     }
     default:
       return null
