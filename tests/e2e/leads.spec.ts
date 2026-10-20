@@ -61,6 +61,17 @@ async function sendEnquiry(
   await expect(form.getByText(SUCCESS)).toBeVisible()
 }
 
+/**
+ * The board is the inbox's default view (D3.3) and has no search: switch
+ * to the table, where the search box lives.
+ */
+async function showTable(page: Page) {
+  await page.getByRole("button", { name: "Table", exact: true }).click()
+  await expect(
+    page.getByRole("searchbox", { name: "Search leads" })
+  ).toBeVisible()
+}
+
 test("public enquiry → lead in the intake inbox, worked by the intake user", async ({
   page,
   browser,
@@ -77,11 +88,12 @@ test("public enquiry → lead in the intake inbox, worked by the intake user", a
   await signIn(page, intake)
   // Intake sees only leads (plus Dashboard/Account) and the API agrees.
   const nav = page.getByRole("navigation", { name: "Admin" })
-  await expect(nav.getByRole("link", { name: /^Leads/ })).toBeVisible()
+  await expect(nav.getByRole("link", { name: /^Enquiries/ })).toBeVisible()
   await expect(nav.getByRole("link", { name: "Pages" })).toHaveCount(0)
   expect((await page.request.get("/api/v1/admin/pages")).status()).toBe(403)
 
-  await nav.getByRole("link", { name: /^Leads/ }).click()
+  await nav.getByRole("link", { name: /^Enquiries/ }).click()
+  await showTable(page)
   await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
   await page.getByRole("link", { name }).first().click()
   // D3.2: the enquiry opens in a side drawer over the inbox.
@@ -186,6 +198,7 @@ test("first-touch attribution travels with the enquiry to the Source section (D3
 
   await signIn(page, intake)
   await page.goto("/admin/leads")
+  await showTable(page)
   await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
   await page.getByRole("link", { name }).first().click()
   const source = page
@@ -234,6 +247,7 @@ test("the detail URL lands on the drawer, and Back closes it (D3.2)", async ({
 
   // Opening pushes a history entry: the browser's Back closes the drawer
   // and stays on the inbox.
+  await showTable(page)
   await page.getByRole("searchbox", { name: "Search leads" }).fill(name)
   await page.getByRole("link", { name }).first().click()
   await expect(page.getByRole("dialog", { name })).toBeVisible()
