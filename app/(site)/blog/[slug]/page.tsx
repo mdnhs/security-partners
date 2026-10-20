@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
 import { NewsletterSection } from "@/components/newsletter/newsletter-section"
 import { JsonLd } from "@/components/seo/json-ld"
@@ -46,11 +45,7 @@ async function Article({ params }: Pick<PageProps<"/blog/[slug]">, "params">) {
     <>
       <ArticleTemplate
         view={view}
-        newsletter={
-          <Suspense fallback={null}>
-            <NewsletterSection where="article" />
-          </Suspense>
-        }
+        newsletter={<NewsletterSection where="article" />}
       />
       {jsonLd && <JsonLd data={jsonLd} />}
     </>

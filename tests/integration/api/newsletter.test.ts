@@ -35,7 +35,12 @@ import type { DashboardDto } from "@/lib/schemas/api/dashboard"
 import type { NewsletterSettings } from "@/lib/schemas/settings/newsletter"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
-import { auditLog, newsletterSubscribers, settings } from "@/server/db/schema"
+import {
+  auditLog,
+  builderPages,
+  newsletterSubscribers,
+  settings,
+} from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import type { Actor } from "@/server/lib/actor"
 import { RECURRING_JOBS } from "@/server/lib/jobs"
@@ -443,6 +448,40 @@ describe("POST /api/v1/public/newsletter (double opt-in)", () => {
     const res = await subscribe({ email: "nobody@example.ie" })
     expect(res.status).toBe(404)
     expect(await rows()).toHaveLength(0)
+  })
+
+  it("placement off but a published builder page shows the block → 201 (D5)", async () => {
+    await patchNewsletter({ placement: "off" })
+    const block = (hidden: boolean) => ({
+      blocks: [
+        {
+          id: "b-news",
+          type: "newsletter" as const,
+          anchor: "newsletter",
+          hidden,
+          data: { useShared: true },
+        },
+      ],
+    })
+    const [page] = await getDb()
+      .insert(builderPages)
+      .values({
+        slug: "join",
+        title: "Join",
+        draft: block(true),
+        published: block(true),
+        status: "published",
+        publishedAt: new Date(),
+        seo: {},
+      })
+      .returning()
+    // A hidden block does not open the form.
+    expect((await subscribe({ email: "hidden@example.ie" })).status).toBe(404)
+    await getDb()
+      .update(builderPages)
+      .set({ published: block(false) })
+      .where(eq(builderPages.id, page.id))
+    expect((await subscribe({ email: "block@example.ie" })).status).toBe(201)
   })
 
   it("seeded settings keep the form off (placement off → 404)", async () => {

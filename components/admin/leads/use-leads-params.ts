@@ -14,7 +14,8 @@ import {
   isUnsavedGuardEntry,
   useUnsavedRegistry,
 } from "@/components/admin/editor/unsaved-guard"
-import { isLeadId, parseLeadFilters } from "@/lib/admin/leads"
+import { parseLeadFilters } from "@/lib/admin/leads"
+import { isUuid } from "@/lib/ids"
 import type { LeadStatus } from "@/lib/schemas/api/leads"
 
 export type LeadsFolder = "inbox" | "spam"
@@ -154,7 +155,7 @@ export function parseLeadsParams(
         : isView(urlView)
           ? urlView
           : (storedView ?? DEFAULT_VIEW),
-    lead: isLeadId(lead) ? lead.toLowerCase() : null,
+    lead: isUuid(lead) ? lead.toLowerCase() : null,
     status: folder === "spam" ? "spam" : filters.status || undefined,
     q: params.get(LIST_QUERY) || undefined,
     page: Number.isInteger(page) && page > 1 ? page : 1,
@@ -185,7 +186,7 @@ function searchPatch(
     out[LIST_PAGE] =
       patch.page && patch.page > 1 ? String(patch.page) : undefined
   if ("lead" in patch)
-    out.lead = isLeadId(patch.lead) ? patch.lead.toLowerCase() : undefined
+    out.lead = isUuid(patch.lead) ? patch.lead.toLowerCase() : undefined
   return out
 }
 

@@ -10,7 +10,7 @@ vi.mock("next/cache", () => ({
 
 import { REDIRECT_SOURCES, type RedirectDto } from "@/lib/schemas/api/redirects"
 import { getDb } from "@/server/db/client"
-import { redirects, services } from "@/server/db/schema"
+import { builderPages, redirects, services } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { resolvePublicPath } from "@/server/modules/redirects/resolve"
 
@@ -255,5 +255,51 @@ describe("redirects admin (D1.7)", () => {
       await patch(dto.id, { isActive: true, note: "edited" })
     ).json()) as RedirectDto
     expect(edited.updatedAt).not.toBe(dto.updatedAt)
+  })
+})
+
+describe("redirects vs live builder pages (MK integration: /p/ in isLivePage)", () => {
+  const DOC = { blocks: [] }
+  async function publishBuilderPage(slug: string) {
+    await getDb()
+      .insert(builderPages)
+      .values({
+        slug,
+        title: `Page ${slug}`,
+        draft: DOC,
+        published: DOC,
+        status: "published",
+        publishedAt: new Date(),
+        seo: {},
+      })
+  }
+
+  it("turning on a redirect whose `from` is now a published builder page gives 422", async () => {
+    const dto = await create({ fromPath: "/p/spring-offer", toPath: "/" })
+    expect((await patch(dto.id, { isActive: false })).status).toBe(200)
+    await publishBuilderPage("spring-offer")
+    const res = await patch(dto.id, { isActive: true })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe("That address is a live page now")
+  })
+
+  it("an import row from a published builder page is a live-page row error", async () => {
+    await publishBuilderPage("spring-offer")
+    const res = await adminRequest("/redirects/import", {
+      cookie: marketer,
+      method: "POST",
+      json: {
+        csv: "from,to\n/p/spring-offer,/\n/p/not-live,/\n",
+        mode: "preview",
+      },
+    })
+    expect(res.status).toBe(200)
+    const { rows } = (await res.json()) as {
+      rows: { line: number; status: string; message?: string }[]
+    }
+    expect(rows[0]).toMatchObject({ line: 2, status: "error" })
+    expect(rows[0].message).toMatch(/live page/)
+    expect(rows[1]).toMatchObject({ line: 3, status: "create" })
   })
 })

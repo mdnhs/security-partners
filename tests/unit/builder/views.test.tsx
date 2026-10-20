@@ -9,6 +9,9 @@ vi.mock("next/navigation", async (importOriginal) => ({
 
 import { BLOCK_TYPES } from "@/blocks/registry"
 import type { MediaView } from "@/lib/media"
+import { toPublicCopy } from "@/lib/schemas/settings/newsletter"
+import { fixtureMediaLookup } from "@/server/db/seed/fixtures/media"
+import { settingsFixture } from "@/server/db/seed/fixtures/settings"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
 import { BuilderTemplate } from "@/templates/builder/render"
 import {
@@ -262,6 +265,23 @@ describe("BuilderTemplate", () => {
     // About renders id="about" itself: no duplicate wrapper.
     expect(html.match(/id="about"/g)).toHaveLength(1)
     expect(html).toContain('<div id="figures">')
+  })
+
+  it("the newsletter block renders the D4 form with the settings copy, at its anchor", () => {
+    const news = ALL.find((b) => b.type === "newsletter")!
+    const copy = toPublicCopy(settingsFixture(fixtureMediaLookup).newsletter)
+    const withCopy = renderToStaticMarkup(
+      <BuilderTemplate
+        chrome={chromeView(s)}
+        blocks={builderBlocksView([{ ...news, anchor: "join" }], s)}
+        newsletterCopy={copy}
+      />
+    )
+    expect(withCopy).toContain('id="join"')
+    expect(withCopy).toContain(copy.title)
+    expect(withCopy).toContain(copy.button)
+    // No copy (settings unreadable): nothing renders for the block.
+    expect(render([news])).not.toContain(copy.title)
   })
 })
 

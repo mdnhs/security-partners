@@ -143,6 +143,13 @@ describe("EVENT_CATALOGUE", () => {
         ga4: "tracking_test",
         meta: null,
       },
+      {
+        event: "newsletter_sign_up",
+        firesWhen: "newsletter signup accepted",
+        params: ["method"],
+        ga4: "sign_up",
+        meta: "CompleteRegistration",
+      },
     ])
   })
 

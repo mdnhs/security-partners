@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
 import { PageHero } from "@/components/home/page-hero"
 import { Container } from "@/components/home/section"
@@ -10,6 +9,7 @@ import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
 import { NewsletterStateBody } from "@/components/newsletter/newsletter-state"
 import { SiteLocale } from "@/components/site-locale"
+import { SiteThemed } from "@/components/site-themed"
 import { isNewsletterState, newsletterView } from "@/lib/newsletter/placement"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { readPublishedSettings } from "@/server/modules/settings/service"
@@ -57,9 +57,9 @@ export default function NewsletterStatePage({
   searchParams,
 }: PageProps<"/newsletter/[state]">) {
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <NewsletterState params={params} searchParams={searchParams} />
-    </Suspense>
+    </SiteThemed>
   )
 }
 

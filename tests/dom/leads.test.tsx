@@ -506,11 +506,26 @@ describe("leads inbox (master 7.4)", () => {
 describe("lead detail privacy helper: newsletter (D4.3)", () => {
   const lookups = () =>
     calls.filter((c) => c.url.includes("/newsletter/lookup"))
+  /** The lookup runs (and is audited) only on request (MK integration). */
+  async function check(user = userEvent.setup()) {
+    await user.click(
+      await screen.findByRole("button", { name: "Check the newsletter list" })
+    )
+    return user
+  }
+
+  it("never looks the address up just because the lead opened", async () => {
+    renderAs(["admin"], drawer(ID))
+    await screen.findByRole("button", { name: "Check the newsletter list" })
+    await screen.findByRole("heading", { name: "Dinn Rí" })
+    expect(lookups()).toEqual([])
+  })
 
   it("says whether the address is also on the newsletter list", async () => {
     onNewsletter = true
     // Intake opens the lead; marketer adds newsletter:read (not delete).
     renderAs(["intake", "marketer"], drawer(ID))
+    await check()
     expect(
       await screen.findByText("Also on the newsletter list: Yes")
     ).toBeInTheDocument()
@@ -526,6 +541,7 @@ describe("lead detail privacy helper: newsletter (D4.3)", () => {
 
   it("No when absent; nothing at all without newsletter:read", async () => {
     renderAs(["admin"], drawer(ID))
+    await check()
     expect(
       await screen.findByText("Also on the newsletter list: No")
     ).toBeInTheDocument()
@@ -537,14 +553,17 @@ describe("lead detail privacy helper: newsletter (D4.3)", () => {
   it("is not shown (nor looked up) for intake", async () => {
     renderAs(["intake"], drawer(ID))
     await screen.findByRole("heading", { name: "Dinn Rí" })
+    expect(
+      screen.queryByRole("button", { name: "Check the newsletter list" })
+    ).toBeNull()
     expect(screen.queryByText(/Also on the newsletter list/)).toBeNull()
     expect(lookups()).toEqual([])
   })
 
   it("newsletter:delete erases the address after confirming", async () => {
     onNewsletter = true
-    const user = userEvent.setup()
     renderAs(["admin"], drawer(ID))
+    const user = await check()
     const erase = await screen.findByRole("button", {
       name: "Erase from newsletter",
     })

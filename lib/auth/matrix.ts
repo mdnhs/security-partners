@@ -72,6 +72,8 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   owner: "Owner accounts",
   audit: "Audit log",
   ai: "AI assistant",
+  appearance: "Appearance",
+  newsletter: "Newsletter",
 }
 
 export const ACTION_LABELS: Record<Action, string> = {

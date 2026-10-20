@@ -36,9 +36,13 @@ function Lookup({ email }: { email: string }) {
   const queryClient = useQueryClient()
   const canErase = usePermission({ newsletter: ["delete"] })
   const [confirming, setConfirming] = useState(false)
+  // Only on request: each lookup is audited (newsletter.looked_up), so
+  // opening a lead never checks (or logs) the address by itself.
+  const [requested, setRequested] = useState(false)
   const key = ["newsletter", "lookup", email] as const
   const lookup = useQuery({
     queryKey: key,
+    enabled: requested,
     // POST: the address stays out of URLs and access logs.
     queryFn: async () =>
       (await unwrap(
@@ -66,18 +70,30 @@ function Lookup({ email }: { email: string }) {
       id="lead-newsletter"
       title="Newsletter"
       description="For privacy requests: the same address on the mailing list."
-      aria-busy={lookup.isPending || erase.isPending || undefined}
+      aria-busy={
+        (requested && lookup.isPending) || erase.isPending || undefined
+      }
     >
-      {lookup.isError ? (
+      {!requested ? (
+        <Button
+          type="button"
+          variant="outline"
+          // 44 px on touch, like the rest of the admin's controls.
+          className="self-start pointer-coarse:h-11 pointer-coarse:min-w-11"
+          onClick={() => setRequested(true)}
+        >
+          Check the newsletter list
+        </Button>
+      ) : lookup.isError ? (
         <p role="alert" className="text-sm text-destructive">
           Could not check the newsletter list: {errorMessage(lookup.error)}
         </p>
       ) : subscribed === null ? (
-        <p className="text-sm text-muted-foreground">
+        <p role="status" className="text-sm text-muted-foreground">
           Checking the newsletter list…
         </p>
       ) : (
-        <p className="text-sm">
+        <p role="status" className="text-sm">
           {`Also on the newsletter list: ${subscribed ? "Yes" : "No"}`}
         </p>
       )}

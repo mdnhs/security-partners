@@ -32,6 +32,7 @@ import { AppError, forbidden, notFound } from "@/server/lib/errors"
 import { hashIp } from "@/server/lib/ip"
 import { mailer } from "@/server/lib/mailer"
 import { consumeRateLimit } from "@/server/lib/rate-limit"
+import { newsletterBlockPublished } from "@/server/modules/builder-pages/queries"
 import { assertHuman, honeypotFilled } from "@/server/modules/leads/service"
 import { readPublishedSettings } from "@/server/modules/settings/service"
 
@@ -108,14 +109,15 @@ async function readSettings(): Promise<NewsletterSettings | null> {
 }
 
 /**
- * Whether the public form may accept signups: a placement is on. D5 adds
- * "or a published builder page has a newsletter block".
+ * Whether the public form may accept signups: a placement is on, or a
+ * published builder page shows a newsletter block (D5).
  */
 export async function newsletterAcceptsSignups(
   settings?: NewsletterSettings | null
 ): Promise<boolean> {
   const value = settings === undefined ? await readSettings() : settings
-  return value !== null && value.placement !== "off"
+  if (value === null) return false
+  return value.placement !== "off" || (await newsletterBlockPublished())
 }
 
 /**

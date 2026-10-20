@@ -1,11 +1,16 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
+import { SiteThemed } from "@/components/site-themed"
+import {
+  type NewsletterPublicCopy,
+  toPublicCopy,
+} from "@/lib/schemas/settings/newsletter"
 import { getBuilderPageForRequest } from "@/server/modules/builder-pages/queries"
 import { resolveMedia } from "@/server/modules/media/queries"
 import { loadSiteSources } from "@/server/modules/pages/sources"
+import { readPublishedSettings } from "@/server/modules/settings/service"
 import { BuilderTemplate } from "@/templates/builder/render"
 import {
   builderBlocksView,
@@ -39,13 +44,32 @@ export async function generateMetadata({
 }
 
 export default function BuilderPage({ params }: PageProps<"/p/[slug]">) {
-  // The page's single top-level wrapper: swapped for SiteThemed (C3,
-  // components/site-themed.tsx) at integration.
   return (
-    <Suspense fallback={null}>
+    <SiteThemed>
       <Builder params={params} />
-    </Suspense>
+    </SiteThemed>
   )
+}
+
+/**
+ * The newsletter block's copy (D4 settings.newsletter), read only when the
+ * page shows the block. Any failure renders no form: the form is never
+ * worth breaking a page (as NewsletterSection).
+ */
+async function newsletterCopyFor(
+  blocks: readonly { type: string; hidden?: boolean }[]
+): Promise<NewsletterPublicCopy | null> {
+  if (!blocks.some((block) => block.type === "newsletter" && !block.hidden))
+    return null
+  const settings = await readPublishedSettings("newsletter").catch(
+    (error: unknown) => {
+      console.error(
+        `[newsletter] builder block not rendered (${error instanceof Error ? error.name : "unknown"})`
+      )
+      return null
+    }
+  )
+  return settings ? toPublicCopy(settings) : null
 }
 
 async function Builder({ params }: Pick<PageProps<"/p/[slug]">, "params">) {
@@ -54,12 +78,15 @@ async function Builder({ params }: Pick<PageProps<"/p/[slug]">, "params">) {
   const s = await loadSiteSources()
   const page = await getBuilderPageForRequest(slug)
   if (!page) notFound()
-  const { doc } = await resolveMedia({ doc: page.doc })
+  const [{ doc }, newsletterCopy] = await Promise.all([
+    resolveMedia({ doc: page.doc }),
+    newsletterCopyFor(page.doc.blocks),
+  ])
   return (
     <BuilderTemplate
       chrome={chromeView(s)}
       blocks={builderBlocksView(doc.blocks, s)}
-      newsletterCopy={null}
+      newsletterCopy={newsletterCopy}
     />
   )
 }

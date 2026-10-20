@@ -77,9 +77,13 @@ export const EVENT_CATALOGUE: readonly {
     ga4: "tracking_test",
     meta: null,
   },
-  // D4.2 integration point: the `newsletter_sign_up` row goes here
-  // ("newsletter signup accepted" | method | sign_up | CompleteRegistration),
-  // with its trigger, GA4 tag and `method` variable in docs/gtm-container.json.
+  {
+    event: "newsletter_sign_up",
+    firesWhen: "newsletter signup accepted",
+    params: ["method"],
+    ga4: "sign_up",
+    meta: "CompleteRegistration",
+  },
 ]
 
 /**

@@ -115,16 +115,16 @@ export async function writeImportedRedirects(
 }
 
 /**
- * The slugs among `slugs` that a published service/article uses (their
- * pages are live): one query per kind for a whole import.
+ * The slugs among `slugs` that a published service/article/builder page
+ * uses (their pages are live): one query per kind for a whole import.
  */
 export async function listPublishedSlugs(
   db: DbOrTx,
-  kind: "service" | "article",
+  kind: keyof typeof SLUG_TABLES,
   slugs: readonly string[]
 ): Promise<Set<string>> {
   if (slugs.length === 0) return new Set()
-  const table = kind === "service" ? services : articles
+  const table = SLUG_TABLES[kind]
   const rows = await db
     .select({ slug: table.slug })
     .from(table)

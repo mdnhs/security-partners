@@ -105,26 +105,21 @@ async function siteOrigin(db: DbOrTx): Promise<string | null> {
 async function isLivePage(db: DbOrTx, fromPath: string): Promise<boolean> {
   if (STATIC_PATHS.has(fromPath)) return true
   const detail = DETAIL.exec(fromPath)
-  return (
-    detail !== null &&
-    (await isPublishedSlug(
+  if (detail)
+    return isPublishedSlug(
       db,
       detail[1] === "services" ? "service" : "article",
       detail[2]
-    ))
-  )
+    )
+  // A published builder page (/p/<slug>, D5) is live too.
+  const builder = BUILDER.exec(fromPath)
+  return builder !== null && isPublishedSlug(db, "builder", builder[1])
 }
 
 async function assertFromIsFree(db: DbOrTx, fromPath: string) {
   if (STATIC_PATHS.has(fromPath))
     throw invalid("fromPath", "This address is a live page of the site")
   if (await isLivePage(db, fromPath))
-    throw invalid(
-      "fromPath",
-      "This address is a live page. Rename or unpublish it first."
-    )
-  const builder = BUILDER.exec(fromPath)
-  if (builder && (await isPublishedSlug(db, "builder", builder[1])))
     throw invalid(
       "fromPath",
       "This address is a live page. Rename or unpublish it first."
@@ -427,26 +422,35 @@ function activeCell(text: string): boolean | undefined | "invalid" {
 }
 
 /**
- * The live service/article pages among the file's source addresses: one
- * query per kind (not one per row while the redirect lock is held).
+ * The live service/article/builder pages among the file's source
+ * addresses: one query per kind (not one per row while the redirect lock
+ * is held).
  */
 async function liveDetailPaths(
   db: DbOrTx,
   froms: readonly string[]
 ): Promise<Set<string>> {
-  const slugs = { service: [] as string[], article: [] as string[] }
+  const slugs = {
+    service: [] as string[],
+    article: [] as string[],
+    builder: [] as string[],
+  }
   for (const from of froms) {
     const detail = DETAIL.exec(from)
     if (detail)
       slugs[detail[1] === "services" ? "service" : "article"].push(detail[2])
+    const builder = BUILDER.exec(from)
+    if (builder) slugs.builder.push(builder[1])
   }
-  const [services, articles] = await Promise.all([
+  const [services, articles, builders] = await Promise.all([
     listPublishedSlugs(db, "service", slugs.service),
     listPublishedSlugs(db, "article", slugs.article),
+    listPublishedSlugs(db, "builder", slugs.builder),
   ])
   return new Set([
     ...[...services].map((s) => `/services/${s}`),
     ...[...articles].map((s) => `/blog/${s}`),
+    ...[...builders].map((s) => `/p/${s}`),
   ])
 }
 

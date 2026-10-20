@@ -25,17 +25,6 @@ export type LeadInboxFilters = {
   assignee: string
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/**
- * A URL-supplied lead id (`?lead=`) is only used when it is a UUID, so it
- * never reaches the Hono client's `param` as a path segment (SEC1).
- * integration: main has the shared `isUuid` in lib/ids.ts.
- */
-export function isLeadId(value: string | null | undefined): value is string {
-  return typeof value === "string" && UUID.test(value)
-}
-
 /** ?status= & ?assignee= (dashboard and email links); unknown values → "". */
 export function parseLeadFilters(params: URLSearchParams): LeadInboxFilters {
   const status = params.get("status") ?? ""

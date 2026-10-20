@@ -10,18 +10,14 @@ import { EnquireBanner, Services } from "@/components/home/services"
 import { SiteFooter } from "@/components/home/site-footer"
 import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
+import { NewsletterForm } from "@/components/newsletter/newsletter-form"
 import { WhyChooseUs } from "@/components/services/why-choose-us"
 import { SiteLocale } from "@/components/site-locale"
 import { ArticleBlocks } from "@/lib/rich-text/render"
+import type { NewsletterPublicCopy } from "@/lib/schemas/settings/newsletter"
 import type { ChromeView } from "@/templates/shared/views"
 
 import type { BlockViewResult, BuilderBlockView } from "./views"
-
-/**
- * The newsletter block's public copy. D4 (newsletter) owns the type and the
- * form; until it is merged the block renders nothing (null copy).
- */
-export type NewsletterPublicCopy = never
 
 /**
  * The id each existing section renders itself (components are frozen and
@@ -75,6 +71,7 @@ function Section({ view }: { view: BlockViewResult }) {
         </section>
       )
     case "newsletter":
+      // Rendered by BuilderTemplate (it needs the settings copy).
       return null
   }
 }
@@ -83,9 +80,11 @@ function Section({ view }: { view: BlockViewResult }) {
 export function BuilderTemplate({
   chrome,
   blocks,
+  newsletterCopy,
 }: {
   chrome: ChromeView
   blocks: BuilderBlockView[]
+  /** settings.newsletter's public copy; null renders no form. */
   newsletterCopy: NewsletterPublicCopy | null
 }) {
   return (
@@ -93,9 +92,16 @@ export function BuilderTemplate({
       <SiteHeader {...chrome.header} />
       <main>
         {blocks.map(({ block, view }) => {
-          // builderBlocksView already left hidden blocks out; newsletter
-          // renders nothing until D4.
-          if (view.type === "newsletter") return null
+          // builderBlocksView already left hidden blocks out. The D4 form
+          // renders its own id (the block's anchor; at most one per page).
+          if (view.type === "newsletter")
+            return newsletterCopy ? (
+              <NewsletterForm
+                key={block.id}
+                id={block.anchor}
+                copy={newsletterCopy}
+              />
+            ) : null
           return OWN_ID[view.type] === block.anchor ? (
             <Section key={block.id} view={view} />
           ) : (

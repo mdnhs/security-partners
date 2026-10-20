@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/ids"
 import type { MediaRef } from "@/lib/schemas/common"
 
 /** A media row as the public site needs it (spec §5.6). */
@@ -21,13 +22,12 @@ export type WithMedia<T> = T extends MediaRef
         ? { [K in keyof T]: WithMedia<T[K]> }
         : T
 
-const MEDIA_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** Media ids are UUIDs: anything else is never sent to the API as a path. */
-export function isMediaId(value: string | null | undefined): value is string {
-  return typeof value === "string" && MEDIA_ID_RE.test(value)
-}
+/**
+ * Media ids are UUIDs: anything else is never sent to the API as a path.
+ * The shared check (lib/ids.ts), same shape as the API's `z.uuid()`.
+ */
+export const isMediaId: (value: string | null | undefined) => value is string =
+  isUuid
 
 function isMediaRef(value: unknown): value is MediaRef {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false

@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { Suspense } from "react"
 
 import { BlogPosts } from "@/components/blog/blog-posts"
 import { NewsletterSection } from "@/components/newsletter/newsletter-section"
@@ -41,11 +40,7 @@ async function Blog({
           initialCategory={typeof category === "string" ? category : undefined}
         />
       }
-      newsletter={
-        <Suspense fallback={null}>
-          <NewsletterSection where="blog" />
-        </Suspense>
-      }
+      newsletter={<NewsletterSection where="blog" />}
     />
   )
 }

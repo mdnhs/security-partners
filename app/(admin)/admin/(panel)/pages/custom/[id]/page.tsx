@@ -4,7 +4,7 @@ import { Suspense } from "react"
 
 import { PageBuilder } from "@/components/admin/builder/page-builder"
 import { idParam } from "@/lib/schemas/api/params"
-import { requirePermission } from "@/server/auth/session"
+import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Page builder" }
 
@@ -22,10 +22,8 @@ async function Builder({
   params,
 }: Pick<PageProps<"/admin/pages/custom/[id]">, "params">) {
   const { id } = await params
-  // Same permission as the nav registry's "pages" item (permissionFor).
-  // integration: requirePage — swap for `await requirePage(`/admin/pages/custom/${id}`)`
-  // when Phase B's page guards are on this branch.
-  await requirePermission({ page: ["read"] })
+  // Permission first, as on every [param] page but settings/[key].
+  await requirePage("/admin/pages/custom")
   if (!idParam.safeParse({ id }).success) notFound()
   return <PageBuilder id={id} />
 }
