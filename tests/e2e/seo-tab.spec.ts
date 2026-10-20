@@ -71,7 +71,8 @@ test("an unsaved content edit survives a switch to the SEO tab and back", async 
   await signIn(page)
   const id = await serviceId(page, "alarm-responses")
   await page.goto(`/admin/services/${id}`)
-  const title = page.getByRole("textbox", { name: /^Title/ }).first()
+  // The service editor names its title field "Name" (Service card).
+  const title = page.getByRole("textbox", { name: "Name", exact: true })
   const before = await title.inputValue()
   await title.fill(`${before} (draft)`)
   await page.getByRole("tab", { name: "SEO" }).click()
