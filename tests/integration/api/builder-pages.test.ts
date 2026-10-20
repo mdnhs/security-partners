@@ -338,13 +338,23 @@ describe("builder pages API (D5.2)", () => {
     expect(
       Object.keys(((await bad.json()) as ErrorBody).error.fieldErrors ?? {})
     ).toEqual(["draft.blocks.0.data.image.mediaId"])
-    let deep: unknown = "leaf"
-    for (let i = 0; i < 5000; i++) deep = { a: deep }
-    const nested = await saveDraft(page.id, {
+    // 5000 levels, built as a JSON string: JSON.stringify on the object would
+    // itself overflow Linux CI's smaller stack. Only the server must cope.
+    const depth = 5000
+    const deep = `${'{"a":'.repeat(depth)}"leaf"${"}".repeat(depth)}`
+    const body = JSON.stringify({
       version: page.version,
-      draft: { blocks: [{ ...hero, data: { deep } }] },
+      draft: { blocks: [{ ...hero, data: { deep: "__DEEP__" } }] },
+    }).replace('"__DEEP__"', deep)
+    const nested = await adminRequest(`/builder-pages/${page.id}/draft`, {
+      cookie: editor,
+      method: "PUT",
+      rawJson: body,
     })
     expect(nested.status).toBe(422)
+    expect(
+      Object.keys(((await nested.json()) as ErrorBody).error.fieldErrors ?? {})
+    ).toEqual(["draft.blocks.0.data"])
   })
 
   it("marketer cannot save, publish or delete; viewer cannot either", async () => {

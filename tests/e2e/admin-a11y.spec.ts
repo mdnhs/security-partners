@@ -324,12 +324,20 @@ for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`admin a11y (${colorScheme})`, () => {
     test.use({ colorScheme })
 
-    test(`panel screens in ${colorScheme}`, async ({ page }) => {
+    // One test per panel screen: as a single loop the ~20 audits took ~25 s
+    // locally and overran the 30 s budget on CI's slower runner.
+    for (const path of PANEL)
+      test(`panel screen ${path} in ${colorScheme}`, async ({ page }) => {
+        await signIn(page, readFixtures().editor)
+        expect(await auditEach(page, [path])).toEqual([])
+      })
+
+    test(`service editor in ${colorScheme}`, async ({ page }) => {
       await signIn(page, readFixtures().editor)
-      const failures = await auditEach(page, PANEL)
       await openServiceEditor(page)
-      for (const violation of await blocking(page))
-        failures.push(`service editor → ${violation}`)
+      const failures = (await blocking(page)).map(
+        (v) => `service editor → ${v}`
+      )
       expect(failures).toEqual([])
     })
 
