@@ -69,14 +69,19 @@ describe("CI + deploy gating (master 10.4, spec §14)", () => {
   })
 
   it("only main deploys, and the skip_ci emergency path reaches the deploy", () => {
-    for (const job of ["ci", "build-and-push", "deploy"])
+    for (const job of ["ci", "build-and-push", "ensure-env", "deploy"])
       expect(jobIf(deploy, job), job).toContain(
         "github.ref == 'refs/heads/main'"
       )
     expect(jobIf(deploy, "build-and-push")).toContain("!cancelled()")
+    expect(jobIf(deploy, "ensure-env")).toContain("!cancelled()")
+    expect(jobIf(deploy, "ensure-env")).toContain(
+      "needs.build-and-push.result == 'success'"
+    )
+    // The deploy runs only once the production environment is complete.
     expect(jobIf(deploy, "deploy")).toContain("!cancelled()")
     expect(jobIf(deploy, "deploy")).toContain(
-      "needs.build-and-push.result == 'success'"
+      "needs.ensure-env.result == 'success'"
     )
   })
 
