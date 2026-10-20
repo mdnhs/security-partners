@@ -65,7 +65,7 @@ export async function findIntegrationRow(
 /** First save; false when another request created the row first. */
 export async function insertIntegrationRow(
   db: DbOrTx,
-  row: { key: string; draft: unknown; updatedBy: string }
+  row: { key: string; draft: unknown; updatedBy: string | null }
 ): Promise<boolean> {
   const inserted = await db
     .insert(settings)

@@ -524,6 +524,44 @@ export async function saveIntegration(
   })
 }
 
+/**
+ * Operator bootstrap (container start, no signed-in user): saves `values` as
+ * `key`'s settings only when none are saved yet — never overwrites. Same
+ * validation, encryption (AAD "<key>.<field>") and audit row as an admin
+ * save, with no actor and `via` in the diff. Errors name fields, never
+ * values. Returns false when settings already existed.
+ */
+export async function createIntegrationIfAbsent(
+  key: IntegrationKey,
+  values: Values,
+  via: string
+): Promise<boolean> {
+  const parsed = INTEGRATIONS[key].schema.safeParse(values)
+  if (!parsed.success) {
+    const fields = [
+      ...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? "?"))),
+    ]
+    throw new Error(`invalid ${key} values: ${fields.join(", ")}`)
+  }
+  const next = parsed.data as Values
+  return getDb().transaction(async (tx) => {
+    if (await findIntegrationRow(tx, key)) return false
+    const inserted = await insertIntegrationRow(tx, {
+      key,
+      draft: sealValues(key, next, null),
+      updatedBy: null,
+    })
+    if (!inserted) return false
+    await writeAudit(tx, null, {
+      action: "integration.created",
+      entityType: "integration",
+      entityId: key,
+      diff: { changed: changedFields(key, null, next), via },
+    })
+    return true
+  })
+}
+
 /** "Disconnect": removes the row. R2 stays while it stores files (their URLs would break). */
 export async function deleteIntegration(
   actor: Actor,
