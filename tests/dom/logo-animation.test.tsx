@@ -139,7 +139,10 @@ describe("animated logo (settings.site.logoAnimation)", () => {
     expect(canvas.parentElement).toBe(img.parentElement)
     expect(canvas.style.opacity).toBe("0")
     expect(img.style.opacity).toBe("")
-    act(() => player.emit("render"))
+    // Loading alone shows nothing; the first drawn frame swaps them.
+    act(() => player.emit("load"))
+    expect(canvas.style.opacity).toBe("0")
+    act(() => player.emit("frame"))
     expect(canvas.style.opacity).toBe("1")
     // Hidden visually, still in the accessibility tree (alt text kept).
     expect(img.style.opacity).toBe("0")

@@ -62,12 +62,14 @@ export function LogoAnimation({ src }: { src: string }) {
         })
         player = instance
         const onFirstFrame = () => {
-          instance.removeEventListener("render", onFirstFrame)
+          instance.removeEventListener("frame", onFirstFrame)
           if (cancelled) return
           canvas.style.opacity = "1"
           if (image) image.style.opacity = "0"
         }
-        instance.addEventListener("render", onFirstFrame)
+        // "frame" follows each drawn frame (0.80.0 emits no "render" on
+        // the main-thread player's playback loop).
+        instance.addEventListener("frame", onFirstFrame)
         instance.addEventListener("loadError", () => {
           showImage()
           instance.destroy()
