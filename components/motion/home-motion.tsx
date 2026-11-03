@@ -42,7 +42,7 @@ export function HomeMotion() {
         reveals()
         aboutStory(desktop)
         parallax()
-        banner()
+        banner(desktop)
         map()
         const stopButtons = bannerButtons()
         const stopCards = serviceCards()
@@ -284,34 +284,50 @@ function parallax() {
   }
 }
 
-function banner() {
-  const card = document.querySelector("[data-banner]")
+// Scrollytelling: the enquire banner starts as a small window onto its photo
+// and opens to full size as you scroll. On desktop the section is pinned for
+// the length of one screen so the story plays in place; the photo pulls back
+// from a close-up, the blue wash lifts and the copy rises as the window
+// passes it. Phones skip the pin and play the same story over a short scroll.
+function banner(desktop: boolean) {
+  const card = document.querySelector<HTMLElement>("[data-banner]")
   if (!card) return
+  const section = card.closest("section") ?? card
+  const photo = card.querySelector("[data-parallax]")
+  const wash = card.querySelector("[data-banner-overlay]")
+  const items = q("[data-banner-item], [data-banner-lines]", card)
 
-  gsap.fromTo(
-    card,
-    { scale: 0.92, borderRadius: 64 },
-    {
-      scale: 1,
-      borderRadius: 32,
-      ease: "none",
-      scrollTrigger: {
-        trigger: card,
-        start: "top bottom",
-        end: "center 60%",
-        scrub: true,
-      },
-    }
-  )
-  bannerPolish(card)
-  gsap.from("[data-banner-item]", {
-    autoAlpha: 0,
-    y: 30,
-    duration: 0.9,
-    stagger: 0.1,
-    ease: "power3.out",
-    scrollTrigger: { trigger: card, start: "top 70%", toggleActions: REPLAY },
+  const story = gsap.timeline({
+    scrollTrigger: desktop
+      ? {
+          trigger: section,
+          start: "center center",
+          end: "+=100%",
+          scrub: 0.6,
+          pin: true,
+          anticipatePin: 1,
+        }
+      : { trigger: card, start: "top 90%", end: "center 50%", scrub: 0.6 },
   })
+  story.fromTo(
+    card,
+    { clipPath: "inset(26% 36% 26% 36% round 80px)" },
+    {
+      clipPath: "inset(0% 0% 0% 0% round 32px)",
+      ease: "power2.inOut",
+      duration: 1,
+    },
+    0
+  )
+  if (photo) story.fromTo(photo, { scale: 1.45 }, { scale: 1, duration: 1 }, 0)
+  if (wash)
+    story.fromTo(wash, { opacity: 1 }, { opacity: 0.85, duration: 1 }, 0)
+  story.from(
+    items,
+    { autoAlpha: 0, y: 28, stagger: 0.1, duration: 0.4, ease: "power2.out" },
+    0.4
+  )
+  bannerPolish(section)
 }
 
 function map() {
@@ -417,8 +433,8 @@ function serviceCards() {
 
 // Enquire banner: the heading and copy rise line by line, the photo settles
 // from a slow zoom and the blue wash lifts as the banner scrolls into view.
-function bannerPolish(card: Element) {
-  for (const el of q<HTMLElement>("[data-banner-lines]", card))
+function bannerPolish(section: Element) {
+  for (const el of q<HTMLElement>("[data-banner-lines]", section))
     SplitText.create(el, {
       type: "lines",
       mask: "lines",
@@ -430,33 +446,12 @@ function bannerPolish(card: Element) {
           stagger: 0.12,
           ease: "expo.out",
           scrollTrigger: {
-            trigger: card,
-            start: "top 70%",
+            trigger: section,
+            start: "center 70%",
             toggleActions: REPLAY,
           },
         }),
     })
-
-  const view = {
-    trigger: card,
-    start: "top bottom",
-    end: "center 55%",
-    scrub: true,
-  }
-  const photo = card.querySelector("[data-parallax]")
-  if (photo)
-    gsap.fromTo(
-      photo,
-      { scale: 1.12 },
-      { scale: 1, ease: "none", scrollTrigger: view }
-    )
-  const wash = card.querySelector("[data-banner-overlay]")
-  if (wash)
-    gsap.fromTo(
-      wash,
-      { opacity: 1 },
-      { opacity: 0.85, ease: "none", scrollTrigger: view }
-    )
 }
 
 // Enquire banner buttons, mouse and keyboard: white rises from the bottom
