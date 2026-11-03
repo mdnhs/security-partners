@@ -73,17 +73,21 @@ function pageHeroShrinks() {
   }
 }
 
-// A photo that already drifts (data-parallax) also opens like a window as it
-// arrives: its frame goes from an inset, rounded crop to the full frame.
+// A standalone photo that already drifts (data-parallax) and has rounded
+// corners of its own opens like a window as it arrives: from an inset, rounder
+// crop to exactly its normal frame. Frames without their own rounding (a team
+// card's portrait, clipped by the card) are left untouched, and the end state
+// clips nothing, so the layout is never altered.
 function imageWindows() {
   for (const photo of q("[data-parallax]")) {
     const frame = photo.parentElement
     if (!frame || frame.closest("[data-banner], [data-about]")) continue
+    if (parseFloat(getComputedStyle(frame).borderTopLeftRadius) === 0) continue
     gsap.fromTo(
       frame,
       { clipPath: "inset(9% 9% 9% 9% round 36px)" },
       {
-        clipPath: "inset(0% 0% 0% 0% round 28px)",
+        clipPath: "inset(0% 0% 0% 0% round 0px)",
         ease: "none",
         scrollTrigger: {
           trigger: frame,
