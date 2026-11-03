@@ -69,12 +69,8 @@ export function ServiceCard({
     >
       <div
         aria-hidden
-        data-service-fill
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-linear-to-tl from-brand-green/25 via-brand-mint to-brand-blue/10 [clip-path:circle(0%_at_100%_100%)]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[radial-gradient(360px_circle_at_var(--mx,50%)_var(--my,0%),rgba(103,189,49,0.16),rgba(39,81,163,0.06)_45%,transparent_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        data-service-glow
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[radial-gradient(circle_at_100%_100%,rgba(103,189,49,0.24),rgba(39,81,163,0.08)_42%,transparent_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       />
       <div
         data-service-icon
