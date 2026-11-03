@@ -65,7 +65,7 @@ export function ServiceCard({
   return (
     <li
       data-service-card
-      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-blue/40 bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow] duration-300 ease-out hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
     >
       <div
         aria-hidden
