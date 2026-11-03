@@ -150,3 +150,53 @@
     visibility: hidden;
   }
 }
+
+/* Footer aurora: three soft colour blooms drifting slowly behind the footer. */
+.footer-aurora span {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.34;
+}
+.footer-aurora span:nth-child(1) {
+  top: -30%;
+  left: -10%;
+  width: 32%;
+  height: 55%;
+  background: #2751a3;
+}
+.footer-aurora span:nth-child(2) {
+  right: -10%;
+  bottom: -40%;
+  width: 30%;
+  height: 55%;
+  background: #2751a3;
+  opacity: 0.32;
+}
+.footer-aurora span:nth-child(3) {
+  top: 10%;
+  left: 35%;
+  width: 24%;
+  height: 45%;
+  background: #03428f;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .footer-aurora span:nth-child(1) {
+    animation: aurora-a 12s ease-in-out infinite alternate;
+  }
+  .footer-aurora span:nth-child(2) {
+    animation: aurora-b 15s ease-in-out infinite alternate;
+  }
+  .footer-aurora span:nth-child(3) {
+    animation: aurora-c 18s ease-in-out infinite alternate;
+  }
+}
+@keyframes aurora-a {
+  to { transform: translate(35%, 20%) scale(1.25); }
+}
+@keyframes aurora-b {
+  to { transform: translate(-45%, -25%) scale(1.15); }
+}
+@keyframes aurora-c {
+  to { transform: translate(-30%, 25%) scale(0.85); }
+}

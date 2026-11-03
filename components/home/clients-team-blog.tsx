@@ -60,11 +60,12 @@ export function Team({
           title={title}
           description={description}
         />
-        <ul data-stagger className="grid gap-6 lg:grid-cols-2">
+        <ul data-team-list className="grid gap-6 lg:grid-cols-2">
           {members.map((member) => (
             <li
               key={member.name}
-              className="flex flex-col overflow-hidden rounded-3xl bg-brand-blue shadow-[0px_20px_40px_0px_rgba(0,0,0,0.18)] sm:h-[320px] sm:flex-row"
+              data-card="dark"
+              className="flex flex-col overflow-hidden rounded-3xl bg-brand-blue shadow-[0px_20px_40px_0px_rgba(0,0,0,0.18)] transition-shadow duration-300 ease-out hover:shadow-[0px_30px_56px_0px_rgba(0,0,0,0.3)] sm:h-[320px] sm:flex-row"
             >
               <div className="relative h-72 shrink-0 overflow-hidden sm:h-full sm:w-[240px]">
                 <div

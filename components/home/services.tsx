@@ -63,7 +63,15 @@ export function ServiceCard({
   labels: ServiceCardLabels
 }) {
   return (
-    <li className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
+    <li
+      data-service-card
+      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+    >
+      <div
+        aria-hidden
+        data-service-glow
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[radial-gradient(circle_at_100%_100%,rgba(103,189,49,0.24),rgba(39,81,163,0.08)_42%,transparent_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      />
       <div
         data-service-icon
         className="flex size-[88px] items-center justify-center overflow-hidden rounded-[20px] bg-brand-mint"
@@ -74,11 +82,11 @@ export function ServiceCard({
             alt=""
             fill
             sizes="120px"
-            className="object-contain"
+            className="object-contain transition-transform duration-300 ease-out motion-safe:group-hover:scale-110"
           />
         </div>
       </div>
-      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy">
+      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-green group-hover:to-brand-blue group-hover:bg-clip-text group-hover:text-transparent group-has-[a:focus-visible]:bg-linear-to-r group-has-[a:focus-visible]:from-brand-green group-has-[a:focus-visible]:to-brand-blue group-has-[a:focus-visible]:bg-clip-text group-has-[a:focus-visible]:text-transparent">
         {service.title}
       </h3>
       <p className="text-base leading-[1.6] text-brand-ink">
@@ -86,11 +94,16 @@ export function ServiceCard({
       </p>
       <Link
         href={`/services/${service.slug}`}
-        className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue hover:underline"
+        className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue group-hover:underline"
         aria-label={interpolate(labels.ariaReadMore, { title: service.title })}
       >
         {`${labels.readMore} `}
-        <span aria-hidden>→</span>
+        <span
+          aria-hidden
+          className="transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1"
+        >
+          →
+        </span>
       </Link>
     </li>
   )
@@ -118,63 +131,70 @@ export function EnquireBanner({
 }: EnquireBannerProps) {
   return (
     <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
-      <Container>
-        <div
-          data-banner
-          className="relative flex flex-col items-center gap-6 overflow-hidden rounded-[32px] px-6 py-16 text-center md:p-20"
-        >
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div
-              data-parallax
-              className="absolute inset-x-0 -top-[15%] h-[130%] will-change-transform"
-            >
-              <Image
-                src={image}
-                alt=""
-                fill
-                sizes="(min-width: 1280px) 1200px, 100vw"
-                className="object-cover"
+      <div data-banner-stage>
+        <Container>
+          <div
+            data-banner
+            className="relative flex flex-col items-center gap-6 overflow-hidden rounded-[32px] px-6 py-16 text-center md:p-20"
+          >
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              <div
+                data-parallax
+                className="absolute inset-x-0 -top-[15%] h-[130%] will-change-transform"
+              >
+                <Image
+                  src={image}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1280px) 1200px, 100vw"
+                  className="object-cover"
+                />
+              </div>
+              <div
+                data-banner-overlay
+                className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85"
               />
             </div>
-            <div className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85" />
-          </div>
-          <Eyebrow data-banner-item className="relative">
-            {eyebrow}
-          </Eyebrow>
-          <h2
-            data-banner-item
-            className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
-          >
-            {heading}
-          </h2>
-          <p
-            data-banner-item
-            className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
-          >
-            {copy}
-          </p>
-          <div
-            data-banner-item
-            className="relative flex flex-wrap justify-center gap-4 pt-2"
-          >
-            <Link
-              href={cta.href}
-              className={buttonClassName({ variant: "brand", size: "pill" })}
+            <Eyebrow data-banner-eyebrow className="relative">
+              {eyebrow}
+            </Eyebrow>
+            <h2
+              data-banner-lines
+              className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
             >
-              {cta.label}
-            </Link>
-            <a
-              href={secondaryCta.href}
-              className={buttonClassName({
-                variant: "brand-outline",
-                size: "pill",
-              })}
+              {heading}
+            </h2>
+            <p
+              data-banner-lines
+              className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
             >
-              {secondaryCta.label}
-            </a>
+              {copy}
+            </p>
+            <div
+              data-banner-item
+              className="relative flex flex-wrap justify-center gap-4 pt-2"
+            >
+              <Link
+                href={cta.href}
+                data-banner-button
+                className={buttonClassName({ variant: "brand", size: "pill" })}
+              >
+                {cta.label}
+              </Link>
+              <a
+                href={secondaryCta.href}
+                data-banner-button
+                className={buttonClassName({
+                  variant: "brand-outline",
+                  size: "pill",
+                })}
+              >
+                {secondaryCta.label}
+              </a>
+            </div>
           </div>
-        </div>
-      </Container>
+        </Container>
+      </div>
     </section>
   )
 }

@@ -48,6 +48,7 @@ export function Contact({
 
         <ul
           data-reveal
+          data-contact-info
           className="flex shrink-0 flex-col gap-7 rounded-[28px] bg-brand-blue px-10 py-12 lg:w-[440px]"
         >
           {infoItems.map((item) => (
@@ -135,6 +136,7 @@ export function LocationMap({
         </div>
       </div>
       <div className="absolute inset-0 bg-brand-blue/6" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[linear-gradient(to_bottom,rgba(255,255,255,1)_0%,rgba(255,255,255,0.97)_10%,rgba(255,255,255,0.88)_22%,rgba(255,255,255,0.72)_36%,rgba(255,255,255,0.5)_52%,rgba(255,255,255,0.28)_68%,rgba(255,255,255,0.12)_83%,rgba(255,255,255,0.03)_93%,rgba(255,255,255,0)_100%)]" />
       <div className="absolute top-[calc(50%-17px)] left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5">
         <div
           data-map-label

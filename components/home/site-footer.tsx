@@ -45,7 +45,15 @@ export function SiteFooter({
   legal,
 }: SiteFooterProps) {
   return (
-    <footer className="bg-brand-navy px-6 pt-20 pb-8 md:px-10">
+    <footer className="relative isolate overflow-hidden bg-brand-navy px-6 pt-20 pb-8 md:px-10">
+      <div
+        aria-hidden="true"
+        className="footer-aurora pointer-events-none absolute inset-0 -z-10"
+      >
+        <span />
+        <span />
+        <span />
+      </div>
       <Container className="flex flex-col gap-12">
         <div
           data-stagger

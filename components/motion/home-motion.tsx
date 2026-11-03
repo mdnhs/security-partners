@@ -5,13 +5,17 @@ import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { SplitText } from "gsap/SplitText"
 import { useGSAP } from "@gsap/react"
 
+import { pageStory } from "@/components/motion/page-story"
+
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText)
 
 // Play on the way down, rewind when scrolling back above the trigger.
 const REPLAY = "play none none reverse"
 
-const q = <T extends Element = HTMLElement>(selector: string) =>
-  gsap.utils.toArray<T>(selector)
+const q = <T extends Element = HTMLElement>(
+  selector: string,
+  scope?: Element
+) => gsap.utils.toArray<T>(selector, scope)
 
 // Wires the home page's data-* hooks to GSAP. Renders nothing; markup stays server-rendered.
 export function HomeMotion() {
@@ -40,8 +44,17 @@ export function HomeMotion() {
         reveals()
         aboutStory(desktop)
         parallax()
-        banner()
+        banner(desktop)
+        const stopStory = pageStory(desktop)
+        contactInfo()
         map()
+        const stopButtons = bannerButtons()
+        const stopCards = serviceCards()
+        return () => {
+          stopButtons?.()
+          stopCards?.()
+          stopStory?.()
+        }
       }
     )
   })
@@ -132,6 +145,15 @@ function scrollProgress() {
 
 function reveals() {
   for (const group of q("[data-stagger]")) {
+    // The footer tells its own story (page-story.ts footerStory).
+    if (group.closest("footer")) continue
+    // Card lists tell their own story (page-story.ts cardStory).
+    if (
+      group.querySelector(
+        ":scope > [data-card='light'], :scope > [data-service-card]"
+      )
+    )
+      continue
     gsap.from(group.children, {
       autoAlpha: 0,
       y: 40,
@@ -180,6 +202,35 @@ function reveals() {
       scrollTrigger: { trigger: icon, start: "top 88%", toggleActions: REPLAY },
     })
   }
+}
+
+// Scrollytelling: the contact text lights up word by word as you scroll through the list.
+function contactInfo() {
+  const list = document.querySelector("[data-contact-info]")
+  if (!list) return
+  const tl = gsap.timeline({
+    defaults: { ease: "none" },
+    scrollTrigger: {
+      trigger: list,
+      // Done before the list reaches the middle of the screen, so a centred list is fully shown.
+      start: "top 85%",
+      end: "center 65%",
+      scrub: 0.5,
+    },
+  })
+  q("li", list).forEach((item, i) => {
+    const icon = item.firstElementChild
+    const text = item.lastElementChild
+    const words = q("p, a", text ?? item).flatMap(
+      (el) => SplitText.create(el, { type: "words" }).words
+    )
+    tl.from(icon, { scale: 0.5, duration: 1, ease: "back.out(2)" }, i * 1.2)
+    tl.from(
+      words,
+      { opacity: 0.15, yPercent: 40, stagger: 0.08, duration: 0.6 },
+      i * 1.2 + 0.2
+    )
+  })
 }
 
 // Scrollytelling: the About story builds as you scroll through it.
@@ -276,33 +327,116 @@ function parallax() {
   }
 }
 
-function banner() {
-  const card = document.querySelector("[data-banner]")
+// Scrollytelling: the enquire banner starts as a small window onto its photo
+// and opens to full size as you scroll. On desktop the section becomes a
+// two-screen track with a sticky stage (native sticky, no JS pin, so there is
+// no jump when it engages): the first screen the window rises from the bottom
+// edge and grows, the second it stays put and opens while the photo pulls back
+// from a close-up, the blue wash lifts and the copy rises. Both halves are one
+// timeline, so the hand-over at the middle is seamless. Phones skip the sticky
+// stage and play the story over a short scroll.
+function banner(desktop: boolean) {
+  const card = document.querySelector<HTMLElement>("[data-banner]")
   if (!card) return
+  const section = card.closest<HTMLElement>("section") ?? card
+  const stage = card.closest<HTMLElement>("[data-banner-stage]")
+  const photo = card.querySelector("[data-parallax]")
+  const wash = card.querySelector("[data-banner-overlay]")
+  const items = q("[data-banner-item], [data-banner-lines]", card)
+  const eyebrow = card.querySelector<HTMLElement>("[data-banner-eyebrow]")
+  const sticky = desktop && stage !== null
 
-  gsap.fromTo(
-    card,
-    { scale: 0.92, borderRadius: 64 },
-    {
-      scale: 1,
-      borderRadius: 32,
-      ease: "none",
-      scrollTrigger: {
-        trigger: card,
-        start: "top bottom",
-        end: "center 60%",
-        scrub: true,
-      },
-    }
-  )
-  gsap.from("[data-banner-item]", {
-    autoAlpha: 0,
-    y: 30,
-    duration: 0.9,
-    stagger: 0.1,
-    ease: "power3.out",
-    scrollTrigger: { trigger: card, start: "top 70%", toggleActions: REPLAY },
+  if (sticky) {
+    // The section's own padding moves onto the stage so the track is exactly
+    // two screens: one to arrive, one to open.
+    const own = getComputedStyle(section)
+    gsap.set(stage, {
+      position: "sticky",
+      top: 0,
+      height: "100vh",
+      display: "flex",
+      alignItems: "center",
+      paddingLeft: own.paddingLeft,
+      paddingRight: own.paddingRight,
+    })
+    gsap.set(section, {
+      height: "200vh",
+      paddingTop: 0,
+      paddingBottom: 0,
+      paddingLeft: 0,
+      paddingRight: 0,
+    })
+  }
+
+  const story = gsap.timeline({
+    defaults: { ease: "none" },
+    scrollTrigger: sticky
+      ? {
+          trigger: section,
+          start: "top bottom",
+          end: "bottom bottom",
+          scrub: 1,
+        }
+      : { trigger: card, start: "top 90%", end: "center 50%", scrub: 0.6 },
   })
+  const open = sticky ? 1 : 0
+
+  if (sticky) {
+    story.fromTo(
+      card,
+      { clipPath: "inset(41% 46% 41% 46% round 90px)" },
+      { clipPath: "inset(26% 36% 26% 36% round 80px)", duration: 1 },
+      0
+    )
+    if (photo)
+      story.fromTo(photo, { scale: 1.75 }, { scale: 1.45, duration: 1 }, 0)
+  }
+  story.fromTo(
+    card,
+    { clipPath: "inset(26% 36% 26% 36% round 80px)" },
+    {
+      clipPath: "inset(0% 0% 0% 0% round 32px)",
+      duration: 1,
+      immediateRender: !sticky,
+    },
+    open
+  )
+  if (photo)
+    story.fromTo(
+      photo,
+      { scale: 1.45 },
+      { scale: 1, duration: 1, immediateRender: !sticky },
+      open
+    )
+  if (wash)
+    story.fromTo(wash, { opacity: 1 }, { opacity: 0.85, duration: 1 }, open)
+  // While the window is small, the eyebrow alone sits in its middle, then
+  // travels up to its place as the card opens.
+  if (eyebrow)
+    story.fromTo(
+      eyebrow,
+      {
+        // Layout offsets ignore transforms, so a refresh never measures the
+        // already-shifted label.
+        y: () =>
+          card.offsetHeight / 2 -
+          (eyebrow.offsetTop + eyebrow.offsetHeight / 2),
+      },
+      {
+        y: 0,
+        duration: 0.7,
+        ease: "power2.inOut",
+        immediateRender: true,
+        invalidateOnRefresh: true,
+      },
+      open
+    )
+  story.from(
+    items,
+    { autoAlpha: 0, y: 28, stagger: 0.1, duration: 0.4, ease: "power2.out" },
+    open + 0.4
+  )
+  bannerPolish(section)
 }
 
 function map() {
@@ -342,4 +476,150 @@ function map() {
       { autoAlpha: 0, y: 16, scale: 0.85, duration: 0.6, ease: "back.out(2)" },
       "-=0.3"
     )
+}
+
+// Service cards follow the pointer: a small 3D tilt, a
+// glow that swells out of the bottom-right corner and an icon that drifts the
+// other way. Mouse-like pointers only; touch has no hover.
+function serviceCards() {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
+  const stops: (() => void)[] = []
+
+  for (const card of q("[data-service-card]")) {
+    const icon = card.querySelector<HTMLElement>("[data-service-icon]")
+    const quick = (target: Element, prop: string) =>
+      gsap.quickTo(target, prop, { duration: 0.6, ease: "power3.out" })
+    const rotateX = quick(card, "rotationX")
+    const rotateY = quick(card, "rotationY")
+    const iconX = icon && quick(icon, "x")
+    const iconY = icon && quick(icon, "y")
+    const glow = card.querySelector<HTMLElement>("[data-service-glow]")
+    if (glow) gsap.set(glow, { transformOrigin: "100% 100%" })
+    gsap.set(card, { transformPerspective: 900 })
+
+    const move = (event: PointerEvent) => {
+      const box = card.getBoundingClientRect()
+      const px = (event.clientX - box.left) / box.width
+      const py = (event.clientY - box.top) / box.height
+      rotateY((px - 0.5) * 8)
+      rotateX((0.5 - py) * 8)
+      iconX?.((px - 0.5) * -16)
+      iconY?.((py - 0.5) * -16)
+    }
+    const enter = () => {
+      // The glow swells out of the bottom-right corner.
+      if (glow)
+        gsap.fromTo(
+          glow,
+          { scale: 0.5 },
+          { scale: 1, duration: 0.9, ease: "power3.out", overwrite: true }
+        )
+      if (icon)
+        gsap.to(icon, { rotate: -6, duration: 0.5, ease: "back.out(3)" })
+    }
+    const leave = () => {
+      if (glow)
+        gsap.to(glow, { scale: 0.5, duration: 0.5, ease: "power3.inOut" })
+      rotateX(0)
+      rotateY(0)
+      iconX?.(0)
+      iconY?.(0)
+      if (icon) gsap.to(icon, { rotate: 0, duration: 0.5, ease: "power3.out" })
+    }
+
+    card.addEventListener("pointermove", move as EventListener)
+    card.addEventListener("pointerenter", enter)
+    card.addEventListener("pointerleave", leave)
+    stops.push(() => {
+      card.removeEventListener("pointermove", move as EventListener)
+      card.removeEventListener("pointerenter", enter)
+      card.removeEventListener("pointerleave", leave)
+    })
+  }
+
+  return () => stops.forEach((stop) => stop())
+}
+
+// Enquire banner: the heading and copy rise line by line, the photo settles
+// from a slow zoom and the blue wash lifts as the banner scrolls into view.
+function bannerPolish(section: Element) {
+  for (const el of q<HTMLElement>("[data-banner-lines]", section))
+    SplitText.create(el, {
+      type: "lines",
+      mask: "lines",
+      autoSplit: true,
+      onSplit: (self) =>
+        gsap.from(self.lines, {
+          yPercent: 110,
+          duration: 1.2,
+          stagger: 0.12,
+          ease: "expo.out",
+          scrollTrigger: {
+            trigger: section,
+            start: "top 40%",
+            toggleActions: REPLAY,
+          },
+        }),
+    })
+}
+
+// Enquire banner buttons, mouse and keyboard: white rises from the bottom
+// edge to fill the button and the label turns navy; it drains on leave.
+function bannerButtons() {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
+  const stops: (() => void)[] = []
+
+  for (const button of q<HTMLElement>("[data-banner-button]")) {
+    const fill = document.createElement("span")
+    fill.setAttribute("aria-hidden", "true")
+    Object.assign(fill.style, {
+      position: "absolute",
+      inset: "0",
+      zIndex: "-1",
+      background: "#fff",
+      borderRadius: "inherit",
+      pointerEvents: "none",
+    })
+    Object.assign(button.style, {
+      position: "relative",
+      isolation: "isolate",
+      overflow: "hidden",
+    })
+    button.append(fill)
+    gsap.set(fill, { clipPath: "inset(100% 0% 0% 0%)" })
+
+    const open = () => {
+      gsap.to(fill, {
+        clipPath: "inset(0% 0% 0% 0%)",
+        duration: 0.5,
+        ease: "power3.out",
+        overwrite: true,
+      })
+      gsap.to(button, { color: "#0d1b36", duration: 0.3, overwrite: true })
+    }
+    const close = () => {
+      gsap.to(fill, {
+        clipPath: "inset(100% 0% 0% 0%)",
+        duration: 0.45,
+        ease: "power3.inOut",
+        overwrite: true,
+      })
+      gsap.to(button, { color: "#ffffff", duration: 0.3, overwrite: true })
+    }
+    for (const [type, handler] of [
+      ["pointerenter", open],
+      ["pointerleave", close],
+      ["focus", open],
+      ["blur", close],
+    ] as const) {
+      button.addEventListener(type, handler)
+      stops.push(() => button.removeEventListener(type, handler))
+    }
+    stops.push(() => {
+      fill.remove()
+      button.removeAttribute("style")
+    })
+  }
+
+  return () => stops.forEach((stop) => stop())
 }
