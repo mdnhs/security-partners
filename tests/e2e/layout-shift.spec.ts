@@ -19,6 +19,13 @@ const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
 ] as const
 
+// playwright.config.ts runs every test with reduced motion, which leaves the
+// clients strip standing still in rows and every reveal in its final place.
+// Visitors mostly have motion on, so this is measured that way (CLS_MOTION=
+// reduce measures the still layout instead).
+const MOTION = process.env.CLS_MOTION === "reduce" ? "reduce" : "no-preference"
+test.use({ contextOptions: { reducedMotion: MOTION } })
+
 const VISIBLE = process.env.CLS_VISIBLE === "1"
 /** CLS_VISIBLE=1 slows everything down so a person can watch. */
 const PACE = VISIBLE ? 4 : 1
@@ -113,6 +120,26 @@ function record(key: string, report: Report) {
   all[key] = report
   writeFileSync(out, JSON.stringify(all, null, 2))
 }
+
+// Guard: the numbers above only mean something if they were taken in the
+// state visitors are in. With motion on the clients strip is moving.
+test("the pages are measured with motion on and the clients strip moving", async ({
+  page,
+}) => {
+  test.skip(MOTION === "reduce", "CLS_MOTION=reduce measures the still layout")
+  await page.goto("/about", { waitUntil: "load" })
+  await page.waitForTimeout(800)
+  const state = await page.evaluate(() => ({
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    moving: (
+      document.querySelector('[aria-roledescription="carousel"]')
+        ?.firstElementChild as HTMLElement | null
+    )
+      ?.getAnimations()
+      .some((a) => a.playState === "running"),
+  }))
+  expect(state).toEqual({ reducedMotion: false, moving: true })
+})
 
 // Control: a zero everywhere is only worth something if the instrument sees
 // a shift that is really there. Push the page down by 120 px after load.

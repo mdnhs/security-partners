@@ -7,6 +7,52 @@ const VISITOR = "visitor@example.ie"
 // Public site served from the seeded sp_e2e database (tests/e2e/seed.ts).
 
 test.describe("public site from the database", () => {
+  test("a client card's hover lift and shadow fit inside the strip (nothing is clipped)", async ({
+    page,
+  }) => {
+    // The strip clips whatever leaves its box (it has to, to hide the rest of
+    // the loop), so the box needs room for what a card does on hover.
+    // The suite runs with reduced motion by default (playwright.config.ts);
+    // the strip only clips, and the cards only lift, with motion on.
+    await page.emulateMedia({ reducedMotion: "no-preference" })
+    await page.goto("/about", { waitUntil: "load" })
+    const strip = page.getByRole("region", { name: "Our Clients" })
+    await strip.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(500)
+    // A card well inside the screen, so the edge fade is not in the way.
+    const card = strip.locator("li:not([aria-hidden])").nth(2)
+    // A moving card is never "stable" for Playwright: rest the pointer on the
+    // strip first (that stops it), then on the card.
+    await strip.hover({ position: { x: 700, y: 60 } })
+    await card.hover()
+    // Past the 300 ms transition of the lift and the shadow.
+    await page.waitForTimeout(600)
+    const m = await card.evaluate((el) => {
+      const strip = el.closest('[aria-roledescription="carousel"]')!
+      const s = strip.getBoundingClientRect()
+      const c = el.getBoundingClientRect()
+      // "rgba(13, 26, 51, 0.12) 0px 14px 30px 0px": x, y, blur, spread.
+      const px = (getComputedStyle(el).boxShadow.match(/-?[\d.]+px/g) ?? [])
+        .slice(0, 4)
+        .map(parseFloat)
+      const [, y = 0, blur = 0, spread = 0] = px
+      return {
+        below: s.bottom - c.bottom,
+        above: c.top - s.top,
+        shadowBelow: Math.max(0, y + blur + spread),
+        shadowAbove: Math.max(0, blur + spread - y),
+      }
+    })
+    expect(
+      m.below,
+      "room below the card for its shadow"
+    ).toBeGreaterThanOrEqual(m.shadowBelow)
+    expect(
+      m.above,
+      "room above the card for its shadow"
+    ).toBeGreaterThanOrEqual(m.shadowAbove)
+  })
+
   for (const motion of ["no-preference", "reduce"] as const) {
     for (const [name, size] of [
       ["desktop", { width: 1440, height: 900 }],
