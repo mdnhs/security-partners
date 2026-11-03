@@ -63,7 +63,7 @@ export function ServiceCard({
   labels: ServiceCardLabels
 }) {
   return (
-    <li className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
+    <li className="group flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1">
       <div
         data-service-icon
         className="flex size-[88px] items-center justify-center overflow-hidden rounded-[20px] bg-brand-mint"
@@ -74,7 +74,7 @@ export function ServiceCard({
             alt=""
             fill
             sizes="120px"
-            className="object-contain"
+            className="object-contain transition-transform duration-300 ease-out motion-safe:group-hover:scale-110"
           />
         </div>
       </div>
@@ -86,11 +86,16 @@ export function ServiceCard({
       </p>
       <Link
         href={`/services/${service.slug}`}
-        className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue hover:underline"
+        className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue group-hover:underline"
         aria-label={interpolate(labels.ariaReadMore, { title: service.title })}
       >
         {`${labels.readMore} `}
-        <span aria-hidden>→</span>
+        <span
+          aria-hidden
+          className="transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1"
+        >
+          →
+        </span>
       </Link>
     </li>
   )
