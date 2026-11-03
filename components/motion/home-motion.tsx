@@ -285,54 +285,84 @@ function parallax() {
 }
 
 // Scrollytelling: the enquire banner starts as a small window onto its photo
-// and opens to full size as you scroll. On desktop the section is pinned for
-// the length of one screen so the story plays in place; the photo pulls back
-// from a close-up, the blue wash lifts and the copy rises as the window
-// passes it. Phones skip the pin and play the same story over a short scroll.
+// and opens to full size as you scroll. On desktop the section becomes a
+// two-screen track with a sticky stage (native sticky, no JS pin, so there is
+// no jump when it engages): the first screen the window rises from the bottom
+// edge and grows, the second it stays put and opens while the photo pulls back
+// from a close-up, the blue wash lifts and the copy rises. Both halves are one
+// timeline, so the hand-over at the middle is seamless. Phones skip the sticky
+// stage and play the story over a short scroll.
 function banner(desktop: boolean) {
   const card = document.querySelector<HTMLElement>("[data-banner]")
   if (!card) return
-  const section = card.closest("section") ?? card
+  const section = card.closest<HTMLElement>("section") ?? card
+  const stage = card.closest<HTMLElement>("[data-banner-stage]")
   const photo = card.querySelector("[data-parallax]")
   const wash = card.querySelector("[data-banner-overlay]")
   const items = q("[data-banner-item], [data-banner-lines]", card)
+  const eyebrow = card.querySelector<HTMLElement>("[data-banner-eyebrow]")
+  const sticky = desktop && stage !== null
+
+  if (sticky) {
+    // The section's own padding moves onto the stage so the track is exactly
+    // two screens: one to arrive, one to open.
+    const own = getComputedStyle(section)
+    gsap.set(stage, {
+      position: "sticky",
+      top: 0,
+      height: "100vh",
+      display: "flex",
+      alignItems: "center",
+      paddingLeft: own.paddingLeft,
+      paddingRight: own.paddingRight,
+    })
+    gsap.set(section, { height: "200vh", paddingTop: 0, paddingBottom: 0 })
+  }
 
   const story = gsap.timeline({
-    scrollTrigger: desktop
+    defaults: { ease: "none" },
+    scrollTrigger: sticky
       ? {
           trigger: section,
-          start: "center center",
-          end: "+=100%",
-          scrub: 0.6,
-          pin: true,
-          anticipatePin: 1,
+          start: "top bottom",
+          end: "bottom bottom",
+          scrub: 1,
         }
       : { trigger: card, start: "top 90%", end: "center 50%", scrub: 0.6 },
   })
+  const open = sticky ? 1 : 0
+
+  if (sticky) {
+    story.fromTo(
+      card,
+      { clipPath: "inset(41% 46% 41% 46% round 90px)" },
+      { clipPath: "inset(26% 36% 26% 36% round 80px)", duration: 1 },
+      0
+    )
+    if (photo)
+      story.fromTo(photo, { scale: 1.75 }, { scale: 1.45, duration: 1 }, 0)
+  }
   story.fromTo(
     card,
     { clipPath: "inset(26% 36% 26% 36% round 80px)" },
     {
       clipPath: "inset(0% 0% 0% 0% round 32px)",
-      ease: "power2.inOut",
       duration: 1,
-      // On desktop the approach below owns the state before the pin.
-      immediateRender: !desktop,
+      immediateRender: !sticky,
     },
-    0
+    open
   )
   if (photo)
     story.fromTo(
       photo,
       { scale: 1.45 },
-      { scale: 1, duration: 1, immediateRender: !desktop },
-      0
+      { scale: 1, duration: 1, immediateRender: !sticky },
+      open
     )
   if (wash)
-    story.fromTo(wash, { opacity: 1 }, { opacity: 0.85, duration: 1 }, 0)
+    story.fromTo(wash, { opacity: 1 }, { opacity: 0.85, duration: 1 }, open)
   // While the window is small, the eyebrow alone sits in its middle, then
   // travels up to its place as the card opens.
-  const eyebrow = card.querySelector<HTMLElement>("[data-banner-eyebrow]")
   if (eyebrow)
     story.fromTo(
       eyebrow,
@@ -350,34 +380,13 @@ function banner(desktop: boolean) {
         immediateRender: true,
         invalidateOnRefresh: true,
       },
-      0
+      open
     )
   story.from(
     items,
     { autoAlpha: 0, y: 28, stagger: 0.1, duration: 0.4, ease: "power2.out" },
-    0.4
+    open + 0.4
   )
-  // The way in: while the section travels from the bottom edge to the middle
-  // of the screen the window itself grows and the photo pulls back a little,
-  // handing over exactly to the pinned story above.
-  if (desktop) {
-    const approach = gsap.timeline({
-      defaults: { ease: "none" },
-      scrollTrigger: {
-        trigger: section,
-        start: "top bottom",
-        end: "center center",
-        scrub: 0.8,
-      },
-    })
-    approach.fromTo(
-      card,
-      { clipPath: "inset(41% 46% 41% 46% round 90px)" },
-      { clipPath: "inset(26% 36% 26% 36% round 80px)" },
-      0
-    )
-    if (photo) approach.fromTo(photo, { scale: 1.75 }, { scale: 1.45 }, 0)
-  }
   bannerPolish(section)
 }
 
@@ -498,7 +507,7 @@ function bannerPolish(section: Element) {
           ease: "expo.out",
           scrollTrigger: {
             trigger: section,
-            start: "center 70%",
+            start: "top 40%",
             toggleActions: REPLAY,
           },
         }),

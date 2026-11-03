@@ -131,68 +131,70 @@ export function EnquireBanner({
 }: EnquireBannerProps) {
   return (
     <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
-      <Container>
-        <div
-          data-banner
-          className="relative flex flex-col items-center gap-6 overflow-hidden rounded-[32px] px-6 py-16 text-center md:p-20"
-        >
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div
-              data-parallax
-              className="absolute inset-x-0 -top-[15%] h-[130%] will-change-transform"
-            >
-              <Image
-                src={image}
-                alt=""
-                fill
-                sizes="(min-width: 1280px) 1200px, 100vw"
-                className="object-cover"
+      <div data-banner-stage>
+        <Container>
+          <div
+            data-banner
+            className="relative flex flex-col items-center gap-6 overflow-hidden rounded-[32px] px-6 py-16 text-center md:p-20"
+          >
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              <div
+                data-parallax
+                className="absolute inset-x-0 -top-[15%] h-[130%] will-change-transform"
+              >
+                <Image
+                  src={image}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1280px) 1200px, 100vw"
+                  className="object-cover"
+                />
+              </div>
+              <div
+                data-banner-overlay
+                className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85"
               />
             </div>
+            <Eyebrow data-banner-eyebrow className="relative">
+              {eyebrow}
+            </Eyebrow>
+            <h2
+              data-banner-lines
+              className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
+            >
+              {heading}
+            </h2>
+            <p
+              data-banner-lines
+              className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
+            >
+              {copy}
+            </p>
             <div
-              data-banner-overlay
-              className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85"
-            />
-          </div>
-          <Eyebrow data-banner-eyebrow className="relative">
-            {eyebrow}
-          </Eyebrow>
-          <h2
-            data-banner-lines
-            className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
-          >
-            {heading}
-          </h2>
-          <p
-            data-banner-lines
-            className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
-          >
-            {copy}
-          </p>
-          <div
-            data-banner-item
-            className="relative flex flex-wrap justify-center gap-4 pt-2"
-          >
-            <Link
-              href={cta.href}
-              data-banner-button
-              className={buttonClassName({ variant: "brand", size: "pill" })}
+              data-banner-item
+              className="relative flex flex-wrap justify-center gap-4 pt-2"
             >
-              {cta.label}
-            </Link>
-            <a
-              href={secondaryCta.href}
-              data-banner-button
-              className={buttonClassName({
-                variant: "brand-outline",
-                size: "pill",
-              })}
-            >
-              {secondaryCta.label}
-            </a>
+              <Link
+                href={cta.href}
+                data-banner-button
+                className={buttonClassName({ variant: "brand", size: "pill" })}
+              >
+                {cta.label}
+              </Link>
+              <a
+                href={secondaryCta.href}
+                data-banner-button
+                className={buttonClassName({
+                  variant: "brand-outline",
+                  size: "pill",
+                })}
+              >
+                {secondaryCta.label}
+              </a>
+            </div>
           </div>
-        </div>
-      </Container>
+        </Container>
+      </div>
     </section>
   )
 }
