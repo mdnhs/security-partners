@@ -29,6 +29,14 @@ export const ROBOTS_MODES = ["index", "noindex"] as const
 export type RobotsMode = (typeof ROBOTS_MODES)[number]
 
 /**
+ * Which of the site's four addresses (http/https, with/without www) is the
+ * real one; the others 301 to it (lib/seo/canonical-host.ts). off = no
+ * redirect.
+ */
+export const PREFERRED_HOSTS = ["off", "apex", "www"] as const
+export type PreferredHost = (typeof PREFERRED_HOSTS)[number]
+
+/**
  * A search-console verification token: the meta tag's content value only.
  * Strict charset, so nothing but the token can reach the <meta> tag.
  */
@@ -50,6 +58,8 @@ export const seoDefaultsSettings = z.object({
   ogImage: mediaRef.nullable(),
   organization: organizationSettings,
   robots: z.enum(ROBOTS_MODES),
+  /** Rows saved before this field read as off (no migration needed). */
+  preferredHost: z.enum(PREFERRED_HOSTS).default("off"),
   verification: z.object({
     google: verificationToken,
     bing: verificationToken,

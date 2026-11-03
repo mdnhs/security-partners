@@ -10,6 +10,9 @@ vi.mock("@/server/modules/redirects/resolve", () => ({
   resolvePublicPath,
 }))
 
+const { getHostPolicy } = vi.hoisted(() => ({ getHostPolicy: vi.fn() }))
+vi.mock("@/server/modules/seo/preferred-host", () => ({ getHostPolicy }))
+
 import {
   BLOCKING_METADATA_MARK,
   HTML_LIMITED_BOTS,
@@ -44,6 +47,56 @@ const run = (path: string, init?: Init) =>
 beforeEach(() => {
   resolvePublicPath.mockReset()
   resolvePublicPath.mockResolvedValue({ kind: "pass" })
+  getHostPolicy.mockReset()
+  getHostPolicy.mockResolvedValue({ preferred: "off", siteHost: null })
+})
+
+describe("proxy.ts preferred address", () => {
+  const policy = { preferred: "www", siteHost: "example.ie" }
+
+  it("301s the bare host to www, keeping path and query, never cached", async () => {
+    getHostPolicy.mockResolvedValue(policy)
+    const res = await run("/services?a=1", {
+      headers: { host: "example.ie", "x-forwarded-proto": "https" },
+    })
+    expect(res.status).toBe(301)
+    expect(res.headers.get("location")).toBe(
+      "https://www.example.ie/services?a=1"
+    )
+    expect(res.headers.get("cache-control")).toBe("no-store")
+    expect(resolvePublicPath).not.toHaveBeenCalled()
+  })
+
+  it("301s http on the preferred host to https", async () => {
+    getHostPolicy.mockResolvedValue(policy)
+    const res = await run("/", {
+      headers: { host: "www.example.ie", "x-forwarded-proto": "http" },
+    })
+    expect(res.headers.get("location")).toBe("https://www.example.ie/")
+  })
+
+  it("leaves the preferred address, other hosts and non-GET alone", async () => {
+    getHostPolicy.mockResolvedValue(policy)
+    const ok = await run("/", {
+      headers: { host: "www.example.ie", "x-forwarded-proto": "https" },
+    })
+    expect(ok.status).toBe(200)
+    const staging = await run("/", { headers: { host: "staging.example.ie" } })
+    expect(staging.status).toBe(200)
+    const post = await run("/", {
+      method: "POST",
+      headers: { host: "example.ie" },
+    })
+    expect(post.status).toBe(200)
+  })
+
+  it("serves the page when the policy lookup throws", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    getHostPolicy.mockRejectedValue(new Error("db down"))
+    const res = await run("/", { headers: { host: "example.ie" } })
+    expect(res.status).toBe(200)
+    log.mockRestore()
+  })
 })
 
 describe("proxy.ts matcher", () => {

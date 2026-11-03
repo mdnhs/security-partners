@@ -8,7 +8,9 @@ import {
 import { isAdminAuthPath } from "@/lib/auth/redirect"
 import { REQUEST_PATH_HEADER } from "@/lib/request-path"
 import { blockingMetadataHeaders } from "@/lib/seo/blocking-metadata"
+import { canonicalHostRedirect } from "@/lib/seo/canonical-host"
 import { redirectLocation } from "@/lib/seo/redirects"
+import { getHostPolicy } from "@/server/modules/seo/preferred-host"
 import {
   MISSING_PATH,
   resolvePublicPath,
@@ -62,6 +64,28 @@ export async function publicGate(
     const headers = new Headers(request.headers)
     headers.delete(REQUEST_PATH_HEADER)
     return NextResponse.next({ request: { headers } })
+  }
+  // One address per page: the http/https and www/non-www variants 301 to the
+  // preferred one (SEO › Defaults). Fail-open, like the lookups below.
+  try {
+    const { preferred, siteHost } = await getHostPolicy()
+    const target = canonicalHostRedirect({
+      host:
+        request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+      proto: request.headers.get("x-forwarded-proto"),
+      preferred,
+      siteHost,
+      pathAndSearch: `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    })
+    if (target) {
+      const response = NextResponse.redirect(target, 301)
+      // Not cacheable: a browser holding "www -> bare" after the admin flips
+      // the choice would loop.
+      response.headers.set("Cache-Control", "no-store")
+      return response
+    }
+  } catch {
+    console.error("[proxy] preferred address check failed; serving the page")
   }
   // Documents render with blocking metadata (in <head>; not under next dev);
   // RSC requests keep streaming metadata (lib/seo/blocking-metadata.ts). Every page learns its

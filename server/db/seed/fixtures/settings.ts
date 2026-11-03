@@ -200,6 +200,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
         sameAs: [],
       },
       robots: "index",
+      preferredHost: "off",
       verification: { google: "", bing: "" },
     },
     consent: {

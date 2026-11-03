@@ -87,6 +87,16 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
         ],
         help: "“Hide the whole site from search” blocks every page in robots.txt and asks search engines not to index it. Pages already in search results may stay listed until they are removed: use the removal tool in Google Search Console (and Bing Webmaster Tools) for that.",
       },
+      preferredHost: {
+        label: "Preferred address",
+        widget: "radio",
+        options: [
+          { value: "off", label: "Leave all addresses as they are" },
+          { value: "apex", label: "Without www (example.ie)" },
+          { value: "www", label: "With www (www.example.ie)" },
+        ],
+        help: "The site answers on http and https, with and without www. Search engines count each as a separate site, so pick one and the others redirect to it (301, always to https). Only the host in Settings › Site › Production URL is redirected: staging, previews and IP addresses are left alone. Takes effect within a minute.",
+      },
       verification: {
         label: "Search console verification",
         section: true,
