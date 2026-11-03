@@ -63,7 +63,14 @@ export function ServiceCard({
   labels: ServiceCardLabels
 }) {
   return (
-    <li className="group flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1">
+    <li
+      data-service-card
+      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-[radial-gradient(360px_circle_at_var(--mx,50%)_var(--my,0%),rgba(103,189,49,0.16),rgba(39,81,163,0.06)_45%,transparent_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      />
       <div
         data-service-icon
         className="flex size-[88px] items-center justify-center overflow-hidden rounded-[20px] bg-brand-mint"

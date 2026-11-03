@@ -42,6 +42,7 @@ export function HomeMotion() {
         parallax()
         banner()
         map()
+        return serviceCards()
       }
     )
   })
@@ -342,4 +343,57 @@ function map() {
       { autoAlpha: 0, y: 16, scale: 0.85, duration: 0.6, ease: "back.out(2)" },
       "-=0.3"
     )
+}
+
+// Service cards follow the pointer: a small 3D tilt, a spotlight under the
+// cursor (--mx/--my feed the card's gradient) and an icon that drifts the
+// other way. Mouse-like pointers only; touch has no hover.
+function serviceCards() {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
+  const stops: (() => void)[] = []
+
+  for (const card of q("[data-service-card]")) {
+    const icon = card.querySelector<HTMLElement>("[data-service-icon]")
+    const quick = (target: Element, prop: string) =>
+      gsap.quickTo(target, prop, { duration: 0.6, ease: "power3.out" })
+    const rotateX = quick(card, "rotationX")
+    const rotateY = quick(card, "rotationY")
+    const iconX = icon && quick(icon, "x")
+    const iconY = icon && quick(icon, "y")
+    gsap.set(card, { transformPerspective: 900 })
+
+    const move = (event: PointerEvent) => {
+      const box = card.getBoundingClientRect()
+      const px = (event.clientX - box.left) / box.width
+      const py = (event.clientY - box.top) / box.height
+      rotateY((px - 0.5) * 8)
+      rotateX((0.5 - py) * 8)
+      iconX?.((px - 0.5) * -16)
+      iconY?.((py - 0.5) * -16)
+      card.style.setProperty("--mx", `${px * 100}%`)
+      card.style.setProperty("--my", `${py * 100}%`)
+    }
+    const enter = () => {
+      if (icon)
+        gsap.to(icon, { rotate: -6, duration: 0.5, ease: "back.out(3)" })
+    }
+    const leave = () => {
+      rotateX(0)
+      rotateY(0)
+      iconX?.(0)
+      iconY?.(0)
+      if (icon) gsap.to(icon, { rotate: 0, duration: 0.5, ease: "power3.out" })
+    }
+
+    card.addEventListener("pointermove", move as EventListener)
+    card.addEventListener("pointerenter", enter)
+    card.addEventListener("pointerleave", leave)
+    stops.push(() => {
+      card.removeEventListener("pointermove", move as EventListener)
+      card.removeEventListener("pointerenter", enter)
+      card.removeEventListener("pointerleave", leave)
+    })
+  }
+
+  return () => stops.forEach((stop) => stop())
 }
