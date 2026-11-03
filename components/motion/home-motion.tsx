@@ -10,8 +10,10 @@ gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText)
 // Play on the way down, rewind when scrolling back above the trigger.
 const REPLAY = "play none none reverse"
 
-const q = <T extends Element = HTMLElement>(selector: string) =>
-  gsap.utils.toArray<T>(selector)
+const q = <T extends Element = HTMLElement>(
+  selector: string,
+  scope?: Element
+) => gsap.utils.toArray<T>(selector, scope)
 
 // Wires the home page's data-* hooks to GSAP. Renders nothing; markup stays server-rendered.
 export function HomeMotion() {
@@ -42,7 +44,12 @@ export function HomeMotion() {
         parallax()
         banner()
         map()
-        return serviceCards()
+        const stopButtons = bannerButtons()
+        const stopCards = serviceCards()
+        return () => {
+          stopButtons?.()
+          stopCards?.()
+        }
       }
     )
   })
@@ -296,6 +303,7 @@ function banner() {
       },
     }
   )
+  bannerPolish(card)
   gsap.from("[data-banner-item]", {
     autoAlpha: 0,
     y: 30,
@@ -401,6 +409,111 @@ function serviceCards() {
       card.removeEventListener("pointermove", move as EventListener)
       card.removeEventListener("pointerenter", enter)
       card.removeEventListener("pointerleave", leave)
+    })
+  }
+
+  return () => stops.forEach((stop) => stop())
+}
+
+// Enquire banner: the heading and copy rise line by line, the photo settles
+// from a slow zoom and the blue wash lifts as the banner scrolls into view.
+function bannerPolish(card: Element) {
+  for (const el of q<HTMLElement>("[data-banner-lines]", card))
+    SplitText.create(el, {
+      type: "lines",
+      mask: "lines",
+      autoSplit: true,
+      onSplit: (self) =>
+        gsap.from(self.lines, {
+          yPercent: 110,
+          duration: 1.2,
+          stagger: 0.12,
+          ease: "expo.out",
+          scrollTrigger: {
+            trigger: card,
+            start: "top 70%",
+            toggleActions: REPLAY,
+          },
+        }),
+    })
+
+  const view = {
+    trigger: card,
+    start: "top bottom",
+    end: "center 55%",
+    scrub: true,
+  }
+  const photo = card.querySelector("[data-parallax]")
+  if (photo)
+    gsap.fromTo(
+      photo,
+      { scale: 1.12 },
+      { scale: 1, ease: "none", scrollTrigger: view }
+    )
+  const wash = card.querySelector("[data-banner-overlay]")
+  if (wash)
+    gsap.fromTo(
+      wash,
+      { opacity: 1 },
+      { opacity: 0.85, ease: "none", scrollTrigger: view }
+    )
+}
+
+// Enquire banner buttons, mouse and keyboard: white rises from the bottom
+// edge to fill the button and the label turns navy; it drains on leave.
+function bannerButtons() {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
+  const stops: (() => void)[] = []
+
+  for (const button of q<HTMLElement>("[data-banner-button]")) {
+    const fill = document.createElement("span")
+    fill.setAttribute("aria-hidden", "true")
+    Object.assign(fill.style, {
+      position: "absolute",
+      inset: "0",
+      zIndex: "-1",
+      background: "#fff",
+      borderRadius: "inherit",
+      pointerEvents: "none",
+    })
+    Object.assign(button.style, {
+      position: "relative",
+      isolation: "isolate",
+      overflow: "hidden",
+    })
+    button.append(fill)
+    gsap.set(fill, { clipPath: "inset(100% 0% 0% 0%)" })
+
+    const open = () => {
+      gsap.to(fill, {
+        clipPath: "inset(0% 0% 0% 0%)",
+        duration: 0.5,
+        ease: "power3.out",
+        overwrite: true,
+      })
+      gsap.to(button, { color: "#0d1b36", duration: 0.3, overwrite: true })
+    }
+    const close = () => {
+      gsap.to(fill, {
+        clipPath: "inset(100% 0% 0% 0%)",
+        duration: 0.45,
+        ease: "power3.inOut",
+        overwrite: true,
+      })
+      gsap.to(button, { color: "#ffffff", duration: 0.3, overwrite: true })
+    }
+    for (const [type, handler] of [
+      ["pointerenter", open],
+      ["pointerleave", close],
+      ["focus", open],
+      ["blur", close],
+    ] as const) {
+      button.addEventListener(type, handler)
+      stops.push(() => button.removeEventListener(type, handler))
+    }
+    stops.push(() => {
+      fill.remove()
+      button.removeAttribute("style")
     })
   }
 

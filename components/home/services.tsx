@@ -149,19 +149,22 @@ export function EnquireBanner({
                 className="object-cover"
               />
             </div>
-            <div className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85" />
+            <div
+              data-banner-overlay
+              className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85"
+            />
           </div>
           <Eyebrow data-banner-item className="relative">
             {eyebrow}
           </Eyebrow>
           <h2
-            data-banner-item
+            data-banner-lines
             className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
           >
             {heading}
           </h2>
           <p
-            data-banner-item
+            data-banner-lines
             className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
           >
             {copy}
@@ -172,12 +175,14 @@ export function EnquireBanner({
           >
             <Link
               href={cta.href}
+              data-banner-button
               className={buttonClassName({ variant: "brand", size: "pill" })}
             >
               {cta.label}
             </Link>
             <a
               href={secondaryCta.href}
+              data-banner-button
               className={buttonClassName({
                 variant: "brand-outline",
                 size: "pill",
