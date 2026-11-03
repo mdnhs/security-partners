@@ -23,6 +23,7 @@ export function pageStory(desktop: boolean) {
   countUps()
   checkTicks()
   whyChooseStory(desktop)
+  teamStory(desktop)
 }
 
 // Every section heading rises line by line out of a mask. The banner and the
@@ -234,4 +235,91 @@ function whyChooseStory(desktop: boolean) {
         },
       }
     )
+}
+
+// Team cards arrive one after another, in order, and each card's contents are
+// told in sequence as it scrolls up: the portrait opens from the left, then
+// the name, role and bio rise line by line, the rule draws and the email
+// settles. Only opacity, transform and clip-path move, and every end state is
+// the card as authored, so the layout is untouched.
+function teamStory(desktop: boolean) {
+  const cards = q<HTMLElement>("[data-team-list] > li")
+  cards.forEach((card, index) => {
+    const photo = card.firstElementChild as HTMLElement | null
+    const textBox = card.lastElementChild as HTMLElement | null
+    if (!photo || !textBox) return
+    const name = textBox.querySelector<HTMLElement>("h3")
+    const role = name?.nextElementSibling ?? null
+    const bio = textBox.querySelector<HTMLElement>(":scope > p")
+    const rule = textBox.querySelector<HTMLElement>(
+      ":scope > div:nth-of-type(2)"
+    )
+    const email = textBox.querySelector("a")
+
+    const scrub = (start: string, end: string) => ({
+      trigger: card,
+      start,
+      end,
+      scrub: 0.8,
+    })
+
+    // The card itself: rises into place; side by side, the left one comes
+    // from the left and the right one from the right.
+    gsap.from(card, {
+      autoAlpha: 0,
+      y: 80,
+      x: desktop ? (index % 2 === 0 ? -50 : 50) : 0,
+      ease: "power2.out",
+      scrollTrigger: scrub("top 96%", "top 70%"),
+    })
+    // The portrait opens from the left edge.
+    gsap.fromTo(
+      photo,
+      { clipPath: "inset(0% 100% 0% 0%)" },
+      {
+        clipPath: "inset(0% 0% 0% 0%)",
+        ease: "power2.out",
+        scrollTrigger: scrub("top 88%", "top 56%"),
+      }
+    )
+    for (const [el, start, end] of [
+      [name, "top 78%", "top 58%"],
+      [bio, "top 70%", "top 38%"],
+    ] as const) {
+      if (!el) continue
+      SplitText.create(el, {
+        type: "lines",
+        mask: "lines",
+        autoSplit: true,
+        onSplit: (self) =>
+          gsap.from(self.lines, {
+            yPercent: 110,
+            stagger: 0.25,
+            ease: "none",
+            scrollTrigger: scrub(start, end),
+          }),
+      })
+    }
+    if (role)
+      gsap.from(role, {
+        autoAlpha: 0,
+        y: 14,
+        ease: "none",
+        scrollTrigger: scrub("top 72%", "top 52%"),
+      })
+    if (rule)
+      gsap.from(rule, {
+        scaleX: 0,
+        transformOrigin: "left center",
+        ease: "none",
+        scrollTrigger: scrub("top 55%", "top 35%"),
+      })
+    if (email)
+      gsap.from(email, {
+        autoAlpha: 0,
+        y: 12,
+        ease: "none",
+        scrollTrigger: scrub("top 48%", "top 28%"),
+      })
+  })
 }

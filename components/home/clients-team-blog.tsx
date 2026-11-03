@@ -60,7 +60,7 @@ export function Team({
           title={title}
           description={description}
         />
-        <ul data-stagger className="grid gap-6 lg:grid-cols-2">
+        <ul data-team-list className="grid gap-6 lg:grid-cols-2">
           {members.map((member) => (
             <li
               key={member.name}
