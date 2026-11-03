@@ -153,11 +153,6 @@ export function EnquireBanner({
               data-banner-overlay
               className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85"
             />
-            <div
-              data-banner-sweep
-              className="absolute inset-y-0 left-0 w-[45%] bg-linear-to-r from-transparent via-white/45 to-transparent mix-blend-soft-light"
-              style={{ transform: "translateX(-150%) skewX(-12deg)" }}
-            />
           </div>
           <Eyebrow data-banner-item className="relative">
             {eyebrow}
