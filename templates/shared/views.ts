@@ -74,7 +74,20 @@ export function chromeView(s: SiteSources): ChromeView {
         hours: contact.hours,
       },
       logo,
-      links: navigation.headerLinks.map((l) => linkView(s, l)),
+      // Services gets a hover list of the published services (one link per
+      // service page); every other link, and the footer, stays plain.
+      links: navigation.headerLinks.map((l) => {
+        const link = linkView(s, l)
+        return link.href === "/services" && s.services.length > 0
+          ? {
+              ...link,
+              children: s.services.map((x) => ({
+                label: x.content.title,
+                href: `/services/${x.slug}`,
+              })),
+            }
+          : link
+      }),
       cta: linkView(s, navigation.headerCta),
       aria: {
         mainNav: microcopy.aria.mainNav,

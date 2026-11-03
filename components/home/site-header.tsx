@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -11,7 +11,122 @@ import { LogoAnimation } from "@/components/home/logo-animation"
 import { Container } from "@/components/home/section"
 import { cn } from "@/lib/utils"
 
-type NavLink = { label: string; href: string }
+// `children`: a hover/focus list under the link (Services: one per service).
+type NavLink = { label: string; href: string; children?: NavLink[] }
+
+/**
+ * A header link with a list under it, open while the pointer or keyboard
+ * focus is inside the link or the list, and dismissed with Escape (WCAG
+ * 1.4.13: dismissible, hoverable, persistent). The link itself still goes to
+ * its page. The list's top padding bridges the gap, so moving the pointer
+ * down to it does not close it.
+ */
+function NavMenu({
+  link,
+  active,
+  isActive,
+}: {
+  link: NavLink
+  active: boolean
+  isActive: (href: string) => boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const topRef = useRef<HTMLAnchorElement>(null)
+  const dismissing = useRef(false)
+
+  // Escape dismisses the list wherever the pointer or focus is (WCAG 1.4.13),
+  // not only when focus is inside it.
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setOpen(false)
+      // Focus may sit in the list, which is about to be hidden.
+      if (wrapRef.current?.contains(document.activeElement)) {
+        dismissing.current = true
+        topRef.current?.focus()
+        dismissing.current = false
+      }
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [open])
+
+  return (
+    <div
+      ref={wrapRef}
+      // h-14 is the logo box's height, so the row's content ends where this
+      // ends: the list below hangs from the header's bottom padding, not
+      // from the link's text.
+      className="relative flex h-14 items-center"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => {
+        if (!dismissing.current) setOpen(true)
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          setOpen(false)
+      }}
+    >
+      <Link
+        ref={topRef}
+        href={link.href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "transition-colors hover:text-brand-green",
+          active && "text-brand-green"
+        )}
+      >
+        {link.label}
+      </Link>
+      {/* Centred under the link. The list unrolls downward from the pointer
+          like a scroll being pulled open (a clip that grows from the top,
+          its shadow kept by the negative insets), then the services follow
+          one after another; closing rolls it back up at once. The 22px top
+          padding (12px header padding + 10px gap) bridges the way from the
+          link, so the pointer can cross, and the container stays visible
+          until the roll-up has finished. */}
+      <div
+        data-services-menu
+        data-open={open}
+        className="group/menu invisible absolute top-full left-1/2 z-10 min-w-64 -translate-x-1/2 pt-[22px] transition-[visibility] duration-[650ms] data-[open=true]:visible motion-reduce:transition-none"
+      >
+        <ul className="rounded-lg bg-white py-2 shadow-[0px_8px_30px_0px_rgba(13,26,51,0.14)] transition-[clip-path] duration-[650ms] ease-[cubic-bezier(0.45,0.05,0.25,1)] [clip-path:inset(0_-40px_100%_-40px)] group-data-[open=true]/menu:[clip-path:inset(0_-40px_-40px_-40px)] motion-reduce:transition-none">
+          {link.children?.map((child, index) => (
+            <li
+              key={child.href}
+              style={{
+                transitionDelay: open ? `${180 + index * 70}ms` : "0ms",
+              }}
+              className="-translate-y-2 opacity-0 transition-[opacity,translate] duration-300 ease-out group-data-[open=true]/menu:translate-y-0 group-data-[open=true]/menu:opacity-100 motion-reduce:transition-none"
+            >
+              <Link
+                href={child.href}
+                aria-current={isActive(child.href) ? "page" : undefined}
+                className={cn(
+                  "block px-5 py-3 text-sm font-semibold transition-colors hover:bg-brand-surface hover:text-brand-green",
+                  isActive(child.href) && "text-brand-green"
+                )}
+              >
+                {child.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {/* The pointer: a turned square whose upper half shows, centred on
+            the list's top edge and pointing up at the link. It pops in
+            first, so the list appears to unroll from it. */}
+        <span
+          aria-hidden
+          data-services-menu-arrow
+          className="absolute top-[15px] left-1/2 z-10 size-3.5 -translate-x-1/2 scale-0 rotate-45 rounded-[2px] bg-white opacity-0 shadow-[-2px_-2px_6px_-3px_rgba(13,26,51,0.14)] transition-[opacity,scale] duration-200 ease-out group-data-[open=true]/menu:scale-100 group-data-[open=true]/menu:opacity-100 motion-reduce:transition-none"
+        />
+      </div>
+    </div>
+  )
+}
 
 // Label and value stay separate text nodes ("24 Hour Number: " + number),
 // as on the static site: Chrome positions glyphs per text node.
@@ -71,7 +186,7 @@ export function SiteHeader({
         </Container>
       </div>
 
-      <header className="sticky top-0 z-50 bg-white px-6 py-3.5 shadow-[0px_4px_20px_0px_rgba(13,26,51,0.08)] md:px-10">
+      <header className="sticky top-0 z-50 bg-white px-6 py-3 shadow-[0px_4px_20px_0px_rgba(13,26,51,0.08)] md:px-10">
         <div
           aria-hidden
           data-scroll-progress
@@ -80,13 +195,13 @@ export function SiteHeader({
         <Container className="flex items-center justify-between gap-6">
           <Link
             href={pathname === "/" ? "#top" : "/"}
-            className="relative h-[68px] w-[112px] shrink-0"
+            className="relative h-[56px] w-[92px] shrink-0"
           >
             <Image
               src={logo.src}
               alt={logo.alt}
               fill
-              sizes="112px"
+              sizes="92px"
               className="object-contain"
               priority
             />
@@ -97,19 +212,28 @@ export function SiteHeader({
             aria-label={aria.mainNav}
             className="hidden items-center gap-9 text-base font-bold text-brand-navy lg:flex"
           >
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={isActive(link.href) ? "page" : undefined}
-                className={cn(
-                  "transition-colors hover:text-brand-green",
-                  isActive(link.href) && "text-brand-green"
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {links.map((link) =>
+              link.children?.length ? (
+                <NavMenu
+                  key={link.href}
+                  link={link}
+                  active={isActive(link.href)}
+                  isActive={isActive}
+                />
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive(link.href) ? "page" : undefined}
+                  className={cn(
+                    "transition-colors hover:text-brand-green",
+                    isActive(link.href) && "text-brand-green"
+                  )}
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
           </nav>
 
           <div className="flex items-center gap-3">
