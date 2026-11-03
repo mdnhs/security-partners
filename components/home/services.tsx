@@ -146,8 +146,19 @@ export function EnquireBanner({
                 alt=""
                 fill
                 sizes="(min-width: 1280px) 1200px, 100vw"
-                className="object-cover"
+                className="object-cover contrast-125 grayscale"
               />
+              {/* Gradient map: the grey photo is multiplied by the blue-to-green
+                  ramp, then its blacks are lifted to navy. */}
+              <div
+                data-duo-tint
+                className="absolute inset-0 bg-linear-to-r from-brand-blue via-brand-blue-deep to-brand-green mix-blend-multiply"
+                style={{
+                  backgroundSize: "220% 100%",
+                  backgroundPosition: "0% 0%",
+                }}
+              />
+              <div className="absolute inset-0 bg-brand-navy mix-blend-lighten" />
             </div>
             <div
               data-banner-overlay
