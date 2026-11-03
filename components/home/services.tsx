@@ -177,17 +177,20 @@ export function EnquireBanner({
               <Link
                 href={cta.href}
                 data-banner-button
-                className={buttonClassName({ variant: "brand", size: "pill" })}
+                className={buttonClassName(
+                  { variant: "brand", size: "pill" },
+                  "max-sm:w-full"
+                )}
               >
                 {cta.label}
               </Link>
               <a
                 href={secondaryCta.href}
                 data-banner-button
-                className={buttonClassName({
-                  variant: "brand-outline",
-                  size: "pill",
-                })}
+                className={buttonClassName(
+                  { variant: "brand-outline", size: "pill" },
+                  "max-sm:w-full"
+                )}
               >
                 {secondaryCta.label}
               </a>

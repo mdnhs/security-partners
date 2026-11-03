@@ -40,7 +40,10 @@ export default function SiteError({
             <button
               type="button"
               onClick={() => retry()}
-              className={buttonClassName({ variant: "brand", size: "pill" })}
+              className={buttonClassName(
+                { variant: "brand", size: "pill" },
+                "max-sm:w-full"
+              )}
             >
               Try again
             </button>

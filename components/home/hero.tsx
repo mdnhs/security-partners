@@ -84,16 +84,19 @@ export function Hero({
           <div data-hero-item className="flex flex-wrap gap-4 pt-3">
             <a
               href={primaryCta.href}
-              className={buttonClassName({ variant: "brand", size: "pill" })}
+              className={buttonClassName(
+                { variant: "brand", size: "pill" },
+                "max-sm:w-full"
+              )}
             >
               {primaryCta.label}
             </a>
             <a
               href={secondaryCta.href}
-              className={buttonClassName({
-                variant: "brand-outline",
-                size: "pill",
-              })}
+              className={buttonClassName(
+                { variant: "brand-outline", size: "pill" },
+                "max-sm:w-full"
+              )}
             >
               {secondaryCta.label}
             </a>
