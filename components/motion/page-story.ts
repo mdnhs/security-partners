@@ -67,8 +67,10 @@ function pageHeroShrinks() {
         ease: "none",
         scrollTrigger: {
           trigger: hero,
-          start: "bottom 85%",
-          end: "bottom 15%",
+          // From the first scroll, never before: on a tall screen a short hero
+          // already sits above any "bottom 85%" line and would load half-folded.
+          start: "top top",
+          end: "bottom top",
           scrub: true,
         },
       }
@@ -268,11 +270,13 @@ function teamStory(desktop: boolean) {
     })
 
     // The card itself: rises into place; side by side, the left one comes
-    // from the left and the right one from the right.
+    // from the left and the right one from the right. The sideways offset
+    // stays inside the page's side padding (40px), so the page never grows a
+    // horizontal scrollbar while a card has not arrived yet.
     gsap.from(card, {
       autoAlpha: 0,
       y: 80,
-      x: desktop ? (index % 2 === 0 ? -50 : 50) : 0,
+      x: desktop ? (index % 2 === 0 ? -32 : 32) : 0,
       ease: "power2.out",
       scrollTrigger: scrub("top 96%", "top 70%"),
     })
@@ -436,7 +440,7 @@ function cardStory(desktop: boolean) {
     gsap.from(card, {
       autoAlpha: 0,
       y: 70,
-      x: columns > 1 ? (column - (columns - 1) / 2) * 44 : 0,
+      x: columns > 1 ? (column - (columns - 1) / 2) * 32 : 0,
       ease: "power2.out",
       scrollTrigger: scrub("top 97%", "top 74%"),
     })
