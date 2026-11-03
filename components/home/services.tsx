@@ -78,7 +78,7 @@ export function ServiceCard({
           />
         </div>
       </div>
-      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy">
+      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-blue group-hover:to-brand-green group-hover:bg-clip-text group-hover:text-transparent group-has-[a:focus-visible]:bg-linear-to-r group-has-[a:focus-visible]:from-brand-blue group-has-[a:focus-visible]:to-brand-green group-has-[a:focus-visible]:bg-clip-text group-has-[a:focus-visible]:text-transparent">
         {service.title}
       </h3>
       <p className="text-base leading-[1.6] text-brand-ink">
