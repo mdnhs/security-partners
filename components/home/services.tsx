@@ -154,7 +154,7 @@ export function EnquireBanner({
               className="absolute inset-0 bg-linear-to-r from-brand-blue/95 to-brand-blue-deep/85"
             />
           </div>
-          <Eyebrow data-banner-item className="relative">
+          <Eyebrow data-banner-eyebrow className="relative">
             {eyebrow}
           </Eyebrow>
           <h2

@@ -316,17 +316,68 @@ function banner(desktop: boolean) {
       clipPath: "inset(0% 0% 0% 0% round 32px)",
       ease: "power2.inOut",
       duration: 1,
+      // On desktop the approach below owns the state before the pin.
+      immediateRender: !desktop,
     },
     0
   )
-  if (photo) story.fromTo(photo, { scale: 1.45 }, { scale: 1, duration: 1 }, 0)
+  if (photo)
+    story.fromTo(
+      photo,
+      { scale: 1.45 },
+      { scale: 1, duration: 1, immediateRender: !desktop },
+      0
+    )
   if (wash)
     story.fromTo(wash, { opacity: 1 }, { opacity: 0.85, duration: 1 }, 0)
+  // While the window is small, the eyebrow alone sits in its middle, then
+  // travels up to its place as the card opens.
+  const eyebrow = card.querySelector<HTMLElement>("[data-banner-eyebrow]")
+  if (eyebrow)
+    story.fromTo(
+      eyebrow,
+      {
+        // Layout offsets ignore transforms, so a refresh never measures the
+        // already-shifted label.
+        y: () =>
+          card.offsetHeight / 2 -
+          (eyebrow.offsetTop + eyebrow.offsetHeight / 2),
+      },
+      {
+        y: 0,
+        duration: 0.7,
+        ease: "power2.inOut",
+        immediateRender: true,
+        invalidateOnRefresh: true,
+      },
+      0
+    )
   story.from(
     items,
     { autoAlpha: 0, y: 28, stagger: 0.1, duration: 0.4, ease: "power2.out" },
     0.4
   )
+  // The way in: while the section travels from the bottom edge to the middle
+  // of the screen the window itself grows and the photo pulls back a little,
+  // handing over exactly to the pinned story above.
+  if (desktop) {
+    const approach = gsap.timeline({
+      defaults: { ease: "none" },
+      scrollTrigger: {
+        trigger: section,
+        start: "top bottom",
+        end: "center center",
+        scrub: 0.8,
+      },
+    })
+    approach.fromTo(
+      card,
+      { clipPath: "inset(41% 46% 41% 46% round 90px)" },
+      { clipPath: "inset(26% 36% 26% 36% round 80px)" },
+      0
+    )
+    if (photo) approach.fromTo(photo, { scale: 1.75 }, { scale: 1.45 }, 0)
+  }
   bannerPolish(section)
 }
 
