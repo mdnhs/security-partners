@@ -200,3 +200,32 @@
 @keyframes aurora-c {
   to { transform: translate(-30%, 25%) scale(0.85); }
 }
+
+/* Touch: small text links get a larger invisible hit area (about 44px tall)
+   without moving anything. Buttons and cards (rounded) already are big. */
+@media (pointer: coarse) {
+  :is(
+      footer a,
+      nav[aria-label="Breadcrumb"] a,
+      a[href^="tel:"],
+      a[href^="mailto:"],
+      [data-card] a,
+      [data-service-card] a,
+      article a[href^="/blog/"]
+    ):not([class*="rounded"]) {
+    position: relative;
+  }
+  :is(
+      footer a,
+      nav[aria-label="Breadcrumb"] a,
+      a[href^="tel:"],
+      a[href^="mailto:"],
+      [data-card] a,
+      [data-service-card] a,
+      article a[href^="/blog/"]
+    ):not([class*="rounded"])::after {
+    content: "";
+    position: absolute;
+    inset: -11px -6px;
+  }
+}
