@@ -45,13 +45,15 @@ export function HomeMotion() {
         aboutStory(desktop)
         parallax()
         banner(desktop)
-        pageStory(desktop)
+        const stopStory = pageStory(desktop)
+        contactInfo()
         map()
         const stopButtons = bannerButtons()
         const stopCards = serviceCards()
         return () => {
           stopButtons?.()
           stopCards?.()
+          stopStory?.()
         }
       }
     )
@@ -143,6 +145,13 @@ function scrollProgress() {
 
 function reveals() {
   for (const group of q("[data-stagger]")) {
+    // Card lists tell their own story (page-story.ts cardStory).
+    if (
+      group.querySelector(
+        ":scope > [data-card='light'], :scope > [data-service-card]"
+      )
+    )
+      continue
     gsap.from(group.children, {
       autoAlpha: 0,
       y: 40,
@@ -191,6 +200,34 @@ function reveals() {
       scrollTrigger: { trigger: icon, start: "top 88%", toggleActions: REPLAY },
     })
   }
+}
+
+// Scrollytelling: the contact text lights up word by word as you scroll through the list.
+function contactInfo() {
+  const list = document.querySelector("[data-contact-info]")
+  if (!list) return
+  const tl = gsap.timeline({
+    defaults: { ease: "none" },
+    scrollTrigger: {
+      trigger: list,
+      start: "top 70%",
+      end: "bottom 55%",
+      scrub: 0.5,
+    },
+  })
+  q("li", list).forEach((item, i) => {
+    const icon = item.firstElementChild
+    const text = item.lastElementChild
+    const words = q("p, a", text ?? item).flatMap(
+      (el) => SplitText.create(el, { type: "words" }).words
+    )
+    tl.from(icon, { scale: 0.5, duration: 1, ease: "back.out(2)" }, i * 1.2)
+    tl.from(
+      words,
+      { opacity: 0.15, yPercent: 40, stagger: 0.08, duration: 0.6 },
+      i * 1.2 + 0.2
+    )
+  })
 }
 
 // Scrollytelling: the About story builds as you scroll through it.
@@ -319,7 +356,13 @@ function banner(desktop: boolean) {
       paddingLeft: own.paddingLeft,
       paddingRight: own.paddingRight,
     })
-    gsap.set(section, { height: "200vh", paddingTop: 0, paddingBottom: 0 })
+    gsap.set(section, {
+      height: "200vh",
+      paddingTop: 0,
+      paddingBottom: 0,
+      paddingLeft: 0,
+      paddingRight: 0,
+    })
   }
 
   const story = gsap.timeline({

@@ -16,7 +16,7 @@ const q = <T extends Element = HTMLElement>(
 // gsap.matchMedia (motion users only), so every tween, split and trigger made
 // here is reverted with it. Everything is keyed on the markup the page already
 // has plus a few data-* hooks; no copy is touched.
-export function pageStory(desktop: boolean) {
+export function pageStory(desktop: boolean): (() => void) | void {
   sectionHeadings()
   pageHeroShrinks()
   imageWindows()
@@ -24,6 +24,8 @@ export function pageStory(desktop: boolean) {
   checkTicks()
   whyChooseStory(desktop)
   teamStory(desktop)
+  cardStory(desktop)
+  return cardHover()
 }
 
 // Every section heading rises line by line out of a mask. The banner and the
@@ -180,6 +182,8 @@ function whyChooseStory(desktop: boolean) {
       height: `${100 + cards.length * 70}vh`,
       paddingTop: 0,
       paddingBottom: 0,
+      paddingLeft: 0,
+      paddingRight: 0,
     })
   }
 
@@ -322,4 +326,169 @@ function teamStory(desktop: boolean) {
         scrollTrigger: scrub("top 48%", "top 28%"),
       })
   })
+}
+
+// Every card with data-card follows the pointer, like the service cards: a
+// small 3D tilt and a glow that swells out of the bottom-right corner (green
+// on light cards, deep blue on dark ones). The icon tile, when there is one,
+// drifts the other way. Mouse-like pointers only; no layout is touched.
+function cardHover() {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
+  const stops: (() => void)[] = []
+
+  for (const card of q("[data-card]")) {
+    const dark = card.dataset.card === "dark"
+    const tilt = card.offsetWidth > 480 ? 2.5 : 6
+    const icon = card.querySelector<HTMLElement>(".size-14")
+
+    // The glow sits between the card's background and its contents.
+    if (getComputedStyle(card).position === "static")
+      card.style.position = "relative"
+    card.style.isolation = "isolate"
+    const glow = document.createElement("div")
+    glow.setAttribute("aria-hidden", "true")
+    Object.assign(glow.style, {
+      position: "absolute",
+      inset: "0",
+      zIndex: "-1",
+      pointerEvents: "none",
+      borderRadius: "inherit",
+      opacity: "0",
+      background: dark
+        ? "radial-gradient(circle at 100% 100%, rgba(3,66,143,0.95), rgba(3,66,143,0.45) 45%, transparent 75%)"
+        : "radial-gradient(circle at 100% 100%, rgba(103,189,49,0.24), rgba(39,81,163,0.08) 42%, transparent 70%)",
+    })
+    card.prepend(glow)
+    gsap.set(glow, { transformOrigin: "100% 100%", scale: 0.5 })
+    gsap.set(card, { transformPerspective: 900 })
+
+    const quick = (target: Element, prop: string) =>
+      gsap.quickTo(target, prop, { duration: 0.6, ease: "power3.out" })
+    const rotateX = quick(card, "rotationX")
+    const rotateY = quick(card, "rotationY")
+    const iconX = icon && quick(icon, "x")
+    const iconY = icon && quick(icon, "y")
+
+    const move = (event: PointerEvent) => {
+      const box = card.getBoundingClientRect()
+      const px = (event.clientX - box.left) / box.width
+      const py = (event.clientY - box.top) / box.height
+      rotateY((px - 0.5) * tilt)
+      rotateX((0.5 - py) * tilt)
+      iconX?.((px - 0.5) * -12)
+      iconY?.((py - 0.5) * -12)
+    }
+    const enter = () => {
+      gsap.to(glow, { opacity: 1, scale: 1, duration: 0.9, ease: "power3.out" })
+      if (icon)
+        gsap.to(icon, { rotate: -6, duration: 0.5, ease: "back.out(3)" })
+    }
+    const leave = () => {
+      rotateX(0)
+      rotateY(0)
+      iconX?.(0)
+      iconY?.(0)
+      gsap.to(glow, {
+        opacity: 0,
+        scale: 0.5,
+        duration: 0.5,
+        ease: "power3.inOut",
+      })
+      if (icon) gsap.to(icon, { rotate: 0, duration: 0.5, ease: "power3.out" })
+    }
+
+    card.addEventListener("pointermove", move as EventListener)
+    card.addEventListener("pointerenter", enter)
+    card.addEventListener("pointerleave", leave)
+    stops.push(() => {
+      card.removeEventListener("pointermove", move as EventListener)
+      card.removeEventListener("pointerenter", enter)
+      card.removeEventListener("pointerleave", leave)
+      glow.remove()
+      card.style.removeProperty("isolation")
+    })
+  }
+
+  return () => stops.forEach((stop) => stop())
+}
+
+// The other cards are told like the team cards: they arrive one after another
+// (outer cards from the outside of a row), then their contents follow in
+// order as the card scrolls up: the icon or photo opens, the title and copy
+// rise line by line and the link settles. Only opacity, transform and
+// clip-path move; every end state is the card as authored.
+function cardStory(desktop: boolean) {
+  const cards = q<HTMLElement>("[data-card='light'], [data-service-card]")
+  for (const card of cards) {
+    const list = card.parentElement
+    if (!list) continue
+    const columns = desktop
+      ? getComputedStyle(list).gridTemplateColumns.split(" ").length
+      : 1
+    const column = Array.from(list.children).indexOf(card) % columns
+    const scrub = (start: string, end: string) => ({
+      trigger: card,
+      start,
+      end,
+      scrub: 0.8,
+    })
+
+    gsap.from(card, {
+      autoAlpha: 0,
+      y: 70,
+      x: columns > 1 ? (column - (columns - 1) / 2) * 44 : 0,
+      ease: "power2.out",
+      scrollTrigger: scrub("top 97%", "top 74%"),
+    })
+
+    // A photo opens from the top edge; an icon tile pops (service icons have
+    // their own pop in HomeMotion).
+    const photo = card.querySelector<HTMLElement>(":scope > div.relative")
+    if (photo)
+      gsap.fromTo(
+        photo,
+        { clipPath: "inset(0% 0% 100% 0%)" },
+        {
+          clipPath: "inset(0% 0% 0% 0%)",
+          ease: "power2.out",
+          scrollTrigger: scrub("top 90%", "top 64%"),
+        }
+      )
+    const tile = card.querySelector<HTMLElement>(".size-14")
+    if (tile)
+      gsap.from(tile, {
+        scale: 0.5,
+        rotate: -14,
+        ease: "back.out(2)",
+        scrollTrigger: scrub("top 88%", "top 70%"),
+      })
+
+    const title = card.querySelector<HTMLElement>("h3")
+    const copy = q<HTMLElement>("p", card).filter(
+      (p) => (p.textContent?.length ?? 0) > 30
+    )
+    const lines: [HTMLElement, string, string][] = []
+    if (title) lines.push([title, "top 82%", "top 64%"])
+    for (const p of copy) lines.push([p, "top 74%", "top 48%"])
+    for (const [el, start, end] of lines)
+      SplitText.create(el, {
+        type: "lines",
+        mask: "lines",
+        autoSplit: true,
+        onSplit: (self) =>
+          gsap.from(self.lines, {
+            yPercent: 110,
+            stagger: 0.25,
+            ease: "none",
+            scrollTrigger: scrub(start, end),
+          }),
+      })
+    for (const link of q<HTMLElement>("a", card))
+      gsap.from(link, {
+        autoAlpha: 0,
+        y: 12,
+        ease: "none",
+        scrollTrigger: scrub("top 60%", "top 42%"),
+      })
+  }
 }

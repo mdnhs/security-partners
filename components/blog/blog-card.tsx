@@ -26,7 +26,10 @@ export function BlogCard({
   readArticle: string
 }) {
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)]">
+    <article
+      data-card="light"
+      className="group flex h-full flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+    >
       <div className="relative h-[230px] shrink-0 overflow-hidden">
         <Image
           src={post.cover}
@@ -40,7 +43,7 @@ export function BlogCard({
         <PostMeta category={post.category} date={post.date}>
           {post.displayDate}
         </PostMeta>
-        <h3 className="text-[22px] leading-[1.3] font-black text-brand-navy">
+        <h3 className="text-[22px] leading-[1.3] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-green group-hover:to-brand-blue group-hover:bg-clip-text group-hover:text-transparent">
           {post.title}
         </h3>
         <p className="text-[15px] leading-[1.6] text-brand-ink">

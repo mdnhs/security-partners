@@ -188,7 +188,7 @@ export function ClientsCarousel({
       aria-hidden={copy > 0 ? "true" : undefined}
       inert={copy > 0}
       className={cn(
-        "flex h-[120px] w-[240px] shrink-0 items-center justify-center rounded-[20px] border border-brand-line bg-white px-7 py-5",
+        "flex h-[120px] w-[240px] shrink-0 items-center justify-center rounded-[20px] border border-brand-line bg-white px-7 py-5 transition-[transform,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_14px_30px_0px_rgba(13,26,51,0.12)] motion-safe:hover:scale-105",
         copy > 0 && "motion-reduce:hidden"
       )}
     >
@@ -225,7 +225,12 @@ export function ClientsCarousel({
       onPointerUp={onPointerEnd}
       onPointerCancel={onPointerEnd}
       className={cn(
-        "mt-14 w-full touch-pan-y [scrollbar-width:none] overflow-x-auto",
+        // py-12 / -mb-12: the box clips what leaves it (it must, to hide the rest of
+        // the loop), so it is padded to hold a card's hover lift and its shadow
+        // (about 45px below); the negative margin gives that room back, so the
+        // page around the strip does not move. mt-2 is the 56px gap above
+        // the cards (8px + 48px of padding).
+        "mt-2 -mb-12 w-full touch-pan-y [scrollbar-width:none] overflow-x-auto py-12",
         "cursor-grab select-none active:cursor-grabbing",
         "[mask-image:linear-gradient(to_right,transparent,#000_6%,#000_94%,transparent)]",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-green",

@@ -33,12 +33,13 @@ export function IconCards({
           {items.map((value) => (
             <li
               key={value.title}
-              className="flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)]"
+              data-card="light"
+              className="group flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
             >
               <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-green">
                 <Image src={value.icon} alt="" width={24} height={24} />
               </div>
-              <h3 className="text-[22px] leading-[normal] font-black text-brand-navy">
+              <h3 className="text-[22px] leading-[normal] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-green group-hover:to-brand-blue group-hover:bg-clip-text group-hover:text-transparent">
                 {value.title}
               </h3>
               <p className="text-base leading-[1.6] text-brand-ink">

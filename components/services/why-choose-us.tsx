@@ -50,7 +50,8 @@ export function WhyChooseUs({
               <li
                 key={feature.title}
                 data-story-card
-                className="flex flex-col items-start gap-3.5 rounded-3xl border border-white/18 bg-white/8 px-7 py-8"
+                data-card="dark"
+                className="flex flex-col items-start gap-3.5 rounded-3xl border border-white/18 bg-white/8 px-7 py-8 transition-[box-shadow,border-color,background-color] duration-300 ease-out hover:border-white/45 hover:bg-white/12 hover:shadow-[0px_18px_40px_0px_rgba(0,0,0,0.25)]"
               >
                 <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-green">
                   <Image src={feature.icon} alt="" width={24} height={24} />
