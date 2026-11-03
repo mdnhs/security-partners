@@ -451,18 +451,21 @@ function bannerPolish(card: Element) {
       { scale: 1, ease: "none", scrollTrigger: view }
     )
   // A soft band of light drifts across the satin folds now and then.
-  const sweep = card.querySelector("[data-banner-sweep]")
+  const sweep = card.querySelector<HTMLElement>("[data-banner-sweep]")
   if (sweep)
     gsap.fromTo(
       sweep,
-      { xPercent: -150, skewX: -12 },
+      // Pixels, not percent: the band starts and ends fully outside the card.
+      { x: () => -sweep.offsetWidth * 1.5, xPercent: 0, skewX: -12 },
       {
-        xPercent: 330,
+        x: () => card.clientWidth + sweep.offsetWidth * 0.5,
+        xPercent: 0,
         skewX: -12,
         duration: 4.5,
         ease: "sine.inOut",
         repeat: -1,
         repeatDelay: 5,
+        invalidateOnRefresh: true,
         scrollTrigger: {
           trigger: card,
           start: "top 85%",
@@ -471,6 +474,7 @@ function bannerPolish(card: Element) {
         },
       }
     )
+
   const wash = card.querySelector("[data-banner-overlay]")
   if (wash)
     gsap.fromTo(
