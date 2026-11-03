@@ -81,7 +81,11 @@ export default function RootLayout({
           {/* The navbar and footer live here, not in each page: moving
               between pages swaps only what is between them. */}
           <SiteHeaderSlot />
-          {children}
+          {/* min-h-svh: while the next page's content is still on its way
+              this stays a screen tall, so the footer waits below the fold
+              instead of climbing up under the navbar and dropping again
+              (a 0.5 to 0.8 layout shift on every page change). */}
+          <div className="min-h-svh">{children}</div>
           <SiteFooterSlot />
         </ThemeProvider>
         {/* Draft-mode only (admins); renders nothing for visitors. */}
