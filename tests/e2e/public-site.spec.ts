@@ -7,6 +7,35 @@ const VISITOR = "visitor@example.ie"
 // Public site served from the seeded sp_e2e database (tests/e2e/seed.ts).
 
 test.describe("public site from the database", () => {
+  for (const motion of ["no-preference", "reduce"] as const) {
+    for (const [name, size] of [
+      ["desktop", { width: 1440, height: 900 }],
+      ["mobile", { width: 390, height: 844 }],
+    ] as const) {
+      test(`no page scrolls sideways (${name}, motion: ${motion})`, async ({
+        page,
+      }) => {
+        // The clients strip is wider than the screen on purpose; it must stay
+        // inside its own box, whether it moves or stands still in rows.
+        await page.setViewportSize(size)
+        await page.emulateMedia({ reducedMotion: motion })
+        for (const path of ["/", "/about", "/services"]) {
+          await page.goto(path, { waitUntil: "load" })
+          await page.waitForTimeout(600)
+          const overflow = await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth -
+              document.documentElement.clientWidth
+          )
+          expect(
+            overflow,
+            `${path} overflows by ${overflow}px`
+          ).toBeLessThanOrEqual(0)
+        }
+      })
+    }
+  }
+
   test("the navbar and footer stay the very same elements when you move between pages", async ({
     page,
   }) => {

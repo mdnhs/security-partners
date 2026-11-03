@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { buttonClassName } from "@/components/ui/button"
+import { ClientsCarousel } from "@/components/home/clients-carousel"
 import { Container, SectionHeading } from "@/components/home/section"
 import { BlogCard, type BlogCardPost } from "@/components/blog/blog-card"
 
@@ -13,28 +14,15 @@ export type ClientsProps = {
 
 export function Clients({ eyebrow, heading, clients }: ClientsProps) {
   return (
-    <section className="bg-brand-surface px-6 py-20 md:px-10 lg:py-24">
-      <Container className="flex flex-col gap-14">
-        <SectionHeading eyebrow={eyebrow} title={heading} />
-        <ul data-stagger className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-          {clients.map((client) => (
-            <li
-              key={client.name}
-              className="flex h-[120px] items-center justify-center rounded-[20px] border border-brand-line bg-white px-7 py-5"
-            >
-              <div className="relative h-[76px] w-[200px] max-w-full">
-                <Image
-                  src={client.logo}
-                  alt={client.name}
-                  fill
-                  sizes="200px"
-                  className="object-contain"
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Container>
+    // No side padding on the section: the strip runs the full width of the
+    // page; only the heading keeps the page margins.
+    <section className="bg-brand-surface py-20 lg:py-24">
+      <div className="px-6 md:px-10">
+        <Container>
+          <SectionHeading eyebrow={eyebrow} title={heading} />
+        </Container>
+      </div>
+      <ClientsCarousel label={heading} clients={clients} />
     </section>
   )
 }
