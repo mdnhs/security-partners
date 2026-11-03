@@ -15,8 +15,6 @@ import type { SiteSources } from "@/templates/shared/sources"
 import {
   aboutSectionView,
   blogCard,
-  type ChromeView,
-  chromeView,
   clientsView,
   contactSectionView,
   enquireBannerView,
@@ -30,7 +28,6 @@ import {
 } from "@/templates/shared/views"
 
 export type HomeView = {
-  chrome: ChromeView
   hero: HeroProps
   about: AboutProps
   services: ServicesProps
@@ -46,7 +43,6 @@ export function homeView(s: SiteSources): HomeView {
   const page = s.pages.home.data
   const values = placeholders(s)
   return {
-    chrome: chromeView(s),
     hero: {
       eyebrow: page.hero.eyebrow,
       heading: page.hero.heading,

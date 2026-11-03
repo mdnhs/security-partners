@@ -10,6 +10,7 @@ import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { PreviewBar } from "@/components/preview-bar"
 import { SiteExtras } from "@/components/site-extras"
 import { SiteThemeStyle } from "@/components/site-theme-style"
+import { SiteFooterSlot, SiteHeaderSlot } from "@/components/site-chrome"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { publicOrigin } from "@/server/lib/site-origin"
@@ -76,7 +77,13 @@ export default function RootLayout({
         <SmoothScroll />
         {/* First-touch lead attribution; renders nothing. */}
         <AttributionCapture />
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {/* The navbar and footer live here, not in each page: moving
+              between pages swaps only what is between them. */}
+          <SiteHeaderSlot />
+          {children}
+          <SiteFooterSlot />
+        </ThemeProvider>
         {/* Draft-mode only (admins); renders nothing for visitors. */}
         <Suspense fallback={null}>
           <PreviewBar />

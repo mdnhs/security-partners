@@ -7,13 +7,9 @@ import { IconCards } from "@/components/home/icon-cards"
 import { PageHero } from "@/components/home/page-hero"
 import { Container } from "@/components/home/section"
 import { EnquireBanner, Services } from "@/components/home/services"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
 import { WhyChooseUs } from "@/components/services/why-choose-us"
-import { SiteLocale } from "@/components/site-locale"
 import { ArticleBlocks } from "@/lib/rich-text/render"
-import type { ChromeView } from "@/templates/shared/views"
 
 import type { BlockViewResult, BuilderBlockView } from "./views"
 
@@ -71,17 +67,10 @@ function Section({ view }: { view: BlockViewResult }) {
   }
 }
 
-/** "/p/<slug>": the page's visible blocks, in order, inside the site chrome. */
-export function BuilderTemplate({
-  chrome,
-  blocks,
-}: {
-  chrome: ChromeView
-  blocks: BuilderBlockView[]
-}) {
+/** "/p/<slug>": the page's visible blocks, in order (the layout adds the navbar and footer). */
+export function BuilderTemplate({ blocks }: { blocks: BuilderBlockView[] }) {
   return (
     <>
-      <SiteHeader {...chrome.header} />
       <main>
         {/* builderBlocksView already left hidden blocks out. */}
         {blocks.map(({ block, view }) =>
@@ -94,9 +83,7 @@ export function BuilderTemplate({
           )
         )}
       </main>
-      <SiteFooter {...chrome.footer} />
       <HomeMotion />
-      <SiteLocale lang={chrome.locale} />
     </>
   )
 }

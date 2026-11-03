@@ -7,15 +7,12 @@ import type { EnquireBannerProps } from "@/components/home/services"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
   aboutSectionView,
-  type ChromeView,
-  chromeView,
   clientsView,
   enquireBannerView,
   pageHeroView,
 } from "@/templates/shared/views"
 
 export type AboutView = {
-  chrome: ChromeView
   hero: PageHeroProps
   about: AboutProps
   stats: StatsProps
@@ -27,7 +24,6 @@ export type AboutView = {
 export function aboutView(s: SiteSources): AboutView {
   const page = s.pages.about.data
   return {
-    chrome: chromeView(s),
     hero: pageHeroView(s, page.hero),
     about: aboutSectionView(s),
     stats: { stats: page.stats },

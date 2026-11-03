@@ -23,24 +23,32 @@ import {
 import type { Link, PageHero } from "@/lib/schemas/common"
 import type { WithMedia } from "@/lib/media"
 
-import type { SiteArticle, SiteService, SiteSources } from "./sources"
+import type {
+  ChromeSources,
+  SiteArticle,
+  SiteService,
+  SiteSources,
+} from "./sources"
 
 // Builders shared by several templates: header, footer and the shared
 // sections (D10 + ruling), plus card shapes. Pure functions of SiteSources.
 
 /** Settings.contact fields + derived tel: hrefs for {placeholders}. */
-export const placeholders = (s: SiteSources) =>
+export const placeholders = (s: Pick<ChromeSources, "settings">) =>
   contactPlaceholders(s.settings.contact)
 
 /**
  * An admin-editable href: {placeholders} filled, then re-checked (ruling);
  * an unsafe or unresolved result renders "#".
  */
-export const hrefView = (s: SiteSources, href: string) =>
+export const hrefView = (s: Pick<ChromeSources, "settings">, href: string) =>
   interpolateHref(href, placeholders(s))
 
 /** A stored { label, href } link with its href through hrefView. */
-export const linkView = (s: SiteSources, link: Link): Link => ({
+export const linkView = (
+  s: Pick<ChromeSources, "settings">,
+  link: Link
+): Link => ({
   label: link.label,
   href: hrefView(s, link.href),
 })
@@ -52,7 +60,7 @@ export type ChromeView = {
   locale: string
 }
 
-export function chromeView(s: SiteSources): ChromeView {
+export function chromeView(s: ChromeSources): ChromeView {
   const { site, contact, navigation, footer, microcopy } = s.settings
   const values = placeholders(s)
   // `animation` only when set: without one the props (and the RSC payload)

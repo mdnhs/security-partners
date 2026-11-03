@@ -7,6 +7,26 @@ const VISITOR = "visitor@example.ie"
 // Public site served from the seeded sp_e2e database (tests/e2e/seed.ts).
 
 test.describe("public site from the database", () => {
+  test("the navbar and footer stay the very same elements when you move between pages", async ({
+    page,
+  }) => {
+    // They live in the layout, so a client-side navigation only swaps the
+    // page between them (no remount, no blank, state and animation kept).
+    await page.goto("/")
+    await page.evaluate(() => {
+      document.querySelector("header")!.setAttribute("data-probe", "kept")
+      document.querySelector("footer")!.setAttribute("data-probe", "kept")
+    })
+    await page.locator('header nav a[href="/about"]').first().click()
+    await expect(page).toHaveURL(/\/about$/)
+    await expect(page.locator("main").first()).toBeVisible()
+    await expect(page.locator('header[data-probe="kept"]')).toHaveCount(1)
+    await expect(page.locator('footer[data-probe="kept"]')).toHaveCount(1)
+    // One of each: no hidden copy of the page we left.
+    await expect(page.locator("header")).toHaveCount(1)
+    await expect(page.locator("footer")).toHaveCount(1)
+  })
+
   test("the page behind the content stays white in a dark browser (no black flash between pages)", async ({
     page,
   }) => {

@@ -3,10 +3,7 @@ import { BlogCard } from "@/components/blog/blog-card"
 import { PageHero } from "@/components/home/page-hero"
 import { Container, SectionHeading } from "@/components/home/section"
 import { EnquireBanner } from "@/components/home/services"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
-import { SiteLocale } from "@/components/site-locale"
 
 import type { ArticleView, BlogView } from "./view"
 
@@ -23,15 +20,12 @@ export function BlogTemplate({
 }) {
   return (
     <>
-      <SiteHeader {...view.chrome.header} />
       <main>
         <PageHero {...view.hero} />
         {posts}
         <EnquireBanner {...view.enquireBanner} />
       </main>
-      <SiteFooter {...view.chrome.footer} />
       <HomeMotion />
-      <SiteLocale lang={view.chrome.locale} />
     </>
   )
 }
@@ -40,7 +34,6 @@ export function BlogTemplate({
 export function ArticleTemplate({ view }: { view: ArticleView }) {
   return (
     <>
-      <SiteHeader {...view.chrome.header} />
       <main>
         <ArticleHeader {...view.header} />
         <ArticleBody {...view.body} />
@@ -66,9 +59,7 @@ export function ArticleTemplate({ view }: { view: ArticleView }) {
           </Container>
         </section>
       </main>
-      <SiteFooter {...view.chrome.footer} />
       <HomeMotion />
-      <SiteLocale lang={view.chrome.locale} />
     </>
   )
 }

@@ -11,13 +11,14 @@ import {
   pageMetadata,
   serviceMetadata,
 } from "@/templates/shared/page-meta"
+import { chromeView } from "@/templates/shared/views"
 import { teamView } from "@/templates/team/view"
 
 const s = fixtureSiteSources()
 
 describe("view builders reproduce the static site's data (fixture sources)", () => {
   it("chrome: header, footer, locale", () => {
-    const { chrome } = homeView(s)
+    const chrome = chromeView(s)
     expect(chrome.locale).toBe("en")
     expect(chrome.header.topBar).toEqual({
       phone24hLabel: "24 Hour Number:",

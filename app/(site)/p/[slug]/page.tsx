@@ -12,7 +12,6 @@ import {
   firstHeroDescription,
 } from "@/templates/builder/views"
 import { builderPageMetadata } from "@/templates/shared/page-meta"
-import { chromeView } from "@/templates/shared/views"
 
 // Builder pages (spec §7.5). Unknown, draft-only and deleted addresses never
 // get here as a 200: proxy.ts answers them with a real 404 (or a stored
@@ -53,10 +52,5 @@ async function Builder({ params }: Pick<PageProps<"/p/[slug]">, "params">) {
   const page = await getBuilderPageForRequest(slug)
   if (!page) notFound()
   const { doc } = await resolveMedia({ doc: page.doc })
-  return (
-    <BuilderTemplate
-      chrome={chromeView(s)}
-      blocks={builderBlocksView(doc.blocks, s)}
-    />
-  )
+  return <BuilderTemplate blocks={builderBlocksView(doc.blocks, s)} />
 }

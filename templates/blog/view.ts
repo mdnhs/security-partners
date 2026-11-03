@@ -12,8 +12,6 @@ import {
   articleDates,
   authorOf,
   blogCard,
-  type ChromeView,
-  chromeView,
   enquireBannerView,
   featuredArticle,
   hrefView,
@@ -22,7 +20,6 @@ import {
 } from "@/templates/shared/views"
 
 export type BlogView = {
-  chrome: ChromeView
   hero: PageHeroProps
   posts: Omit<BlogPostsProps, "initialCategory">
   enquireBanner: EnquireBannerProps
@@ -33,7 +30,6 @@ export function blogView(s: SiteSources): BlogView {
   const { microcopy } = s.settings
   const featured = featuredArticle(s)
   return {
-    chrome: chromeView(s),
     hero: pageHeroView(s, page.hero),
     posts: {
       posts: listedArticles(s).map((a) => blogCard(s, a)),
@@ -59,7 +55,6 @@ export function blogView(s: SiteSources): BlogView {
 }
 
 export type ArticleView = {
-  chrome: ChromeView
   header: ArticleHeaderProps
   body: ArticleBodyProps
   related: {
@@ -85,7 +80,6 @@ export function articleView(s: SiteSources, slug: string): ArticleView | null {
     ...others.filter((a) => a.category.name !== category),
   ].slice(0, 3)
   return {
-    chrome: chromeView(s),
     header: {
       article: {
         title: content.title,

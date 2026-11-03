@@ -3,10 +3,7 @@ import { Blog, Clients, Team } from "@/components/home/clients-team-blog"
 import { Contact, LocationMap } from "@/components/home/contact"
 import { Hero } from "@/components/home/hero"
 import { EnquireBanner, Services } from "@/components/home/services"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
-import { SiteLocale } from "@/components/site-locale"
 
 import type { HomeView } from "./view"
 
@@ -14,7 +11,6 @@ import type { HomeView } from "./view"
 export function HomeTemplate({ view }: { view: HomeView }) {
   return (
     <>
-      <SiteHeader {...view.chrome.header} />
       <main>
         <Hero {...view.hero} />
         <About {...view.about} />
@@ -26,9 +22,7 @@ export function HomeTemplate({ view }: { view: HomeView }) {
         <Contact {...view.contact} />
         <LocationMap {...view.map} />
       </main>
-      <SiteFooter {...view.chrome.footer} />
       <HomeMotion />
-      <SiteLocale lang={view.chrome.locale} />
     </>
   )
 }

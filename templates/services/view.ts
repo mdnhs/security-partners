@@ -9,8 +9,6 @@ import type { ServiceBodyProps } from "@/components/services/service-body"
 import type { WhyChooseUsProps } from "@/components/services/why-choose-us"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
-  type ChromeView,
-  chromeView,
   clientsView,
   enquireBannerView,
   hrefView,
@@ -21,7 +19,6 @@ import {
 } from "@/templates/shared/views"
 
 export type ServicesView = {
-  chrome: ChromeView
   hero: PageHeroProps
   services: ServicesProps
   whyChooseUs: WhyChooseUsProps
@@ -33,7 +30,6 @@ export function servicesView(s: SiteSources): ServicesView {
   const page = s.pages.services.data
   const why = s.settings["sections.whyChooseUs"]
   return {
-    chrome: chromeView(s),
     hero: pageHeroView(s, page.hero),
     services: {
       eyebrow: page.servicesSection.eyebrow,
@@ -58,7 +54,6 @@ export function servicesView(s: SiteSources): ServicesView {
 }
 
 export type ServiceDetailView = {
-  chrome: ChromeView
   hero: PageHeroProps
   body: ServiceBodyProps
   others: OtherServicesProps
@@ -83,7 +78,6 @@ export function serviceDetailView(
     ...s.services.slice(0, index),
   ].slice(0, 3)
   return {
-    chrome: chromeView(s),
     hero: {
       image: content.heroImage.url,
       trail: [

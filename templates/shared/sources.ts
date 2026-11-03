@@ -33,3 +33,23 @@ export type SiteSources = {
 
 export type SiteArticle = SiteSources["articles"][number]
 export type SiteService = SiteSources["services"][number]
+
+/** The settings keys the navbar and footer read. */
+export const CHROME_SETTINGS_KEYS = [
+  "site",
+  "contact",
+  "navigation",
+  "footer",
+  "microcopy",
+] as const satisfies readonly PublicSettingsKey[]
+
+/**
+ * What the navbar and footer need (templates/shared/views.ts chromeView):
+ * a slice of SiteSources, so a full SiteSources is accepted wherever this is.
+ * The layout loads only this, not every page's content.
+ */
+export type ChromeSources = {
+  settings: Pick<SiteSources["settings"], (typeof CHROME_SETTINGS_KEYS)[number]>
+  services: SiteSources["services"]
+  groupCompanies: SiteSources["groupCompanies"]
+}

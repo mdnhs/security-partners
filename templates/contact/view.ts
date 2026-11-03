@@ -4,8 +4,6 @@ import type { PageHeroProps } from "@/components/home/page-hero"
 import { interpolate, interpolateHref } from "@/lib/interpolate"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
-  type ChromeView,
-  chromeView,
   contactSectionView,
   locationMapView,
   pageHeroView,
@@ -13,7 +11,6 @@ import {
 } from "@/templates/shared/views"
 
 export type ContactView = {
-  chrome: ChromeView
   hero: PageHeroProps
   contact: ContactProps
   departments: DepartmentsProps
@@ -24,7 +21,6 @@ export function contactView(s: SiteSources): ContactView {
   const page = s.pages.contact.data
   const values = placeholders(s)
   return {
-    chrome: chromeView(s),
     hero: pageHeroView(s, page.hero, { wideDescription: true }),
     contact: contactSectionView(s),
     departments: {

@@ -4,15 +4,12 @@ import type { PageHeroProps } from "@/components/home/page-hero"
 import type { EnquireBannerProps } from "@/components/home/services"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
-  type ChromeView,
-  chromeView,
   enquireBannerView,
   pageHeroView,
   teamView as teamSectionView,
 } from "@/templates/shared/views"
 
 export type TeamView = {
-  chrome: ChromeView
   hero: PageHeroProps
   team: TeamProps
   officers: IconCardsProps
@@ -22,7 +19,6 @@ export type TeamView = {
 export function teamView(s: SiteSources): TeamView {
   const page = s.pages.team.data
   return {
-    chrome: chromeView(s),
     hero: pageHeroView(s, page.hero),
     team: teamSectionView(s, page.leadership),
     officers: {

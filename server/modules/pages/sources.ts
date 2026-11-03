@@ -15,7 +15,11 @@ import { listServices } from "@/server/modules/services/queries"
 import { assertPreviewAccess } from "@/server/modules/preview/guard"
 import { getSettings } from "@/server/modules/settings/queries"
 import { PAGE_KEYS } from "@/templates/registry"
-import type { SiteSources } from "@/templates/shared/sources"
+import {
+  CHROME_SETTINGS_KEYS,
+  type ChromeSources,
+  type SiteSources,
+} from "@/templates/shared/sources"
 
 function required<T>(value: T | null, what: string): T {
   if (value === null)
@@ -75,4 +79,30 @@ export async function loadSiteSources(): Promise<SiteSources> {
     clients,
     groupCompanies,
   })) as SiteSources
+}
+
+/**
+ * Just what the navbar and footer render (see ChromeSources): the layout
+ * shows them on every page, so it must not load every page's content too.
+ * Same cached readers and the same preview check as loadSiteSources; call
+ * only after `await connection()` inside <Suspense>.
+ */
+export async function loadChromeSources(): Promise<ChromeSources> {
+  await assertPreviewAccess()
+  const [settingsValues, services, groupCompanies] = await Promise.all([
+    Promise.all(CHROME_SETTINGS_KEYS.map((key) => getSettings(key))),
+    listServices(),
+    listGroupCompanies(),
+  ])
+  const settings = Object.fromEntries(
+    CHROME_SETTINGS_KEYS.map((key, i) => [
+      key,
+      required(settingsValues[i], `settings.${key}`),
+    ])
+  )
+  return (await resolveMedia({
+    settings,
+    services,
+    groupCompanies,
+  })) as ChromeSources
 }

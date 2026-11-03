@@ -9,6 +9,7 @@ import { articleView, blogView } from "@/templates/blog/view"
 import { homeView } from "@/templates/home/view"
 import { serviceDetailView } from "@/templates/services/view"
 import type { SiteSources } from "@/templates/shared/sources"
+import { chromeView } from "@/templates/shared/views"
 
 /** Fresh fixture sources to mutate (Dates survive structuredClone). */
 const sources = (): SiteSources => structuredClone(fixtureSiteSources())
@@ -16,11 +17,12 @@ const sources = (): SiteSources => structuredClone(fixtureSiteSources())
 describe("admin-editable link hrefs go through interpolateHref (ruling)", () => {
   it("fixture links are unchanged", () => {
     const view = homeView(sources())
-    expect(view.chrome.header.cta).toEqual({
+    const chrome = chromeView(sources())
+    expect(chrome.header.cta).toEqual({
       label: "Get a Quote",
       href: "/contact",
     })
-    expect(view.chrome.footer.quickLinks.links.map((l) => l.href)).toEqual([
+    expect(chrome.footer.quickLinks.links.map((l) => l.href)).toEqual([
       "/about",
       "/services",
       "/team",
@@ -63,11 +65,12 @@ describe("admin-editable link hrefs go through interpolateHref (ruling)", () => 
     s.settings.microcopy.service.ctaHref = p
 
     const home = homeView(s)
-    expect(home.chrome.header.links[0]).toEqual({ label: "About", href: tel })
-    expect(home.chrome.header.cta.href).toBe(tel)
-    expect(home.chrome.footer.quickLinks.links[0].href).toBe(tel)
-    expect(home.chrome.footer.legal.privacy.href).toBe(tel)
-    expect(home.chrome.footer.legal.terms.href).toBe(tel)
+    const chrome = chromeView(s)
+    expect(chrome.header.links[0]).toEqual({ label: "About", href: tel })
+    expect(chrome.header.cta.href).toBe(tel)
+    expect(chrome.footer.quickLinks.links[0].href).toBe(tel)
+    expect(chrome.footer.legal.privacy.href).toBe(tel)
+    expect(chrome.footer.legal.terms.href).toBe(tel)
     expect(home.enquireBanner.cta.href).toBe(tel)
     expect(home.hero.primaryCta.href).toBe(tel)
     expect(home.blog.cta.href).toBe(tel)
@@ -87,9 +90,10 @@ describe("admin-editable link hrefs go through interpolateHref (ruling)", () => 
     s.settings.navigation.headerCta.href = "{noSuchPlaceholder}"
     s.pages.home.data.blog.cta.href = "//evil.example"
     const home = homeView(s)
-    expect(home.chrome.header.links[0].href).toBe("#")
-    expect(home.chrome.footer.quickLinks.links[0].href).toBe("#")
-    expect(home.chrome.header.cta.href).toBe("#")
+    const chrome = chromeView(s)
+    expect(chrome.header.links[0].href).toBe("#")
+    expect(chrome.footer.quickLinks.links[0].href).toBe("#")
+    expect(chrome.header.cta.href).toBe("#")
     expect(home.blog.cta.href).toBe("#")
   })
 })

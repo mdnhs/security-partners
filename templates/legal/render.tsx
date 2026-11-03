@@ -1,9 +1,6 @@
 import { PageHero } from "@/components/home/page-hero"
 import { Container } from "@/components/home/section"
-import { SiteFooter } from "@/components/home/site-footer"
-import { SiteHeader } from "@/components/home/site-header"
 import { HomeMotion } from "@/components/motion/home-motion"
-import { SiteLocale } from "@/components/site-locale"
 import { ArticleBlocks } from "@/lib/rich-text/render"
 
 import type { LegalView } from "./view"
@@ -15,7 +12,6 @@ import type { LegalView } from "./view"
 export function LegalTemplate({ view }: { view: LegalView }) {
   return (
     <>
-      <SiteHeader {...view.chrome.header} />
       <main>
         <PageHero {...view.hero} />
         <section className="bg-white px-6 pt-14 pb-20 md:px-10 lg:pt-20 lg:pb-28">
@@ -26,9 +22,7 @@ export function LegalTemplate({ view }: { view: LegalView }) {
           </Container>
         </section>
       </main>
-      <SiteFooter {...view.chrome.footer} />
       <HomeMotion />
-      <SiteLocale lang={view.chrome.locale} />
     </>
   )
 }

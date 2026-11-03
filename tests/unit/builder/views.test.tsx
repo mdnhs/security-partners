@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
-// SiteHeader marks the active link from the router's pathname.
+// Block views that render links read the router's pathname.
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => "/p/landing",
@@ -17,7 +17,7 @@ import {
   type ResolvedBlock,
 } from "@/templates/builder/views"
 import { builderPageMetadata } from "@/templates/shared/page-meta"
-import { aboutSectionView, chromeView } from "@/templates/shared/views"
+import { aboutSectionView } from "@/templates/shared/views"
 
 const s = fixtureSiteSources()
 
@@ -225,10 +225,7 @@ describe("blockView: every block maps to its existing component's props", () => 
 describe("BuilderTemplate", () => {
   const render = (blocks: ResolvedBlock[]) =>
     renderToStaticMarkup(
-      <BuilderTemplate
-        chrome={chromeView(s)}
-        blocks={builderBlocksView(blocks, s)}
-      />
+      <BuilderTemplate blocks={builderBlocksView(blocks, s)} />
     )
 
   it("renders visible blocks in order; hidden ones are absent", () => {
