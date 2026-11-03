@@ -17,7 +17,7 @@
     "components/home/section.tsx": "7cd1f542350298a6d4558f1bb039c4e4ae146e20b5435163a9710918b5ee659a",
     "components/home/services.tsx": "436c406df1041f8d60ded0edb58484743b1bd0ef80002558c63fcb2d46d85e05",
     "components/home/site-footer.tsx": "92efe70ca7c8f67ab0191975000fff83ba935b22f1f2284b6de0448d5f28f854",
-    "components/home/site-header.tsx": "3113b04c1557c640bf3c12be068be9cb9865473e16203c813abb498889eed683",
+    "components/home/site-header.tsx": "3a3f5354474dcb94448d97220a77f35bec691fbb127e88a2a95b1cda5f1b423f",
     "components/home/use-turnstile.ts": "b4a40efafe1ddd7f471e82dfcf9ddd0e194e517cb2f3f440871e5b240fa4b711",
     "components/services/other-services.tsx": "24370f1c79845ff860e7bc728e0c839c0ed8af9db3f0c63fd32ea217123dacbc",
     "components/services/service-body.tsx": "716122902d38d182c790183cfe7d4ccbb496586b8e351ef25c457c47cef3e9a9",

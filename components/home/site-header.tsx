@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -37,7 +37,16 @@ function NavMenu({
   isActive: (href: string) => boolean
 }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Next keeps the page you left alive but hidden, state and all, and shows
+  // it again on the way back: a list left open would still be open. Hiding a
+  // page (and a route change) runs a layout effect's cleanup, which closes
+  // the list, so it is closed when the page returns.
+  useLayoutEffect(() => {
+    return () => setOpen(false)
+  }, [pathname])
   const topRef = useRef<HTMLAnchorElement>(null)
   const dismissing = useRef(false)
 
@@ -68,6 +77,9 @@ function NavMenu({
       className="relative flex h-14 items-center"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      // Any click in the link or the list is a navigation: close first, so
+      // the page being left is stored closed.
+      onClickCapture={() => setOpen(false)}
       onFocus={() => {
         if (!dismissing.current) setOpen(true)
       }}
@@ -184,6 +196,15 @@ export function SiteHeader({
   aria,
 }: SiteHeaderProps) {
   const [open, setOpen] = useState(false)
+  // Past the very top the bar turns to blurred glass, so the page shows
+  // through it as it scrolls underneath.
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 8)
+    update()
+    window.addEventListener("scroll", update, { passive: true })
+    return () => window.removeEventListener("scroll", update)
+  }, [])
   const pathname = usePathname()
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`)
@@ -211,7 +232,14 @@ export function SiteHeader({
         </Container>
       </div>
 
-      <header className="sticky top-0 z-50 bg-white px-6 py-3 shadow-[0px_4px_20px_0px_rgba(13,26,51,0.08)] md:px-10">
+      <header
+        className={cn(
+          "sticky top-0 z-50 px-6 py-3 shadow-[0px_4px_20px_0px_rgba(13,26,51,0.08)] transition-[background-color,backdrop-filter] duration-300 motion-reduce:transition-none md:px-10",
+          scrolled
+            ? "bg-white/55 backdrop-blur-lg backdrop-saturate-150"
+            : "bg-white"
+        )}
+      >
         <div
           aria-hidden
           data-scroll-progress

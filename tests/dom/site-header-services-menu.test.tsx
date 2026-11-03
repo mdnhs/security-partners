@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { Activity } from "react"
 import { describe, expect, it, vi } from "vitest"
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/about" }))
+const nav = vi.hoisted(() => ({ path: "/about" }))
+vi.mock("next/navigation", () => ({ usePathname: () => nav.path }))
 
 import { SiteHeader, type SiteHeaderProps } from "@/components/home/site-header"
 
@@ -132,5 +134,78 @@ describe("header Services menu", () => {
   it("without services there is no menu and the markup is plain", () => {
     render(<SiteHeader {...header(false)} />)
     expect(submenu()).toBeNull()
+  })
+})
+
+describe("header while scrolling", () => {
+  const scrollTo = (y: number) => {
+    act(() => {
+      Object.defineProperty(window, "scrollY", { value: y, configurable: true })
+      window.dispatchEvent(new Event("scroll"))
+    })
+  }
+
+  it("is solid white at the top, then a blurred see-through glass once scrolled", () => {
+    const { container } = render(<SiteHeader {...header(true)} />)
+    const bar = container.querySelector("header")!
+    scrollTo(0)
+    expect(bar).toHaveClass("bg-white")
+    expect(bar).not.toHaveClass("backdrop-blur-lg")
+
+    scrollTo(120)
+    expect(bar).toHaveClass("bg-white/55", "backdrop-blur-lg")
+    expect(bar).not.toHaveClass("bg-white")
+
+    scrollTo(0)
+    expect(bar).toHaveClass("bg-white")
+    expect(bar).not.toHaveClass("backdrop-blur-lg")
+  })
+
+  it("takes the scrolled look on mount when the page opens already scrolled", () => {
+    Object.defineProperty(window, "scrollY", { value: 400, configurable: true })
+    const { container } = render(<SiteHeader {...header(true)} />)
+    expect(container.querySelector("header")).toHaveClass("backdrop-blur-lg")
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true })
+  })
+})
+
+describe("header Services menu across pages", () => {
+  it("comes back closed when its page is shown again (Next keeps hidden pages alive)", async () => {
+    const user = userEvent.setup()
+    const page = (mode: "visible" | "hidden") => (
+      <Activity mode={mode}>
+        <SiteHeader {...header(true)} />
+      </Activity>
+    )
+    const { rerender } = render(page("visible"))
+    await user.hover(desktopNav().querySelector('a[href="/services"]')!)
+    expect(submenu()).toHaveAttribute("data-open", "true")
+
+    // The visitor leaves the page with the list open, then comes back.
+    rerender(page("hidden"))
+    rerender(page("visible"))
+    expect(submenu()).toHaveAttribute("data-open", "false")
+  })
+
+  it("closes when the route changes while it is open", async () => {
+    const user = userEvent.setup()
+    nav.path = "/about"
+    const { rerender } = render(<SiteHeader {...header(true)} />)
+    await user.hover(desktopNav().querySelector('a[href="/services"]')!)
+    expect(submenu()).toHaveAttribute("data-open", "true")
+    nav.path = "/services/alarm-responses"
+    rerender(<SiteHeader {...header(true)} />)
+    expect(submenu()).toHaveAttribute("data-open", "false")
+    nav.path = "/about"
+  })
+
+  it("closes at once when a link in the list is clicked", async () => {
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(true)} />)
+    await user.hover(desktopNav().querySelector('a[href="/services"]')!)
+    const link = submenu()!.querySelector("a")!
+    link.addEventListener("click", (event) => event.preventDefault())
+    await user.click(link)
+    expect(submenu()).toHaveAttribute("data-open", "false")
   })
 })
