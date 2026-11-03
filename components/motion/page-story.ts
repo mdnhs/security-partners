@@ -25,7 +25,12 @@ export function pageStory(desktop: boolean): (() => void) | void {
   whyChooseStory(desktop)
   teamStory(desktop)
   cardStory(desktop)
-  return cardHover()
+  const stopFooter = footerStory()
+  const stopCards = cardHover()
+  return () => {
+    stopFooter?.()
+    stopCards?.()
+  }
 }
 
 // Every section heading rises line by line out of a mask. The banner and the
@@ -495,4 +500,112 @@ function cardStory(desktop: boolean) {
         scrollTrigger: scrub("top 60%", "top 42%"),
       })
   }
+}
+
+// The footer plays once, the first time it comes into view: its aurora fades
+// up, the logo pops, the tagline rises line by line, each column's heading
+// and then its links come in one after another, the group cards rise, the
+// rule draws and the bottom row settles. Links nudge towards the pointer on
+// hover and the group cards tilt and glow like every other card. Only
+// opacity and transform move; the footer is laid out exactly as authored.
+function footerStory() {
+  const footer = document.querySelector("footer")
+  const grid = footer?.querySelector("[data-stagger]")
+  if (!footer || !grid) return
+  const [intro, quick, contact, group] = Array.from(grid.children)
+  const rule = footer.querySelector(":scope > div > div.h-px")
+  const bottom = rule?.nextElementSibling ?? null
+
+  const story = gsap.timeline({
+    defaults: { ease: "power3.out" },
+    scrollTrigger: { trigger: footer, start: "top 88%", once: true },
+  })
+  const aurora = footer.querySelector(".footer-aurora")
+  if (aurora) story.from(aurora, { autoAlpha: 0, duration: 2 }, 0)
+  const logo = intro?.firstElementChild
+  if (logo)
+    story.from(
+      logo,
+      {
+        autoAlpha: 0,
+        scale: 0.7,
+        rotate: -8,
+        duration: 0.9,
+        ease: "back.out(2)",
+      },
+      0.1
+    )
+  const tagline = intro?.querySelector<HTMLElement>("p")
+  if (tagline)
+    SplitText.create(tagline, {
+      type: "lines",
+      mask: "lines",
+      autoSplit: true,
+      onSplit: (self) =>
+        gsap.from(self.lines, {
+          yPercent: 110,
+          duration: 0.9,
+          stagger: 0.12,
+          ease: "expo.out",
+          delay: 0.3,
+          scrollTrigger: { trigger: footer, start: "top 88%", once: true },
+        }),
+    })
+  const headings = [quick, contact, group]
+    .map((column) => column?.firstElementChild)
+    .filter((el): el is Element => Boolean(el))
+  story.from(
+    headings,
+    { autoAlpha: 0, y: 18, duration: 0.7, stagger: 0.12 },
+    0.25
+  )
+  const links = [quick, contact].flatMap((column) =>
+    Array.from(column?.children ?? []).slice(1)
+  )
+  story.from(
+    links,
+    { autoAlpha: 0, x: -18, duration: 0.7, stagger: 0.06 },
+    0.45
+  )
+  const cards = Array.from(group?.querySelectorAll(":scope > a") ?? [])
+  story.from(
+    cards,
+    { autoAlpha: 0, y: 32, scale: 0.96, duration: 0.9, stagger: 0.15 },
+    0.55
+  )
+  if (rule)
+    story.from(
+      rule,
+      {
+        scaleX: 0,
+        transformOrigin: "left center",
+        duration: 1.3,
+        ease: "power2.inOut",
+      },
+      0.8
+    )
+  if (bottom) story.from(bottom, { autoAlpha: 0, y: 14, duration: 0.8 }, 1.3)
+
+  // The group cards join the shared card hover (tilt and corner glow).
+  for (const card of cards) (card as HTMLElement).dataset.card = "dark"
+
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
+  const stops: (() => void)[] = []
+  const nudges = Array.from(
+    footer.querySelectorAll<HTMLElement>(
+      "nav a, address a, [class*='sm:flex-row'] a"
+    )
+  )
+  for (const link of nudges) {
+    const shift = gsap.quickTo(link, "x", { duration: 0.4, ease: "power3.out" })
+    const enter = () => shift(6)
+    const leave = () => shift(0)
+    link.addEventListener("pointerenter", enter)
+    link.addEventListener("pointerleave", leave)
+    stops.push(() => {
+      link.removeEventListener("pointerenter", enter)
+      link.removeEventListener("pointerleave", leave)
+    })
+  }
+  return () => stops.forEach((stop) => stop())
 }

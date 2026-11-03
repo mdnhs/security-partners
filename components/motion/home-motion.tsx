@@ -145,6 +145,8 @@ function scrollProgress() {
 
 function reveals() {
   for (const group of q("[data-stagger]")) {
+    // The footer tells its own story (page-story.ts footerStory).
+    if (group.closest("footer")) continue
     // Card lists tell their own story (page-story.ts cardStory).
     if (
       group.querySelector(
