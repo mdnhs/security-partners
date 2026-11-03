@@ -12,8 +12,10 @@ describe("chromeView Services menu", () => {
       s.services.map((x) => ({
         label: x.content.title,
         href: `/services/${x.slug}`,
+        icon: x.content.icon.url,
       }))
     )
+    for (const child of services.children!) expect(child.icon).toBeTruthy()
     expect(services.children!.length).toBeGreaterThan(0)
   })
 

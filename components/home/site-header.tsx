@@ -12,7 +12,13 @@ import { Container } from "@/components/home/section"
 import { cn } from "@/lib/utils"
 
 // `children`: a hover/focus list under the link (Services: one per service).
-type NavLink = { label: string; href: string; children?: NavLink[] }
+// `icon`: a picture shown beside a list entry (the service's own icon).
+type NavLink = {
+  label: string
+  href: string
+  children?: NavLink[]
+  icon?: string
+}
 
 /**
  * A header link with a list under it, open while the pointer or keyboard
@@ -91,7 +97,7 @@ function NavMenu({
       <div
         data-services-menu
         data-open={open}
-        className="group/menu invisible absolute top-full left-1/2 z-10 min-w-64 -translate-x-1/2 pt-[22px] transition-[visibility] duration-[650ms] data-[open=true]:visible motion-reduce:transition-none"
+        className="group/menu invisible absolute top-full left-1/2 z-10 min-w-76 -translate-x-1/2 pt-[22px] transition-[visibility] duration-[650ms] data-[open=true]:visible motion-reduce:transition-none"
       >
         <ul className="rounded-lg bg-white py-2 shadow-[0px_8px_30px_0px_rgba(13,26,51,0.14)] transition-[clip-path] duration-[650ms] ease-[cubic-bezier(0.45,0.05,0.25,1)] [clip-path:inset(0_-40px_100%_-40px)] group-data-[open=true]/menu:[clip-path:inset(0_-40px_-40px_-40px)] motion-reduce:transition-none">
           {link.children?.map((child, index) => (
@@ -106,10 +112,29 @@ function NavMenu({
                 href={child.href}
                 aria-current={isActive(child.href) ? "page" : undefined}
                 className={cn(
-                  "block px-5 py-3 text-sm font-semibold transition-colors hover:bg-brand-surface hover:text-brand-green",
+                  "flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-brand-surface hover:text-brand-green",
                   isActive(child.href) && "text-brand-green"
                 )}
               >
+                {child.icon ? (
+                  // The service card's tile at menu size: the same mint
+                  // square, the picture a third larger than the tile and
+                  // clipped by it.
+                  <span
+                    aria-hidden
+                    className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-brand-mint"
+                  >
+                    <span className="relative size-[54px] shrink-0">
+                      <Image
+                        src={child.icon}
+                        alt=""
+                        fill
+                        sizes="54px"
+                        className="object-contain"
+                      />
+                    </span>
+                  </span>
+                ) : null}
                 {child.label}
               </Link>
             </li>

@@ -84,6 +84,7 @@ export function chromeView(s: SiteSources): ChromeView {
               children: s.services.map((x) => ({
                 label: x.content.title,
                 href: `/services/${x.slug}`,
+                icon: x.content.icon.url,
               })),
             }
           : link

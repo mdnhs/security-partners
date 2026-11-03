@@ -24,8 +24,16 @@ const header = (withMenu: boolean): SiteHeaderProps => ({
       ...(withMenu
         ? {
             children: [
-              { label: "Alarm Responses", href: "/services/alarm-responses" },
-              { label: "Mobile Patrols", href: "/services/mobile-patrols" },
+              {
+                label: "Alarm Responses",
+                href: "/services/alarm-responses",
+                icon: "/images/service-alarm.png",
+              },
+              {
+                label: "Mobile Patrols",
+                href: "/services/mobile-patrols",
+                icon: "/images/service-patrol.png",
+              },
             ],
           }
         : {}),
@@ -57,6 +65,19 @@ describe("header Services menu", () => {
     ])
     await user.unhover(desktopNav().querySelector('a[href="/services"]')!)
     expect(submenu()).toHaveAttribute("data-open", "false")
+  })
+
+  it("shows each service's icon beside its name, hidden from screen readers", () => {
+    render(<SiteHeader {...header(true)} />)
+    const items = [...submenu()!.querySelectorAll("li")]
+    expect(items).toHaveLength(2)
+    for (const [i, icon] of ["service-alarm", "service-patrol"].entries()) {
+      const img = items[i].querySelector("img")!
+      expect(decodeURIComponent(img.getAttribute("src")!)).toContain(icon)
+      expect(img).toHaveAttribute("alt", "")
+    }
+    // The name is still the link's text.
+    expect(items[0].querySelector("a")).toHaveTextContent("Alarm Responses")
   })
 
   it("stays open while the pointer moves from Services onto the list", async () => {
