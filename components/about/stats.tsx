@@ -11,7 +11,10 @@ export function Stats({ stats }: StatsProps) {
         <ul data-stagger className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
             <li key={stat.label} className="flex flex-col gap-2">
-              <p className="text-[44px] leading-[normal] font-black tracking-[-0.01em] text-brand-green">
+              <p
+                data-countup
+                className="text-[44px] leading-[normal] font-black tracking-[-0.01em] text-brand-green"
+              >
                 {stat.value}
               </p>
               <p className="text-lg leading-[normal] font-black text-white">

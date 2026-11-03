@@ -1,7 +1,7 @@
 {
   "base": "4d5a6f7",
   "files": {
-    "components/about/stats.tsx": "a91927452b43a0578fa401310c885acd60e7c34c2b2dfbba2044ed45ebdd170b",
+    "components/about/stats.tsx": "25126a92fc0c7886103182589e33fdca4bce483e66d1cddac0fa858368ab7368",
     "components/blog/article.tsx": "8ef4c27f45b65a57958f37772e2c85420d7a630bbb565234706ec68185ae0804",
     "components/blog/blog-card.tsx": "20fadb4f4436a95988273ae63396b685e500fcef1200b1209e841ced64fe4321",
     "components/blog/blog-posts.tsx": "b5c26df2997a84fc17b55a0b8c901da968d55d5299c12425fca599620cc99f66",
@@ -21,6 +21,6 @@
     "components/home/use-turnstile.ts": "b4a40efafe1ddd7f471e82dfcf9ddd0e194e517cb2f3f440871e5b240fa4b711",
     "components/services/other-services.tsx": "24370f1c79845ff860e7bc728e0c839c0ed8af9db3f0c63fd32ea217123dacbc",
     "components/services/service-body.tsx": "716122902d38d182c790183cfe7d4ccbb496586b8e351ef25c457c47cef3e9a9",
-    "components/services/why-choose-us.tsx": "7d461838160d921c678b491ac46dbd549bbec6fd06a16b63e7840214f8a5e128"
+    "components/services/why-choose-us.tsx": "0bb4e61e55cd1ea286b72946e7a8fe024f7c00b9cb3a0171113abd602c60c7fe"
   }
 }

@@ -5,6 +5,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { SplitText } from "gsap/SplitText"
 import { useGSAP } from "@gsap/react"
 
+import { pageStory } from "@/components/motion/page-story"
+
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText)
 
 // Play on the way down, rewind when scrolling back above the trigger.
@@ -43,6 +45,7 @@ export function HomeMotion() {
         aboutStory(desktop)
         parallax()
         banner(desktop)
+        pageStory(desktop)
         map()
         const stopButtons = bannerButtons()
         const stopCards = serviceCards()
