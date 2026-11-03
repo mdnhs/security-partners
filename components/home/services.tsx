@@ -65,7 +65,7 @@ export function ServiceCard({
   return (
     <li
       data-service-card
-      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-blue/40 bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow] duration-300 ease-out hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
     >
       <div
         aria-hidden
@@ -86,7 +86,7 @@ export function ServiceCard({
           />
         </div>
       </div>
-      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-blue group-hover:to-brand-green group-hover:bg-clip-text group-hover:text-transparent group-has-[a:focus-visible]:bg-linear-to-r group-has-[a:focus-visible]:from-brand-blue group-has-[a:focus-visible]:to-brand-green group-has-[a:focus-visible]:bg-clip-text group-has-[a:focus-visible]:text-transparent">
+      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-green group-hover:to-brand-blue group-hover:bg-clip-text group-hover:text-transparent group-has-[a:focus-visible]:bg-linear-to-r group-has-[a:focus-visible]:from-brand-green group-has-[a:focus-visible]:to-brand-blue group-has-[a:focus-visible]:bg-clip-text group-has-[a:focus-visible]:text-transparent">
         {service.title}
       </h3>
       <p className="text-base leading-[1.6] text-brand-ink">
