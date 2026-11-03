@@ -153,10 +153,10 @@ export function Blog({
           <Link
             href={cta.href}
             data-reveal
-            className={buttonClassName({
-              variant: "brand-outline-blue",
-              size: "pill-sm",
-            })}
+            className={buttonClassName(
+              { variant: "brand-outline-blue", size: "pill-sm" },
+              "max-sm:w-full"
+            )}
           >
             {`${cta.label} `}
             <span aria-hidden>→</span>

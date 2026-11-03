@@ -7,6 +7,14 @@ import { usePathname } from "next/navigation"
 import { MenuIcon, XIcon } from "lucide-react"
 
 import { buttonClassName } from "@/components/ui/button"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { LogoAnimation } from "@/components/home/logo-animation"
 import { Container } from "@/components/home/section"
 import { cn } from "@/lib/utils"
@@ -294,52 +302,87 @@ export function SiteHeader({
               href={cta.href}
               className={buttonClassName(
                 { variant: "brand", size: "pill" },
-                "max-sm:px-5 max-sm:py-3 max-sm:text-sm"
+                "max-lg:hidden"
               )}
             >
               {cta.label}
             </Link>
-            <button
-              type="button"
-              aria-label={open ? aria.closeMenu : aria.openMenu}
-              aria-expanded={open}
-              aria-controls="mobile-nav"
-              onClick={() => setOpen((v) => !v)}
-              className="inline-flex size-11 items-center justify-center rounded-full text-brand-navy hover:bg-brand-surface lg:hidden"
-            >
-              {open ? (
-                <XIcon className="size-6" />
-              ) : (
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger
+                aria-label={aria.openMenu}
+                className="inline-flex size-11 items-center justify-center rounded-full text-brand-navy hover:bg-brand-surface lg:hidden"
+              >
                 <MenuIcon className="size-6" />
-              )}
-            </button>
+              </SheetTrigger>
+              <SheetContent
+                side="right"
+                showCloseButton={false}
+                data-lenis-prevent
+                className="w-[min(88vw,22rem)] gap-0 bg-white p-0 text-brand-navy lg:hidden"
+              >
+                <SheetHeader className="flex-row items-center justify-between border-b border-brand-line px-5 py-4">
+                  <SheetTitle className="sr-only">{aria.mobileNav}</SheetTitle>
+                  <span aria-hidden className="relative h-[44px] w-[72px]">
+                    <Image
+                      src={logo.src}
+                      alt=""
+                      fill
+                      sizes="72px"
+                      className="object-contain"
+                    />
+                  </span>
+                  <SheetClose
+                    aria-label={aria.closeMenu}
+                    className="inline-flex size-11 items-center justify-center rounded-full text-brand-navy hover:bg-brand-surface"
+                  >
+                    <XIcon className="size-6" />
+                  </SheetClose>
+                </SheetHeader>
+                <nav
+                  aria-label={aria.mobileNav}
+                  className="flex flex-1 flex-col overflow-y-auto px-3 py-3 text-base font-bold"
+                >
+                  {links.map((link) => (
+                    <SheetClose
+                      key={link.href}
+                      nativeButton={false}
+                      render={
+                        <Link
+                          href={link.href}
+                          aria-current={
+                            isActive(link.href) ? "page" : undefined
+                          }
+                          className={cn(
+                            "rounded-lg px-3 py-3.5 hover:bg-brand-surface",
+                            isActive(link.href) && "text-brand-green"
+                          )}
+                        />
+                      }
+                    >
+                      {link.label}
+                    </SheetClose>
+                  ))}
+                </nav>
+                <div className="border-t border-brand-line p-5">
+                  <SheetClose
+                    nativeButton={false}
+                    render={
+                      <Link
+                        href={cta.href}
+                        className={buttonClassName(
+                          { variant: "brand", size: "pill" },
+                          "w-full"
+                        )}
+                      />
+                    }
+                  >
+                    {cta.label}
+                  </SheetClose>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </Container>
-
-        {open && (
-          <nav
-            id="mobile-nav"
-            aria-label={aria.mobileNav}
-            className="border-t border-brand-line pt-2 lg:hidden"
-          >
-            <Container className="flex flex-col py-2 text-base font-bold text-brand-navy">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  aria-current={isActive(link.href) ? "page" : undefined}
-                  className={cn(
-                    "rounded-lg px-2 py-3 hover:bg-brand-surface",
-                    isActive(link.href) && "text-brand-green"
-                  )}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </Container>
-          </nav>
-        )}
       </header>
     </>
   )

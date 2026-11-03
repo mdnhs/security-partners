@@ -5,7 +5,8 @@ import { LogoAnimation } from "@/components/home/logo-animation"
 import { Container } from "@/components/home/section"
 
 const headingClass = "text-base font-black tracking-[0.04em] text-brand-green"
-const linkClass = "text-[15px] leading-normal text-white/80 hover:text-white"
+const linkClass =
+  "text-[15px] leading-normal text-white/80 [overflow-wrap:anywhere] hover:text-white"
 
 type FooterLink = { label: string; href: string }
 
@@ -57,9 +58,9 @@ export function SiteFooter({
       <Container className="flex flex-col gap-12">
         <div
           data-stagger
-          className="grid gap-12 md:grid-cols-2 xl:flex xl:gap-14"
+          className="grid grid-cols-2 gap-x-6 gap-y-10 md:gap-12 xl:flex xl:gap-14"
         >
-          <div className="flex flex-col items-start gap-5 xl:w-[340px] xl:shrink-0">
+          <div className="flex flex-col items-start gap-5 max-md:col-span-2 xl:w-[340px] xl:shrink-0">
             <div className="rounded-[14px] bg-white px-4 py-2.5">
               <div className="relative h-[66px] w-[110px]">
                 <Image
@@ -106,7 +107,7 @@ export function SiteFooter({
             </a>
           </address>
 
-          <div className="flex flex-col gap-4 xl:w-[300px] xl:shrink-0">
+          <div className="flex flex-col gap-4 max-md:col-span-2 xl:w-[300px] xl:shrink-0">
             <p className={headingClass}>{group.heading}</p>
             {group.companies.map((company) => (
               <a
