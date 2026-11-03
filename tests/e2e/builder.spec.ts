@@ -114,7 +114,9 @@ test("editor creates Spring campaign, adds Stats, autosaves, publishes and sees 
   const res = await pub.goto("/p/spring-campaign")
   expect(res?.status()).toBe(200)
   await expect(pub.getByText("24/7")).toBeVisible()
-  await expect(pub.getByText("Response")).toBeVisible()
+  // Exact: the navbar's Services list also holds "Alarm Responses" (hidden
+  // until hovered), which a substring match would count as a second hit.
+  await expect(pub.getByText("Response", { exact: true })).toBeVisible()
   await visitor.close()
 })
 
