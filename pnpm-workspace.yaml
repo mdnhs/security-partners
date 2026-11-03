@@ -5,3 +5,9 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   msw: false
+
+# The AI SDK's provider-utils pulls undici 7.x, which has a TLS-renegotiation
+# denial of service below 7.30.1 (GHSA-qrxm-fqhp-jwvm). Pinned exactly (and
+# at least 14 days old, like every dependency) until the SDK moves.
+overrides:
+  "@ai-sdk/provider-utils>undici": 7.30.1
