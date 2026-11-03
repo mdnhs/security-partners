@@ -212,8 +212,9 @@ function contactInfo() {
     defaults: { ease: "none" },
     scrollTrigger: {
       trigger: list,
-      start: "top 70%",
-      end: "bottom 55%",
+      // Done before the list reaches the middle of the screen, so a centred list is fully shown.
+      start: "top 85%",
+      end: "center 65%",
       scrub: 0.5,
     },
   })
