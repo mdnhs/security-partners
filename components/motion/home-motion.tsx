@@ -471,25 +471,12 @@ function bannerPolish(card: Element) {
         },
       }
     )
-  // The gradient map slides from blue towards green as the banner scrolls
-  // through, while the wash over it lifts to let it show.
-  const tint = card.querySelector("[data-duo-tint]")
-  if (tint)
-    gsap.fromTo(
-      tint,
-      { backgroundPosition: "0% 0%" },
-      {
-        backgroundPosition: "100% 0%",
-        ease: "none",
-        scrollTrigger: { ...view, end: "bottom 30%" },
-      }
-    )
   const wash = card.querySelector("[data-banner-overlay]")
   if (wash)
     gsap.fromTo(
       wash,
       { opacity: 1 },
-      { opacity: 0.7, ease: "none", scrollTrigger: view }
+      { opacity: 0.85, ease: "none", scrollTrigger: view }
     )
 }
 
