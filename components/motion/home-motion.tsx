@@ -346,8 +346,8 @@ function map() {
 }
 
 // Service cards follow the pointer: a small 3D tilt, a spotlight under the
-// cursor (--mx/--my feed the card's gradient) and an icon that drifts the
-// other way. Mouse-like pointers only; touch has no hover.
+// cursor (--mx/--my feed the card's gradient), a tint that grows from the
+// bottom-right corner and an icon that drifts the other way. Mouse-like pointers only; touch has no hover.
 function serviceCards() {
   if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return
   const stops: (() => void)[] = []
@@ -360,6 +360,7 @@ function serviceCards() {
     const rotateY = quick(card, "rotationY")
     const iconX = icon && quick(icon, "x")
     const iconY = icon && quick(icon, "y")
+    const fill = card.querySelector<HTMLElement>("[data-service-fill]")
     gsap.set(card, { transformPerspective: 900 })
 
     const move = (event: PointerEvent) => {
@@ -374,10 +375,25 @@ function serviceCards() {
       card.style.setProperty("--my", `${py * 100}%`)
     }
     const enter = () => {
+      // The tint grows out of the bottom-right corner to cover the card.
+      if (fill)
+        gsap.to(fill, {
+          clipPath: "circle(150% at 100% 100%)",
+          duration: 0.8,
+          ease: "power3.out",
+          overwrite: true,
+        })
       if (icon)
         gsap.to(icon, { rotate: -6, duration: 0.5, ease: "back.out(3)" })
     }
     const leave = () => {
+      if (fill)
+        gsap.to(fill, {
+          clipPath: "circle(0% at 100% 100%)",
+          duration: 0.5,
+          ease: "power3.inOut",
+          overwrite: true,
+        })
       rotateX(0)
       rotateY(0)
       iconX?.(0)
