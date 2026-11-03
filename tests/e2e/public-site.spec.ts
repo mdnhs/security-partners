@@ -7,6 +7,22 @@ const VISITOR = "visitor@example.ie"
 // Public site served from the seeded sp_e2e database (tests/e2e/seed.ts).
 
 test.describe("public site from the database", () => {
+  test("the page behind the content stays white in a dark browser (no black flash between pages)", async ({
+    page,
+  }) => {
+    // next-themes follows the system: a dark browser puts `dark` on <html>,
+    // which turns the body's own background near-black. The design has no dark
+    // surface, so that black showed whenever the content was absent: between
+    // two pages, behind a loading page, on overscroll.
+    await page.emulateMedia({ colorScheme: "dark" })
+    await page.goto("/")
+    await expect(page.locator("html")).toHaveClass(/dark/)
+    const background = await page.evaluate(
+      () => getComputedStyle(document.body).backgroundColor
+    )
+    expect(background).toBe("rgb(255, 255, 255)")
+  })
+
   for (const path of ["/services/no-such-service", "/blog/no-such-article"]) {
     test(`unknown slug ${path} is a real 404`, async ({ page }) => {
       // proxy.ts checks the slug before the page streams (phase 8).

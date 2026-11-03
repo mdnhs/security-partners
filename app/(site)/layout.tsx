@@ -68,7 +68,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>
+      {/* bg-white: the design is light only, but next-themes puts `dark` on
+          <html> in a dark browser, which turns the body's own background
+          near-black. Behind the content (between two pages, a loading page,
+          overscroll) that showed as a black flash. */}
+      <body className="bg-white">
         <SmoothScroll />
         {/* First-touch lead attribution; renders nothing. */}
         <AttributionCapture />
