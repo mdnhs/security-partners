@@ -9,7 +9,11 @@ import {
   requireSignedIn,
   sessionMiddleware,
 } from "@/server/api/middleware/auth"
-import { limitAdminBody, limitBody } from "@/server/api/middleware/body-limit"
+import {
+  limitAdminBody,
+  limitBody,
+  limitPublicBody,
+} from "@/server/api/middleware/body-limit"
 import { notFoundHandler, onError } from "@/server/api/middleware/error"
 import { requestIdMiddleware } from "@/server/api/middleware/request-id"
 import { sameOrigin } from "@/server/api/middleware/same-origin"
@@ -30,6 +34,10 @@ import { dashboardRoutes } from "@/server/modules/dashboard/routes"
 import { healthRoutes } from "@/server/modules/health/routes"
 import { integrationsRoutes } from "@/server/modules/integrations/routes"
 import { internalRoutes } from "@/server/modules/internal/routes"
+import {
+  applicationsRoutes,
+  publicApplicationsRoutes,
+} from "@/server/modules/applications/routes"
 import { leadsRoutes, publicLeadsRoutes } from "@/server/modules/leads/routes"
 import { marketingRoutes } from "@/server/modules/marketing/routes"
 import { mediaFileRoutes, mediaRoutes } from "@/server/modules/media/routes"
@@ -74,6 +82,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/dashboard", dashboardRoutes)
   .route("/integrations", integrationsRoutes)
   .route("/leads", leadsRoutes)
+  .route("/applications", applicationsRoutes)
   .route("/redirects", redirectsRoutes)
   .route("/marketing", marketingRoutes)
   .route("/seo", seoRoutes)
@@ -102,9 +111,11 @@ export function createApp() {
     getAuth().handler(c.req.raw)
   )
 
-  // 3. Public endpoints: 64 KB body; leads add their own DB rate limit
-  api.use("/v1/public/*", limitBody("public"))
+  // 3. Public endpoints: 64 KB body (a careers application: two 5 MB
+  // files); leads and applications add their own DB rate limit
+  api.use("/v1/public/*", limitPublicBody)
   api.route("/v1/public/leads", publicLeadsRoutes)
+  api.route("/v1/public/careers/applications", publicApplicationsRoutes)
 
   // 4. Admin endpoints: session → signed in → same origin → body limit (1 MB; uploads 20 MB)
   api.use(

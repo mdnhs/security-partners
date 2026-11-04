@@ -169,6 +169,13 @@
       "when": 1793814882717,
       "tag": "0023_job_openings",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793816709548,
+      "tag": "0024_job_applications",
+      "breakpoints": true
     }
   ]
 }
