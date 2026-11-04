@@ -9,6 +9,8 @@ import type { VersionedDto } from "./content"
 export const JOB_ENTITY = "job"
 
 export const jobPath = (jobSlug: string) => `/careers/${jobSlug}`
+/** The application form of a job. */
+export const jobApplyPath = (jobSlug: string) => `${jobPath(jobSlug)}/apply`
 
 /** POST /jobs — a new draft built from its title (the editor fills the rest). */
 export const createJobInput = z.object({

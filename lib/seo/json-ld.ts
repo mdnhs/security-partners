@@ -1,6 +1,7 @@
 import type {
   Article,
   BreadcrumbList,
+  JobPosting,
   LocalBusiness,
   WithContext,
 } from "schema-dts"
@@ -111,6 +112,90 @@ export function breadcrumbJsonLd(
       name: item.name,
       item: item.url,
     })),
+  }
+}
+
+export type JobPostingInput = {
+  url: string
+  title: string
+  description: string
+  datePosted: Date
+  /** YYYY-MM-DD: the role closes at the end of this day in Irish time. */
+  closingDate: string
+  contractType: "full-time" | "part-time" | "contract" | "temporary"
+  location: string
+  reference: string
+  organization: { name: string; url: string; logo: string }
+}
+
+const EMPLOYMENT_TYPE = {
+  "full-time": "FULL_TIME",
+  "part-time": "PART_TIME",
+  contract: "CONTRACTOR",
+  temporary: "TEMPORARY",
+} as const
+
+const DUBLIN = "Europe/Dublin"
+
+/** "+00:00" in winter, "+01:00" in summer: Irish time's offset on `date` (YYYY-MM-DD). */
+function dublinOffset(date: string): string {
+  const [y, m, d] = date.split("-").map(Number)
+  const name = new Intl.DateTimeFormat("en-GB", {
+    timeZone: DUBLIN,
+    timeZoneName: "longOffset",
+  })
+    .formatToParts(new Date(Date.UTC(y, m - 1, d, 12)))
+    .find((part) => part.type === "timeZoneName")?.value
+  const offset = name?.replace("GMT", "") ?? ""
+  return offset === "" ? "+00:00" : offset
+}
+
+/** Calendar date of an instant in Irish time, "2026-11-08". */
+function dublinDate(at: Date): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: DUBLIN,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(at)
+      .map((part) => [part.type, part.value])
+  )
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+/** schema.org JobPosting of an open role (Google for Jobs). */
+export function jobPostingJsonLd(i: JobPostingInput): WithContext<JobPosting> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "JobPosting",
+    title: i.title,
+    description: i.description,
+    datePosted: dublinDate(i.datePosted),
+    validThrough: `${i.closingDate}T23:59:59${dublinOffset(i.closingDate)}`,
+    employmentType: EMPLOYMENT_TYPE[i.contractType],
+    directApply: true,
+    url: i.url,
+    identifier: {
+      "@type": "PropertyValue",
+      name: i.organization.name,
+      value: i.reference,
+    },
+    hiringOrganization: {
+      "@type": "Organization",
+      name: i.organization.name,
+      sameAs: i.organization.url,
+      logo: i.organization.logo,
+    },
+    jobLocation: {
+      "@type": "Place",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: i.location,
+        addressCountry: "IE",
+      },
+    },
   }
 }
 

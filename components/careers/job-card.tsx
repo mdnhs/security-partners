@@ -80,18 +80,20 @@ export function JobMeta({
         className
       )}
     >
-      {items.map(({ icon: Icon, text }) => (
-        <li key={text} className="flex items-center gap-2">
-          <Icon
-            aria-hidden
-            className={cn(
-              "size-[18px] shrink-0",
-              muted ? "text-brand-muted" : "text-brand-green"
-            )}
-          />
-          {text}
-        </li>
-      ))}
+      {items
+        .filter((item) => item.text !== "")
+        .map(({ icon: Icon, text }) => (
+          <li key={text} className="flex items-center gap-2">
+            <Icon
+              aria-hidden
+              className={cn(
+                "size-[18px] shrink-0",
+                muted ? "text-brand-muted" : "text-brand-green"
+              )}
+            />
+            {text}
+          </li>
+        ))}
     </ul>
   )
 }

@@ -60,3 +60,58 @@ test.describe("careers listing", () => {
     expect((await page.goto("/careers/no-such-role/apply"))?.status()).toBe(404)
   })
 })
+
+test.describe("job detail", () => {
+  test("an open role: summary, apply link, similar roles and JobPosting data", async ({
+    page,
+  }) => {
+    const response = await page.goto("/careers/static-security-officer")
+    expect(response?.status()).toBe(200)
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Static Security Officer" })
+    ).toBeVisible()
+    const summary = page.getByRole("region", { name: "Job Summary" })
+    await expect(summary.getByText("SP-2611-STA")).toBeVisible()
+    await expect(summary.getByText("Closing Date")).toBeVisible()
+    await expect(
+      summary.getByRole("link", { name: "Apply for This Job" })
+    ).toHaveAttribute("href", "/careers/static-security-officer/apply")
+    await expect(page.getByRole("link", { name: "Apply Now" })).toHaveAttribute(
+      "href",
+      "/careers/static-security-officer/apply"
+    )
+
+    const similar = page
+      .getByRole("heading", { name: "Similar Roles" })
+      .locator("xpath=ancestor::section")
+    await expect(similar.locator("li[data-card]")).toHaveCount(3)
+    await expect(similar).not.toContainText("Static Security Officer")
+
+    const ld = await page
+      .locator('script[type="application/ld+json"]')
+      .allTextContents()
+    const posting = ld
+      .flatMap((text) => [JSON.parse(text)].flat())
+      .find((node) => node["@type"] === "JobPosting")
+    expect(posting).toMatchObject({
+      title: "Static Security Officer",
+      employmentType: "FULL_TIME",
+    })
+  })
+
+  test("a filled role: the closed notice, no Apply and no JobPosting", async ({
+    page,
+  }) => {
+    expect(
+      (await page.goto("/careers/retail-security-officer"))?.status()
+    ).toBe(200)
+    await expect(
+      page.getByText("This role has closed and is no longer accepting")
+    ).toHaveCount(2)
+    await expect(page.getByRole("link", { name: /Apply/ })).toHaveCount(0)
+    const ld = await page
+      .locator('script[type="application/ld+json"]')
+      .allTextContents()
+    expect(ld.join("")).not.toContain("JobPosting")
+  })
+})
