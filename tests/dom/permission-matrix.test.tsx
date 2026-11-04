@@ -199,7 +199,8 @@ describe("PermissionMatrix", () => {
     expect(cellsOf("lead", "read")("viewer")).toHaveTextContent("Not allowed")
     const table = screen.getByRole("table", { name: MATRIX })
     expect(table.querySelectorAll("td svg:not([aria-hidden])")).toHaveLength(0)
-  })
+    // Every resource × action cell is queried: ~6 s under a full parallel run.
+  }, 15_000)
 
   it("lists the runtime limits under the table", () => {
     render(<PermissionMatrix />)

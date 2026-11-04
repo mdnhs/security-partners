@@ -19,7 +19,10 @@ import { seedContent } from "@/server/db/seed"
 import { seedDemoJobs } from "@/server/db/seed/demo-jobs"
 import { mailer } from "@/server/lib/mailer"
 import { diskStorage } from "@/server/lib/storage"
+import { deleteApplicationFilesJob } from "@/server/lib/jobs/delete-application-files"
+import { deleteApplicationFiles } from "@/server/modules/applications/files"
 import { purgeExpiredApplications } from "@/server/modules/applications/service"
+import { findJobByKey } from "@/server/modules/jobs/repo"
 
 import { resetDb } from "../db"
 import { adminRequest, signedInUser } from "../helpers/auth"
@@ -229,6 +232,19 @@ describe("POST /api/v1/public/careers/applications", () => {
     expect(errors["answers.rightToWork"]).toHaveLength(1)
   })
 
+  it("the stored and downloaded name carries the sniffed type's extension, not the applicant's", async () => {
+    const ole = new Uint8Array([
+      0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0,
+    ])
+    const res = await submit({
+      cv: new File([ole], "setup.msi", { type: "application/x-msi" }),
+    })
+    expect(res.status).toBe(201)
+    const [row] = await rows()
+    expect(row.cv.name).toBe("setup.doc")
+    expect(row.cv.key).toBe(`applications/${row.id}/cv.doc`)
+  })
+
   it("the honeypot looks like success and stores nothing", async () => {
     const res = await submit({ website: "http://spam.example" })
     expect(res.status).toBe(201)
@@ -366,5 +382,33 @@ describe("admin /applications", () => {
     expect(result.deleted).toBe(1)
     expect((await rows()).map((r) => r.id)).toEqual([newId])
     expect(await diskStorage().read(old.cv.key)).toBeNull()
+  })
+})
+
+describe("a file that cannot be deleted now", () => {
+  it("is queued as a retry job, which deletes it later", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const key = `applications/${crypto.randomUUID()}/cv.pdf`
+    await diskStorage().put(key, PDF, "application/pdf")
+    // R2 is not configured in tests: the delete cannot happen yet.
+    await deleteApplicationFiles([
+      {
+        key,
+        name: "cv.pdf",
+        mime: "application/pdf",
+        size: PDF.length,
+        driver: "r2",
+      },
+    ])
+    const job = await findJobByKey(getDb(), `application-file:${key}`)
+    expect(job?.name).toBe("delete-application-file")
+
+    // Once the storage answers, the job deletes it and is done.
+    const result = await deleteApplicationFilesJob.run({
+      now: new Date(),
+      payload: { key, driver: "disk" },
+    })
+    expect(result.done).toBe(true)
+    expect(await diskStorage().read(key)).toBeNull()
   })
 })

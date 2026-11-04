@@ -5,6 +5,51 @@ import { sniffDocument } from "@/server/lib/document-sniff"
 const bytes = (...values: number[]) => new Uint8Array(values)
 const text = (value: string) => new TextEncoder().encode(value)
 
+/** A minimal ZIP whose central directory names every entry in `names`. */
+function zipWithAll(names: string[]): Uint8Array {
+  const central: number[] = []
+  for (const name of names) {
+    const n = text(name)
+    central.push(
+      0x50,
+      0x4b,
+      0x01,
+      0x02,
+      ...new Array(24).fill(0),
+      n.length,
+      0,
+      ...new Array(16).fill(0),
+      ...n
+    )
+  }
+  const local = [0x50, 0x4b, 0x03, 0x04, ...new Array(26).fill(0)]
+  const end = [
+    0x50,
+    0x4b,
+    0x05,
+    0x06,
+    0,
+    0,
+    0,
+    0,
+    names.length,
+    0,
+    names.length,
+    0,
+    central.length & 0xff,
+    central.length >> 8,
+    0,
+    0,
+    local.length & 0xff,
+    local.length >> 8,
+    0,
+    0,
+    0,
+    0,
+  ]
+  return new Uint8Array([...local, ...central, ...end])
+}
+
 /** A minimal ZIP: one local header + central directory entry named `name`, and the end record. */
 function zipWith(name: string): Uint8Array {
   const n = text(name)
@@ -90,6 +135,10 @@ describe("sniffDocument", () => {
       sniffDocument(text("<!doctype html><script>alert(1)</script>"))
     ).toBeNull()
     expect(sniffDocument(zipWith("xl/workbook.xml"))).toBeNull()
+    // A macro-enabled document (.docm) also holds word/document.xml.
+    expect(
+      sniffDocument(zipWithAll(["word/document.xml", "word/vbaProject.bin"]))
+    ).toBeNull()
     expect(sniffDocument(bytes(0x4d, 0x5a, 0x90, 0))).toBeNull()
     expect(sniffDocument(new Uint8Array())).toBeNull()
   })

@@ -66,6 +66,31 @@ describe("careers_page (data migration 0022)", () => {
     expect(data.hero.image.mediaId).toBe(hero.id)
   })
 
+  it("restores a missing static image row instead of skipping the page (every page needs it)", async () => {
+    await legacyDatabase()
+    await getDb()
+      .update(media)
+      .set({ key: "/images/icon-chart-renamed.svg" })
+      .where(
+        and(eq(media.driver, "static"), eq(media.key, "/images/icon-chart.svg"))
+      )
+    await migrate()
+    const [row] = await getDb()
+      .select()
+      .from(pages)
+      .where(eq(pages.key, "careers"))
+    expect(row?.status).toBe("published")
+    const [chart] = await getDb()
+      .select()
+      .from(media)
+      .where(
+        and(eq(media.driver, "static"), eq(media.key, "/images/icon-chart.svg"))
+      )
+    expect(chart).toMatchObject({ mime: "image/svg+xml" })
+    const data = careersTemplate.parse(row.published)
+    expect(data.whyJoin.cards.map((c) => c.icon.mediaId)).toContain(chart.id)
+  })
+
   it("adds careers settings, copying the enquiry recipients", async () => {
     await legacyDatabase()
     const leads = await settingsRow("leads")

@@ -53,9 +53,13 @@ export function sniffDocument(bytes: Uint8Array): DocumentMime | null {
   if (startsWith(bytes, OLE)) return "application/msword"
   if (startsWith(bytes, JPEG)) return "image/jpeg"
   if (startsWith(bytes, PNG)) return "image/png"
-  if (startsWith(bytes, ZIP))
-    return zipEntryNames(bytes)?.includes("word/document.xml")
+  if (startsWith(bytes, ZIP)) {
+    const names = zipEntryNames(bytes)
+    // A .docm also holds word/document.xml; its macros live in vbaProject.bin.
+    return names?.includes("word/document.xml") &&
+      !names.some((name) => name.toLowerCase().endsWith("vbaproject.bin"))
       ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       : null
+  }
   return null
 }

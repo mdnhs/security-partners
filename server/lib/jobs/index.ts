@@ -1,6 +1,7 @@
 import "server-only"
 
 import { backupJob } from "./backup"
+import { deleteApplicationFilesJob } from "./delete-application-files"
 import { deleteRetiredMediaJob } from "./delete-retired-media"
 import { migrateMediaJob } from "./migrate-media"
 import { publishScheduledJob } from "./publish-scheduled"
@@ -43,6 +44,7 @@ export const RECURRING_JOBS: readonly JobDefinition[] = [
 export const TRIGGERED_JOBS: readonly JobDefinition[] = [
   migrateMediaJob,
   deleteRetiredMediaJob,
+  deleteApplicationFilesJob,
 ]
 
 /** Every handler tick() can dispatch. */
