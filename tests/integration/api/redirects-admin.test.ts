@@ -70,7 +70,9 @@ describe("redirects admin (D1.7)", () => {
     const off = await patch(dto.id, { isActive: false })
     expect(off.status).toBe(200)
     expect(((await off.json()) as RedirectDto).isActive).toBe(false)
-    expect(await resolvePublicPath("/gone", live)).toEqual({ kind: "pass" })
+    // A root address with no page (and only an Off redirect) is a real 404:
+    // it is a legal page candidate (app/(site)/[slug]) that does not exist.
+    expect(await resolvePublicPath("/gone", live)).toEqual({ kind: "missing" })
     // A missing detail page with only an inactive redirect is a real 404.
     await getDb().insert(redirects).values({
       fromPath: "/blog/nothing-here",
