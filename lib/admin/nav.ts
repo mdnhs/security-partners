@@ -1,4 +1,5 @@
 import {
+  Briefcase,
   Building2,
   CircleHelp,
   Component,
@@ -38,7 +39,7 @@ import type { Role } from "@/lib/auth/roles"
 export type NavGroupId = "menu" | "growth" | "general"
 
 /** Live counts shown beside nav items. */
-export type NavBadgeKey = "new-leads"
+export type NavBadgeKey = "new-leads" | "new-applications"
 export type NavBadges = Partial<Record<NavBadgeKey, number>>
 
 export type NavLink = {
@@ -197,6 +198,34 @@ export const NAV_ITEMS: readonly NavItem[] = [
     badge: "new-leads",
     badgeLabel: "new enquiries",
     keywords: ["leads", "contact", "inbox", "messages"],
+  },
+  {
+    id: "careers",
+    group: "menu",
+    label: "Careers",
+    href: "/admin/careers",
+    icon: Briefcase,
+    // Each sub-page has its own permission: intake sees Applications only.
+    permission: null,
+    match: "prefix",
+    badge: "new-applications",
+    badgeLabel: "new applications",
+    keywords: ["jobs", "vacancies", "recruitment", "applications", "cv"],
+    children: [
+      {
+        id: "careers-jobs",
+        label: "Jobs",
+        href: "/admin/careers",
+        permission: { job: ["read"] },
+      },
+      {
+        id: "careers-applications",
+        label: "Applications",
+        href: "/admin/careers/applications",
+        permission: { application: ["read"] },
+        icon: Inbox,
+      },
+    ],
   },
   {
     id: "seo",

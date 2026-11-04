@@ -36,6 +36,7 @@ describe("labels (MK parity spec §5.1)", () => {
       "Clients strip",
       "Why choose us",
       "Enquiries",
+      "Careers",
     ])
   })
 })

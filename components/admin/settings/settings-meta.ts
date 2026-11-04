@@ -354,4 +354,31 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       ],
     },
   },
+  careers: {
+    fields: {
+      recipients: {
+        label: "Notify these addresses",
+        itemName: "Recipient",
+        help: "Each new job application is emailed to every address (no CV attached: it stays in the admin).",
+      },
+      retentionMonths: {
+        label: "Keep applications for (months)",
+        help: "Older applications, with their CVs and PSA cards, are deleted automatically.",
+      },
+    },
+    groups: {
+      "": [
+        {
+          title: "Notifications",
+          description: "Who hears about a new application.",
+          fields: ["recipients"],
+        },
+        {
+          title: "Retention",
+          description: "How long applications are kept.",
+          fields: ["retentionMonths"],
+        },
+      ],
+    },
+  },
 }

@@ -1,6 +1,8 @@
-import { expect, test } from "@playwright/test"
+import { expect, type Page, test } from "@playwright/test"
 
-import { clientIpFor } from "./fixtures"
+import { E2E_OWNER } from "./admin-accounts"
+import { submitApplication } from "./careers-apply"
+import { clientIpFor, E2E_PASSWORD, readFixtures } from "./fixtures"
 
 // Careers (plan 2026-11-04-careers): the listing, a job page and the
 // application form over the demo openings seeded by tests/visual/seed.ts
@@ -183,5 +185,101 @@ test.describe("apply", () => {
     await expect(
       page.getByRole("button", { name: "Submit Application" })
     ).toHaveCount(0)
+  })
+})
+
+async function signIn(page: Page, email: string) {
+  await page.goto("/admin/sign-in")
+  await page.getByLabel("Email").fill(email)
+  await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD)
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.waitForURL((url) => url.pathname === "/admin")
+}
+
+async function publishCurrent(page: Page) {
+  await page.getByRole("button", { name: "Publish" }).click()
+  // "Published" may already show from an earlier publish: wait for this one.
+  const published = page.waitForResponse(
+    (res) =>
+      /\/api\/v1\/admin\/jobs\/[^/]+\/publish$/.test(res.url()) && res.ok()
+  )
+  await page
+    .getByRole("dialog", { name: "Publish changes?" })
+    .getByRole("button", { name: "Publish now" })
+    .click()
+  await published
+  await expect(page.getByText("Published").first()).toBeVisible()
+}
+
+test.describe("careers admin", () => {
+  test("an editor creates and publishes a job, then marks it filled", async ({
+    page,
+    browser,
+  }) => {
+    const title = `E2E Door Supervisor ${Date.now()}`
+    await signIn(page, readFixtures().editor.email)
+    await page.goto("/admin/careers")
+    await page.getByRole("button", { name: "New job" }).click()
+    const dialog = page.getByRole("dialog", { name: "New job" })
+    await dialog.getByLabel("Job title").fill(title)
+    await dialog.getByRole("button", { name: "Create draft" }).click()
+    await page.waitForURL(/\/admin\/careers\/jobs\/[0-9a-f-]{36}$/)
+    await publishCurrent(page)
+
+    const visitor = await (await browser.newContext()).newPage()
+    await visitor.goto("/careers")
+    await expect(
+      visitor.locator("#open-positions").getByText(title)
+    ).toBeVisible()
+
+    await page.getByRole("switch", { name: "Position filled" }).click()
+    await publishCurrent(page)
+    await visitor.reload()
+    await expect(
+      visitor.locator("#open-positions").getByText(title)
+    ).toHaveCount(0)
+    const previous = visitor
+      .getByRole("heading", { name: "Previous Openings" })
+      .locator("xpath=ancestor::section")
+    await expect(previous.getByText(title)).toBeVisible()
+  })
+
+  test("the owner opens an application, downloads the CV, shortlists and deletes it", async ({
+    page,
+  }) => {
+    await submitApplication(page.request, "static-security-officer", {
+      firstName: "Róisín",
+      surname: "Admin-Flow",
+    })
+    await signIn(page, E2E_OWNER.email)
+    await page.goto("/admin/careers/applications")
+    await page.getByRole("link", { name: "Róisín Admin-Flow" }).first().click()
+    await page.waitForURL(/\/admin\/careers\/applications\/[0-9a-f-]{36}$/)
+    await expect(
+      page.getByRole("heading", { name: "PSA Licence" })
+    ).toBeVisible()
+
+    const href = await page
+      .getByRole("link", { name: /niamh-cv\.pdf/ })
+      .getAttribute("href")
+    const file = await page.request.get(href!)
+    expect(file.status()).toBe(200)
+    expect(file.headers()["content-disposition"]).toContain("attachment")
+
+    await page.getByRole("combobox", { name: "Status" }).click()
+    await page.getByRole("option", { name: "Shortlisted" }).click()
+    await expect(page.getByTestId("application-status")).toHaveText(
+      "Shortlisted"
+    )
+
+    await page.getByRole("button", { name: "Delete" }).click()
+    await page
+      .getByRole("alertdialog", { name: "Delete this application?" })
+      .getByRole("button", { name: "Delete application" })
+      .click()
+    await page.waitForURL(
+      (url) => url.pathname === "/admin/careers/applications"
+    )
+    expect((await page.request.get(href!)).status()).toBe(404)
   })
 })

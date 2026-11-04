@@ -31,6 +31,7 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     const badged = NAV_ITEMS.filter((item) => item.badge)
     expect(badged.map((item) => [item.id, item.badgeLabel])).toEqual([
       ["leads", "new enquiries"],
+      ["careers", "new applications"],
     ])
   })
 
@@ -70,6 +71,7 @@ describe("nav registry (MK IA, spec §5.1)", () => {
       "collections",
       "media",
       "leads",
+      "careers",
       "seo",
       "marketing",
       "appearance",

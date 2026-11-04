@@ -6,6 +6,7 @@ import type { AiStatusDto } from "@/lib/schemas/api/ai"
 import type { ShellNotification } from "@/lib/schemas/api/dashboard"
 import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
+import { applicationBadge } from "@/server/modules/applications/service"
 import { getShellNotifications } from "@/server/modules/dashboard/service"
 import { leadBadge } from "@/server/modules/leads/service"
 
@@ -31,16 +32,29 @@ export async function loadShellExtras(actor: Actor): Promise<ShellExtras> {
         .then((badge): NavBadges => ({ "new-leads": badge.newLeads }))
         .catch(degraded("lead badge", {}))
     : Promise.resolve({})
-  const [badges, assistant, notifications] = await Promise.all([
-    badgesLoad,
-    getAiStatus(actor).catch(degraded("AI status", undefined)),
-    badgesLoad
-      .then((loaded) =>
-        getShellNotifications(actor, loaded["new-leads"] ?? null)
-      )
-      .catch(degraded("notifications", [] as ShellNotification[])),
-  ])
-  return { badges, assistant, notifications }
+  const applicationsLoad: Promise<NavBadges> = hasPermission(actor.roles, {
+    application: ["read"],
+  })
+    ? applicationBadge(actor)
+        .then((b): NavBadges => ({ "new-applications": b.newApplications }))
+        .catch(degraded("application badge", {}))
+    : Promise.resolve({})
+  const [leadBadges, applicationBadges, assistant, notifications] =
+    await Promise.all([
+      badgesLoad,
+      applicationsLoad,
+      getAiStatus(actor).catch(degraded("AI status", undefined)),
+      badgesLoad
+        .then((loaded) =>
+          getShellNotifications(actor, loaded["new-leads"] ?? null)
+        )
+        .catch(degraded("notifications", [] as ShellNotification[])),
+    ])
+  return {
+    badges: { ...leadBadges, ...applicationBadges },
+    assistant,
+    notifications,
+  }
 }
 
 /** A failed optional part: logged, then replaced by `fallback`. */

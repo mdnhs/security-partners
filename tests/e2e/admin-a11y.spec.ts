@@ -4,6 +4,7 @@ import { expect, type Page, test } from "@playwright/test"
 import { E2E_ADMIN, E2E_OWNER } from "./admin-accounts"
 import { askAssistant, assistantOnHomeEditor, openAssistant } from "./ai-pins"
 import { BASE_URL } from "./env"
+import { submitApplication } from "./careers-apply"
 import { clientIpFor, E2E_PASSWORD, greeting, readFixtures } from "./fixtures"
 import { freezeUploads, pinMedia, PNG_1PX } from "./media-pins"
 
@@ -434,6 +435,33 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible()
       for (const violation of await blocking(page))
         failures.push(`lead delete dialog → ${violation}`)
+      expect(failures).toEqual([])
+    })
+
+    test(`careers in ${colorScheme}`, async ({ page }) => {
+      const id = await submitApplication(page.request)
+      await signIn(page, E2E_ADMIN)
+      const failures = await auditEach(page, [
+        "/admin/careers",
+        "/admin/careers/applications",
+        `/admin/careers/applications/${id}`,
+        "/admin/settings/careers",
+      ])
+      await page.goto("/admin/careers")
+      await page
+        .getByRole("link", { name: "Static Security Officer" })
+        .first()
+        .click()
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Static Security Officer" })
+      ).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`job editor → ${violation}`)
+      await page.goto("/admin/careers")
+      await page.getByRole("button", { name: "New job" }).click()
+      await expect(page.getByRole("dialog", { name: "New job" })).toBeVisible()
+      for (const violation of await blocking(page))
+        failures.push(`new job dialog → ${violation}`)
       expect(failures).toEqual([])
     })
 
