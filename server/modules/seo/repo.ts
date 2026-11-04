@@ -20,6 +20,7 @@ import type { DbOrTx } from "@/server/db/client"
 import {
   articles,
   builderPages,
+  jobOpenings,
   legalPages,
   media,
   mediaUsages,
@@ -305,7 +306,7 @@ export async function updateSeoColumn(
 }
 
 export type SitemapRow = {
-  kind: "page" | "service" | "article" | "builder" | "legal"
+  kind: "page" | "service" | "article" | "builder" | "legal" | "job"
   /** Page key or slug (a builder page's slug: /p/<slug>; a legal page's: /<slug>). */
   key: string
   seo: Seo
@@ -322,7 +323,7 @@ const lastPublish = (entityType: string, entityId: SQL) =>
 
 /** Published pages, services, articles and builder pages for the sitemap (never drafts). */
 export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
-  const [pageRows, serviceRows, articleRows, builderRows, legalRows] =
+  const [pageRows, serviceRows, articleRows, builderRows, legalRows, jobRows] =
     await Promise.all([
       db
         .select({
@@ -378,6 +379,17 @@ export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
         .from(legalPages)
         .where(isNotNull(legalPages.published))
         .orderBy(asc(legalPages.sortOrder), asc(legalPages.slug)),
+      db
+        .select({
+          key: jobOpenings.slug,
+          // Jobs have no SEO overrides (title and summary feed the metadata).
+          seo: sql<Seo>`'{}'::jsonb`,
+          publishedAt: jobOpenings.publishedAt,
+          lastPublish: lastPublish("job", sql`${jobOpenings.id}::text`),
+        })
+        .from(jobOpenings)
+        .where(isNotNull(jobOpenings.published))
+        .orderBy(desc(jobOpenings.publishedAt), asc(jobOpenings.slug)),
     ])
   return [
     ...pageRows.map((row) => ({ kind: "page" as const, ...row })),
@@ -385,6 +397,7 @@ export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
     ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
     ...builderRows.map((row) => ({ kind: "builder" as const, ...row })),
     ...legalRows.map((row) => ({ kind: "legal" as const, ...row })),
+    ...jobRows.map((row) => ({ kind: "job" as const, ...row })),
   ]
 }
 

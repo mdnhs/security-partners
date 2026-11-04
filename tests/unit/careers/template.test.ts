@@ -66,7 +66,9 @@ describe("careers settings", () => {
   })
 
   it("the header navigation lists Careers before Contact", () => {
-    const links = settingsFixture(lookup).navigation.headerLinks.map((l) => l.href)
+    const links = settingsFixture(lookup).navigation.headerLinks.map(
+      (l) => l.href
+    )
     expect(links.indexOf("/careers")).toBe(links.indexOf("/contact") - 1)
   })
 })
@@ -83,9 +85,9 @@ describe("careers permissions", () => {
     expect(
       hasPermission(["admin"], { application: ["read", "update", "delete"] })
     ).toBe(true)
-    expect(
-      hasPermission(["intake"], { application: ["read", "update"] })
-    ).toBe(true)
+    expect(hasPermission(["intake"], { application: ["read", "update"] })).toBe(
+      true
+    )
     expect(hasPermission(["intake"], { application: ["delete"] })).toBe(false)
     expect(hasPermission(["editor"], { application: ["read"] })).toBe(false)
     expect(hasPermission(["viewer"], { application: ["read"] })).toBe(false)

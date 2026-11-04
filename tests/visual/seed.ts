@@ -19,6 +19,7 @@ import {
   VISUAL_OWNER,
 } from "./admin-user"
 import { seedVisualBuilderPage } from "./builder-fixture"
+import { seedDemoJobs } from "@/server/db/seed/demo-jobs"
 
 const { DATABASE_URL } = getEnv()
 assertE2eDatabase(DATABASE_URL)
@@ -29,6 +30,8 @@ await resetDb()
 const report = await seedContent(getDb())
 // /p/visual-fixture (builder-pages.spec.ts); never part of `pnpm db:seed`.
 await seedVisualBuilderPage(getDb())
+// Careers openings (careers.spec.ts); never part of `pnpm db:seed`.
+await seedDemoJobs(getDb())
 const auth = getAuth()
 await auth.api.createUser({
   body: {

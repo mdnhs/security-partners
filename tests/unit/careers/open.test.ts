@@ -24,9 +24,9 @@ describe("isOpen (Europe/Dublin calendar day)", () => {
   })
 
   it("a filled role is never open", () => {
-    expect(isOpen({ ...job, filled: true }, dublin("2026-11-01T09:00:00Z"))).toBe(
-      false
-    )
+    expect(
+      isOpen({ ...job, filled: true }, dublin("2026-11-01T09:00:00Z"))
+    ).toBe(false)
   })
 })
 

@@ -16,6 +16,7 @@ import {
 } from "@/server/auth/tokens"
 import { closeDb, getDb } from "@/server/db/client"
 import { seedContent } from "@/server/db/seed"
+import { seedDemoJobs } from "@/server/db/seed/demo-jobs"
 import { runMigrations } from "@/server/db/migrate"
 import { settings } from "@/server/db/schema"
 import { getEnv } from "@/server/env"
@@ -34,6 +35,8 @@ await runMigrations(DATABASE_URL)
 await resetDb()
 // The public site needs its content (Phase 3); users are created below.
 await seedContent(getDb())
+// Careers openings (careers.spec.ts); never part of `pnpm db:seed`.
+await seedDemoJobs(getDb())
 const auth = getAuth()
 
 const editor = { email: "editor@e2e.test", name: "Edith Editor" }

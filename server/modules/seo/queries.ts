@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { contactPlaceholders, interpolate } from "@/lib/interpolate"
 import { builderPath } from "@/lib/schemas/api/builder-pages"
+import { jobPath } from "@/lib/schemas/api/jobs"
 import { legalPath } from "@/lib/schemas/api/legal-pages"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 import { filled } from "@/lib/seo/effective"
@@ -48,6 +49,7 @@ export async function listSitemapEntries(): Promise<SitemapSource[]> {
     tag.services,
     tag.articles,
     tag.builderPages,
+    tag.jobs,
     ...PAGE_KEYS.map((key) => tag.page(key))
   )
   const rows = await listSitemapRows(getDb())
@@ -71,6 +73,7 @@ function pathOf(row: SitemapRow): string | null {
   if (row.kind === "article") return `/blog/${row.key}`
   if (row.kind === "builder") return builderPath(row.key)
   if (row.kind === "legal") return legalPath(row.key)
+  if (row.kind === "job") return jobPath(row.key)
   return isPageKey(row.key) ? PAGE_PATHS[row.key] : null
 }
 
