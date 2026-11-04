@@ -20,9 +20,11 @@ import {
 
 /**
  * An unmatched path: app/(site)/[...notFound] answers it with notFound()
- * before anything streams, i.e. a real 404 (probed with Next 16.3.8).
+ * before anything streams, i.e. a real 404 (probed with Next 16.3.8). Two
+ * segments on purpose: a single one would match app/(site)/[slug] (legal
+ * pages), whose notFound() runs inside Suspense and streams a 200.
  */
-export const MISSING_PATH = "/_sp-missing"
+export const MISSING_PATH = "/_sp-missing/404"
 
 export type PublicPathOutcome =
   | { kind: "pass" }

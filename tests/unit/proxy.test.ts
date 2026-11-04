@@ -6,7 +6,7 @@ const { resolvePublicPath } = vi.hoisted(() => ({
   resolvePublicPath: vi.fn(),
 }))
 vi.mock("@/server/modules/redirects/resolve", () => ({
-  MISSING_PATH: "/_sp-missing",
+  MISSING_PATH: "/_sp-missing/404",
   resolvePublicPath,
 }))
 
@@ -245,7 +245,7 @@ describe("proxy.ts (public pages: real 404 and redirects)", () => {
     // NextRequest normalises loopback hosts to "localhost" (NextURL); at
     // runtime Next's adapter turns same-host URLs into relative ones.
     expect(res.headers.get("x-middleware-rewrite")).toBe(
-      "http://localhost:3100/_sp-missing"
+      "http://localhost:3100/_sp-missing/404"
     )
   })
 
@@ -342,7 +342,7 @@ describe("proxy.ts (blocking metadata for public documents only)", () => {
     resolvePublicPath.mockResolvedValue({ kind: "missing" })
     const res = await run("/blog/nope", { headers: { "user-agent": CHROME } })
     expect(res.headers.get("x-middleware-rewrite")).toBe(
-      "http://localhost:3100/_sp-missing"
+      "http://localhost:3100/_sp-missing/404"
     )
     expect(renderedUa(res)).toBe(`${CHROME} ${BLOCKING_METADATA_MARK}`)
   })
