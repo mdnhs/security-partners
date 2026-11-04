@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  canonicalHostRedirect,
-  siteHostFrom,
-} from "@/lib/seo/canonical-host"
+import { canonicalHostRedirect, siteHostFrom } from "@/lib/seo/canonical-host"
 
 const base = {
   host: "example.ie",

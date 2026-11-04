@@ -83,6 +83,7 @@ const footer = (animation?: string): SiteFooterProps => ({
   legal: {
     privacy: { label: "Privacy", href: "/privacy" },
     terms: { label: "Terms", href: "/terms" },
+    extra: [],
   },
 })
 

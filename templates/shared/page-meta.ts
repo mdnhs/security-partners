@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { interpolate } from "@/lib/interpolate"
 import type { MediaView } from "@/lib/media"
 import { builderPath } from "@/lib/schemas/api/builder-pages"
+import { legalPath } from "@/lib/schemas/api/legal-pages"
 import { effectiveSeo, filled } from "@/lib/seo/effective"
 import { OG_IMAGE_SIZE, type OgKind, ogImagePath } from "@/lib/seo/urls"
 import { PAGE_PATHS, type PageKey } from "@/templates/registry"
@@ -176,6 +177,25 @@ export function builderPageMetadata(
     seo: page.seo,
     name: page.title,
     fallbackDescription: page.firstHeroDescription,
+  })
+}
+
+/**
+ * An admin-managed legal page at /<slug>: the page title in the title
+ * template, the hero intro as the description. No per-page SEO overrides; the
+ * share card is addressed by id (/og/legal/<id>), so it survives renames.
+ */
+export function legalPageMetadata(
+  s: SiteSources,
+  page: { id: string; slug: string; title: string; description: string }
+): Metadata {
+  return metadataFor(s, {
+    kind: "legal",
+    id: page.id,
+    path: legalPath(page.slug),
+    seo: {},
+    name: page.title,
+    fallbackDescription: page.description,
   })
 }
 

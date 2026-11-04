@@ -49,6 +49,8 @@ const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
 /** Builder pages: /p/<slug> (D5.2). */
 const BUILDER = /^\/p\/([^/]+)$/
+/** Legal pages: /<slug>, one segment (a slug is never an app route: lib/legal-slug.ts). */
+const LEGAL = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)$/
 
 function assertCan(actor: Actor, req: PermissionRequest) {
   if (!hasPermission(actor.roles, req)) throw forbidden()
@@ -113,7 +115,11 @@ async function isLivePage(db: DbOrTx, fromPath: string): Promise<boolean> {
     )
   // A published builder page (/p/<slug>, D5) is live too.
   const builder = BUILDER.exec(fromPath)
-  return builder !== null && isPublishedSlug(db, "builder", builder[1])
+  if (builder !== null && (await isPublishedSlug(db, "builder", builder[1])))
+    return true
+  // A published legal page at the site root (/privacy-policy).
+  const legal = LEGAL.exec(fromPath)
+  return legal !== null && isPublishedSlug(db, "legal", legal[1])
 }
 
 async function assertFromIsFree(db: DbOrTx, fromPath: string) {
@@ -434,6 +440,7 @@ async function liveDetailPaths(
     service: [] as string[],
     article: [] as string[],
     builder: [] as string[],
+    legal: [] as string[],
   }
   for (const from of froms) {
     const detail = DETAIL.exec(from)
@@ -441,16 +448,20 @@ async function liveDetailPaths(
       slugs[detail[1] === "services" ? "service" : "article"].push(detail[2])
     const builder = BUILDER.exec(from)
     if (builder) slugs.builder.push(builder[1])
+    const legal = LEGAL.exec(from)
+    if (legal) slugs.legal.push(legal[1])
   }
-  const [services, articles, builders] = await Promise.all([
+  const [services, articles, builders, legals] = await Promise.all([
     listPublishedSlugs(db, "service", slugs.service),
     listPublishedSlugs(db, "article", slugs.article),
     listPublishedSlugs(db, "builder", slugs.builder),
+    listPublishedSlugs(db, "legal", slugs.legal),
   ])
   return new Set([
     ...[...services].map((s) => `/services/${s}`),
     ...[...articles].map((s) => `/blog/${s}`),
     ...[...builders].map((s) => `/p/${s}`),
+    ...[...legals].map((s) => `/${s}`),
   ])
 }
 

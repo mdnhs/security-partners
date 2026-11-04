@@ -6,6 +6,7 @@ export const PREVIEW_ENTITIES = [
   "article",
   "settings",
   "builder-page",
+  "legal-page",
 ] as const
 export type PreviewEntity = (typeof PREVIEW_ENTITIES)[number]
 

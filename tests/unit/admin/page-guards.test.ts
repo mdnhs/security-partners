@@ -85,6 +85,7 @@ const EXPECTED: Record<string, PermissionRequest | null> = {
   "pages/page.tsx": { page: ["read"] },
   "pages/[key]/page.tsx": { page: ["read"] },
   "pages/custom/[id]/page.tsx": { page: ["read"] },
+  "pages/legal/[id]/page.tsx": { page: ["read"] },
   "seo/page.tsx": { seo: ["read"] },
   "seo/defaults/page.tsx": { seo: ["read"] },
   "seo/redirects/page.tsx": { redirect: ["read"] },

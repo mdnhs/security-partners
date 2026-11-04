@@ -20,6 +20,8 @@ export const tag = {
   media: (id: string) => `media:${id}`,
   builderPages: "builder-pages",
   builderPage: (slug: string) => `builder-page:${slug}`,
+  legalPages: "legal-pages",
+  legalPage: (slug: string) => `legal-page:${slug}`,
   /**
    * The admin dashboard's SEO health and content QA (D3.5): expired by
    * each SEO save and media change. Publishes and deletes reach those

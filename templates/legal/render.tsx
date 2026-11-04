@@ -17,6 +17,12 @@ export function LegalTemplate({ view }: { view: LegalView }) {
         <section className="bg-white px-6 pt-14 pb-20 md:px-10 lg:pt-20 lg:pb-28">
           <Container>
             <article className="mx-auto flex max-w-[820px] min-w-0 flex-col gap-[22px]">
+              {view.updated ? (
+                <p className="text-sm font-bold text-brand-muted">
+                  Last updated{" "}
+                  <time dateTime={view.updated.iso}>{view.updated.label}</time>
+                </p>
+              ) : null}
               <ArticleBlocks doc={view.body} />
             </article>
           </Container>

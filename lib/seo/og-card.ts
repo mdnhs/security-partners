@@ -24,6 +24,7 @@ const EYEBROW: Record<OgKind, string | null> = {
   service: "Service",
   article: "Article",
   builder: null,
+  legal: null,
 }
 const MAX_TITLE = 110
 /** Site name shares a 28px line with the host (footer) or the eyebrow. */

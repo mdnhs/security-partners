@@ -21,6 +21,7 @@ import { containsPattern } from "@/server/db/like"
 import {
   articles,
   builderPages,
+  legalPages,
   clients,
   groupCompanies,
   media,
@@ -386,6 +387,15 @@ export async function usageTargets(
         .select({ id: builderPages.id, name: builderPages.title })
         .from(builderPages)
         .where(inArray(builderPages.id, builderIds))
+    )
+  const legalIds = ids("legal-page")
+  if (legalIds.length)
+    add(
+      "legal-page",
+      await db
+        .select({ id: legalPages.id, name: legalPages.title })
+        .from(legalPages)
+        .where(inArray(legalPages.id, legalIds))
     )
   return names
 }
