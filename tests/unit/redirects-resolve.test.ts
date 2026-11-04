@@ -119,6 +119,32 @@ describe("resolvePublicPath (proxy.ts)", () => {
     })
   })
 
+  it("careers: a published job's page and form pass, anything else there is a real 404", async () => {
+    repo.isPublishedSlug.mockResolvedValueOnce(true)
+    expect(await resolvePublicPath("/careers/static-officer", live)).toEqual({
+      kind: "pass",
+    })
+    expect(repo.isPublishedSlug).toHaveBeenCalledWith({}, "job", "static-officer")
+    repo.isPublishedSlug.mockResolvedValueOnce(true)
+    expect(
+      await resolvePublicPath("/careers/static-officer/apply", live)
+    ).toEqual({ kind: "pass" })
+    expect(await resolvePublicPath("/careers/unknown", live)).toEqual({
+      kind: "missing",
+    })
+    expect(await resolvePublicPath("/careers/unknown/apply", live)).toEqual({
+      kind: "missing",
+    })
+    // The listing itself is a fixed page.
+    repo.isPublishedSlug.mockClear()
+    expect(await resolvePublicPath("/careers", live)).toEqual({ kind: "pass" })
+    expect(repo.isPublishedSlug).not.toHaveBeenCalled()
+    // A previewer may open a draft job.
+    expect(
+      await resolvePublicPath("/careers/draft-job/apply", { draft: true })
+    ).toEqual({ kind: "pass" })
+  })
+
   it("a previewer's draft mode passes any root address", async () => {
     expect(await resolvePublicPath("/draft-only", { draft: true })).toEqual({
       kind: "pass",

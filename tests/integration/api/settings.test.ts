@@ -55,6 +55,7 @@ describe("settings API (master 4.5)", () => {
       "sections.clients",
       "sections.whyChooseUs",
       "leads",
+      "careers",
     ])
     expect(items.find((i) => i.key === "contact")).toMatchObject({
       group: "General",
@@ -63,6 +64,7 @@ describe("settings API (master 4.5)", () => {
       dirty: false,
     })
     expect(items.find((i) => i.key === "leads")?.canEdit).toBe(false)
+    expect(items.find((i) => i.key === "careers")?.canEdit).toBe(false)
     expect(items[0]).not.toHaveProperty("draft")
   })
 

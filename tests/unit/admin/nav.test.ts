@@ -34,6 +34,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
             "Collections",
             "Media",
             "Enquiries",
+            "Careers",
           ],
         ],
         ["Growth", ["SEO", "Marketing"]],
@@ -52,6 +53,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
             "Services",
             "Collections",
             "Media",
+            "Careers",
           ],
         ],
         ["Growth", ["SEO"]],
@@ -70,6 +72,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
             "Services",
             "Collections",
             "Media",
+            "Careers",
           ],
         ],
         ["Growth", ["SEO", "Marketing"]],
@@ -79,13 +82,16 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     [
       "marketer",
       [
-        ["Menu", ["Dashboard", "Pages", "Insights", "Services", "Media"]],
+        [
+          "Menu",
+          ["Dashboard", "Pages", "Insights", "Services", "Media", "Careers"],
+        ],
         ["Growth", ["SEO", "Marketing"]],
         ["General", ["Appearance"]],
       ],
     ],
     ["author", [["Menu", ["Dashboard", "Insights", "Media"]]]],
-    ["intake", [["Menu", ["Dashboard", "Enquiries"]]]],
+    ["intake", [["Menu", ["Dashboard", "Enquiries", "Careers"]]]],
   ])("%s sees %j", (role, expected) => {
     expect(menu([role])).toEqual(expected)
   })

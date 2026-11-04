@@ -19,6 +19,8 @@ export const statements = {
   collection: ["read", "create", "update", "delete"], // team, clients, group companies, categories
   media: ["read", "create", "update", "delete"],
   lead: ["read", "update", "delete", "export"],
+  job: ["read", "create", "update", "publish", "delete"], // careers openings
+  application: ["read", "update", "delete"], // job applications (personal data, CVs)
   seo: ["read", "update"],
   redirect: ["read", "create", "update", "delete"],
   marketing: ["read", "update"], // consent + tracking
@@ -43,6 +45,8 @@ export const ac = createAccessControl(statements)
 const all = <R extends Resource>(resource: R) => statements[resource]
 
 const EVERYTHING = {
+  job: all("job"),
+  application: all("application"),
   page: all("page"),
   service: all("service"),
   article: all("article"),
@@ -72,6 +76,8 @@ const EVERYTHING = {
 export const ROLE_GRANTS: Record<Role, Grants> = {
   owner: EVERYTHING,
   admin: {
+    job: all("job"),
+    application: all("application"),
     page: all("page"),
     service: all("service"),
     article: all("article"),
@@ -89,6 +95,7 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
     appearance: all("appearance"),
   },
   editor: {
+    job: all("job"),
     page: all("page"),
     service: all("service"),
     article: all("article"),
@@ -105,6 +112,7 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
     ai: ["use"],
   },
   marketer: {
+    job: ["read"],
     seo: all("seo"),
     redirect: all("redirect"),
     marketing: all("marketing"),
@@ -117,9 +125,11 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
   },
   intake: {
     lead: ["read", "update", "export"],
+    application: ["read", "update"],
     ai: ["use"],
   },
   viewer: {
+    job: ["read"],
     page: ["read"],
     service: ["read"],
     article: ["read"],

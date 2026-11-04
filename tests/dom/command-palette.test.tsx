@@ -246,6 +246,8 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(options).toEqual([
       "Dashboard",
       "Enquiries",
+      // intake reads applications (careers plan Task 7), not jobs.
+      "ApplicationsCareers",
       "Help",
       "Account",
       "Open the live site",

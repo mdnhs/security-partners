@@ -63,7 +63,7 @@ describe("SEO API (master 8.1)", () => {
     const dto = (await res.json()) as SeoOverviewDto
     const fx = fixtureSiteSources()
     expect(dto.entries).toHaveLength(
-      8 + fx.services.length + fx.articles.length
+      9 + fx.services.length + fx.articles.length
     )
     expect(
       dto.entries.find((e) => e.kind === "page" && e.id === "home")

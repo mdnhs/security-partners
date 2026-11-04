@@ -13,6 +13,14 @@ import { ROLES, type Role } from "@/lib/auth/roles"
 // Anything not listed must be denied.
 const EXPECTED: Record<Role, string[]> = {
   owner: [
+    "job:read",
+    "job:create",
+    "job:update",
+    "job:publish",
+    "job:delete",
+    "application:read",
+    "application:update",
+    "application:delete",
     "page:read",
     "page:create",
     "page:update",
@@ -72,6 +80,14 @@ const EXPECTED: Record<Role, string[]> = {
     "appearance:publish",
   ],
   admin: [
+    "job:read",
+    "job:create",
+    "job:update",
+    "job:publish",
+    "job:delete",
+    "application:read",
+    "application:update",
+    "application:delete",
     "page:read",
     "page:create",
     "page:update",
@@ -128,6 +144,11 @@ const EXPECTED: Record<Role, string[]> = {
     "appearance:publish",
   ],
   editor: [
+    "job:read",
+    "job:create",
+    "job:update",
+    "job:publish",
+    "job:delete",
     "page:read",
     "page:create",
     "page:update",
@@ -172,6 +193,7 @@ const EXPECTED: Record<Role, string[]> = {
     "ai:use",
   ],
   marketer: [
+    "job:read",
     "page:read",
     "service:read",
     "article:read",
@@ -188,8 +210,16 @@ const EXPECTED: Record<Role, string[]> = {
     "ai:use",
     "appearance:read",
   ],
-  intake: ["lead:read", "lead:update", "lead:export", "ai:use"],
+  intake: [
+    "lead:read",
+    "lead:update",
+    "lead:export",
+    "application:read",
+    "application:update",
+    "ai:use",
+  ],
   viewer: [
+    "job:read",
     "page:read",
     "service:read",
     "article:read",
@@ -211,9 +241,9 @@ const req = (resource: Resource, action: string) =>
   ({ [resource]: [action] }) as PermissionRequest
 
 describe("permission matrix (spec §6.1): every role × resource × action", () => {
-  it("covers 17 resources and 57 actions", () => {
-    expect(Object.keys(statements)).toHaveLength(17)
-    expect(ALL_PAIRS).toHaveLength(57)
+  it("covers 19 resources and 65 actions", () => {
+    expect(Object.keys(statements)).toHaveLength(19)
+    expect(ALL_PAIRS).toHaveLength(65)
   })
 
   it("page:create/delete (builder pages, D5.2) go to owner, admin, editor only", () => {

@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 
 import { getDb } from "@/server/db/client"
 import {
+  jobOpenings,
   articles,
   pages,
   revisions,
@@ -16,6 +17,7 @@ import {
   settings,
 } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
+import { jobRecord } from "../../unit/careers/fixtures"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
 import { getSiteOrigin, listSitemapEntries } from "@/server/modules/seo/queries"
 
@@ -32,11 +34,12 @@ describe("sitemap entries (published only)", () => {
   it("every page, service and article, in that order, with lastmod", async () => {
     const entries = await listSitemapEntries()
     const paths = entries.map((e) => e.path)
-    expect(paths.slice(0, 8).sort()).toEqual(
+    expect(paths.slice(0, 9).sort()).toEqual(
       [
         "/",
         "/about",
         "/blog",
+        "/careers",
         "/contact",
         "/privacy",
         "/services",
@@ -45,7 +48,7 @@ describe("sitemap entries (published only)", () => {
       ].sort()
     )
     expect(paths).toContain("/services/alarm-responses")
-    expect(paths).toHaveLength(8 + fx.services.length + fx.articles.length)
+    expect(paths).toHaveLength(9 + fx.services.length + fx.articles.length)
     for (const entry of entries)
       expect(entry.lastModified, entry.path).toBeInstanceOf(Date)
   })
@@ -94,7 +97,7 @@ describe("sitemap entries (published only)", () => {
       publishedAt: new Date(),
     })
     const entries = await listSitemapEntries()
-    expect(entries).toHaveLength(8 + fx.services.length + fx.articles.length)
+    expect(entries).toHaveLength(9 + fx.services.length + fx.articles.length)
     for (const entry of entries) expect(entry.path, entry.path).toMatch(/^\//)
   })
 
@@ -137,5 +140,40 @@ describe("site origin for absolute URLs", () => {
       })
       .where(eq(settings.key, "site"))
     expect(await getSiteOrigin()).toBe("https://www.securitypartnersltd.com")
+  })
+})
+
+describe("sitemap: careers openings", () => {
+  const content = {
+    ...jobRecord("x").content,
+    title: "Static Security Officer",
+  }
+
+  it("lists published jobs at /careers/<slug> (open or closed), never drafts", async () => {
+    await getDb()
+      .insert(jobOpenings)
+      .values([
+        {
+          slug: "static-officer",
+          draft: content,
+          published: content,
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          slug: "closed-role",
+          draft: { ...content, filled: true },
+          published: { ...content, filled: true },
+          status: "published",
+          publishedAt: new Date(),
+        },
+        { slug: "draft-role", draft: content, status: "draft" },
+      ])
+    const paths = (await listSitemapEntries()).map((e) => e.path)
+    expect(paths).toContain("/careers")
+    expect(paths).toContain("/careers/static-officer")
+    expect(paths).toContain("/careers/closed-role")
+    expect(paths).not.toContain("/careers/draft-role")
+    expect(paths.filter((p) => p.endsWith("/apply"))).toEqual([])
   })
 })

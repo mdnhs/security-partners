@@ -19,6 +19,7 @@ import { containsPattern } from "@/server/db/like"
 import {
   articles,
   builderPages,
+  jobOpenings,
   legalPages,
   redirects,
   services,
@@ -226,6 +227,7 @@ const SLUG_TABLES = {
   article: articles,
   builder: builderPages,
   legal: legalPages,
+  job: jobOpenings,
 } as const
 
 /** True when a published service/article/builder page uses `slug` (its page is live). */

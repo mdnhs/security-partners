@@ -12,6 +12,9 @@ import { settingsSchemas } from "@/lib/schemas/settings"
 
 import { settingsEditorMeta } from "./settings-meta"
 
+/** Settings with no page to preview (who is emailed, retention). */
+const OPERATIONAL = new Set<string>(["leads", "careers"])
+
 /** Draft/publish editor for one content settings key (master 4.5). */
 export function SettingsEditor({
   settingsKey,
@@ -48,11 +51,11 @@ export function SettingsEditor({
       meta={settingsEditorMeta[settingsKey]}
       revisions={{ entity: "settings", id: settingsKey }}
       previewHref={
-        settingsKey === "leads"
+        OPERATIONAL.has(settingsKey)
           ? undefined
           : previewHref("settings", settingsKey)
       }
-      publicHref={settingsKey === "leads" ? undefined : "/"}
+      publicHref={OPERATIONAL.has(settingsKey) ? undefined : "/"}
       canEdit={canEdit}
       canPublish={canEdit}
     />

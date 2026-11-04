@@ -29,6 +29,7 @@ describe("settings schemas (spec §5.4 + shared sections ruling)", () => {
       "customCode",
       "microcopy",
       "leads",
+      "careers",
       "theme",
     ])
     expect(Object.keys(fixture).sort()).toEqual([...SETTINGS_KEYS].sort())

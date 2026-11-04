@@ -3,14 +3,19 @@ import "server-only"
 import type { MiddlewareHandler } from "hono"
 import { bodyLimit } from "hono/body-limit"
 
+import { MAX_APPLICATION_FILE_BYTES } from "@/lib/schemas/api/applications"
 import { MAX_UPLOAD_BYTES } from "@/lib/schemas/api/media"
 import type { AppEnv } from "@/server/api/context"
 
 import { errorEnvelope } from "./error"
 
-/** Global constraint: public 64 KB, admin 1 MB, uploads 20 MB (+ multipart envelope). */
+/**
+ * Global constraint: public 64 KB, admin 1 MB, uploads 20 MB (+ multipart
+ * envelope); a careers application carries a CV and a PSA card of 5 MB each.
+ */
 export const BODY_LIMITS = {
   public: 64 * 1024,
+  careers: 2 * MAX_APPLICATION_FILE_BYTES + 1024 * 1024,
   admin: 1024 * 1024,
   upload: MAX_UPLOAD_BYTES + 64 * 1024,
 } as const
@@ -20,7 +25,9 @@ export type BodyLimitKind = keyof typeof BODY_LIMITS
 const limitMessage = (kind: BodyLimitKind) =>
   kind === "upload"
     ? `Files can be up to ${MAX_UPLOAD_BYTES / 1024 / 1024} MB`
-    : `Request body exceeds ${BODY_LIMITS[kind] / 1024} KB`
+    : kind === "careers"
+      ? `Files can be up to ${MAX_APPLICATION_FILE_BYTES / 1024 / 1024} MB each`
+      : `Request body exceeds ${BODY_LIMITS[kind] / 1024} KB`
 
 /** 413 with the standard envelope (code VALIDATION_FAILED) when the body exceeds the limit. */
 export const limitBody = (kind: BodyLimitKind) =>
@@ -45,3 +52,13 @@ const uploadLimit = limitBody("upload")
  */
 export const limitAdminBody: MiddlewareHandler<AppEnv> = (c, next) =>
   isUploadPath(c.req.path) ? uploadLimit(c, next) : adminLimit(c, next)
+
+const CAREERS_APPLICATION_PATH = "/api/v1/public/careers/applications"
+const publicLimit = limitBody("public")
+const careersLimit = limitBody("careers")
+
+/** The public chain's body limit: 64 KB, except the careers application (two files). */
+export const limitPublicBody: MiddlewareHandler<AppEnv> = (c, next) =>
+  c.req.path === CAREERS_APPLICATION_PATH
+    ? careersLimit(c, next)
+    : publicLimit(c, next)

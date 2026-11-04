@@ -46,6 +46,8 @@ const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
 /** A builder page address (app/(site)/p/[slug]); the slug is checked below. */
 const BUILDER = /^\/p\/([^/]+)$/
+/** A job and its application form: app/(site)/careers/[slug](/apply). */
+const JOB = /^\/careers\/([^/]+)(?:\/apply)?$/
 /** One root segment: a legal page candidate (app/(site)/[slug]). */
 const ROOT = /^\/([^/]+)$/
 
@@ -134,7 +136,8 @@ export async function resolvePublicPath(
   const detail = DETAIL.exec(pathname)
   const builder = BUILDER.exec(pathname)
   const root = ROOT.exec(pathname)
-  if ((detail || builder || root) && options.draft) return PASS
+  const job = JOB.exec(pathname)
+  if ((detail || builder || root || job) && options.draft) return PASS
   try {
     const db = getDb()
     if (detail) {
@@ -146,6 +149,11 @@ export async function resolvePublicPath(
     if (builder) {
       const slug = builder[1]
       if (isBuilderSlug(slug) && (await isPublishedSlug(db, "builder", slug)))
+        return PASS
+    }
+    if (job) {
+      const slug = job[1]
+      if (SLUG_PATTERN.test(slug) && (await isPublishedSlug(db, "job", slug)))
         return PASS
     }
     if (root) {
@@ -163,7 +171,7 @@ export async function resolvePublicPath(
       }
     // Every other single-segment address is a legal page candidate
     // (app/(site)/[slug]): unknown ones are a real 404 before streaming.
-    return detail || builder || root ? MISSING : PASS
+    return detail || builder || root || job ? MISSING : PASS
   } catch (error) {
     console.error(`[proxy] public path lookup failed (${errorCode(error)})`)
     return PASS

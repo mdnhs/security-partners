@@ -17,6 +17,13 @@ export const LEAD_RATE_LIMIT = {
   windowMs: 10 * 60_000,
 } as const
 
+/** Careers applications: 5 attempts per 10 minutes per IP. */
+export const CAREERS_RATE_LIMIT = {
+  bucket: "careers",
+  max: 5,
+  windowMs: 10 * 60_000,
+} as const
+
 export function rateLimitKey(bucket: string, ip: string | null): string {
   return `${bucket}:${ip ? hashIp(ip) : "unknown"}`
 }

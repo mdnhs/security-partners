@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 import { interpolate } from "@/lib/interpolate"
 import type { MediaView } from "@/lib/media"
 import { builderPath } from "@/lib/schemas/api/builder-pages"
+import { jobPath } from "@/lib/schemas/api/jobs"
+import type { JobContent } from "@/lib/schemas/content/job"
 import { legalPath } from "@/lib/schemas/api/legal-pages"
 import { effectiveSeo, filled } from "@/lib/seo/effective"
 import { OG_IMAGE_SIZE, type OgKind, ogImagePath } from "@/lib/seo/urls"
@@ -196,6 +198,40 @@ export function legalPageMetadata(
     seo: {},
     name: page.title,
     fallbackDescription: page.description,
+  })
+}
+
+/**
+ * A job at /careers/<slug>: the job title in the title template, the hero
+ * summary as the description. Jobs have no SEO fields of their own; the share
+ * image is the careers page's (its own image, the site default or its card).
+ */
+export function jobMetadata(
+  s: SiteSources,
+  job: { slug: string; content: Pick<JobContent, "title" | "summary"> }
+): Metadata {
+  return metadataFor(s, {
+    kind: "page",
+    id: "careers",
+    path: jobPath(job.slug),
+    seo: { ogImage: s.pages.careers.seo.ogImage },
+    name: job.content.title,
+    fallbackDescription: job.content.summary,
+  })
+}
+
+/** The application form of a job: never indexed (the job page is the posting). */
+export function applyMetadata(
+  s: SiteSources,
+  job: { slug: string; content: Pick<JobContent, "title" | "summary"> }
+): Metadata {
+  return metadataFor(s, {
+    kind: "page",
+    id: "careers",
+    path: `${jobPath(job.slug)}/apply`,
+    seo: { ogImage: s.pages.careers.seo.ogImage, noindex: true },
+    name: `${s.pages.careers.data.apply.heroTitle}: ${job.content.title}`,
+    fallbackDescription: job.content.summary,
   })
 }
 

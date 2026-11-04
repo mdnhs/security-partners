@@ -3,9 +3,13 @@ import { effectiveSeo } from "@/lib/seo/effective"
 import {
   articleJsonLd,
   breadcrumbJsonLd,
+  jobPostingJsonLd,
   organizationJsonLd,
 } from "@/lib/seo/json-ld"
+import { isOpen } from "@/lib/careers/open"
+import { jobPath } from "@/lib/schemas/api/jobs"
 import { absoluteUrl } from "@/lib/seo/urls"
+import type { JobRecord } from "@/server/modules/jobs-board/queries"
 
 import type { SiteSources } from "./sources"
 import { placeholders } from "./views"
@@ -100,6 +104,56 @@ export function articleJsonLdFor(
       { name: crumbs.home, url: absoluteUrl(origin, "/") },
       { name: crumbs.blog, url: absoluteUrl(origin, "/blog") },
       { name: headline, url },
+    ]),
+  ]
+}
+
+/** A job page: JobPosting while the role is open (a closed role is no posting), and the trail. */
+export function jobJsonLdFor(
+  s: SiteSources,
+  job: JobRecord,
+  origin: string,
+  now: Date
+): object[] {
+  const c = job.content
+  const url = absoluteUrl(origin, jobPath(job.slug))
+  const crumbs = s.settings.microcopy.breadcrumb
+  const posting =
+    isOpen(c, now) && job.publishedAt
+      ? [
+          jobPostingJsonLd({
+            url,
+            title: c.title,
+            description: [
+              c.summary,
+              ...c.about.content.map((p) =>
+                (p.content ?? [])
+                  .map((n) => (n.type === "text" ? n.text : " "))
+                  .join("")
+              ),
+            ].join("\n\n"),
+            datePosted: job.publishedAt,
+            closingDate: c.closingDate,
+            contractType: c.contractType,
+            location: c.location,
+            reference: c.reference,
+            organization: {
+              name: s.settings.site.name,
+              url: `${origin}/`,
+              logo: absoluteUrl(origin, s.settings.site.logo.url),
+            },
+          }),
+        ]
+      : []
+  return [
+    ...posting,
+    breadcrumbJsonLd([
+      { name: crumbs.home, url: absoluteUrl(origin, "/") },
+      {
+        name: s.pages.careers.data.hero.crumb,
+        url: absoluteUrl(origin, "/careers"),
+      },
+      { name: c.title, url },
     ]),
   ]
 }

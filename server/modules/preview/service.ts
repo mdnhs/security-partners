@@ -12,6 +12,7 @@ import type { Actor } from "@/server/lib/actor"
 import { forbidden, notFound } from "@/server/lib/errors"
 import { findArticleForEdit } from "@/server/modules/articles/repo"
 import { findBuilderPageForEdit } from "@/server/modules/builder-pages/repo"
+import { findJobForEdit } from "@/server/modules/jobs-board/repo"
 import { findLegalPageForEdit } from "@/server/modules/legal-pages/repo"
 import { findServiceById } from "@/server/modules/services/repo"
 import { isPageKey, PAGE_PATHS } from "@/templates/registry"
@@ -23,6 +24,7 @@ const READ: Record<PreviewEntity, PermissionRequest> = {
   settings: { settings: ["read"] },
   "builder-page": { page: ["read"] },
   "legal-page": { page: ["read"] },
+  job: { job: ["read"] },
 }
 
 /** May preview drafts at all: read permission on some previewable entity. */
@@ -86,6 +88,14 @@ export async function previewPath(
         : null
       if (!page) throw notFound("Page")
       return legalPath(page.slug)
+    }
+    case "job": {
+      const job = z.uuid().safeParse(id).success
+        ? await findJobForEdit(getDb(), id)
+        : null
+      if (!job) throw notFound("Job")
+      // Draft mode shows the draft, also of a never-published job.
+      return `/careers/${job.slug}`
     }
   }
 }

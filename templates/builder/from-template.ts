@@ -334,6 +334,16 @@ function partsOf(key: PageKey, data: PageData<PageKey>): Part[] {
         part("richtext", { doc: capRichText(page.body) }),
       ]
     }
+    case "careers": {
+      // Job openings are records, not blocks: a copy keeps the page's own
+      // hero, the "why join" cards and the shared enquiry banner.
+      const page = data as PageData<"careers">
+      return [
+        heroOf(page.hero),
+        iconCardsOf({ ...page.whyJoin, items: page.whyJoin.cards }),
+        shared("enquireBanner"),
+      ]
+    }
   }
 }
 

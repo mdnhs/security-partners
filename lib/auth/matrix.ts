@@ -62,6 +62,8 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   collection: "Collections",
   media: "Media",
   lead: "Enquiries",
+  job: "Careers jobs",
+  application: "Job applications",
   seo: "SEO",
   redirect: "Redirects",
   marketing: "Consent & tracking",

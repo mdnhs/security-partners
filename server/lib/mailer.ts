@@ -16,6 +16,7 @@ export type MailTemplate =
   | "account-recovery"
   | "lead-notification"
   | "lead-acknowledgement"
+  | "application-notification"
 
 export type MailMessage = {
   to: string | readonly string[]

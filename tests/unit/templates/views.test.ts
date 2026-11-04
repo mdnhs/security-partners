@@ -33,6 +33,7 @@ describe("view builders reproduce the static site's data (fixture sources)", () 
       "/services",
       "/team",
       "/blog",
+      "/careers",
       "/contact",
     ])
     expect(chrome.footer.contact.officeHref).toBe("tel:+353578697670")
