@@ -173,6 +173,10 @@ export const careersTemplate = z.object({
       fileTooLarge: text,
       fileWrongType: text,
       required: text,
+      /** A field whose answer is filled but not accepted (e.g. a malformed email). */
+      invalid: text,
+      /** Accessible name of the button that removes a chosen file. */
+      removeFile: text,
     }),
     /** Three statements: two required, the third (talent pool) optional. */
     consents: z.array(text).length(3),

@@ -220,6 +220,21 @@ export function jobMetadata(
   })
 }
 
+/** The application form of a job: never indexed (the job page is the posting). */
+export function applyMetadata(
+  s: SiteSources,
+  job: { slug: string; content: Pick<JobContent, "title" | "summary"> }
+): Metadata {
+  return metadataFor(s, {
+    kind: "page",
+    id: "careers",
+    path: `${jobPath(job.slug)}/apply`,
+    seo: { ogImage: s.pages.careers.seo.ogImage, noindex: true },
+    name: `${s.pages.careers.data.apply.heroTitle}: ${job.content.title}`,
+    fallbackDescription: job.content.summary,
+  })
+}
+
 /** Bundled icon (public/favicon.ico): used until settings.site.favicon is set. */
 export const DEFAULT_FAVICON = "/favicon.ico"
 

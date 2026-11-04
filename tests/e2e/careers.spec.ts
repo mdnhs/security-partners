@@ -115,3 +115,73 @@ test.describe("job detail", () => {
     expect(ld.join("")).not.toContain("JobPosting")
   })
 })
+
+test.describe("apply", () => {
+  test("an applicant fills the form with a CV and sees the confirmation", async ({
+    page,
+  }) => {
+    await page.goto("/careers/static-security-officer/apply")
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Apply for This Role" })
+    ).toBeVisible()
+    await page.getByLabel("First Name").fill("Aoife")
+    await page.getByLabel("Surname").fill("Byrne")
+    await page.getByLabel("Email Address").fill("aoife@example.ie")
+    await page.getByLabel("Mobile Number").fill("085 123 4567")
+    await page.getByLabel("Town / County").fill("Portlaoise")
+    await page.getByRole("radio", { name: "Irish or UK citizen" }).check()
+    await page
+      .getByRole("radiogroup", { name: "Do you hold a valid PSA licence?" })
+      .getByRole("radio", { name: "No" })
+      .check()
+    await page.getByLabel("Employer / Activity").fill("Advance Security Ltd")
+    await page.getByLabel("From", { exact: true }).fill("2021-03")
+    for (const [group, answer] of [
+      ["Are you willing to undergo Garda vetting", "Yes"],
+      ["Have you lived outside Ireland", "No"],
+      ["Do you have a full driving licence", "Yes"],
+    ])
+      await page
+        .getByRole("radiogroup", { name: new RegExp(group) })
+        .getByRole("radio", { name: answer })
+        .check()
+    await page
+      .getByLabel("Security Experience in Ireland")
+      .selectOption("1–2 years")
+    await page.getByLabel("Earliest Start Date").fill("2026-12-01")
+    await page.getByRole("checkbox", { name: "Nights" }).check()
+    await page.getByLabel("Upload Your CV").setInputFiles({
+      name: "cv.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.7\n% e2e cv\n%%EOF"),
+    })
+    await page
+      .getByRole("checkbox", {
+        name: /information in this application is true/,
+      })
+      .check()
+    await page
+      .getByRole("checkbox", { name: /processing my personal data/ })
+      .check()
+    await page.getByRole("button", { name: "Submit Application" }).click()
+    await expect(
+      page.getByRole("heading", { name: "Application sent" })
+    ).toBeVisible()
+  })
+
+  test("a filled role shows the closed notice and no form", async ({
+    page,
+  }) => {
+    expect(
+      (await page.goto("/careers/retail-security-officer/apply"))?.status()
+    ).toBe(200)
+    await expect(
+      page.getByText(
+        "This role has closed and is no longer accepting applications."
+      )
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Submit Application" })
+    ).toHaveCount(0)
+  })
+})

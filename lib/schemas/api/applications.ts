@@ -57,7 +57,7 @@ const month = z
 
 export const historyPeriod = z.object({
   employer: required(120),
-  role: required(120),
+  role: optional(120),
   from: month,
   /** "" = Present. */
   to: z.union([z.literal(""), month]),
@@ -77,7 +77,7 @@ export const applicationAnswers = z
     surname: required(80),
     email: z.email("Enter a valid email address").max(200),
     phone: required(40),
-    address: required(200),
+    address: optional(200),
     town: required(120),
     eircode: optional(10),
     // 2. Right to work
@@ -178,3 +178,6 @@ export type ApplicationDto = ApplicationListItem & {
   note: string
   updatedAt: string
 }
+
+/** The public multipart endpoint the application form posts to. */
+export const APPLICATIONS_ENDPOINT = "/api/v1/public/careers/applications"

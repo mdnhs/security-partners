@@ -712,6 +712,8 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
             fileTooLarge: "This file is larger than 5MB.",
             fileWrongType: "This file type is not accepted.",
             required: "Required",
+            invalid: "Please check this answer",
+            removeFile: "Remove file",
           },
           consents: [
             "I confirm that the information in this application is true and complete, and I understand that false information may lead to my application being withdrawn.",
