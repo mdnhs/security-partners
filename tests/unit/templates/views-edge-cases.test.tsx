@@ -27,6 +27,7 @@ describe("admin-editable link hrefs go through interpolateHref (ruling)", () => 
       "/services",
       "/team",
       "/blog",
+      "/careers",
       "/contact",
     ])
     expect(view.hero.primaryCta).toEqual({

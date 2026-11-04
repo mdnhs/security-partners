@@ -15,6 +15,7 @@ export const RESERVED_LEGAL_SLUGS = [
   "admin",
   "api",
   "blog",
+  "careers",
   "contact",
   "favicon",
   "images",

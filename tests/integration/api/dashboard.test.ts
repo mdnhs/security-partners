@@ -132,7 +132,7 @@ describe("dashboard (master 4.7)", () => {
     const dto = await dashboard(cookie)
     expect(dto.kpis.openLeads).toBe(3)
     expect(dto.kpis.published).toEqual({
-      pages: 8,
+      pages: 9,
       services: 6,
       articles: expect.any(Number),
     })

@@ -10,4 +10,5 @@ export const PAGE_LABELS: Record<PageKey, string> = {
   contact: "Contact",
   privacy: "Privacy policy",
   terms: "Terms of use",
+  careers: "Careers",
 }

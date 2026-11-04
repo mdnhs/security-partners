@@ -32,11 +32,12 @@ describe("sitemap entries (published only)", () => {
   it("every page, service and article, in that order, with lastmod", async () => {
     const entries = await listSitemapEntries()
     const paths = entries.map((e) => e.path)
-    expect(paths.slice(0, 8).sort()).toEqual(
+    expect(paths.slice(0, 9).sort()).toEqual(
       [
         "/",
         "/about",
         "/blog",
+        "/careers",
         "/contact",
         "/privacy",
         "/services",
@@ -45,7 +46,7 @@ describe("sitemap entries (published only)", () => {
       ].sort()
     )
     expect(paths).toContain("/services/alarm-responses")
-    expect(paths).toHaveLength(8 + fx.services.length + fx.articles.length)
+    expect(paths).toHaveLength(9 + fx.services.length + fx.articles.length)
     for (const entry of entries)
       expect(entry.lastModified, entry.path).toBeInstanceOf(Date)
   })
@@ -94,7 +95,7 @@ describe("sitemap entries (published only)", () => {
       publishedAt: new Date(),
     })
     const entries = await listSitemapEntries()
-    expect(entries).toHaveLength(8 + fx.services.length + fx.articles.length)
+    expect(entries).toHaveLength(9 + fx.services.length + fx.articles.length)
     for (const entry of entries) expect(entry.path, entry.path).toMatch(/^\//)
   })
 

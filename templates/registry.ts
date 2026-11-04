@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { aboutTemplate } from "./about/schema"
 import { blogTemplate } from "./blog/schema"
+import { careersTemplate } from "./careers/schema"
 import { contactTemplate } from "./contact/schema"
 import { homeTemplate } from "./home/schema"
 import { legalTemplate } from "./legal/schema"
@@ -17,6 +18,7 @@ export const templates = {
   blog: { schema: blogTemplate, label: "Blog" },
   contact: { schema: contactTemplate, label: "Contact" },
   legal: { schema: legalTemplate, label: "Legal page" },
+  careers: { schema: careersTemplate, label: "Careers" },
 } as const
 
 export type TemplateName = keyof typeof templates
@@ -34,6 +36,7 @@ export const PAGES = {
   contact: "contact",
   privacy: "legal",
   terms: "legal",
+  careers: "careers",
 } as const satisfies Record<string, TemplateName>
 
 export type PageKey = keyof typeof PAGES
@@ -50,6 +53,7 @@ export const PAGE_PATHS = {
   contact: "/contact",
   privacy: "/privacy",
   terms: "/terms",
+  careers: "/careers",
 } as const satisfies Record<PageKey, string>
 
 export function isPageKey(value: string): value is PageKey {

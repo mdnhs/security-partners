@@ -47,6 +47,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
         { label: "Services", href: "/services" },
         { label: "Team", href: "/team" },
         { label: "Blog", href: "/blog" },
+        { label: "Careers", href: "/careers" },
         { label: "Contact", href: "/contact" },
       ],
       headerCta: { label: "Get a Quote", href: "/contact" },
@@ -327,6 +328,10 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
       recipients: ["info@securitypartnersltd.com"],
       retentionMonths: 24,
       acknowledgement: false,
+    },
+    careers: {
+      recipients: ["HR@securitypartnersltd.com"],
+      retentionMonths: 12,
     },
     // Same value the *_theme migration inserts (no <style> by default).
     theme: DEFAULT_THEME,
