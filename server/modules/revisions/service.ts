@@ -32,6 +32,7 @@ const READ: Record<RevisionEntity, PermissionRequest> = {
   category: { collection: ["read"] },
   "builder-page": { page: ["read"] },
   "legal-page": { page: ["read"] },
+  job: { job: ["read"] },
 }
 
 /**

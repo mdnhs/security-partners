@@ -21,6 +21,8 @@ export const tag = {
   builderPages: "builder-pages",
   builderPage: (slug: string) => `builder-page:${slug}`,
   legalPages: "legal-pages",
+  jobs: "jobs",
+  job: (slug: string) => `job:${slug}`,
   legalPage: (slug: string) => `legal-page:${slug}`,
   /**
    * The admin dashboard's SEO health and content QA (D3.5): expired by

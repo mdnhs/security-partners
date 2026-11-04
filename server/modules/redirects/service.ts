@@ -49,6 +49,8 @@ const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
 /** Builder pages: /p/<slug> (D5.2). */
 const BUILDER = /^\/p\/([^/]+)$/
+/** Careers openings: /careers/<slug> and its form /careers/<slug>/apply. */
+const JOB = /^\/careers\/([^/]+)(?:\/apply)?$/
 /** Legal pages: /<slug>, one segment (a slug is never an app route: lib/legal-slug.ts). */
 const LEGAL = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)$/
 
@@ -117,6 +119,9 @@ async function isLivePage(db: DbOrTx, fromPath: string): Promise<boolean> {
   const builder = BUILDER.exec(fromPath)
   if (builder !== null && (await isPublishedSlug(db, "builder", builder[1])))
     return true
+  // A published job (/careers/<slug>, and its application form).
+  const job = JOB.exec(fromPath)
+  if (job !== null && (await isPublishedSlug(db, "job", job[1]))) return true
   // A published legal page at the site root (/privacy-policy).
   const legal = LEGAL.exec(fromPath)
   return legal !== null && isPublishedSlug(db, "legal", legal[1])
@@ -441,6 +446,7 @@ async function liveDetailPaths(
     article: [] as string[],
     builder: [] as string[],
     legal: [] as string[],
+    job: [] as string[],
   }
   for (const from of froms) {
     const detail = DETAIL.exec(from)
@@ -450,18 +456,22 @@ async function liveDetailPaths(
     if (builder) slugs.builder.push(builder[1])
     const legal = LEGAL.exec(from)
     if (legal) slugs.legal.push(legal[1])
+    const job = JOB.exec(from)
+    if (job) slugs.job.push(job[1])
   }
-  const [services, articles, builders, legals] = await Promise.all([
+  const [services, articles, builders, legals, jobs] = await Promise.all([
     listPublishedSlugs(db, "service", slugs.service),
     listPublishedSlugs(db, "article", slugs.article),
     listPublishedSlugs(db, "builder", slugs.builder),
     listPublishedSlugs(db, "legal", slugs.legal),
+    listPublishedSlugs(db, "job", slugs.job),
   ])
   return new Set([
     ...[...services].map((s) => `/services/${s}`),
     ...[...articles].map((s) => `/blog/${s}`),
     ...[...builders].map((s) => `/p/${s}`),
     ...[...legals].map((s) => `/${s}`),
+    ...[...jobs].flatMap((s) => [`/careers/${s}`, `/careers/${s}/apply`]),
   ])
 }
 

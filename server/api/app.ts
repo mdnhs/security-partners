@@ -18,6 +18,7 @@ import { aiRoutes } from "@/server/modules/ai/routes"
 import { articlesRoutes } from "@/server/modules/articles/routes"
 import { auditRoutes } from "@/server/modules/audit/routes"
 import { builderPagesRoutes } from "@/server/modules/builder-pages/routes"
+import { jobsRoutes } from "@/server/modules/jobs-board/routes"
 import { legalPagesRoutes } from "@/server/modules/legal-pages/routes"
 import {
   categoriesRoutes,
@@ -58,6 +59,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/pages", pagesRoutes)
   .route("/builder-pages", builderPagesRoutes)
   .route("/legal-pages", legalPagesRoutes)
+  .route("/jobs", jobsRoutes)
   .route("/articles", articlesRoutes)
   .route("/revisions", revisionsRoutes)
   .route("/media", mediaRoutes)
