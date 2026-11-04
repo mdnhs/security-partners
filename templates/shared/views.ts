@@ -139,6 +139,11 @@ export function chromeView(s: ChromeSources): ChromeView {
       legal: {
         privacy: linkView(s, footer.legal.privacy),
         terms: linkView(s, footer.legal.terms),
+        // Admin-managed legal pages, after Privacy and Terms, in admin order.
+        extra: (s.legalLinks ?? []).map((page) => ({
+          label: page.title,
+          href: `/${page.slug}`,
+        })),
       },
     },
   }

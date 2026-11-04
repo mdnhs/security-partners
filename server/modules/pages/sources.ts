@@ -1,5 +1,7 @@
 import "server-only"
 
+import { unstable_rethrow } from "next/navigation"
+
 import { PUBLIC_SETTINGS_KEYS } from "@/lib/schemas/settings"
 import { AppError } from "@/server/lib/errors"
 import { listArticles } from "@/server/modules/articles/queries"
@@ -10,6 +12,7 @@ import {
   listTeam,
 } from "@/server/modules/collections/queries"
 import { resolveMedia } from "@/server/modules/media/queries"
+import { getLegalLinks } from "@/server/modules/legal-pages/queries"
 import { getPage } from "@/server/modules/pages/queries"
 import { listServices } from "@/server/modules/services/queries"
 import { assertPreviewAccess } from "@/server/modules/preview/guard"
@@ -82,6 +85,22 @@ export async function loadSiteSources(): Promise<SiteSources> {
 }
 
 /**
+ * The footer's extra legal links. With the database unreachable the footer
+ * simply shows no extra links (and nothing is cached: getLegalLinks throws
+ * instead of returning an empty list), while the fixed Privacy and Terms
+ * links stay.
+ */
+async function legalLinksOrNone() {
+  try {
+    return await getLegalLinks()
+  } catch (error) {
+    unstable_rethrow(error)
+    console.error("[footer] legal pages unavailable", error)
+    return []
+  }
+}
+
+/**
  * Just what the navbar and footer render (see ChromeSources): the layout
  * shows them on every page, so it must not load every page's content too.
  * Same cached readers and the same preview check as loadSiteSources; call
@@ -89,20 +108,23 @@ export async function loadSiteSources(): Promise<SiteSources> {
  */
 export async function loadChromeSources(): Promise<ChromeSources> {
   await assertPreviewAccess()
-  const [settingsValues, services, groupCompanies] = await Promise.all([
-    Promise.all(CHROME_SETTINGS_KEYS.map((key) => getSettings(key))),
-    listServices(),
-    listGroupCompanies(),
-  ])
+  const [settingsValues, services, groupCompanies, legalLinks] =
+    await Promise.all([
+      Promise.all(CHROME_SETTINGS_KEYS.map((key) => getSettings(key))),
+      listServices(),
+      listGroupCompanies(),
+      legalLinksOrNone(),
+    ])
   const settings = Object.fromEntries(
     CHROME_SETTINGS_KEYS.map((key, i) => [
       key,
       required(settingsValues[i], `settings.${key}`),
     ])
   )
-  return (await resolveMedia({
+  const resolved = (await resolveMedia({
     settings,
     services,
     groupCompanies,
-  })) as ChromeSources
+  })) as Omit<ChromeSources, "legalLinks">
+  return { ...resolved, legalLinks }
 }

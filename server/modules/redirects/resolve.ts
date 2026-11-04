@@ -1,6 +1,7 @@
 import "server-only"
 
 import { isBuilderSlug } from "@/lib/builder-slug"
+import { isLegalSlug } from "@/lib/legal-slug"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 import {
   FILE_EXTENSION,
@@ -43,6 +44,8 @@ const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
 /** A builder page address (app/(site)/p/[slug]); the slug is checked below. */
 const BUILDER = /^\/p\/([^/]+)$/
+/** One root segment: a legal page candidate (app/(site)/[slug]). */
+const ROOT = /^\/([^/]+)$/
 
 /**
  * Only the SQLSTATE (or the error's class) is logged: a driver message can
@@ -128,7 +131,8 @@ export async function resolvePublicPath(
     return PASS
   const detail = DETAIL.exec(pathname)
   const builder = BUILDER.exec(pathname)
-  if ((detail || builder) && options.draft) return PASS
+  const root = ROOT.exec(pathname)
+  if ((detail || builder || root) && options.draft) return PASS
   try {
     const db = getDb()
     if (detail) {
@@ -142,6 +146,11 @@ export async function resolvePublicPath(
       if (isBuilderSlug(slug) && (await isPublishedSlug(db, "builder", slug)))
         return PASS
     }
+    if (root) {
+      const slug = root[1]
+      if (isLegalSlug(slug) && (await isPublishedSlug(db, "legal", slug)))
+        return PASS
+    }
     const redirect = await findRedirectByFrom(db, pathname)
     if (redirect)
       return {
@@ -150,7 +159,9 @@ export async function resolvePublicPath(
         code: redirectCode(redirect.code),
         recordHit: () => countHit(redirect.id),
       }
-    return detail || builder ? MISSING : PASS
+    // Every other single-segment address is a legal page candidate
+    // (app/(site)/[slug]): unknown ones are a real 404 before streaming.
+    return detail || builder || root ? MISSING : PASS
   } catch (error) {
     console.error(`[proxy] public path lookup failed (${errorCode(error)})`)
     return PASS

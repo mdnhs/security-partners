@@ -16,7 +16,13 @@ import {
 import type { Sort } from "@/lib/schemas/api/list"
 import type { DbOrTx } from "@/server/db/client"
 import { containsPattern } from "@/server/db/like"
-import { articles, builderPages, redirects, services } from "@/server/db/schema"
+import {
+  articles,
+  builderPages,
+  legalPages,
+  redirects,
+  services,
+} from "@/server/db/schema"
 
 export type RedirectRow = typeof redirects.$inferSelect
 type RedirectValues = {
@@ -219,6 +225,7 @@ const SLUG_TABLES = {
   service: services,
   article: articles,
   builder: builderPages,
+  legal: legalPages,
 } as const
 
 /** True when a published service/article/builder page uses `slug` (its page is live). */

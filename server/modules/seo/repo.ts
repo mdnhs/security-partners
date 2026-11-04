@@ -20,6 +20,7 @@ import type { DbOrTx } from "@/server/db/client"
 import {
   articles,
   builderPages,
+  legalPages,
   media,
   mediaUsages,
   pages,
@@ -304,8 +305,8 @@ export async function updateSeoColumn(
 }
 
 export type SitemapRow = {
-  kind: "page" | "service" | "article" | "builder"
-  /** Page key or slug (a builder page's slug: /p/<slug>). */
+  kind: "page" | "service" | "article" | "builder" | "legal"
+  /** Page key or slug (a builder page's slug: /p/<slug>; a legal page's: /<slug>). */
   key: string
   seo: Seo
   publishedAt: Date | null
@@ -321,53 +322,69 @@ const lastPublish = (entityType: string, entityId: SQL) =>
 
 /** Published pages, services, articles and builder pages for the sitemap (never drafts). */
 export async function listSitemapRows(db: DbOrTx): Promise<SitemapRow[]> {
-  const [pageRows, serviceRows, articleRows, builderRows] = await Promise.all([
-    db
-      .select({
-        key: pages.key,
-        seo: pages.seo,
-        publishedAt: pages.publishedAt,
-        lastPublish: lastPublish("page", sql`${pages.key}`),
-      })
-      .from(pages)
-      .where(isNotNull(pages.published))
-      .orderBy(asc(pages.key)),
-    db
-      .select({
-        key: services.slug,
-        seo: services.seo,
-        publishedAt: services.publishedAt,
-        lastPublish: lastPublish("service", sql`${services.id}::text`),
-      })
-      .from(services)
-      .where(isNotNull(services.published))
-      .orderBy(asc(services.sortOrder), asc(services.slug)),
-    db
-      .select({
-        key: articles.slug,
-        seo: articles.seo,
-        publishedAt: articles.publishedAt,
-        lastPublish: lastPublish("article", sql`${articles.id}::text`),
-      })
-      .from(articles)
-      .where(isNotNull(articles.published))
-      .orderBy(desc(articles.publishedAt), asc(articles.slug)),
-    db
-      .select({
-        key: builderPages.slug,
-        seo: builderPages.seo,
-        publishedAt: builderPages.publishedAt,
-        lastPublish: lastPublish("builder-page", sql`${builderPages.id}::text`),
-      })
-      .from(builderPages)
-      .where(isNotNull(builderPages.published))
-      .orderBy(asc(builderPages.slug)),
-  ])
+  const [pageRows, serviceRows, articleRows, builderRows, legalRows] =
+    await Promise.all([
+      db
+        .select({
+          key: pages.key,
+          seo: pages.seo,
+          publishedAt: pages.publishedAt,
+          lastPublish: lastPublish("page", sql`${pages.key}`),
+        })
+        .from(pages)
+        .where(isNotNull(pages.published))
+        .orderBy(asc(pages.key)),
+      db
+        .select({
+          key: services.slug,
+          seo: services.seo,
+          publishedAt: services.publishedAt,
+          lastPublish: lastPublish("service", sql`${services.id}::text`),
+        })
+        .from(services)
+        .where(isNotNull(services.published))
+        .orderBy(asc(services.sortOrder), asc(services.slug)),
+      db
+        .select({
+          key: articles.slug,
+          seo: articles.seo,
+          publishedAt: articles.publishedAt,
+          lastPublish: lastPublish("article", sql`${articles.id}::text`),
+        })
+        .from(articles)
+        .where(isNotNull(articles.published))
+        .orderBy(desc(articles.publishedAt), asc(articles.slug)),
+      db
+        .select({
+          key: builderPages.slug,
+          seo: builderPages.seo,
+          publishedAt: builderPages.publishedAt,
+          lastPublish: lastPublish(
+            "builder-page",
+            sql`${builderPages.id}::text`
+          ),
+        })
+        .from(builderPages)
+        .where(isNotNull(builderPages.published))
+        .orderBy(asc(builderPages.slug)),
+      db
+        .select({
+          key: legalPages.slug,
+          // Legal pages have no SEO overrides (title and hero intro feed the metadata).
+          seo: sql<Seo>`'{}'::jsonb`,
+          publishedAt: legalPages.publishedAt,
+          lastPublish: lastPublish("legal-page", sql`${legalPages.id}::text`),
+        })
+        .from(legalPages)
+        .where(isNotNull(legalPages.published))
+        .orderBy(asc(legalPages.sortOrder), asc(legalPages.slug)),
+    ])
   return [
     ...pageRows.map((row) => ({ kind: "page" as const, ...row })),
     ...serviceRows.map((row) => ({ kind: "service" as const, ...row })),
     ...articleRows.map((row) => ({ kind: "article" as const, ...row })),
     ...builderRows.map((row) => ({ kind: "builder" as const, ...row })),
+    ...legalRows.map((row) => ({ kind: "legal" as const, ...row })),
   ]
 }
 
@@ -399,6 +416,13 @@ export async function findPublishedName(
       .select({ title: builderPages.title })
       .from(builderPages)
       .where(and(eq(builderPages.id, id), isNotNull(builderPages.published)))
+    return row ? row.title : undefined
+  }
+  if (kind === "legal") {
+    const [row] = await db
+      .select({ title: legalPages.title })
+      .from(legalPages)
+      .where(and(eq(legalPages.id, id), isNotNull(legalPages.published)))
     return row ? row.title : undefined
   }
   if (kind === "service") {

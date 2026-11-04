@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import { builderPath } from "@/lib/schemas/api/builder-pages"
+import { legalPath } from "@/lib/schemas/api/legal-pages"
 import { PREVIEW_ENTITIES, type PreviewEntity } from "@/lib/schemas/api/preview"
 import { isSettingsKey } from "@/lib/schemas/settings"
 import { getDb } from "@/server/db/client"
@@ -11,6 +12,7 @@ import type { Actor } from "@/server/lib/actor"
 import { forbidden, notFound } from "@/server/lib/errors"
 import { findArticleForEdit } from "@/server/modules/articles/repo"
 import { findBuilderPageForEdit } from "@/server/modules/builder-pages/repo"
+import { findLegalPageForEdit } from "@/server/modules/legal-pages/repo"
 import { findServiceById } from "@/server/modules/services/repo"
 import { isPageKey, PAGE_PATHS } from "@/templates/registry"
 
@@ -20,6 +22,7 @@ const READ: Record<PreviewEntity, PermissionRequest> = {
   article: { article: ["read"] },
   settings: { settings: ["read"] },
   "builder-page": { page: ["read"] },
+  "legal-page": { page: ["read"] },
 }
 
 /** May preview drafts at all: read permission on some previewable entity. */
@@ -76,6 +79,13 @@ export async function previewPath(
       if (!page) throw notFound("Page")
       // Draft mode shows the draft, also of a never-published page.
       return builderPath(page.slug)
+    }
+    case "legal-page": {
+      const page = z.uuid().safeParse(id).success
+        ? await findLegalPageForEdit(getDb(), id)
+        : null
+      if (!page) throw notFound("Page")
+      return legalPath(page.slug)
     }
   }
 }

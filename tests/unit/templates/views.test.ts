@@ -43,6 +43,7 @@ describe("view builders reproduce the static site's data (fixture sources)", () 
     expect(chrome.footer.legal).toEqual({
       privacy: { label: "Privacy Policy", href: "/privacy" },
       terms: { label: "Terms", href: "/terms" },
+      extra: [],
     })
   })
 

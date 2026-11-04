@@ -73,16 +73,57 @@ describe("resolvePublicPath (proxy.ts)", () => {
   })
 
   it("other unknown paths: redirect if one exists, else pass (catch-all 404)", async () => {
-    expect(await resolvePublicPath("/old-page", live)).toEqual({ kind: "pass" })
+    // Deeper than one segment: no page can live there, the catch-all answers.
+    expect(await resolvePublicPath("/old/page", live)).toEqual({ kind: "pass" })
     repo.findRedirectByFrom.mockResolvedValue({
       id: "r2",
       toPath: "https://x.ie/",
       code: 302,
     })
-    expect(await resolvePublicPath("/old-page", live)).toMatchObject({
+    expect(await resolvePublicPath("/old/page", live)).toMatchObject({
       kind: "redirect",
       code: 302,
     })
+  })
+
+  it("a root address is a legal page candidate: live passes, else redirect, else a real 404", async () => {
+    // Published legal page at /cookie-policy.
+    repo.isPublishedSlug.mockResolvedValueOnce(true)
+    expect(await resolvePublicPath("/cookie-policy", live)).toEqual({
+      kind: "pass",
+    })
+    expect(repo.isPublishedSlug).toHaveBeenCalledWith(
+      {},
+      "legal",
+      "cookie-policy"
+    )
+    // Not published, no redirect: app/(site)/[slug] must not stream a 200.
+    expect(await resolvePublicPath("/old-page", live)).toEqual({
+      kind: "missing",
+    })
+    // A malformed or reserved-looking root address never asks the database.
+    repo.isPublishedSlug.mockClear()
+    expect(await resolvePublicPath("/Not_A_Slug", live)).toEqual({
+      kind: "missing",
+    })
+    expect(repo.isPublishedSlug).not.toHaveBeenCalled()
+    // A stored redirect still wins over the 404.
+    repo.findRedirectByFrom.mockResolvedValue({
+      id: "r3",
+      toPath: "/cookie-policy",
+      code: 301,
+    })
+    expect(await resolvePublicPath("/old-cookies", live)).toMatchObject({
+      kind: "redirect",
+      code: 301,
+    })
+  })
+
+  it("a previewer's draft mode passes any root address", async () => {
+    expect(await resolvePublicPath("/draft-only", { draft: true })).toEqual({
+      kind: "pass",
+    })
+    expect(repo.isPublishedSlug).not.toHaveBeenCalled()
   })
 
   it("previews skip the slug check; database errors never block a page", async () => {

@@ -37,7 +37,13 @@ export function absoluteUrl(origin: string, path: string): string {
 
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const
 
-export const OG_KINDS = ["page", "service", "article", "builder"] as const
+export const OG_KINDS = [
+  "page",
+  "service",
+  "article",
+  "builder",
+  "legal",
+] as const
 export type OgKind = (typeof OG_KINDS)[number]
 
 export function isOgKind(value: string): value is OgKind {

@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { contactPlaceholders, interpolate } from "@/lib/interpolate"
 import { builderPath } from "@/lib/schemas/api/builder-pages"
+import { legalPath } from "@/lib/schemas/api/legal-pages"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 import { filled } from "@/lib/seo/effective"
 import type { SitemapSource } from "@/lib/seo/sitemap"
@@ -69,6 +70,7 @@ function pathOf(row: SitemapRow): string | null {
   if (row.kind === "service") return `/services/${row.key}`
   if (row.kind === "article") return `/blog/${row.key}`
   if (row.kind === "builder") return builderPath(row.key)
+  if (row.kind === "legal") return legalPath(row.key)
   return isPageKey(row.key) ? PAGE_PATHS[row.key] : null
 }
 
@@ -89,7 +91,8 @@ const MAX_SLUG = 120
  */
 export function isOgSubjectId(kind: OgKind, id: string): boolean {
   if (kind === "page") return isPageKey(id)
-  if (kind === "builder") return z.uuid().safeParse(id).success
+  if (kind === "builder" || kind === "legal")
+    return z.uuid().safeParse(id).success
   return id.length <= MAX_SLUG && SLUG_PATTERN.test(id)
 }
 
@@ -104,7 +107,9 @@ export function ogSubjectTags(kind: OgKind, id: string): string[] {
         ? tag.service(id)
         : kind === "builder"
           ? tag.builderPages
-          : tag.article(id)
+          : kind === "legal"
+            ? tag.legalPages
+            : tag.article(id)
   return [
     record,
     tag.settings("site"),

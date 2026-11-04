@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -33,7 +34,7 @@ export type SiteFooterProps = {
     companies: { name: string; phone: string; site: string; logo: string }[]
   }
   copyright: string
-  legal: { privacy: FooterLink; terms: FooterLink }
+  legal: { privacy: FooterLink; terms: FooterLink; extra: FooterLink[] }
 }
 
 export function SiteFooter({
@@ -147,14 +148,19 @@ export function SiteFooter({
 
         <div className="flex flex-col justify-between gap-3 text-sm text-white/60 sm:flex-row">
           <p>{copyright}</p>
-          <p className="whitespace-pre">
-            <a href={legal.privacy.href} className="hover:text-white">
-              {legal.privacy.label}
-            </a>
-            {"   ·   "}
-            <a href={legal.terms.href} className="hover:text-white">
-              {legal.terms.label}
-            </a>
+          <p className="flex flex-wrap items-baseline">
+            {[legal.privacy, legal.terms, ...legal.extra].map((link, index) => (
+              <Fragment key={`${link.href}-${index}`}>
+                {index > 0 ? (
+                  <span aria-hidden className="whitespace-pre">
+                    {"   ·   "}
+                  </span>
+                ) : null}
+                <a href={link.href} className="hover:text-white">
+                  {link.label}
+                </a>
+              </Fragment>
+            ))}
           </p>
         </div>
       </Container>

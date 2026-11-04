@@ -11,6 +11,7 @@ import {
   NewPageDialog,
 } from "@/components/admin/builder/new-page-dialog"
 
+import { LegalPagesSection } from "@/components/admin/legal/legal-pages-section"
 import { ContentStatusPills } from "@/components/admin/kit/content-status"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
@@ -103,6 +104,7 @@ export function PagesList() {
         </div>
         <CustomPagesList />
       </section>
+      <LegalPagesSection />
     </div>
   )
 }
