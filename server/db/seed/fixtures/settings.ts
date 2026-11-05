@@ -332,6 +332,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
     careers: {
       recipients: ["HR@securitypartnersltd.com"],
       retentionMonths: 12,
+      keepOnFileMonths: 24,
     },
     // Same value the *_theme migration inserts (no <style> by default).
     theme: DEFAULT_THEME,

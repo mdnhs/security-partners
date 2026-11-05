@@ -89,3 +89,31 @@ describe("resolvePublicPath against the database", () => {
     })
   })
 })
+
+describe("job apply addresses after a slug change", () => {
+  it("/careers/<old>/apply follows the job's redirect to /careers/<new>/apply", async () => {
+    await getDb()
+      .insert(redirects)
+      .values({ fromPath: "/careers/old-role", toPath: "/careers/new-role" })
+    expect(
+      await resolvePublicPath("/careers/old-role/apply", live)
+    ).toMatchObject({ kind: "redirect", to: "/careers/new-role/apply" })
+  })
+
+  it("a job redirect to a non-job address does not grow an /apply suffix", async () => {
+    await getDb()
+      .insert(redirects)
+      .values({ fromPath: "/careers/gone-role", toPath: "/careers" })
+    expect(
+      await resolvePublicPath("/careers/gone-role/apply", live)
+    ).toMatchObject({ kind: "redirect", to: "/careers" })
+  })
+})
+
+describe("the talent pool form", () => {
+  it("/careers/apply is a fixed page, not a job slug", async () => {
+    expect(await resolvePublicPath("/careers/apply", live)).toEqual({
+      kind: "pass",
+    })
+  })
+})

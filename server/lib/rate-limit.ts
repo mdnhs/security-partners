@@ -2,7 +2,7 @@ import "server-only"
 
 import { type DbOrTx, getDb } from "@/server/db/client"
 import { hashIp } from "@/server/lib/ip"
-import { hitRateLimit } from "@/server/modules/rate-limit/repo"
+import { hitRateLimit, unhitRateLimit } from "@/server/modules/rate-limit/repo"
 
 export type RateLimitResult = {
   allowed: boolean
@@ -43,4 +43,13 @@ export async function consumeRateLimit(
       Math.ceil((resetAt.getTime() - now.getTime()) / 1000)
     ),
   }
+}
+
+/** Undo one consumeRateLimit hit (an attempt that should not count). */
+export async function refundRateLimit(
+  key: string,
+  now: Date = new Date(),
+  db: DbOrTx = getDb()
+): Promise<void> {
+  await unhitRateLimit(db, key, now)
 }

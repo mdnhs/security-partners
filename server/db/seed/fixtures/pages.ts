@@ -448,7 +448,7 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
           copy: "Join our talent pool and we'll contact you when a suitable position opens. We recruit licensed officers across the Midlands all year round.",
           primary: {
             label: "Send Us Your CV",
-            href: "mailto:HR@securitypartnersltd.com",
+            href: "/careers/apply",
           },
           secondary: {
             label: "Call HR (085) 806 2369",
@@ -718,7 +718,7 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
           consents: [
             "I confirm that the information in this application is true and complete, and I understand that false information may lead to my application being withdrawn.",
             "I agree to Security Partners processing my personal data for this application, including PSA licence and reference checks, in line with the Privacy Notice.",
-            "Keep my details on file for 12 months and contact me about future roles.",
+            "Keep my details on file for {keepMonths} months and contact me about future roles.",
           ],
           equalOpportunity:
             "Security Partners is an equal opportunities employer. We do not ask for your age, date of birth, marital or family status. If you need any reasonable accommodation during the process, please tell us in your cover note.",
@@ -753,7 +753,7 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
             ],
             dataHeading: "Your Data Is Safe",
             dataCopy:
-              "We only use your details for recruitment. Unsuccessful applications are deleted after 12 months unless you ask us to keep them, in line with GDPR.",
+              "We only use your details for recruitment. Unsuccessful applications are deleted after {months} months unless you ask us to keep them, in line with GDPR.",
             helpHeading: "Need Help Applying?",
           },
         },

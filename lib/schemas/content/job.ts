@@ -29,6 +29,17 @@ const short = (max: number) => z.string().trim().min(1, "Required").max(max)
 const list = (min: number, max: number) => z.array(short(300)).min(min).max(max)
 
 /** A job opening's content (draft/published of `jobs`). */
+/** A YYYY-MM-DD string that names a real day (no 31 February). */
+function isCalendarDate(value: string): boolean {
+  const [y, m, d] = value.split("-").map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d))
+  return (
+    date.getUTCFullYear() === y &&
+    date.getUTCMonth() === m - 1 &&
+    date.getUTCDate() === d
+  )
+}
+
 export const jobContent = z.object({
   title: short(120),
   /** Category chip and tag, e.g. "Static Guarding". */
@@ -47,7 +58,8 @@ export const jobContent = z.object({
   /** YYYY-MM-DD; the role closes at the end of this day in Europe/Dublin. */
   closingDate: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the date picker (YYYY-MM-DD)"),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the date picker (YYYY-MM-DD)")
+    .refine(isCalendarDate, "This date does not exist"),
   urgent: z.boolean(),
   filled: z.boolean(),
   /** One sentence under the title in the hero. */

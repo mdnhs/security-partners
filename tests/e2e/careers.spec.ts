@@ -188,6 +188,30 @@ test.describe("apply", () => {
   })
 })
 
+test.describe("talent pool", () => {
+  test("Send Us Your CV opens the form without a role, and it is accepted", async ({
+    page,
+    request,
+  }) => {
+    await page.goto("/careers")
+    await page.getByRole("link", { name: "Send Us Your CV" }).click()
+    await page.waitForURL("**/careers/apply")
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Don’t see the right role?" })
+    ).toBeVisible()
+    await expect(
+      page.getByText("Unsuccessful applications are deleted after 12 months")
+    ).toBeVisible()
+    await expect(
+      page.getByText("Keep my details on file for 24 months")
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Submit Application" })
+    ).toBeVisible()
+    await submitApplication(request, "")
+  })
+})
+
 async function signIn(page: Page, email: string) {
   await page.goto("/admin/sign-in")
   await page.getByLabel("Email").fill(email)

@@ -24,6 +24,7 @@ export const SCRIPT_ENTRIES = [
   "custom-code-off",
   "r2-bootstrap",
   "data-import",
+  "demo-jobs",
 ] as const
 
 /** `server-only` throws outside Next's react-server bundles; scripts get an empty module. */

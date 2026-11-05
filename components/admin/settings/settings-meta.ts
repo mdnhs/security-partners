@@ -363,7 +363,11 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
       },
       retentionMonths: {
         label: "Keep applications for (months)",
-        help: "Older applications, with their CVs and PSA cards, are deleted automatically.",
+        help: "Older applications, with their CVs and PSA cards, are deleted automatically. Shown as {months} in the apply form’s privacy copy.",
+      },
+      keepOnFileMonths: {
+        label: "Keep on file for (months)",
+        help: "Instead, for applicants who tick “keep my details on file”. Shown as {keepMonths} in that consent.",
       },
     },
     groups: {
@@ -376,7 +380,7 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
         {
           title: "Retention",
           description: "How long applications are kept.",
-          fields: ["retentionMonths"],
+          fields: ["retentionMonths", "keepOnFileMonths"],
         },
       ],
     },

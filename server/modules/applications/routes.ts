@@ -12,24 +12,40 @@ import type { AppEnv } from "@/server/api/context"
 import { actorOf, can } from "@/server/api/middleware/auth"
 import { rateLimit } from "@/server/api/middleware/rate-limit"
 import { zv } from "@/server/api/validate"
+import { AppError } from "@/server/lib/errors"
 import { clientIp } from "@/server/lib/ip"
 import { CAREERS_RATE_LIMIT } from "@/server/lib/rate-limit"
 
 import * as service from "./service"
 
+/** A 422 on the answers or files, not on the spam check. */
+const isFixable = (err: unknown) =>
+  err instanceof AppError &&
+  err.code === "VALIDATION_FAILED" &&
+  !!err.details?.fieldErrors &&
+  !("turnstileToken" in err.details.fieldErrors)
+
 /** /api/v1/public/careers/applications — multipart; body limit chosen in app.ts. */
 export const publicApplicationsRoutes = new Hono<AppEnv>().post(
   "/",
-  // Before parsing: every attempt from an IP counts.
-  rateLimit(CAREERS_RATE_LIMIT),
+  // Counted before parsing; a retry of a stored submission and a fixable
+  // validation error (a human with a valid Turnstile token) are given back.
+  rateLimit({
+    ...CAREERS_RATE_LIMIT,
+    refund: (c) => c.get("rateLimitRefund") === true,
+  }),
   async (c) => {
     const form = await c.req.parseBody()
-    return c.json(
-      await service.submitApplication(form, {
+    try {
+      const { replay, ...result } = await service.submitApplication(form, {
         ip: clientIp(c.req.raw.headers),
-      }),
-      201
-    )
+      })
+      if (replay) c.set("rateLimitRefund", true)
+      return c.json(result, 201)
+    } catch (err) {
+      if (isFixable(err)) c.set("rateLimitRefund", true)
+      throw err
+    }
   }
 )
 

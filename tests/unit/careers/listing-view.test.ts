@@ -127,3 +127,17 @@ describe("postedAgo", () => {
     ["2026-09-01T08:00:00Z", "2 months ago"],
   ])("%s → %s", (iso, expected) => expect(at(iso)).toBe(expected))
 })
+
+describe("the closed-on date is the job's calendar date in every site time zone", () => {
+  it.each(["Pacific/Kiritimati", "Pacific/Pago_Pago", "Europe/Dublin"])(
+    "%s",
+    (timezone) => {
+      const zoned = {
+        ...s,
+        settings: { ...s.settings, site: { ...s.settings.site, timezone } },
+      }
+      const view = careersView(zoned, jobs, NOW)
+      expect(view.previous?.jobs[1].closedOn).toBe("Closed on 20 Sep 2026")
+    }
+  )
+})

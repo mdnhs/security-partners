@@ -20,12 +20,14 @@ export function ApplySidebar({
   view: ApplyView["sidebar"]
   jobHref: string
 }) {
-  const meta = [
-    { icon: MapPin, text: view.meta.location },
-    { icon: Briefcase, text: view.meta.employmentType },
-    { icon: Clock, text: view.meta.shift },
-    { icon: Euro, text: view.meta.pay },
-  ]
+  const meta = view.meta
+    ? [
+        { icon: MapPin, text: view.meta.location },
+        { icon: Briefcase, text: view.meta.employmentType },
+        { icon: Clock, text: view.meta.shift },
+        { icon: Euro, text: view.meta.pay },
+      ]
+    : []
   return (
     <aside className="flex flex-col gap-6 lg:sticky lg:top-28 lg:self-start">
       <section className="flex flex-col gap-4 rounded-3xl bg-brand-navy p-7 text-white">
@@ -33,17 +35,19 @@ export function ApplySidebar({
           {view.applyingFor}
         </p>
         <h2 className="text-2xl leading-[1.2] font-black">{view.jobTitle}</h2>
-        <ul className="flex flex-col gap-3 text-[15px] text-white/85">
-          {meta.map(({ icon: Icon, text }) => (
-            <li key={text} className="flex items-center gap-2.5">
-              <Icon
-                aria-hidden
-                className="size-[18px] shrink-0 text-brand-green"
-              />
-              {text}
-            </li>
-          ))}
-        </ul>
+        {meta.length > 0 && (
+          <ul className="flex flex-col gap-3 text-[15px] text-white/85">
+            {meta.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-2.5">
+                <Icon
+                  aria-hidden
+                  className="size-[18px] shrink-0 text-brand-green"
+                />
+                {text}
+              </li>
+            ))}
+          </ul>
+        )}
         <Link
           href={jobHref}
           className="inline-flex min-h-11 items-center gap-2 self-start text-[15px] font-bold text-brand-green hover:underline"

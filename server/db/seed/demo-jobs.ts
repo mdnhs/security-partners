@@ -3,13 +3,15 @@ import "server-only"
 import { dublinToday } from "@/lib/careers/open"
 import { type JobContent, jobContent } from "@/lib/schemas/content/job"
 import type { Db } from "@/server/db/client"
+import { inArray } from "drizzle-orm"
+
 import { jobOpenings } from "@/server/db/schema"
 
 // Demo openings from the Figma careers designs (548:18): five open roles and
 // three previous openings, dated relative to `now` so the open ones stay
-// open. For dev and the e2e/visual database only — never part of
-// `pnpm db:seed` or the first-deploy seed: fictional job adverts must not
-// appear on a live site.
+// open. Never part of `pnpm db:seed` or the first-deploy seed; a live site
+// gets them only through `pnpm demo:jobs --allow-production`, and loses them
+// again with `pnpm demo:jobs --remove` before real roles are advertised.
 
 const DAY = 86_400_000
 const dateIn = (now: Date, days: number) => {
@@ -323,4 +325,16 @@ export async function seedDemoJobs(
     .onConflictDoNothing({ target: jobOpenings.slug })
     .returning({ id: jobOpenings.id })
   return inserted.length
+}
+
+/** The demo openings' addresses. */
+export const DEMO_JOB_SLUGS = DEMOS.map((demo) => demo.slug)
+
+/** Deletes the demo openings (by address); applications keep their copy of the role. */
+export async function removeDemoJobs(db: Db): Promise<number> {
+  const removed = await db
+    .delete(jobOpenings)
+    .where(inArray(jobOpenings.slug, DEMO_JOB_SLUGS))
+    .returning({ id: jobOpenings.id })
+  return removed.length
 }

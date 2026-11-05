@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, count, desc, eq, ilike, lt, or, type SQL } from "drizzle-orm"
+import { and, count, desc, eq, ilike, lt, not, or, type SQL, sql } from "drizzle-orm"
 
 import type { ApplicationStatus } from "@/lib/schemas/api/applications"
 import { containsPattern } from "@/server/db/like"
@@ -31,7 +31,7 @@ export async function insertApplication(
 
 export async function findBySubmissionId(db: DbOrTx, submissionId: string) {
   const [row] = await db
-    .select({ id: jobApplications.id })
+    .select({ id: jobApplications.id, jobSlug: jobApplications.jobSlug })
     .from(jobApplications)
     .where(eq(jobApplications.submissionId, submissionId))
   return row ?? null
@@ -125,13 +125,26 @@ export async function deleteApplicationRow(
   return row ?? null
 }
 
+/** The third consent: “keep my details on file”. */
+const keptOnFile = sql`coalesce((${jobApplications.answers}->'consents'->>2)::boolean, false)`
+
+/**
+ * Applications past their retention: created before `cutoff`, or before
+ * `keepCutoff` for an applicant who asked to be kept on file.
+ */
 export async function deleteApplicationsCreatedBefore(
   db: DbOrTx,
-  cutoff: Date
+  cutoff: Date,
+  keepCutoff: Date = cutoff
 ): Promise<ApplicationRow[]> {
   return db
     .delete(jobApplications)
-    .where(lt(jobApplications.createdAt, cutoff))
+    .where(
+      or(
+        and(lt(jobApplications.createdAt, cutoff), not(keptOnFile)),
+        and(lt(jobApplications.createdAt, keepCutoff), keptOnFile)
+      )
+    )
     .returning()
 }
 

@@ -9,6 +9,7 @@ import {
   APPLICATIONS_ENDPOINT,
   applicationAnswers,
   PSA_HELD,
+  ROLE_CLOSED_CODE,
 } from "@/lib/schemas/api/applications"
 import { cn } from "@/lib/utils"
 import type { CareersTemplate } from "@/templates/careers/schema"
@@ -227,7 +228,7 @@ export function ApplicationForm({
         return
       }
       const payload = (await res.json().catch(() => null)) as {
-        error?: { message?: string; fieldErrors?: Record<string, string[]> }
+        error?: { code?: string; fieldErrors?: Record<string, string[]> }
       } | null
       const fieldErrors = payload?.error?.fieldErrors
       if (fieldErrors && Object.keys(fieldErrors).length > 0) {
@@ -241,7 +242,7 @@ export function ApplicationForm({
         }
         setErrors(mapped)
         setFocusRequest((n) => n + 1)
-      } else if (payload?.error?.message === "This role is closed") {
+      } else if (payload?.error?.code === ROLE_CLOSED_CODE) {
         setBanner(copy.closedNotice)
       } else {
         setBanner(messages.errorMessage)
