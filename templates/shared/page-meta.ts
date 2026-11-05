@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { interpolate } from "@/lib/interpolate"
 import type { MediaView } from "@/lib/media"
 import { builderPath } from "@/lib/schemas/api/builder-pages"
-import { jobPath } from "@/lib/schemas/api/jobs"
+import { jobPath, TALENT_POOL_PATH } from "@/lib/schemas/api/jobs"
 import type { JobContent } from "@/lib/schemas/content/job"
 import { legalPath } from "@/lib/schemas/api/legal-pages"
 import { effectiveSeo, filled } from "@/lib/seo/effective"
@@ -223,15 +223,19 @@ export function jobMetadata(
 /** The application form of a job: never indexed (the job page is the posting). */
 export function applyMetadata(
   s: SiteSources,
-  job: { slug: string; content: Pick<JobContent, "title" | "summary"> }
+  job: { slug: string; content: Pick<JobContent, "title" | "summary"> } | null
 ): Metadata {
+  const page = s.pages.careers.data
   return metadataFor(s, {
     kind: "page",
     id: "careers",
-    path: `${jobPath(job.slug)}/apply`,
+    path: job ? `${jobPath(job.slug)}/apply` : TALENT_POOL_PATH,
     seo: { ogImage: s.pages.careers.seo.ogImage, noindex: true },
-    name: `${s.pages.careers.data.apply.heroTitle}: ${job.content.title}`,
-    fallbackDescription: job.content.summary,
+    // No job: the talent pool form ("Send Us Your CV").
+    name: job
+      ? `${page.apply.heroTitle}: ${job.content.title}`
+      : `${page.cta.primary.label} | ${page.hero.title}`,
+    fallbackDescription: job ? job.content.summary : page.cta.copy,
   })
 }
 

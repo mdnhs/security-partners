@@ -4,7 +4,10 @@ import { join } from "node:path"
 import { and, eq, sql } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
-import { careersSettings } from "@/lib/schemas/settings/careers"
+import { careersSettings as current } from "@/lib/schemas/settings/careers"
+
+// As 0022 wrote it: keepOnFileMonths came with 0025.
+const careersSettings = current.omit({ keepOnFileMonths: true })
 import { getDb } from "@/server/db/client"
 import { media, pages, settings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"

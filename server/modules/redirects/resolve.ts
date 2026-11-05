@@ -10,6 +10,7 @@ import {
 } from "@/lib/seo/redirects"
 import { getDb } from "@/server/db/client"
 import { pgErrorCode } from "@/server/lib/pg-errors"
+import { TALENT_POOL_PATH } from "@/lib/schemas/api/jobs"
 import { PAGE_PATHS } from "@/templates/registry"
 
 import {
@@ -42,12 +43,16 @@ export type PublicPathOutcome =
 
 const PASS = { kind: "pass" } as const
 const MISSING = { kind: "missing" } as const
-const STATIC_PATHS = new Set<string>(Object.values(PAGE_PATHS))
+const STATIC_PATHS = new Set<string>([
+  ...Object.values(PAGE_PATHS),
+  TALENT_POOL_PATH,
+])
 const DETAIL = /^\/(services|blog)\/([^/]+)$/
 /** A builder page address (app/(site)/p/[slug]); the slug is checked below. */
 const BUILDER = /^\/p\/([^/]+)$/
 /** A job and its application form: app/(site)/careers/[slug](/apply). */
 const JOB = /^\/careers\/([^/]+)(?:\/apply)?$/
+const JOB_PAGE = /^\/careers\/[^/]+$/
 /** One root segment: a legal page candidate (app/(site)/[slug]). */
 const ROOT = /^\/([^/]+)$/
 
@@ -169,6 +174,20 @@ export async function resolvePublicPath(
         code: redirectCode(redirect.code),
         recordHit: () => countHit(redirect.id),
       }
+    // A renamed job keeps one redirect (/careers/<old> → new); its apply
+    // form follows it, to the new job's form when the target is a job.
+    if (job && pathname.endsWith("/apply")) {
+      const moved = await findRedirectByFrom(db, `/careers/${job[1]}`)
+      if (moved)
+        return {
+          kind: "redirect",
+          to: JOB_PAGE.test(moved.toPath)
+            ? `${moved.toPath}/apply`
+            : moved.toPath,
+          code: redirectCode(moved.code),
+          recordHit: () => countHit(moved.id),
+        }
+    }
     // Every other single-segment address is a legal page candidate
     // (app/(site)/[slug]): unknown ones are a real 404 before streaming.
     return detail || builder || root || job ? MISSING : PASS

@@ -5,6 +5,7 @@ import { connection } from "next/server"
 
 import { SiteThemed } from "@/components/site-themed"
 import { getJobBySlug } from "@/server/modules/jobs-board/queries"
+import { getApplyRetention } from "@/server/modules/applications/queries"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { ApplyTemplate } from "@/templates/careers/apply-render"
 import { applyView } from "@/templates/careers/apply-view"
@@ -44,5 +45,9 @@ async function Apply({
   // Unknown slugs are a real 404 in proxy.ts; a draft without preview
   // keeps this soft 404.
   if (!job) notFound()
-  return <ApplyTemplate view={applyView(s, job, new Date())} />
+  return (
+    <ApplyTemplate
+      view={applyView(s, job, new Date(), await getApplyRetention())}
+    />
+  )
 }

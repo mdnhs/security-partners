@@ -120,7 +120,8 @@ export type ApplicationAnswers = z.infer<typeof applicationAnswers>
 
 /** Text fields of the multipart POST /api/v1/public/careers/applications (`answers` is JSON). */
 export const applicationEnvelope = z.object({
-  jobSlug: z.string().trim().min(1).max(80),
+  /** "" for the talent pool (/careers/apply, no role). */
+  jobSlug: z.string().trim().max(80),
   /** One per mounted form: a retry or double submit stores one application. */
   submissionId: z.uuid(),
   answers: applicationAnswers,
@@ -180,4 +181,10 @@ export type ApplicationDto = ApplicationListItem & {
 }
 
 /** The public multipart endpoint the application form posts to. */
+/** The error code a submission to a closed, filled or unknown role answers with (HTTP 409). */
+/** Stored as the role of an application sent without a job (the talent pool). */
+export const TALENT_POOL_TITLE = "Talent pool"
+
+export const ROLE_CLOSED_CODE = "CONFLICT"
+
 export const APPLICATIONS_ENDPOINT = "/api/v1/public/careers/applications"

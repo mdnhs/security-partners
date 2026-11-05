@@ -10,7 +10,7 @@ export type ApplicationNotificationEmailProps = {
     email: string
     phone: string
     jobTitle: string
-    jobReference: string
+    jobReference: string | null
     receivedAt: string
   }
 }
@@ -34,8 +34,8 @@ export function ApplicationNotificationEmail({
         New job application
       </Heading>
       <Text style={row}>
-        <strong>Role:</strong> {application.jobTitle} (
-        {application.jobReference})
+        <strong>Role:</strong> {application.jobTitle}
+        {application.jobReference ? ` (${application.jobReference})` : ""}
       </Text>
       <Text style={row}>
         <strong>Name:</strong> {application.name}

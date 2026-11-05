@@ -190,4 +190,15 @@ describe("ApplicationForm", () => {
       await screen.findByText(copy.hints.fileWrongType)
     ).toBeInTheDocument()
   })
+
+  it("a closed role is recognised by its error code, whatever the message says", async () => {
+    reply = json(
+      { error: { code: "CONFLICT", message: "Role no longer available" } },
+      409
+    )
+    const user = setup()
+    await fillValid(user)
+    await user.click(submitButton())
+    expect(await screen.findByText(copy.closedNotice)).toBeInTheDocument()
+  })
 })

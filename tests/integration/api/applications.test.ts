@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("next/cache", () => ({
@@ -7,14 +7,16 @@ vi.mock("next/cache", () => ({
   cacheTag: vi.fn(),
 }))
 
-import type {
-  ApplicationDto,
-  ApplicationListItem,
+import {
+  type ApplicationDto,
+  type ApplicationListItem,
+  ROLE_CLOSED_CODE,
+  TALENT_POOL_TITLE,
 } from "@/lib/schemas/api/applications"
 import type { Paginated } from "@/lib/schemas/api/list"
 import { app } from "@/server/api/app"
 import { getDb } from "@/server/db/client"
-import { auditLog, jobApplications } from "@/server/db/schema"
+import { auditLog, jobApplications, jobOpenings } from "@/server/db/schema"
 import { seedContent } from "@/server/db/seed"
 import { seedDemoJobs } from "@/server/db/seed/demo-jobs"
 import { mailer } from "@/server/lib/mailer"
@@ -177,10 +179,11 @@ describe("POST /api/v1/public/careers/applications", () => {
     expect(draft.status).toBe(201)
     for (const jobSlug of [FILLED, "draft-role", "no-such-role"]) {
       const res = await submit({ jobSlug })
-      expect(res.status).toBe(422)
-      expect(((await res.json()) as ErrorBody).error.message).toBe(
-        "This role is closed"
-      )
+      expect(res.status).toBe(409)
+      expect(((await res.json()) as ErrorBody).error).toMatchObject({
+        code: ROLE_CLOSED_CODE,
+        message: "This role is closed",
+      })
     }
     expect(await rows()).toHaveLength(0)
   })
@@ -245,6 +248,21 @@ describe("POST /api/v1/public/careers/applications", () => {
     expect(row.cv.key).toBe(`applications/${row.id}/cv.doc`)
   })
 
+  it("no job: a talent-pool application, stored without a role and sent to HR", async () => {
+    const res = await submit({ jobSlug: "" })
+    expect(res.status).toBe(201)
+    const [row] = await rows()
+    expect(row).toMatchObject({
+      jobId: null,
+      jobSlug: "",
+      jobTitle: TALENT_POOL_TITLE,
+    })
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][0]).toMatchObject({
+      subject: `Job application: ${TALENT_POOL_TITLE} – Aoife Byrne`,
+    })
+  })
+
   it("the honeypot looks like success and stores nothing", async () => {
     const res = await submit({ website: "http://spam.example" })
     expect(res.status).toBe(201)
@@ -256,8 +274,38 @@ describe("POST /api/v1/public/careers/applications", () => {
   it("the 6th attempt in 10 minutes from one IP is 429", async () => {
     const ip = freshIp()
     for (let i = 0; i < 5; i++)
-      expect((await submit({ ip, cv: null })).status).toBe(422)
+      expect((await submit({ ip, jobSlug: FILLED })).status).toBe(409)
     expect((await submit({ ip })).status).toBe(429)
+  })
+
+  it("fixable 422s and retries of a stored submission do not use up the limit", async () => {
+    const ip = freshIp()
+    for (let i = 0; i < 6; i++)
+      expect((await submit({ ip, cv: null })).status).toBe(422)
+    const submissionId = crypto.randomUUID()
+    for (let i = 0; i < 6; i++)
+      expect((await submit({ ip, submissionId })).status).toBe(201)
+    expect(await rows()).toHaveLength(1)
+  })
+
+  it("a retry of a stored submission still succeeds after the role closes", async () => {
+    const submissionId = crypto.randomUUID()
+    const first = (await (await submit({ submissionId })).json()) as {
+      applicationId: string
+    }
+    await getDb()
+      .update(jobOpenings)
+      .set({
+        published: sql`jsonb_set(${jobOpenings.published}, '{filled}', 'true')`,
+      })
+      .where(eq(jobOpenings.slug, OPEN))
+    const retry = await submit({ submissionId })
+    expect(retry.status).toBe(201)
+    expect(await retry.json()).toEqual({
+      ok: true,
+      applicationId: first.applicationId,
+    })
+    expect((await submit()).status).toBe(409)
   })
 
   it("the same submissionId twice stores one application and answers with its id", async () => {
@@ -382,6 +430,32 @@ describe("admin /applications", () => {
     expect(result.deleted).toBe(1)
     expect((await rows()).map((r) => r.id)).toEqual([newId])
     expect(await diskStorage().read(old.cv.key)).toBeNull()
+  })
+
+  it("“keep on file” keeps an application for keepOnFileMonths instead of retentionMonths", async () => {
+    const now = new Date()
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000)
+    const plain = await stored()
+    const kept = (await (
+      await submit({ answers: answers({ consents: [true, true, true] }) })
+    ).json()) as { applicationId: string }
+    const keptLong = (await (
+      await submit({ answers: answers({ consents: [true, true, true] }) })
+    ).json()) as { applicationId: string }
+    // 13 months: past retentionMonths (12), within keepOnFileMonths (24).
+    for (const id of [plain, kept.applicationId])
+      await getDb()
+        .update(jobApplications)
+        .set({ createdAt: ago(400) })
+        .where(eq(jobApplications.id, id))
+    await getDb()
+      .update(jobApplications)
+      .set({ createdAt: ago(800) })
+      .where(eq(jobApplications.id, keptLong.applicationId))
+
+    const result = await purgeExpiredApplications(now)
+    expect(result.deleted).toBe(2)
+    expect((await rows()).map((r) => r.id)).toEqual([kept.applicationId])
   })
 })
 

@@ -16,7 +16,9 @@ import {
   CV_TYPES,
   MAX_APPLICATION_FILE_BYTES,
   PSA_CARD_TYPES,
+  ROLE_CLOSED_CODE,
   type StoredFile,
+  TALENT_POOL_TITLE,
   type UpdateApplicationInput,
 } from "@/lib/schemas/api/applications"
 import type { Paginated } from "@/lib/schemas/api/list"
@@ -121,6 +123,25 @@ async function publishedApplyCopy(): Promise<CareersTemplate["apply"] | null> {
   return data?.apply ?? null
 }
 
+/** `replay`: the submissionId was already stored (a retry), nothing new was written. */
+export type SubmitResult = {
+  ok: true
+  applicationId: string | null
+  replay: boolean
+}
+
+/** The id stored for this form's submissionId and job, if it was sent before. */
+async function storedSubmission(form: FormValues): Promise<string | null> {
+  const submissionId = applicationEnvelope.shape.submissionId.safeParse(
+    textOf(form.submissionId)
+  )
+  if (!submissionId.success) return null
+  const existing = await repo.findBySubmissionId(getDb(), submissionId.data)
+  return existing && existing.jobSlug === (textOf(form.jobSlug)?.trim() ?? "")
+    ? existing.id
+    : null
+}
+
 /**
  * Public application (multipart): Turnstile, honeypot, open role, answers,
  * files sniffed by bytes. Files are written first and removed again when
@@ -130,17 +151,35 @@ async function publishedApplyCopy(): Promise<CareersTemplate["apply"] | null> {
 export async function submitApplication(
   form: FormValues,
   meta: { ip: string | null; now?: Date }
-): Promise<{ ok: true; applicationId: string | null }> {
+): Promise<SubmitResult> {
   const now = meta.now ?? new Date()
   await assertHuman(textOf(form.turnstileToken), meta.ip)
   if (honeypotFilled(form.website)) {
     console.info("[applications] honeypot filled; submission dropped")
-    return { ok: true, applicationId: null }
+    return { ok: true, applicationId: null, replay: false }
   }
 
-  const job = await findJobBySlug(getDb(), textOf(form.jobSlug) ?? "")
-  if (!job?.published || !job.publishedAt || !isOpen(job.published, now))
-    throw new AppError("VALIDATION_FAILED", "This role is closed")
+  // A retry of a stored submission (its response was lost) answers with the
+  // first, even when the role has closed since.
+  const replay = await storedSubmission(form)
+  if (replay) return { ok: true, applicationId: replay, replay: true }
+
+  // No job: the talent pool ("Send Us Your CV"), always open.
+  const slug = textOf(form.jobSlug)?.trim() ?? ""
+  const job = slug ? await findJobBySlug(getDb(), slug) : null
+  if (
+    slug &&
+    (!job?.published || !job.publishedAt || !isOpen(job.published, now))
+  )
+    throw new AppError(ROLE_CLOSED_CODE, "This role is closed")
+  const role = job?.published
+    ? {
+        id: job.id,
+        title: job.published.title,
+        slug: job.slug,
+        reference: job.published.reference,
+      }
+    : { id: null, title: TALENT_POOL_TITLE, slug: "", reference: null }
 
   let answers: unknown
   try {
@@ -158,14 +197,6 @@ export async function submitApplication(
   const errors: Record<string, string[]> = parsed.success
     ? optionErrors(parsed.data.answers, copy)
     : fieldErrorsFromIssues(parsed.error.issues)
-
-  if (parsed.success) {
-    const existing = await repo.findBySubmissionId(
-      getDb(),
-      parsed.data.submissionId
-    )
-    if (existing) return { ok: true, applicationId: existing.id }
-  }
 
   const required = copy?.hints.required ?? "Required"
   const cvFile = fileOf(form.cv)
@@ -202,9 +233,9 @@ export async function submitApplication(
       const inserted = await repo.insertApplication(tx, {
         id,
         submissionId,
-        jobId: job.id,
-        jobTitle: job.published!.title,
-        jobSlug: job.slug,
+        jobId: role.id,
+        jobTitle: role.title,
+        jobSlug: role.slug,
         name: `${a.firstName} ${a.surname}`,
         email: a.email,
         phone: a.phone,
@@ -227,18 +258,21 @@ export async function submitApplication(
   }
   if (!row) {
     const first = await repo.findBySubmissionId(getDb(), submissionId)
-    return { ok: true, applicationId: first?.id ?? null }
+    return { ok: true, applicationId: first?.id ?? null, replay: true }
   }
 
   try {
-    await notifyHr(row, job.published!.reference)
+    await notifyHr(row, role.reference)
   } catch (err) {
     console.error(`[applications] notification failed (${errorName(err)})`)
   }
-  return { ok: true, applicationId: row.id }
+  return { ok: true, applicationId: row.id, replay: false }
 }
 
-async function notifyHr(row: repo.ApplicationRow, reference: string) {
+async function notifyHr(
+  row: repo.ApplicationRow,
+  reference: string | null
+) {
   const db = getDb()
   const [careers, site] = await Promise.all([
     readPublishedSettings("careers", db),
@@ -435,8 +469,13 @@ export async function purgeExpiredApplications(
   const config = await readPublishedSettings("careers", db)
   if (!config) return { deleted: 0, cutoff: null }
   const cutoff = retentionCutoff(now, config.retentionMonths)
+  const keepCutoff = retentionCutoff(now, config.keepOnFileMonths)
   const rows = await db.transaction(async (tx) => {
-    const deleted = await repo.deleteApplicationsCreatedBefore(tx, cutoff)
+    const deleted = await repo.deleteApplicationsCreatedBefore(
+      tx,
+      cutoff,
+      keepCutoff
+    )
     if (deleted.length > 0)
       await writeAudit(tx, null, {
         action: "application.purged",

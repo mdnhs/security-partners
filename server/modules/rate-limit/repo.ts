@@ -1,6 +1,6 @@
 import "server-only"
 
-import { lte, sql } from "drizzle-orm"
+import { eq, gt, and, lte, sql } from "drizzle-orm"
 
 import type { DbOrTx } from "@/server/db/client"
 import { publicRateLimits } from "@/server/db/schema"
@@ -31,6 +31,18 @@ export async function hitRateLimit(
       resetAt: publicRateLimits.resetAt,
     })
   return row
+}
+
+/** Gives back one hit of the current window (never below zero). */
+export async function unhitRateLimit(
+  db: DbOrTx,
+  key: string,
+  now: Date
+): Promise<void> {
+  await db
+    .update(publicRateLimits)
+    .set({ count: sql`greatest(${publicRateLimits.count} - 1, 0)` })
+    .where(and(eq(publicRateLimits.key, key), gt(publicRateLimits.resetAt, now)))
 }
 
 export async function deleteExpiredRateLimits(

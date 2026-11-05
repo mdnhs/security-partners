@@ -1,6 +1,6 @@
 import type { PageHeroProps } from "@/components/home/page-hero"
 import { openJobs, previousJobs } from "@/lib/careers/open"
-import { formatPostDate, siteTimeZone } from "@/lib/format"
+import { formatPostDate } from "@/lib/format"
 import { interpolate } from "@/lib/interpolate"
 import type { Link } from "@/lib/schemas/common"
 import { jobPath } from "@/lib/schemas/api/jobs"
@@ -100,7 +100,6 @@ export function jobCardView(
 ): JobCardView {
   const page = s.pages.careers.data
   const c = job.content
-  const zone = siteTimeZone(s.settings.site.timezone)
   const [y, m, d] = c.closingDate.split("-").map(Number)
   return {
     slug: job.slug,
@@ -121,8 +120,9 @@ export function jobCardView(
       ago: postedAgo(job.publishedAt ?? now, now),
     }),
     closedOn: interpolate(page.previous.closedOnLabel, {
-      // Noon UTC: the calendar date reads the same in any Irish offset.
-      date: formatPostDate(new Date(Date.UTC(y, m - 1, d, 12)), zone),
+      // A calendar date (open/closed is decided on the Irish calendar), so
+      // it is read in UTC: no site time zone can move it to another day.
+      date: formatPostDate(new Date(Date.UTC(y, m - 1, d)), "UTC"),
     }),
     filledLabel: page.previous.filledLabel,
   }
