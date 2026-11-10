@@ -3,6 +3,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Fragment } from "react"
 
+import { JobApplyBar } from "@/components/careers/job-apply-bar"
 import { JobMeta, JobTags } from "@/components/careers/job-card"
 import {
   BeforeYouApply,
@@ -65,7 +66,7 @@ function JobHero({ view }: { view: JobView }) {
   return (
     <section
       data-hero
-      className="relative overflow-hidden px-6 pt-20 pb-24 md:px-10 lg:pt-28 lg:pb-30"
+      className="relative overflow-hidden px-5 pt-8 pb-9 md:px-10 md:pt-20 md:pb-24 lg:pt-28 lg:pb-30"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div data-hero-media className="absolute inset-0 will-change-transform">
@@ -82,13 +83,16 @@ function JobHero({ view }: { view: JobView }) {
       </div>
 
       <Container className="relative">
-        <div data-hero-content className="flex flex-col items-start gap-[22px]">
+        <div
+          data-hero-content
+          className="flex flex-col items-start gap-3.5 md:gap-[22px]"
+        >
           <nav
             data-hero-item
             aria-label={hero.ariaLabel}
             className="max-w-full"
           >
-            <ol className="flex flex-wrap items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[13px] leading-[normal] font-bold">
+            <ol className="flex flex-wrap items-center gap-2 rounded-full bg-white/14 px-3 py-1.5 text-xs leading-[normal] font-bold md:gap-2.5 md:border md:border-white/20 md:bg-white/10 md:px-4 md:py-2 md:text-[13px]">
               <li>
                 <Link href="/" className="text-white/85 hover:text-white">
                   {hero.homeLabel}
@@ -112,7 +116,10 @@ function JobHero({ view }: { view: JobView }) {
               <li aria-hidden className="text-white/50">
                 /
               </li>
-              <li aria-current="page" className="text-brand-green">
+              <li
+                aria-current="page"
+                className="text-white md:text-brand-green"
+              >
                 {hero.crumb}
               </li>
             </ol>
@@ -124,21 +131,21 @@ function JobHero({ view }: { view: JobView }) {
           </div>
           <h1
             data-hero-title
-            className="max-w-[820px] text-[40px] leading-[1.1] font-black tracking-[-0.01em] text-white md:text-[64px]"
+            className="max-w-[820px] text-[32px] leading-[38px] font-black tracking-[-0.01em] text-white md:text-[64px] md:leading-[1.1]"
           >
             {hero.title}
           </h1>
           <p
             data-hero-item
-            className="max-w-[640px] text-lg leading-[1.6] text-white/85 md:text-[19px]"
+            className="max-w-[640px] text-base leading-6 text-white/85 md:text-[19px] md:leading-[1.6]"
           >
             {hero.summary}
           </p>
-          <ul data-hero-item className="flex flex-wrap gap-2.5">
+          <ul data-hero-item className="flex w-full flex-wrap gap-2 md:gap-2.5">
             {meta.map(({ icon: Icon, text }) => (
               <li
                 key={text}
-                className="flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white"
+                className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-2 text-[13px] font-bold text-white md:gap-2 md:px-4 md:py-2.5 md:text-sm"
               >
                 <Icon aria-hidden className="size-4 shrink-0" />
                 {text}
@@ -154,7 +161,7 @@ function JobHero({ view }: { view: JobView }) {
                 href={view.applyHref}
                 className={buttonClassName(
                   { variant: "brand", size: "pill" },
-                  "gap-2.5 max-sm:w-full"
+                  "gap-2.5 max-sm:h-[52px] max-sm:w-full max-sm:py-0"
                 )}
               >
                 {hero.applyLabel}
@@ -168,7 +175,7 @@ function JobHero({ view }: { view: JobView }) {
               copiedLabel={view.share.copiedLabel}
               className={buttonClassName(
                 { variant: "brand-outline", size: "pill" },
-                "flex-row-reverse gap-2.5 max-sm:w-full"
+                "flex-row-reverse gap-2.5 max-sm:h-[52px] max-sm:w-full max-sm:border-white/45 max-sm:bg-white/8 max-sm:py-0"
               )}
             />
           </div>
@@ -180,7 +187,7 @@ function JobHero({ view }: { view: JobView }) {
 
 function Heading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[28px] leading-[1.25] font-black text-brand-navy md:text-[30px]">
+    <h2 className="text-2xl leading-[30px] font-black text-brand-navy md:text-[30px] md:leading-[1.25]">
       {children}
     </h2>
   )
@@ -200,12 +207,14 @@ function RequirementCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-5 rounded-3xl border border-brand-line p-6 md:p-7",
+        "flex flex-col gap-4 rounded-[20px] border border-brand-line p-5 md:gap-5 md:rounded-3xl md:p-7",
         tone === "essential" ? "bg-white" : "bg-brand-surface"
       )}
     >
       <div className="flex flex-wrap items-center gap-2.5">
-        <h3 className="text-xl font-black text-brand-navy">{label}</h3>
+        <h3 className="text-lg font-black text-brand-navy md:text-xl">
+          {label}
+        </h3>
         <span
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs leading-none font-bold",
@@ -223,16 +232,16 @@ function RequirementCard({
           {tag}
         </span>
       </div>
-      <CheckList items={items} className="gap-3.5 text-base" />
+      <CheckList items={items} className="gap-3 text-base md:gap-3.5" />
     </div>
   )
 }
 
 function JobBody({ view }: { view: JobView }) {
   return (
-    <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
-      <Container className="grid gap-12 lg:grid-cols-[minmax(0,760px)_384px] lg:justify-between lg:gap-14">
-        <div className="flex min-w-0 flex-col gap-12">
+    <section className="bg-white px-5 py-6 md:px-10 md:py-20 lg:py-28">
+      <Container className="grid gap-8 lg:grid-cols-[minmax(0,760px)_384px] lg:justify-between lg:gap-14">
+        <div className="flex min-w-0 flex-col gap-8 max-lg:order-2 md:gap-12">
           {view.closedNotice && (
             <p
               role="status"
@@ -256,7 +265,10 @@ function JobBody({ view }: { view: JobView }) {
           <div data-stagger className="flex flex-col gap-5">
             <Heading>{view.about.heading}</Heading>
             {view.about.body.content.map((paragraph, i) => (
-              <p key={i} className="text-[17px] leading-[1.65] text-brand-ink">
+              <p
+                key={i}
+                className="text-base leading-[26px] text-brand-ink md:text-[17px] md:leading-[1.65]"
+              >
                 {renderInline(paragraph.content)}
               </p>
             ))}
@@ -265,12 +277,12 @@ function JobBody({ view }: { view: JobView }) {
             <Heading>{view.responsibilities.heading}</Heading>
             <CheckList
               items={view.responsibilities.items}
-              className="gap-3.5 text-[17px]"
+              className="gap-3 text-base md:gap-3.5 md:text-[17px]"
             />
           </div>
           <div className="flex flex-col gap-5">
             <Heading>{view.lookingFor.heading}</Heading>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 md:gap-5">
               <RequirementCard
                 tone="essential"
                 {...view.lookingFor.essential}
@@ -291,17 +303,17 @@ function JobBody({ view }: { view: JobView }) {
                   {view.offer.intro}
                 </p>
               )}
-              <ul className="grid gap-4 sm:grid-cols-2">
+              <ul className="grid grid-cols-2 gap-2.5 md:gap-4">
                 {view.offer.items.map((item) => (
                   <li
                     key={item.text}
                     data-card="light"
-                    className="flex items-center gap-3.5 rounded-2xl border border-brand-line bg-white p-3.5 pr-4 transition-[border-color,box-shadow] duration-300 hover:border-brand-blue/40 hover:shadow-[0px_12px_30px_0px_rgba(13,26,51,0.08)]"
+                    className="md:pr-4-[border-color,box-shadow] flex flex-col items-start gap-2.5 rounded-2xl border border-brand-line bg-white p-4 transition duration-300 hover:border-brand-blue/40 hover:shadow-[0px_12px_30px_0px_rgba(13,26,51,0.08)] md:flex-row md:items-center md:gap-3.5 md:p-3.5"
                   >
-                    <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-mint text-brand-green">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-mint text-brand-green md:size-11">
                       <OfferIcon name={item.icon} className="size-[19px]" />
                     </span>
-                    <span className="text-base font-bold text-brand-navy">
+                    <span className="text-sm leading-5 font-bold text-brand-navy md:text-base">
                       {item.text}
                     </span>
                   </li>
@@ -317,10 +329,16 @@ function JobBody({ view }: { view: JobView }) {
             <span>{view.equalOpportunity}</span>
           </p>
         </div>
-        <aside className="flex flex-col gap-6 lg:sticky lg:top-28 lg:self-start">
-          <JobSummary view={view} />
-          <JobQuestions view={view.questions} />
-          <BeforeYouApply view={view.beforeYouApply} />
+        <aside className="contents lg:sticky lg:top-28 lg:flex lg:flex-col lg:gap-6 lg:self-start">
+          <div className="max-lg:order-1">
+            <JobSummary view={view} />
+          </div>
+          <div className="max-lg:order-3">
+            <JobQuestions view={view.questions} />
+          </div>
+          <div className="max-lg:order-4">
+            <BeforeYouApply view={view.beforeYouApply} />
+          </div>
         </aside>
       </Container>
     </section>
@@ -338,10 +356,10 @@ function SimilarJobCard({
   return (
     <li
       data-card="light"
-      className="group relative flex flex-col gap-4 rounded-3xl border border-brand-line bg-white p-7 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+      className="group relative flex h-full w-[300px] shrink-0 snap-center flex-col gap-3.5 rounded-[20px] border border-brand-line bg-white p-5 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1 md:w-auto md:shrink md:gap-4 md:rounded-3xl md:p-7"
     >
       <JobTags category={job.category} tag={job.tag} />
-      <h3 className="text-xl leading-[1.3] font-black text-brand-navy">
+      <h3 className="text-[19px] leading-6 font-black text-brand-navy md:text-xl md:leading-[1.3]">
         <Link
           href={job.href}
           className="outline-none after:absolute after:inset-0 focus-visible:underline"
@@ -371,9 +389,9 @@ function SimilarJobCard({
 function SimilarRoles({ view }: { view: JobView }) {
   const copy = view.similarCopy
   return (
-    <section className="bg-brand-surface px-6 py-20 md:px-10 lg:py-28">
-      <Container className="flex flex-col gap-10">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+    <section className="bg-brand-surface py-14 md:px-10 md:py-20 lg:py-28">
+      <Container className="flex flex-col gap-6 md:gap-10">
+        <div className="flex flex-col gap-6 px-5 md:flex-row md:items-end md:justify-between md:px-0">
           <SectionHeading
             align="start"
             eyebrow={copy.eyebrow}
@@ -383,14 +401,14 @@ function SimilarRoles({ view }: { view: JobView }) {
             href={copy.viewAllHref}
             className={buttonClassName(
               { variant: "brand-outline-blue", size: "pill" },
-              "gap-2.5 max-md:w-full"
+              "gap-2.5 max-md:hidden"
             )}
           >
             {copy.viewAllLabel}
             <ArrowRight aria-hidden className="size-[18px]" />
           </Link>
         </div>
-        <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <ul className="flex snap-x snap-mandatory [scrollbar-width:none] gap-3.5 overflow-x-auto px-5 pb-1 md:grid md:snap-none md:grid-cols-2 md:gap-6 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden">
           {view.similar.map((job) => (
             <SimilarJobCard
               key={job.slug}
@@ -399,6 +417,17 @@ function SimilarRoles({ view }: { view: JobView }) {
             />
           ))}
         </ul>
+        <div className="px-5 md:hidden">
+          <Link
+            href={copy.viewAllHref}
+            className={buttonClassName(
+              { variant: "brand-outline-blue", size: "pill" },
+              "h-[52px] w-full py-0"
+            )}
+          >
+            {copy.viewAllLabel}
+          </Link>
+        </div>
       </Container>
     </section>
   )
@@ -413,6 +442,9 @@ export function JobDetailTemplate({ view }: { view: JobView }) {
         <JobBody view={view} />
         {view.similar.length > 0 && <SimilarRoles view={view} />}
       </main>
+      {view.applyHref ? (
+        <JobApplyBar href={view.applyHref} label={view.hero.applyLabel} />
+      ) : null}
       <HomeMotion />
     </>
   )

@@ -56,9 +56,9 @@ function Section({ view }: { view: BlockViewResult }) {
     case "richtext":
       // The legal pages' article body styles (spec §7.5).
       return (
-        <section className="bg-white px-6 pt-14 pb-20 md:px-10 lg:pt-20 lg:pb-28">
+        <section className="bg-white px-5 pt-8 pb-14 md:px-10 md:pt-14 md:pb-20 lg:pt-20 lg:pb-28">
           <Container>
-            <article className="mx-auto flex max-w-[820px] min-w-0 flex-col gap-[22px]">
+            <article className="mx-auto flex max-w-[820px] min-w-0 flex-col gap-[18px] md:gap-[22px]">
               <ArticleBlocks doc={view.props.doc} />
             </article>
           </Container>

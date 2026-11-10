@@ -33,10 +33,10 @@ export type ArticleHeaderProps = {
 
 export function ArticleHeader({ article, breadcrumb }: ArticleHeaderProps) {
   return (
-    <section className="bg-brand-surface px-6 py-14 md:px-10 lg:py-[72px]">
-      <Container className="flex flex-col items-start gap-6">
+    <section className="bg-brand-surface px-5 pt-6 pb-0 md:px-10 md:py-14 lg:py-[72px]">
+      <Container className="flex flex-col items-start gap-3.5 md:gap-6">
         <nav aria-label={breadcrumb.ariaLabel}>
-          <ol className="flex flex-wrap items-center gap-2.5 rounded-full border border-brand-line bg-white px-4 py-2 text-[13px] leading-[normal] font-bold">
+          <ol className="flex flex-wrap items-center gap-2 rounded-full border border-brand-line bg-white px-3 py-1.5 text-xs leading-[normal] font-bold md:gap-2.5 md:px-4 md:py-2 md:text-[13px]">
             <li>
               <Link href="/" className="text-brand-ink hover:text-brand-navy">
                 {breadcrumb.home}
@@ -79,17 +79,17 @@ export function ArticleHeader({ article, breadcrumb }: ArticleHeaderProps) {
           )}
         </div>
 
-        <h1 className="max-w-[960px] text-4xl leading-[1.12] font-black tracking-[-0.015em] text-brand-navy md:text-[56px]">
+        <h1 className="max-w-[960px] text-[28px] leading-9 font-black tracking-[-0.015em] text-brand-navy md:text-[56px] md:leading-[1.12]">
           {article.title}
         </h1>
-        <p className="max-w-[820px] text-lg leading-[1.6] text-brand-ink md:text-xl md:leading-[1.6]">
+        <p className="max-w-[820px] text-base leading-[26px] text-brand-ink md:text-xl md:leading-[1.6]">
           {article.lead}
         </p>
         {article.author && <AuthorBadge author={article.author} size="lg" />}
 
         <div
           data-reveal
-          className="relative mt-8 h-72 w-full overflow-hidden rounded-[28px] md:h-[560px]"
+          className="relative mt-3 h-[220px] w-full overflow-hidden rounded-[20px] md:mt-8 md:h-[560px] md:rounded-[28px]"
         >
           <div
             data-parallax
@@ -112,7 +112,7 @@ export function ArticleHeader({ article, breadcrumb }: ArticleHeaderProps) {
 
 const paragraph = "text-lg leading-[1.75] text-[#3b4556]"
 const card =
-  "flex flex-col rounded-3xl border border-brand-line bg-white px-6 py-7 shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)]"
+  "flex flex-col rounded-[20px] border border-brand-line bg-white p-5 md:rounded-3xl md:px-6 md:py-7 shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)]"
 const cardTitle = "text-xl leading-[normal] font-black text-brand-navy"
 
 export type ArticleBodyProps = {
@@ -155,9 +155,9 @@ export function ArticleBody({
   cta,
 }: ArticleBodyProps) {
   return (
-    <section className="bg-white px-6 pt-14 pb-20 md:px-10 lg:pt-20 lg:pb-28">
-      <Container className="flex flex-col gap-16 lg:flex-row lg:items-start">
-        <article className="flex min-w-0 flex-1 flex-col gap-[22px]">
+    <section className="bg-white px-5 pt-8 pb-14 md:px-10 md:pt-14 md:pb-20 lg:pt-20 lg:pb-28">
+      <Container className="flex flex-col gap-10 md:gap-16 lg:flex-row lg:items-start">
+        <article className="flex min-w-0 flex-1 flex-col gap-[18px] md:gap-[22px]">
           {body ? (
             <ArticleBlocks doc={body} />
           ) : (
@@ -183,21 +183,25 @@ export function ArticleBody({
           </div>
         </article>
 
-        <aside className="flex w-full flex-col gap-6 lg:w-[360px] lg:shrink-0">
-          <div className={`${card} gap-[18px]`}>
-            <p className={cardTitle}>{labels.recentPostsHeading}</p>
+        <aside className="flex w-full flex-col gap-5 md:gap-6 lg:w-[360px] lg:shrink-0">
+          <div className="flex flex-col gap-3 md:gap-[18px] md:rounded-3xl md:border md:border-brand-line md:bg-white md:px-6 md:py-7 md:shadow-[0px_12px_20px_0px_rgba(13,26,51,0.06)]">
+            <p
+              className={`${cardTitle} mb-1 text-[22px] leading-7 md:mb-0 md:text-xl md:leading-[normal]`}
+            >
+              {labels.recentPostsHeading}
+            </p>
             {recent.map((item) => (
               <Link
                 key={item.slug}
                 href={`/blog/${item.slug}`}
-                className="group flex items-center gap-3.5"
+                className="group flex items-center gap-3.5 rounded-[18px] border border-brand-line bg-white p-3 md:rounded-none md:border-0 md:bg-transparent md:p-0"
               >
-                <div className="relative size-[76px] shrink-0 overflow-hidden rounded-[14px]">
+                <div className="relative size-[88px] shrink-0 overflow-hidden rounded-xl md:size-[76px] md:rounded-[14px]">
                   <Image
                     src={item.cover}
                     alt=""
                     fill
-                    sizes="76px"
+                    sizes="88px"
                     className="object-cover"
                   />
                 </div>
@@ -234,9 +238,9 @@ export function ArticleBody({
             ))}
           </nav>
 
-          <div className="flex flex-col items-start gap-3.5 rounded-3xl bg-brand-blue px-7 py-8">
+          <div className="flex flex-col items-start gap-3 rounded-[20px] bg-brand-blue p-6 md:gap-3.5 md:rounded-3xl md:px-7 md:py-8">
             <Eyebrow>{cta.eyebrow}</Eyebrow>
-            <p className="text-2xl leading-[1.2] font-black text-white">
+            <p className="text-[22px] leading-7 font-black text-white md:text-2xl md:leading-[1.2]">
               {cta.heading}
             </p>
             <p className="text-[15px] leading-[1.6] text-white/85">
@@ -246,7 +250,7 @@ export function ArticleBody({
               href={cta.link.href}
               className={buttonClassName(
                 { variant: "brand", size: "pill" },
-                "w-full"
+                "h-[52px] w-full py-0 md:h-auto md:py-4"
               )}
             >
               {cta.link.label}

@@ -16,7 +16,7 @@ export function Eyebrow({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       className={cn(
-        "text-sm font-black tracking-[0.14em] text-brand-green uppercase",
+        "text-xs font-black tracking-[0.125em] text-brand-green uppercase md:text-sm md:tracking-[0.14em]",
         className
       )}
       {...props}
@@ -41,17 +41,19 @@ export function SectionHeading({
     <div
       data-stagger
       className={cn(
-        "flex flex-col gap-3.5",
-        align === "center" ? "items-center text-center" : "items-start",
+        "flex flex-col gap-2.5 md:gap-3.5",
+        align === "center"
+          ? "items-start text-left md:items-center md:text-center"
+          : "items-start",
         className
       )}
     >
       <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="text-4xl leading-[1.15] font-black tracking-[-0.01em] text-brand-navy md:text-[44px]">
+      <h2 className="text-[30px] leading-9 font-black tracking-[-0.01em] text-brand-navy sm:text-4xl sm:leading-[1.15] md:text-[44px]">
         {title}
       </h2>
       {description && (
-        <p className="max-w-[680px] text-lg leading-[1.6] text-brand-ink">
+        <p className="max-w-[680px] text-base leading-6 text-brand-ink md:text-lg md:leading-[1.6]">
           {description}
         </p>
       )}

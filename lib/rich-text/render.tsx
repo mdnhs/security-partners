@@ -70,7 +70,8 @@ function renderParagraphs(paragraphs: ParagraphNode[]): ReactNode {
   ))
 }
 
-const paragraphClass = "text-lg leading-[1.75] text-[#3b4556]"
+const paragraphClass =
+  "text-base leading-7 text-[#3b4556] md:text-lg md:leading-[1.75]"
 
 function ArticleBlock({ block }: { block: WithMedia<RichTextBlock> }) {
   switch (block.type) {
@@ -78,7 +79,7 @@ function ArticleBlock({ block }: { block: WithMedia<RichTextBlock> }) {
       return <p className={paragraphClass}>{renderInline(block.content)}</p>
     case "heading":
       return block.attrs.level === 2 ? (
-        <h2 className="mt-7 text-[26px] leading-[1.25] font-black tracking-[-0.005em] text-brand-navy md:text-[30px]">
+        <h2 className="mt-2 text-[22px] leading-7 font-black tracking-[-0.005em] text-brand-navy md:mt-7 md:text-[30px] md:leading-[1.25]">
           {renderInline(block.content)}
         </h2>
       ) : (
@@ -88,17 +89,17 @@ function ArticleBlock({ block }: { block: WithMedia<RichTextBlock> }) {
       )
     case "bulletList":
       return (
-        <ul className="flex flex-col gap-3.5">
+        <ul className="flex flex-col gap-3 md:gap-3.5">
           {block.content.map((item, i) => (
-            <li key={i} className="flex items-start gap-3.5">
+            <li key={i} className="flex items-start gap-3 md:gap-3.5">
               <Image
                 src="/images/check.svg"
                 alt=""
                 width={24}
                 height={24}
-                className="shrink-0"
+                className="size-[22px] shrink-0 md:size-6"
               />
-              <span className="text-[17px] leading-normal font-medium text-brand-navy">
+              <span className="text-base leading-6 font-medium text-brand-navy md:text-[17px] md:leading-normal">
                 {renderParagraphs(item.content)}
               </span>
             </li>
@@ -118,8 +119,8 @@ function ArticleBlock({ block }: { block: WithMedia<RichTextBlock> }) {
       )
     case "blockquote":
       return (
-        <figure className="flex flex-col gap-3 rounded-[20px] border-l-5 border-brand-green bg-brand-mint px-7 py-8 font-bold md:px-9">
-          <blockquote className="text-xl leading-normal text-brand-navy md:text-[22px]">
+        <figure className="flex flex-col gap-3 rounded-[20px] border-l-5 border-brand-green bg-brand-mint px-6 py-5 font-bold md:px-9 md:py-8">
+          <blockquote className="text-base leading-normal text-brand-navy md:text-[22px]">
             “{renderParagraphs(block.content)}”
           </blockquote>
           {block.attrs?.cite && (
@@ -131,7 +132,7 @@ function ArticleBlock({ block }: { block: WithMedia<RichTextBlock> }) {
       )
     case "image":
       return (
-        <div className="relative h-64 overflow-hidden rounded-3xl md:h-[400px]">
+        <div className="relative h-[220px] overflow-hidden rounded-[20px] md:h-[400px] md:rounded-3xl">
           <Image
             src={block.attrs.media.url}
             alt={block.attrs.alt}

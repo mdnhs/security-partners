@@ -16,9 +16,9 @@ import { interpolate, interpolateParts } from "@/lib/interpolate"
 import { cn } from "@/lib/utils"
 
 const pill =
-  "rounded-full px-[22px] py-3 text-[15px] leading-[normal] font-bold transition-colors"
+  "flex h-10 shrink-0 items-center rounded-full px-4 text-sm leading-[normal] font-bold whitespace-nowrap transition-colors md:h-auto md:px-[22px] md:py-3 md:text-[15px]"
 const pageButton =
-  "flex size-12 items-center justify-center rounded-full text-base leading-[normal] font-bold transition-colors"
+  "flex size-11 items-center justify-center rounded-full text-base md:size-12 leading-[normal] font-bold transition-colors"
 
 export type BlogPostsProps = {
   /** Every article except the featured one, newest first. */
@@ -79,13 +79,13 @@ export function BlogPosts({
   return (
     <section
       ref={sectionRef}
-      className="scroll-mt-28 bg-brand-surface px-6 py-20 md:px-10 lg:py-28"
+      className="scroll-mt-28 bg-brand-surface pb-14 md:px-10 md:py-20 lg:py-28"
     >
-      <Container className="flex flex-col gap-10">
+      <Container className="flex flex-col gap-4 px-5 md:gap-10 md:px-0">
         <div
           role="group"
           aria-label={labels.filterAria}
-          className="flex flex-wrap gap-3"
+          className="sticky top-[69px] z-30 -mx-5 flex [scrollbar-width:none] gap-2 overflow-x-auto border-b border-brand-line bg-white px-5 py-3.5 md:static md:mx-0 md:flex-wrap md:gap-3 md:overflow-visible md:border-0 md:bg-transparent md:p-0 [&::-webkit-scrollbar]:hidden"
         >
           {[all, ...filters].map((item) => {
             const active = item === category
@@ -109,8 +109,8 @@ export function BlogPosts({
         </div>
 
         {showFeatured && (
-          <article className="group flex flex-col overflow-hidden rounded-[28px] border border-brand-line bg-white shadow-[0px_12px_40px_0px_rgba(13,26,51,0.06)] lg:h-[451px] lg:flex-row">
-            <div className="relative h-64 shrink-0 overflow-hidden md:h-80 lg:h-auto lg:w-[600px]">
+          <article className="group mt-2 flex flex-col overflow-hidden rounded-[20px] border border-brand-line bg-white shadow-[0px_12px_40px_0px_rgba(13,26,51,0.06)] md:mt-0 md:rounded-[28px] lg:h-[451px] lg:flex-row">
+            <div className="relative h-[200px] shrink-0 overflow-hidden md:h-80 lg:h-auto lg:w-[600px]">
               <Image
                 src={featured.cover}
                 alt=""
@@ -119,7 +119,7 @@ export function BlogPosts({
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
               />
             </div>
-            <div className="flex flex-1 flex-col items-start justify-center gap-[18px] p-8 md:p-14">
+            <div className="flex flex-1 flex-col items-start justify-center gap-3.5 p-5 md:gap-[18px] md:p-14">
               <PostMeta
                 featuredLabel={labels.featuredBadge}
                 category={featured.category}
@@ -127,10 +127,10 @@ export function BlogPosts({
               >
                 {featured.displayDate}
               </PostMeta>
-              <h2 className="text-3xl leading-[1.2] font-black tracking-[-0.01em] text-brand-navy md:text-4xl md:leading-[1.2]">
+              <h2 className="text-xl leading-7 font-black tracking-[-0.01em] text-brand-navy md:text-4xl md:leading-[1.2]">
                 {featured.title}
               </h2>
-              <p className="text-[17px] leading-[1.65] text-brand-ink">
+              <p className="text-[15px] leading-[23px] text-brand-ink md:text-[17px] md:leading-[1.65]">
                 {featured.excerpt}
               </p>
               {featured.author && <AuthorBadge author={featured.author} />}
@@ -145,7 +145,7 @@ export function BlogPosts({
         )}
 
         {visible.length > 0 ? (
-          <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
             {visible.map((post) => (
               <li key={post.slug}>
                 <BlogCard post={post} readArticle={labels.readArticle} />

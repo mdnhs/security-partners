@@ -1,10 +1,20 @@
 "use client"
 
+import { LazyMotion, MotionConfig, domAnimation } from "motion/react"
+import * as m from "motion/react-m"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { MenuIcon, XIcon } from "lucide-react"
+import {
+  ChevronRight,
+  Clock,
+  FileText,
+  MenuIcon,
+  Mail,
+  Phone,
+  XIcon,
+} from "lucide-react"
 
 import { buttonClassName } from "@/components/ui/button"
 import {
@@ -219,7 +229,10 @@ export function SiteHeader({
 
   return (
     <>
-      <div className="bg-brand-navy px-6 py-2.5 text-[13px] md:px-10">
+      <div
+        data-site-topbar
+        className="hidden bg-brand-navy px-6 py-2.5 text-[13px] md:block md:px-10"
+      >
         <Container className="flex flex-wrap items-center justify-between gap-x-7 gap-y-1">
           <div className="flex flex-wrap items-center gap-x-7 gap-y-1">
             <a href={topBar.phone24hHref} className="font-medium text-white">
@@ -241,8 +254,9 @@ export function SiteHeader({
       </div>
 
       <header
+        data-site-header
         className={cn(
-          "sticky top-0 z-50 px-6 py-3 shadow-[0px_4px_20px_0px_rgba(13,26,51,0.08)] transition-[background-color,backdrop-filter] duration-300 motion-reduce:transition-none md:px-10",
+          "sticky top-0 z-50 border-b border-brand-line px-5 py-2.5 shadow-[0px_4px_20px_0px_rgba(13,26,51,0.08)] transition-[background-color,backdrop-filter] duration-300 motion-reduce:transition-none md:border-b-0 md:px-6 md:px-10 md:py-3",
           scrolled
             ? "bg-white/55 backdrop-blur-lg backdrop-saturate-150"
             : "bg-white"
@@ -256,7 +270,7 @@ export function SiteHeader({
         <Container className="flex items-center justify-between gap-6">
           <Link
             href={pathname === "/" ? "#top" : "/"}
-            className="relative h-[56px] w-[92px] shrink-0"
+            className="relative h-12 w-20 shrink-0 md:h-[56px] md:w-[92px]"
           >
             <Image
               src={logo.src}
@@ -307,77 +321,131 @@ export function SiteHeader({
             >
               {cta.label}
             </Link>
+            <a
+              href={topBar.phone24hHref}
+              aria-label={`${topBar.phone24hLabel} ${topBar.phone24h}`}
+              className="inline-flex size-11 items-center justify-center rounded-full bg-brand-mint text-brand-green-dark md:hidden"
+            >
+              <Phone aria-hidden className="size-5" />
+            </a>
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger
                 aria-label={aria.openMenu}
-                className="inline-flex size-11 items-center justify-center rounded-full text-brand-navy hover:bg-brand-surface lg:hidden"
+                className="inline-flex size-11 items-center justify-center rounded-full bg-brand-navy text-white hover:bg-brand-navy/90 lg:hidden"
               >
-                <MenuIcon className="size-6" />
+                <MenuIcon className="size-5" />
               </SheetTrigger>
               <SheetContent
                 side="right"
                 showCloseButton={false}
                 data-lenis-prevent
-                className="w-[min(88vw,22rem)] gap-0 bg-white p-0 text-brand-navy lg:hidden"
+                className="w-full gap-0 bg-white p-0 text-brand-navy sm:w-[min(88vw,22rem)] lg:hidden"
               >
-                <SheetHeader className="flex-row items-center justify-between border-b border-brand-line px-5 py-4">
+                <SheetHeader className="flex-row items-center justify-between border-b border-brand-line px-5 py-2.5">
                   <SheetTitle className="sr-only">{aria.mobileNav}</SheetTitle>
-                  <span aria-hidden className="relative h-[44px] w-[72px]">
+                  <span aria-hidden className="relative h-12 w-20">
                     <Image
                       src={logo.src}
                       alt=""
                       fill
-                      sizes="72px"
+                      sizes="80px"
                       className="object-contain"
                     />
                   </span>
                   <SheetClose
                     aria-label={aria.closeMenu}
-                    className="inline-flex size-11 items-center justify-center rounded-full text-brand-navy hover:bg-brand-surface"
+                    className="inline-flex size-11 items-center justify-center rounded-full bg-brand-navy text-white hover:bg-brand-navy/90"
                   >
-                    <XIcon className="size-6" />
+                    <XIcon className="size-5" />
                   </SheetClose>
                 </SheetHeader>
-                <nav
-                  aria-label={aria.mobileNav}
-                  className="flex flex-1 flex-col overflow-y-auto px-3 py-3 text-base font-bold"
-                >
-                  {links.map((link) => (
-                    <SheetClose
-                      key={link.href}
-                      nativeButton={false}
-                      render={
-                        <Link
-                          href={link.href}
-                          aria-current={
-                            isActive(link.href) ? "page" : undefined
-                          }
-                          className={cn(
-                            "rounded-lg px-3 py-3.5 hover:bg-brand-surface",
-                            isActive(link.href) && "text-brand-green"
-                          )}
-                        />
-                      }
+                <MotionConfig reducedMotion="user">
+                  <LazyMotion features={domAnimation} strict>
+                    <nav
+                      aria-label={aria.mobileNav}
+                      className="flex flex-1 flex-col overflow-y-auto px-5 py-2 text-xl font-black"
                     >
-                      {link.label}
-                    </SheetClose>
-                  ))}
-                </nav>
-                <div className="border-t border-brand-line p-5">
+                      {links.map((link, index) => (
+                        <m.div
+                          key={link.href}
+                          initial={{ opacity: 0, x: 18 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{
+                            duration: 0.4,
+                            ease: [0.22, 1, 0.36, 1],
+                            delay: 0.12 + index * 0.05,
+                          }}
+                        >
+                          <SheetClose
+                            nativeButton={false}
+                            render={
+                              <Link
+                                href={link.href}
+                                aria-current={
+                                  isActive(link.href) ? "page" : undefined
+                                }
+                                className={cn(
+                                  "flex items-center gap-2.5 border-b border-brand-line py-[18px] hover:text-brand-green",
+                                  isActive(link.href) && "text-brand-green"
+                                )}
+                              />
+                            }
+                          >
+                            <span className="flex-1">{link.label}</span>
+                            {link.href.startsWith("/careers") ? (
+                              <span className="rounded-full bg-brand-mint px-2.5 py-1 text-xs font-bold text-brand-green-dark">
+                                We&apos;re hiring
+                              </span>
+                            ) : null}
+                            <ChevronRight
+                              aria-hidden
+                              className="size-5 shrink-0 text-brand-ink"
+                            />
+                          </SheetClose>
+                        </m.div>
+                      ))}
+                    </nav>
+                  </LazyMotion>
+                </MotionConfig>
+                <div className="flex flex-col gap-3 bg-brand-surface px-5 pt-5 pb-8">
+                  <a
+                    href={topBar.phone24hHref}
+                    className={buttonClassName(
+                      { variant: "brand", size: "pill" },
+                      "h-[52px] w-full gap-2 py-0"
+                    )}
+                  >
+                    <Phone aria-hidden className="size-5" />
+                    {`Call 24/7: ${topBar.phone24h}`}
+                  </a>
                   <SheetClose
                     nativeButton={false}
                     render={
                       <Link
                         href={cta.href}
                         className={buttonClassName(
-                          { variant: "brand", size: "pill" },
-                          "w-full"
+                          { variant: "brand-outline-blue", size: "pill" },
+                          "h-[52px] w-full gap-2 bg-white py-0 hover:bg-brand-blue"
                         )}
                       />
                     }
                   >
+                    <FileText aria-hidden className="size-5" />
                     {cta.label}
                   </SheetClose>
+                  <div className="flex flex-col gap-2 pt-1.5 text-[13px] font-medium text-brand-ink">
+                    <a
+                      href={`mailto:${topBar.email}`}
+                      className="flex items-center gap-2"
+                    >
+                      <Mail aria-hidden className="size-4 text-brand-blue" />
+                      {topBar.email}
+                    </a>
+                    <p className="flex items-center gap-2">
+                      <Clock aria-hidden className="size-4 text-brand-blue" />
+                      {`${topBar.hoursLabel} ${topBar.hours}`}
+                    </p>
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>

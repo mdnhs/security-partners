@@ -31,7 +31,7 @@ export function PageHero({
   return (
     <section
       data-hero
-      className="relative overflow-hidden px-6 pt-20 pb-24 md:px-10 lg:pt-28 lg:pb-30"
+      className="relative overflow-hidden px-5 pt-8 pb-9 md:px-10 md:pt-20 md:pb-24 lg:pt-28 lg:pb-30"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div data-hero-media className="absolute inset-0 will-change-transform">
@@ -44,13 +44,16 @@ export function PageHero({
             className="object-cover"
           />
         </div>
-        <div className="absolute inset-0 bg-linear-to-r from-[rgba(13,27,54,0.92)] via-[rgba(13,27,54,0.6)] via-55% to-[rgba(13,27,54,0.1)] max-lg:to-[rgba(13,27,54,0.6)]" />
+        <div className="absolute inset-0 bg-linear-to-r from-[rgba(13,27,54,0.92)] via-[rgba(13,27,54,0.6)] via-55% to-[rgba(13,27,54,0.1)] max-lg:to-[rgba(13,27,54,0.6)] max-md:bg-linear-to-b max-md:from-[rgba(13,27,54,0.55)] max-md:via-[rgba(13,27,54,0.55)] max-md:to-[rgba(13,27,54,0.94)]" />
       </div>
 
       <Container className="relative">
-        <div data-hero-content className="flex flex-col items-start gap-[22px]">
+        <div
+          data-hero-content
+          className="flex flex-col items-start gap-3.5 md:gap-[22px]"
+        >
           <nav data-hero-item aria-label={ariaLabel}>
-            <ol className="flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[13px] leading-[normal] font-bold">
+            <ol className="flex items-center gap-2.5 rounded-full bg-white/14 px-3 py-1.5 text-xs leading-[normal] font-bold md:border md:border-white/20 md:bg-white/10 md:px-4 md:py-2 md:text-[13px]">
               <li>
                 <Link href="/" className="text-white/85 hover:text-white">
                   {homeLabel}
@@ -74,7 +77,10 @@ export function PageHero({
               <li aria-hidden className="text-white/50">
                 /
               </li>
-              <li aria-current="page" className="text-brand-green">
+              <li
+                aria-current="page"
+                className="text-white md:text-brand-green"
+              >
                 {crumb}
               </li>
             </ol>
@@ -82,7 +88,7 @@ export function PageHero({
 
           <h1
             data-hero-title
-            className="max-w-[820px] text-5xl leading-[1.1] font-black tracking-[-0.01em] text-white md:text-[64px]"
+            className="max-w-[820px] text-[34px] leading-10 font-black tracking-[-0.01em] text-white md:text-5xl md:text-[64px] md:leading-[1.1]"
           >
             {title}
           </h1>
@@ -90,7 +96,7 @@ export function PageHero({
             <p
               data-hero-item
               className={cn(
-                "text-lg leading-[1.6] text-white/85 md:text-[19px]",
+                "text-base leading-6 text-white/85 md:text-[19px] md:leading-[1.6]",
                 wideDescription ? "max-w-[760px]" : "max-w-[640px]"
               )}
             >

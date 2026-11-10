@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -105,9 +105,12 @@ describe("Clients carousel", () => {
   it("is a labelled carousel with every client announced once", () => {
     view()
     expect(strip()).toHaveAttribute("aria-roledescription", "carousel")
-    // The looping copy is hidden from assistive tech and keyboard.
+    // The looping copy is hidden from assistive tech and keyboard. (Phones
+    // get a separate static grid instead of the strip: CSS shows one of the two.)
     for (const logo of clients)
-      expect(screen.getAllByRole("img", { name: logo.name })).toHaveLength(1)
+      expect(
+        within(strip()).getAllByRole("img", { name: logo.name })
+      ).toHaveLength(1)
     const copies = strip().querySelectorAll("ul")
     expect(copies.length).toBeGreaterThanOrEqual(2)
     for (const copy of [...copies].slice(1)) {

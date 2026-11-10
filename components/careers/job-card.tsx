@@ -75,7 +75,7 @@ export function JobMeta({
   return (
     <ul
       className={cn(
-        "flex flex-wrap gap-x-6 gap-y-2 text-[15px] leading-normal",
+        "flex flex-col gap-2 text-sm leading-5 md:flex-row md:flex-wrap md:gap-x-6 md:text-[15px] md:leading-normal",
         muted ? "text-brand-muted" : "text-brand-ink",
         className
       )}
@@ -87,7 +87,7 @@ export function JobMeta({
             <Icon
               aria-hidden
               className={cn(
-                "size-[18px] shrink-0",
+                "size-4 shrink-0 md:size-[18px]",
                 muted ? "text-brand-muted" : "text-brand-green"
               )}
             />
@@ -109,11 +109,11 @@ export function JobCard({
   return (
     <li
       data-card="light"
-      className="group relative flex flex-col gap-5 rounded-[20px] border border-brand-line bg-white px-6 py-6 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1 md:flex-row md:items-center md:justify-between md:px-7"
+      className="group relative flex flex-col gap-3.5 rounded-[20px] border border-brand-line bg-white p-5 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1 md:flex-row md:items-center md:justify-between md:gap-5 md:px-7 md:py-6"
     >
-      <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3.5 md:gap-3">
         <JobTags category={job.category} tag={job.tag} />
-        <h3 className="text-[22px] leading-[1.25] font-black text-brand-navy">
+        <h3 className="text-[19px] leading-6 font-black text-brand-navy md:text-[22px] md:leading-[1.25]">
           <Link
             href={job.href}
             className="outline-none after:absolute after:inset-0 focus-visible:underline"
@@ -123,15 +123,17 @@ export function JobCard({
         </h3>
         <JobMeta job={job} />
       </div>
-      <div className="relative z-10 flex flex-col gap-3 md:items-end">
-        <p className="text-sm text-brand-muted">{job.posted}</p>
+      <div className="relative z-10 flex items-center justify-between gap-2 border-t border-brand-line pt-3.5 md:flex-col md:items-end md:gap-3 md:border-0 md:pt-0">
+        <p className="text-[13px] font-medium text-brand-muted md:text-sm md:font-normal">
+          {job.posted}
+        </p>
         <Link
           href={job.href}
           tabIndex={-1}
           aria-hidden
           className={buttonClassName(
             { variant: "brand", size: "pill-sm" },
-            "gap-2 max-md:w-full"
+            "gap-1.5 max-md:bg-transparent max-md:p-0 max-md:text-sm max-md:text-brand-blue max-md:hover:bg-transparent md:gap-2"
           )}
         >
           {viewJobLabel}
@@ -145,17 +147,17 @@ export function JobCard({
 /** A closed or filled role (Previous Openings, 548:558). */
 export function ClosedJobCard({ job }: { job: JobCardView }) {
   return (
-    <li className="flex flex-col gap-5 rounded-[20px] border border-brand-line bg-brand-surface px-6 py-6 md:flex-row md:items-center md:justify-between md:px-7">
-      <div className="flex min-w-0 flex-col gap-3">
+    <li className="flex flex-col gap-3.5 rounded-[20px] border border-brand-line bg-brand-surface p-5 md:flex-row md:items-center md:justify-between md:gap-5 md:px-7 md:py-6">
+      <div className="flex min-w-0 flex-col gap-3.5 md:gap-3">
         <JobTags category={job.category} tag={job.tag} />
-        <h3 className="text-[20px] leading-[1.25] font-black text-brand-ink">
+        <h3 className="text-[19px] leading-6 font-black text-brand-ink md:text-[20px] md:leading-[1.25]">
           {job.title}
         </h3>
         <JobMeta job={job} muted />
       </div>
-      <div className="flex flex-col gap-3 md:items-end">
-        <p className="text-sm text-brand-ink">{job.closedOn}</p>
-        <span className="inline-flex items-center justify-center gap-2 rounded-full border border-brand-line bg-white px-5 py-2.5 text-sm font-bold text-brand-muted max-md:w-full">
+      <div className="flex items-center justify-between gap-2 border-t border-brand-line pt-3.5 md:flex-col md:items-end md:gap-3 md:border-0 md:pt-0">
+        <p className="text-[13px] text-brand-ink md:text-sm">{job.closedOn}</p>
+        <span className="inline-flex items-center justify-center gap-2 rounded-full border border-brand-line bg-white px-4 py-2 text-sm font-bold text-brand-muted md:px-5 md:py-2.5">
           <Lock aria-hidden className="size-4" />
           {job.filledLabel}
         </span>
