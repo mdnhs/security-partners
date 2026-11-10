@@ -229,3 +229,26 @@
     inset: -11px -6px;
   }
 }
+
+/* Phone-only application flow (careers apply): the form is a focused wizard
+   with its own header and action bar, so the site chrome steps aside. The
+   attribute is set by the form: "wizard" while filling, "done" once sent. */
+@media (max-width: 767.98px) {
+  html[data-apply-flow] [data-site-cta] {
+    display: none;
+  }
+  html[data-apply-flow="wizard"] :is([data-site-topbar], [data-site-header], [data-site-footer]) {
+    display: none;
+  }
+}
+
+/* Press feedback for the pill buttons and links on pages (not the frozen
+   consent banner): they sink slightly under the finger. */
+@media (prefers-reduced-motion: no-preference) {
+  main :is(a, button)[class*="rounded-full"] {
+    transition: scale 0.15s ease-out;
+  }
+  main :is(a, button)[class*="rounded-full"]:active {
+    scale: 0.97;
+  }
+}

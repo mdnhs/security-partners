@@ -1,3 +1,4 @@
+import { FileText, Phone } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -33,9 +34,9 @@ export function Services({
   return (
     <section
       id="services"
-      className="scroll-mt-28 bg-white px-6 py-20 md:px-10 lg:py-28"
+      className="scroll-mt-28 bg-white px-5 py-14 md:px-10 md:py-20 lg:py-28"
     >
-      <Container className="flex flex-col items-center gap-14">
+      <Container className="flex flex-col items-center gap-7 md:gap-14">
         <SectionHeading
           eyebrow={eyebrow}
           title={title}
@@ -44,12 +45,18 @@ export function Services({
 
         <ul
           data-stagger
-          className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid w-full grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3"
         >
           {services.map((service) => (
             <ServiceCard key={service.slug} service={service} labels={labels} />
           ))}
         </ul>
+        <Link
+          href="/services"
+          className="flex h-[52px] w-full items-center justify-center rounded-full border-[1.5px] border-brand-blue bg-white px-6 text-base font-bold text-brand-blue md:hidden"
+        >
+          View All Services
+        </Link>
       </Container>
     </section>
   )
@@ -65,7 +72,7 @@ export function ServiceCard({
   return (
     <li
       data-service-card
-      className="group relative isolate flex flex-col items-start gap-4 rounded-3xl border border-brand-line bg-white px-8 py-9 shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1"
+      className="group relative isolate flex flex-col items-start gap-3 rounded-[20px] border border-brand-line bg-white px-4 pt-4 pb-[18px] shadow-[0px_10px_30px_0px_rgba(13,26,51,0.06)] transition-[translate,box-shadow,border-color] duration-300 ease-out hover:border-brand-blue/40 hover:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] has-[a:focus-visible]:border-brand-blue/40 has-[a:focus-visible]:shadow-[0px_18px_40px_0px_rgba(13,26,51,0.12)] motion-safe:hover:-translate-y-1 max-sm:justify-between sm:gap-4 sm:rounded-3xl sm:px-8 sm:py-9"
     >
       <div
         aria-hidden
@@ -74,9 +81,9 @@ export function ServiceCard({
       />
       <div
         data-service-icon
-        className="flex size-[88px] items-center justify-center overflow-hidden rounded-[20px] bg-brand-mint"
+        className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-brand-mint sm:size-[88px] sm:rounded-[20px]"
       >
-        <div className="relative size-[120px] shrink-0">
+        <div className="relative size-[76px] shrink-0 sm:size-[120px]">
           <Image
             src={service.icon}
             alt=""
@@ -86,15 +93,15 @@ export function ServiceCard({
           />
         </div>
       </div>
-      <h3 className="text-[22px] leading-[normal] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-green group-hover:to-brand-blue group-hover:bg-clip-text group-hover:text-transparent group-has-[a:focus-visible]:bg-linear-to-r group-has-[a:focus-visible]:from-brand-green group-has-[a:focus-visible]:to-brand-blue group-has-[a:focus-visible]:bg-clip-text group-has-[a:focus-visible]:text-transparent">
+      <h3 className="text-base leading-[21px] font-black text-brand-navy group-hover:bg-linear-to-r group-hover:from-brand-green group-hover:to-brand-blue group-hover:bg-clip-text group-hover:text-transparent group-has-[a:focus-visible]:bg-linear-to-r group-has-[a:focus-visible]:from-brand-green group-has-[a:focus-visible]:to-brand-blue group-has-[a:focus-visible]:bg-clip-text group-has-[a:focus-visible]:text-transparent max-sm:min-h-[42px] sm:text-[22px] sm:leading-[normal]">
         {service.title}
       </h3>
-      <p className="text-base leading-[1.6] text-brand-ink">
+      <p className="text-[13px] leading-[19px] text-brand-ink sm:text-base sm:leading-[1.6]">
         {service.description}
       </p>
       <Link
         href={`/services/${service.slug}`}
-        className="flex items-center gap-2 text-[15px] leading-[normal] font-bold text-brand-blue group-hover:underline"
+        className="flex items-center gap-1.5 text-sm leading-[normal] font-bold text-brand-blue group-hover:underline max-sm:pt-3.5 sm:gap-2 sm:text-[15px]"
         aria-label={interpolate(labels.ariaReadMore, { title: service.title })}
       >
         {`${labels.readMore} `}
@@ -130,12 +137,12 @@ export function EnquireBanner({
   secondaryCta,
 }: EnquireBannerProps) {
   return (
-    <section className="bg-white px-6 py-20 md:px-10 lg:py-28">
+    <section className="bg-white px-5 pb-14 md:px-10 md:py-20 lg:py-28">
       <div data-banner-stage>
         <Container>
           <div
             data-banner
-            className="relative flex flex-col items-center gap-6 overflow-hidden rounded-[32px] px-6 py-16 text-center md:p-20"
+            className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl px-6 py-8 text-left md:items-center md:gap-6 md:rounded-[32px] md:p-20 md:text-center"
           >
             <div aria-hidden className="pointer-events-none absolute inset-0">
               <div
@@ -160,28 +167,29 @@ export function EnquireBanner({
             </Eyebrow>
             <h2
               data-banner-lines
-              className="relative text-4xl font-black tracking-[-0.01em] text-white md:text-5xl"
+              className="relative text-[28px] leading-[34px] font-black tracking-[-0.01em] text-white sm:text-4xl md:text-5xl md:leading-[1.15]"
             >
               {heading}
             </h2>
             <p
               data-banner-lines
-              className="relative max-w-[620px] text-lg leading-[1.6] text-white/85"
+              className="relative max-w-[620px] text-base leading-6 text-white/85 md:text-lg md:leading-[1.6]"
             >
               {copy}
             </p>
             <div
               data-banner-item
-              className="relative flex flex-wrap justify-center gap-4 pt-2"
+              className="relative flex w-full flex-col gap-3 pt-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4"
             >
               <Link
                 href={cta.href}
                 data-banner-button
                 className={buttonClassName(
                   { variant: "brand", size: "pill" },
-                  "max-sm:w-full"
+                  "max-sm:h-[52px] max-sm:w-full max-sm:gap-2 max-sm:py-0"
                 )}
               >
+                <BannerIcon href={cta.href} />
                 {cta.label}
               </Link>
               <a
@@ -189,9 +197,10 @@ export function EnquireBanner({
                 data-banner-button
                 className={buttonClassName(
                   { variant: "brand-outline", size: "pill" },
-                  "max-sm:w-full"
+                  "max-sm:h-[52px] max-sm:w-full max-sm:gap-2 max-sm:border-white/45 max-sm:bg-white/8 max-sm:py-0"
                 )}
               >
+                <BannerIcon href={secondaryCta.href} />
                 {secondaryCta.label}
               </a>
             </div>
@@ -200,4 +209,9 @@ export function EnquireBanner({
       </div>
     </section>
   )
+}
+
+function BannerIcon({ href }: { href: string }) {
+  const Icon = href.startsWith("tel:") ? Phone : FileText
+  return <Icon aria-hidden className="size-5 sm:hidden" />
 }

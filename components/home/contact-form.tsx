@@ -1,5 +1,6 @@
 "use client"
 
+import { Send } from "lucide-react"
 import { useRef, useState } from "react"
 
 import { buttonClassName } from "@/components/ui/button"
@@ -15,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { useTurnstile } from "./use-turnstile"
 
 const inputClass =
-  "w-full rounded-xl border border-brand-line bg-brand-surface px-[18px] text-[15px] text-brand-navy outline-none placeholder:text-brand-placeholder focus-visible:border-brand-blue focus-visible:ring-3 focus-visible:ring-brand-blue/20"
+  "w-full rounded-xl border border-brand-line bg-brand-surface px-4 text-base md:px-[18px] md:text-[15px] text-brand-navy outline-none placeholder:text-brand-placeholder focus-visible:border-brand-blue focus-visible:ring-3 focus-visible:ring-brand-blue/20"
 
 function Field({
   label,
@@ -135,7 +136,7 @@ export function ContactForm({ labels }: ContactFormProps) {
     <form
       onSubmit={handleSubmit}
       onFocus={() => void turnstile.prepare()}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-4 md:gap-5"
     >
       <div className="flex flex-col gap-4 sm:flex-row">
         <Field label={labels.nameLabel} htmlFor="name" className="flex-1">
@@ -145,7 +146,7 @@ export function ContactForm({ labels }: ContactFormProps) {
             required
             autoComplete="name"
             placeholder={labels.namePlaceholder}
-            className={cn(inputClass, "h-[54px]")}
+            className={cn(inputClass, "h-[52px] md:h-[54px]")}
           />
         </Field>
         <Field label={labels.emailLabel} htmlFor="email" className="flex-1">
@@ -156,7 +157,7 @@ export function ContactForm({ labels }: ContactFormProps) {
             required
             autoComplete="email"
             placeholder={labels.emailPlaceholder}
-            className={cn(inputClass, "h-[54px]")}
+            className={cn(inputClass, "h-[52px] md:h-[54px]")}
           />
         </Field>
       </div>
@@ -167,7 +168,7 @@ export function ContactForm({ labels }: ContactFormProps) {
           type="tel"
           autoComplete="tel"
           placeholder={labels.phonePlaceholder}
-          className={cn(inputClass, "h-[54px]")}
+          className={cn(inputClass, "h-[52px] md:h-[54px]")}
         />
       </Field>
       <Field label={labels.messageLabel} htmlFor="message">
@@ -176,7 +177,10 @@ export function ContactForm({ labels }: ContactFormProps) {
           name="message"
           required
           placeholder={labels.messagePlaceholder}
-          className={cn(inputClass, "h-[130px] resize-y pt-4")}
+          className={cn(
+            inputClass,
+            "h-[128px] resize-y pt-3.5 md:h-[130px] md:pt-4"
+          )}
         />
       </Field>
       <button
@@ -184,9 +188,10 @@ export function ContactForm({ labels }: ContactFormProps) {
         disabled={sending}
         className={buttonClassName(
           { variant: "brand", size: "pill" },
-          "w-full"
+          "h-[52px] w-full gap-2 py-0 md:h-auto md:py-4"
         )}
       >
+        <Send aria-hidden className="size-5 md:hidden" />
         {sending ? labels.sendingLabel : labels.submitLabel}
       </button>
       {/* Honeypot: invisible to people and assistive tech, filled by bots. */}

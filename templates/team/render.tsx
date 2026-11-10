@@ -12,7 +12,7 @@ export function TeamTemplate({ view }: { view: TeamView }) {
     <>
       <main>
         <PageHero {...view.hero} />
-        <Team {...view.team} />
+        <Team {...view.team} stack />
         <IconCards {...view.officers} />
         <EnquireBanner {...view.enquireBanner} />
       </main>

@@ -14,11 +14,13 @@ export function ApplyTemplate({ view }: { view: ApplyView }) {
   return (
     <>
       <main>
-        <PageHero {...view.hero} />
-        <section className="bg-brand-surface px-4 py-16 sm:px-6 md:px-10 lg:py-28">
+        <div className="max-md:hidden">
+          <PageHero {...view.hero} />
+        </div>
+        <section className="bg-white md:bg-brand-surface md:px-10 md:py-16 lg:py-28">
           <Container className="grid gap-8 lg:grid-cols-[minmax(0,776px)_384px] lg:justify-between lg:gap-10">
-            <div className="flex min-w-0 flex-col gap-9 rounded-3xl border border-brand-line bg-white p-5 shadow-[0px_12px_30px_0px_rgba(13,26,51,0.06)] sm:p-8 lg:p-12">
-              <div className="flex flex-col gap-2.5">
+            <div className="flex min-w-0 flex-col md:gap-9 md:rounded-3xl md:border md:border-brand-line md:bg-white md:p-8 md:shadow-[0px_12px_30px_0px_rgba(13,26,51,0.06)] lg:p-12">
+              <div className="flex flex-col gap-2.5 max-md:hidden">
                 <Link
                   href={view.backHref}
                   className="inline-flex min-h-11 items-center gap-2 self-start text-sm font-bold text-brand-green-dark hover:underline"
@@ -36,7 +38,7 @@ export function ApplyTemplate({ view }: { view: ApplyView }) {
               {view.closedNotice ? (
                 <p
                   role="status"
-                  className="flex items-start gap-3 rounded-2xl border border-brand-line bg-brand-surface px-5 py-4 text-base leading-normal text-brand-ink"
+                  className="m-5 flex items-start gap-3 rounded-2xl border border-brand-line bg-brand-surface px-5 py-4 text-base leading-normal text-brand-ink md:m-0"
                 >
                   <Info
                     aria-hidden
@@ -49,10 +51,14 @@ export function ApplyTemplate({ view }: { view: ApplyView }) {
                   copy={view.copy}
                   jobSlug={view.jobSlug}
                   messages={view.messages}
+                  backHref={view.backHref}
+                  sidebar={view.sidebar}
                 />
               )}
             </div>
-            <ApplySidebar view={view.sidebar} jobHref={view.backHref} />
+            <div className="max-md:hidden lg:contents">
+              <ApplySidebar view={view.sidebar} jobHref={view.backHref} />
+            </div>
           </Container>
         </section>
       </main>

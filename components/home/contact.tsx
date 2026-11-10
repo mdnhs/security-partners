@@ -1,3 +1,4 @@
+import { Mail, Navigation, Phone } from "lucide-react"
 import Image from "next/image"
 
 import {
@@ -29,35 +30,38 @@ export function Contact({
   return (
     <section
       id="contact"
-      className="scroll-mt-28 bg-white px-6 py-20 md:px-10 lg:py-28"
+      className="scroll-mt-28 bg-white px-5 py-14 md:px-10 md:py-20 lg:py-28"
     >
-      <Container className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
+      <Container className="flex flex-col gap-5 md:gap-8 lg:flex-row lg:items-stretch">
         <div
           data-reveal
-          className="flex flex-1 flex-col gap-5 rounded-[28px] border border-brand-line bg-white p-6 shadow-[0px_16px_40px_0px_rgba(13,26,51,0.08)] md:p-12"
+          className="flex flex-1 flex-col gap-5 md:rounded-[28px] md:border md:border-brand-line md:bg-white md:p-12 md:shadow-[0px_16px_40px_0px_rgba(13,26,51,0.08)]"
         >
           <SectionHeading
             align="start"
             eyebrow={eyebrow}
             title={heading}
-            className="[&_h2]:text-[36px] [&_p:last-child]:text-base"
+            className="md:[&_h2]:text-[36px] [&_p:last-child]:text-base"
             description={intro}
           />
-          <ContactForm {...form} />
+          <QuickActions infoItems={infoItems} />
+          <div className="rounded-[20px] border border-brand-line p-5 md:rounded-none md:border-0 md:p-0">
+            <ContactForm {...form} />
+          </div>
         </div>
 
         <ul
           data-reveal
           data-contact-info
-          className="flex shrink-0 flex-col gap-7 rounded-[28px] bg-brand-blue px-10 py-12 lg:w-[440px]"
+          className="flex shrink-0 flex-col gap-5 rounded-[20px] bg-brand-blue p-6 md:gap-7 md:rounded-[28px] md:px-10 md:py-12 lg:w-[440px]"
         >
           {infoItems.map((item) => (
-            <li key={item.title} className="flex items-start gap-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-brand-green">
+            <li key={item.title} className="flex items-start gap-3.5 md:gap-4">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-green md:size-12 md:rounded-[14px]">
                 <Image src={item.icon} alt="" width={22} height={22} />
               </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-[17px] leading-[normal] font-black text-white">
+              <div className="flex min-w-0 flex-1 flex-col gap-[3px] md:gap-1">
+                <p className="text-base leading-[21px] font-black text-white md:text-[17px] md:leading-[normal]">
                   {item.title}
                 </p>
                 {item.lines.map((line) =>
@@ -65,14 +69,14 @@ export function Contact({
                     <a
                       key={line.text}
                       href={line.href}
-                      className="text-[15px] leading-normal break-words text-white/85 hover:text-white hover:underline"
+                      className="text-sm leading-[21px] break-words text-white/85 hover:text-white hover:underline md:text-[15px] md:leading-normal"
                     >
                       {line.text}
                     </a>
                   ) : (
                     <p
                       key={line.text}
-                      className="text-[15px] leading-normal text-white/85"
+                      className="text-sm leading-[21px] text-white/85 md:text-[15px] md:leading-normal"
                     >
                       {line.text}
                     </p>
@@ -84,6 +88,40 @@ export function Contact({
         </ul>
       </Container>
     </section>
+  )
+}
+
+/** Phone-only shortcuts above the form: call, email, directions. */
+function QuickActions({ infoItems }: { infoItems: ContactProps["infoItems"] }) {
+  const hrefs = infoItems.flatMap((item) => item.lines.map((l) => l.href ?? ""))
+  const tel = hrefs.find((h) => h.startsWith("tel:"))
+  const mail = hrefs.find((h) => h.startsWith("mailto:"))
+  const actions = [
+    { Icon: Phone, label: "Call 24/7", sub: "Any time", href: tel },
+    { Icon: Mail, label: "Email Us", sub: "Reply in 1 day", href: mail },
+    {
+      Icon: Navigation,
+      label: "Directions",
+      sub: "Mountmellick",
+      href: "https://www.google.com/maps/search/?api=1&query=Security+Partners+Ltd+Mountmellick",
+    },
+  ].filter((a) => a.href)
+  return (
+    <div className="flex gap-2.5 md:hidden">
+      {actions.map(({ Icon, label, sub, href }) => (
+        <a
+          key={label}
+          href={href}
+          className="flex min-w-0 flex-1 flex-col items-center gap-2 rounded-2xl border border-brand-line bg-brand-surface px-1.5 py-3.5 text-center"
+        >
+          <span className="flex size-10 items-center justify-center rounded-full bg-brand-green text-white">
+            <Icon aria-hidden className="size-[18px]" />
+          </span>
+          <span className="text-[13px] font-bold text-brand-navy">{label}</span>
+          <span className="text-xs text-brand-muted">{sub}</span>
+        </a>
+      ))}
+    </div>
   )
 }
 
@@ -115,7 +153,7 @@ export function LocationMap({
       rel="noopener noreferrer"
       aria-label={ariaLabel}
       data-map
-      className="relative block h-[480px] overflow-hidden bg-brand-map"
+      className="relative block h-[300px] overflow-hidden bg-brand-map md:h-[480px]"
     >
       <div className="absolute top-[calc(50%+5px)] left-[calc(50%+8.5px)] h-[512px] w-[2304px] -translate-x-1/2 -translate-y-1/2">
         <div

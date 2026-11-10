@@ -35,14 +35,14 @@ export default function SiteError({
           homeLabel="Home"
           ariaLabel="Breadcrumb"
         />
-        <section className="bg-white px-6 py-20 md:px-10">
+        <section className="bg-white px-5 py-14 md:px-10 md:py-20">
           <Container className="flex justify-center">
             <button
               type="button"
               onClick={() => retry()}
               className={buttonClassName(
                 { variant: "brand", size: "pill" },
-                "max-sm:w-full"
+                "max-sm:h-[52px] max-sm:w-full max-sm:py-0"
               )}
             >
               Try again

@@ -12,6 +12,20 @@ import { ApplicationForm } from "@/components/careers/apply/application-form"
 import { fixtureSiteSources } from "@/server/db/seed/fixtures/sources"
 
 const copy = fixtureSiteSources().pages.careers.data.apply
+const sidebar = {
+  applyingFor: copy.sidebar.applyingFor,
+  jobTitle: "Static Security Officer",
+  meta: null,
+  viewJob: "View job",
+  nextHeading: copy.sidebar.nextHeading,
+  nextSteps: [],
+  dataHeading: copy.sidebar.dataHeading,
+  dataCopy: copy.sidebar.dataCopy,
+  helpHeading: copy.sidebar.helpHeading,
+  phone: "085 000 0000",
+  phoneHref: "tel:0850000000",
+  email: "hr@example.ie",
+}
 const messages = {
   errorMessage: "Sorry, it could not be sent.",
   rateLimitedMessage: "Please wait a few minutes.",
@@ -44,7 +58,13 @@ const posts = () =>
 function setup() {
   const user = userEvent.setup()
   render(
-    <ApplicationForm copy={copy} jobSlug="static-officer" messages={messages} />
+    <ApplicationForm
+      copy={copy}
+      jobSlug="static-officer"
+      messages={messages}
+      backHref="/careers"
+      sidebar={sidebar}
+    />
   )
   return user
 }
