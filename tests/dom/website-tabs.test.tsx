@@ -44,24 +44,13 @@ afterEach(() => {
 })
 
 describe("WebsiteTabs", () => {
-  it("lists Header & footer's parts, the current one marked", () => {
-    renderAt(
-      "/admin/website/header-footer/footer",
+  it("renders nothing on Header & footer (its tabs are inside its form)", () => {
+    const { container } = renderAt(
+      "/admin/website/header-footer",
       ["owner"],
       <WebsiteTabs screen="header-footer" />
     )
-    const nav = screen.getByRole("navigation", {
-      name: "Header & footer sections",
-    })
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .map((l) => l.textContent)
-    ).toEqual(["Header menu", "Footer", "Forms & microcopy", "Group companies"])
-    expect(within(nav).getByRole("link", { name: "Footer" })).toHaveAttribute(
-      "aria-current",
-      "page"
-    )
+    expect(container.querySelector("nav")).toBeNull()
   })
 
   it("renders nothing on a page whose sections sit in its form (Home)", () => {

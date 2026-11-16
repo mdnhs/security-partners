@@ -3,6 +3,7 @@ import { forbidden, notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { PageEditor } from "@/components/admin/pages/page-editor"
+import { HeaderFooterEditor } from "@/components/admin/website/header-footer-editor"
 import { isWebsiteKey, WEBSITE_SCREENS, websiteTabs } from "@/lib/admin/website"
 import { requirePage } from "@/server/auth/session"
 import { getSiteOrigin } from "@/server/modules/seo/queries"
@@ -35,6 +36,8 @@ async function Screen({
   const actor = await requirePage(`/admin/website/${key}`)
   const screen = WEBSITE_SCREENS.find((s) => s.key === key)
   if (!isWebsiteKey(key) || !screen || screen.kind !== "tabs") notFound()
+  // Header & footer is one form with its own tabs (settings:read, checked above).
+  if (screen.key === "header-footer") return <HeaderFooterEditor />
   const tabs = websiteTabs(screen.key, actor.roles)
   if (tabs.length === 0) forbidden()
   // No Page (Header & footer, or an author on Blog): open the first part,

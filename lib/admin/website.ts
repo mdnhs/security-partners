@@ -255,6 +255,8 @@ export const PART_ANCHORS: Partial<
  * their own URLs (/admin/insights…).
  */
 function inPageForm(part: WebsitePart): boolean {
+  // Header & footer is one form (tabs inside it), with the group companies.
+  if (part.screen === "header-footer") return part.source.kind !== "route"
   const page = websiteScreen(part.screen).page
   if (!page) return false
   if (part.source.kind === "settings") {
@@ -297,9 +299,14 @@ export function websitePart(
 }
 
 export function partHref(part: WebsitePart): string {
-  return part.source.kind === "route"
-    ? part.source.href
-    : `${websiteHref(part.screen)}/${part.id}`
+  if (part.source.kind === "route") return part.source.href
+  // Parts of the Header & footer form are its tabs (?tab=<form group>); the
+  // group companies sit on the Footer tab.
+  if (part.screen === "header-footer")
+    return `${websiteHref(part.screen)}?tab=${
+      part.source.kind === "settings" ? part.source.key : "footer"
+    }`
+  return `${websiteHref(part.screen)}/${part.id}`
 }
 
 const toTab = (part: WebsitePart): WebsiteTab => ({
@@ -366,5 +373,6 @@ export function withSearch(
       params.append(name, item)
   }
   const query = params.toString()
-  return query ? `${href}?${query}` : href
+  if (!query) return href
+  return `${href}${href.includes("?") ? "&" : "?"}${query}`
 }

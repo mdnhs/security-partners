@@ -248,7 +248,7 @@ describe("registry items (ported from the JW nav tests)", () => {
     })
     expect(owner.find((l) => l.label === "Footer")).toMatchObject({
       parent: "Header & footer",
-      href: "/admin/website/header-footer/footer",
+      href: "/admin/website/header-footer?tab=footer",
     })
     expect(owner.find((l) => l.label === "All services")).toMatchObject({
       parent: "Services",

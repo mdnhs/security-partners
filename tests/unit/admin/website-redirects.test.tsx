@@ -174,7 +174,7 @@ describe("old Collections URLs", () => {
   it("/admin/collections/group-companies → Header & footer", async () => {
     await expect(
       inner(CollectionPage(props({ name: "group-companies" })))
-    ).rejects.toThrow("REDIRECT /admin/website/header-footer/group-companies")
+    ).rejects.toThrow("REDIRECT /admin/website/header-footer?tab=footer")
   })
 
   it("/admin/collections/categories → /admin/insights/categories", async () => {
@@ -199,10 +199,10 @@ describe("old Collections URLs", () => {
 })
 
 describe("old Settings URLs", () => {
-  it("/admin/settings/footer?x=1 → /admin/website/header-footer/footer?x=1", async () => {
+  it("/admin/settings/footer?x=1 → /admin/website/header-footer?tab=footer&x=1", async () => {
     await expect(
       inner(SettingsKeyPage(props({ key: "footer" }, { x: "1" })))
-    ).rejects.toThrow("REDIRECT /admin/website/header-footer/footer?x=1")
+    ).rejects.toThrow("REDIRECT /admin/website/header-footer?tab=footer&x=1")
     expect(session.requirePage).toHaveBeenCalledWith("/admin/settings")
     expect(session.requirePermission).toHaveBeenCalledWith(
       SETTINGS_ENTRIES.footer.read

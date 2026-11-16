@@ -153,10 +153,8 @@ describe("/admin/website/[key]", () => {
     await expect(screenPage("privacy")).rejects.toThrow("NOT_FOUND")
   })
 
-  it("opens Header & footer on its first part (no Page tab)", async () => {
-    await expect(screenPage("header-footer")).rejects.toThrow(
-      "REDIRECT /admin/website/header-footer/navigation"
-    )
+  it("renders Header & footer as one form (its tabs are inside it)", async () => {
+    await expect(screenPage("header-footer")).resolves.toBeTruthy()
   })
 
   it("is forbidden for a role that may read none of the screen", async () => {
