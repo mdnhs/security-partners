@@ -155,7 +155,7 @@ describe("SectionTabs (in-page)", () => {
     expect(list).not.toHaveClass("flex-col")
   })
 
-  it("nested tabs switch to a column only from xl and report nesting", () => {
+  it("nested tabs stay a row at every width and report nesting", () => {
     const probe = vi.fn()
     function Probe() {
       probe(useInSectionTabs())
@@ -175,8 +175,8 @@ describe("SectionTabs (in-page)", () => {
     )
     expect(probe).toHaveBeenLastCalledWith(true)
     const list = screen.getByRole("tablist", { name: "Inner" })
-    expect(list).toHaveClass("xl:flex-col")
-    expect(list).not.toHaveClass("lg:flex-col")
+    expect(list.className).not.toMatch(/flex-col/)
+    expect(list).toHaveClass("overflow-x-auto")
   })
 })
 
@@ -241,11 +241,15 @@ describe("SectionTabs (JW look)", () => {
         <SectionTabsPanel id="security">Security body</SectionTabsPanel>
       </SectionTabs>
     )
+    // The accent fill is the sliding pill inside the active tab.
     const active = screen.getByRole("tab", { name: "Security" })
-    expect(active).toHaveClass("bg-sidebar-accent", "font-semibold")
-    expect(screen.getByRole("tab", { name: "Profile" })).not.toHaveClass(
-      "bg-sidebar-accent"
-    )
+    expect(active).toHaveClass("font-semibold")
+    expect(active.querySelector(".bg-sidebar-accent")).not.toBeNull()
+    expect(
+      screen
+        .getByRole("tab", { name: "Profile" })
+        .querySelector(".bg-sidebar-accent")
+    ).toBeNull()
   })
 
   it("shows the section caption above the list, hidden from assistive tech", () => {
@@ -304,7 +308,7 @@ describe("SectionTabs (Task 14 polish)", () => {
     )
   })
 
-  it("nested tabs stay horizontal until xl", () => {
+  it("nested tabs are always horizontal", () => {
     render(
       <SectionTabs
         ariaLabel="Outer"
@@ -365,7 +369,7 @@ describe("SectionTabs (sticky rail)", () => {
     )
   })
 
-  it("nested rails stick from xl, below the editor bar", () => {
+  it("a nested row never becomes a sticky column", () => {
     render(
       <SectionTabs
         ariaLabel="Outer"
@@ -376,12 +380,8 @@ describe("SectionTabs (sticky rail)", () => {
     )
     const column = screen.getByRole("tablist", {
       name: "Account sections",
-    }).parentElement
-    expect(column).toHaveClass(
-      "xl:sticky",
-      "xl:top-[var(--section-tabs-top,0px)]"
-    )
-    expect(column).not.toHaveClass("lg:sticky")
+    }).parentElement!
+    expect(column.className).not.toMatch(/sticky/)
   })
 })
 

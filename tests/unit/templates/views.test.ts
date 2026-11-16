@@ -29,6 +29,7 @@ describe("view builders reproduce the static site's data (fixture sources)", () 
       hours: "Monday–Friday, 9am to 6pm",
     })
     expect(chrome.header.links.map((l) => l.href)).toEqual([
+      "/",
       "/about",
       "/services",
       "/team",

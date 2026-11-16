@@ -1,6 +1,7 @@
 "use client"
 
 import type { LucideIcon } from "lucide-react"
+import { MotionConfig } from "motion/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -16,6 +17,12 @@ import {
   useSyncExternalStore,
 } from "react"
 
+import {
+  ActiveBar,
+  ActivePill,
+  PANEL_ENTER,
+  useClickedCurrent,
+} from "@/components/admin/shell/active-indicator"
 import { cn } from "@/lib/utils"
 
 export type SectionTabItem = {
@@ -47,8 +54,8 @@ export type SectionTabsProps = {
 }
 
 // How deep we are in tab columns: a nested set (an editor's groups beside
-// the shell's section rail) only becomes a column from xl, so two columns
-// of tabs never squeeze the content at lg.
+// the shell's section rail) stays a row, so two columns of tabs never
+// squeeze the content.
 const DepthContext = createContext(0)
 // True on the white card a top-level SectionTabs puts its content on.
 const CardContext = createContext(false)
@@ -167,8 +174,9 @@ const LAYOUT = {
     list: "lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0",
     tab: "lg:w-full",
     marker: "lg:block",
+    pill: "",
     /** px where the list becomes a column (Tailwind lg / xl). */
-    columnFrom: 1024,
+    columnFrom: 1024 as number | null,
     /**
      * The selected content on a white card beside the grey rail; its padding
      * is --card-pad (an editor's bar spans the card's full width with it).
@@ -176,41 +184,49 @@ const LAYOUT = {
     content:
       "min-w-0 flex-1 rounded-card bg-card p-(--card-pad) [--card-pad:1rem] sm:[--card-pad:1.5rem]",
   },
-  xl: {
-    root: "flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-8",
-    column:
-      "xl:w-52 xl:shrink-0 xl:sticky xl:top-[var(--section-tabs-top,0px)] xl:-m-1 xl:max-h-[calc(var(--main-h,var(--content-h,100svh))-2*var(--main-pad,0px)-var(--section-tabs-top,0px))] xl:self-start xl:overflow-y-auto xl:p-1",
-    list: "xl:flex-col xl:overflow-visible xl:px-0 xl:pb-0",
-    tab: "xl:w-full",
-    marker: "xl:block",
-    columnFrom: 1280,
-    // A nested set: on its parent's card, or beside the shell's section
-    // rail on the panel; either way no card of its own.
+  row: {
+    // A nested set (an editor's groups beside the shell's section rail, or
+    // on its parent's card) stays a row of tabs above its content at every
+    // width, so no second column of tabs squeezes the content.
+    root: "flex flex-col gap-4",
+    column: "",
+    // A segmented control: the tabs on a grey tray, the chosen one a
+    // raised white chip, so the row reads as tabs on any surface.
+    list: "mx-0 w-fit max-w-full rounded-xl bg-muted p-1 ring-1 ring-border",
+    tab: "",
+    marker: "",
+    pill: "rounded-lg bg-background shadow-sm ring-1 ring-border dark:bg-sidebar-accent dark:ring-primary/40",
+    columnFrom: null,
+    // On its parent's card, or beside the shell's section rail on the
+    // panel; either way no card of its own.
     content: "min-w-0 flex-1",
   },
 } as const
 
 const TAB = SECTION_TAB
-const TAB_ACTIVE = SECTION_TAB_ACTIVE
+// The sliding pill (TabContent) carries the active background.
+const TAB_ACTIVE_MOVING = cn(SECTION_TAB_ACTIVE, "bg-transparent")
 
 /**
  * aria-orientation follows the layout: a row below the breakpoint, a column
  * from it (server and first hydration render assume the desktop column).
  */
-function useIsColumn(minWidth: number): boolean {
-  const query = `(min-width: ${minWidth}px)`
+function useIsColumn(minWidth: number | null): boolean {
+  const query = minWidth === null ? null : `(min-width: ${minWidth}px)`
   const subscribe = useCallback(
     (onChange: () => void) => {
+      if (query === null) return () => {}
       const mql = window.matchMedia(query)
       mql.addEventListener("change", onChange)
       return () => mql.removeEventListener("change", onChange)
     },
     [query]
   )
+  // A row-only set (null) is never a column, on the server too.
   return useSyncExternalStore(
     subscribe,
-    () => window.matchMedia(query).matches,
-    () => true
+    () => query !== null && window.matchMedia(query).matches,
+    () => query !== null
   )
 }
 
@@ -233,27 +249,36 @@ function TabContent({
   item,
   active,
   marker,
+  pill,
+  group,
 }: {
   item: SectionTabItem
   active: boolean
   marker: string
+  /** Extra classes for the sliding active chip (the row's raised chip). */
+  pill?: string
+  /** The set's id: its pill and bar slide only within the set. */
+  group: string
 }) {
   const Icon = item.icon
   return (
     <>
       {active ? (
-        <span
-          aria-hidden
-          className={cn(
-            "absolute top-1/2 left-0 hidden h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary",
-            marker
-          )}
-        />
+        <>
+          <ActivePill layoutId={`${group}-pill`} className={pill} />
+          <ActiveBar
+            layoutId={`${group}-bar`}
+            className={cn(
+              "absolute top-1/2 left-0 hidden h-6 w-1 -translate-y-1/2",
+              marker
+            )}
+          />
+        </>
       ) : null}
-      {Icon ? <Icon aria-hidden className="size-4 shrink-0" /> : null}
-      <span className="truncate">{item.label}</span>
+      {Icon ? <Icon aria-hidden className="relative size-4 shrink-0" /> : null}
+      <span className="relative truncate">{item.label}</span>
       {item.badge || item.error ? (
-        <span className="ml-auto flex items-center gap-1.5 pl-1">
+        <span className="relative ml-auto flex items-center gap-1.5 pl-1">
           {item.badge}
           {item.error ? (
             <>
@@ -279,7 +304,7 @@ function TabContent({
 export function SectionTabs(props: SectionTabsProps) {
   const depth = useContext(DepthContext)
   const onCard = useContext(CardContext)
-  const layout = depth > 0 ? LAYOUT.xl : LAYOUT.lg
+  const layout = depth > 0 ? LAYOUT.row : LAYOUT.lg
   const routeMode =
     props.items.length > 0 && props.items.every((item) => item.href)
   return (
@@ -308,46 +333,55 @@ function RouteTabs({
 }: SectionTabsProps & { layout: Layout }) {
   const pathname = usePathname()
   // The deepest item whose href covers the path.
-  const current =
+  const routed =
     value ??
     items
       .filter(
         (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
       )
       .sort((a, b) => b.href!.length - a.href!.length)[0]?.id
+  const [current, mark] = useClickedCurrent(routed, pathname)
+  const group = useId()
   const listRef = useRef<HTMLUListElement>(null)
   useCurrentInView(listRef, current)
   return (
-    <div className={layout.root}>
-      <nav aria-label={ariaLabel} className={cn("min-w-0", layout.column)}>
-        <Caption text={heading} marker={layout.marker} />
-        <ul ref={listRef} className={cn(LIST, layout.list)}>
-          {items.map((item) => {
-            const active = item.id === current
-            return (
-              <li key={item.id} className="flex shrink-0">
-                <Link
-                  href={item.href!}
-                  aria-current={active ? "page" : undefined}
-                  data-current={active || undefined}
-                  data-error={item.error || undefined}
-                  className={cn(TAB, layout.tab, active && TAB_ACTIVE)}
-                >
-                  <TabContent
-                    item={item}
-                    active={active}
-                    marker={layout.marker}
-                  />
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
-      <div data-slot="section-tabs-content" className={layout.content}>
-        {children}
+    <MotionConfig reducedMotion="user">
+      <div className={layout.root}>
+        <nav aria-label={ariaLabel} className={cn("min-w-0", layout.column)}>
+          <Caption text={heading} marker={layout.marker} />
+          <ul ref={listRef} className={cn(LIST, layout.list)}>
+            {items.map((item) => {
+              const active = item.id === current
+              return (
+                <li key={item.id} className="flex shrink-0">
+                  <Link
+                    href={item.href!}
+                    aria-current={active ? "page" : undefined}
+                    data-current={active || undefined}
+                    data-error={item.error || undefined}
+                    onClick={mark(item.id)}
+                    className={cn(TAB, layout.tab, active && TAB_ACTIVE_MOVING)}
+                  >
+                    <TabContent
+                      item={item}
+                      active={active}
+                      marker={layout.marker}
+                      pill={layout.pill}
+                      group={group}
+                    />
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+        <div data-slot="section-tabs-content" className={layout.content}>
+          <div key={routed} className={PANEL_ENTER}>
+            {children}
+          </div>
+        </div>
       </div>
-    </div>
+    </MotionConfig>
   )
 }
 
@@ -377,6 +411,7 @@ function InPageTabs({
   const listRef = useRef<HTMLDivElement>(null)
   useCurrentInView(listRef, selected)
   const isColumn = useIsColumn(layout.columnFrom)
+  const group = useId()
 
   const select = (id: string, options?: TabChangeOptions) => {
     if (id === selected) return
@@ -402,53 +437,57 @@ function InPageTabs({
   }
 
   return (
-    <div className={layout.root}>
-      <div className={cn("min-w-0", layout.column)}>
-        <Caption text={heading} marker={layout.marker} />
-        <div
-          ref={listRef}
-          role="tablist"
-          aria-label={ariaLabel}
-          aria-orientation={isColumn ? "vertical" : "horizontal"}
-          onKeyDown={onKeyDown}
-          className={cn(LIST, layout.list)}
-        >
-          {items.map((item) => {
-            const active = item.id === selected
-            return (
-              <button
-                key={item.id}
-                ref={(node) => {
-                  if (node) refs.current.set(item.id, node)
-                  else refs.current.delete(item.id)
-                }}
-                type="button"
-                role="tab"
-                id={tabId(item.id)}
-                aria-selected={active}
-                data-current={active || undefined}
-                aria-controls={panelId(item.id)}
-                tabIndex={active ? 0 : -1}
-                data-error={item.error || undefined}
-                onClick={() => select(item.id)}
-                className={cn(TAB, layout.tab, active && TAB_ACTIVE)}
-              >
-                <TabContent
-                  item={item}
-                  active={active}
-                  marker={layout.marker}
-                />
-              </button>
-            )
-          })}
+    <MotionConfig reducedMotion="user">
+      <div className={layout.root}>
+        <div className={cn("min-w-0", layout.column)}>
+          <Caption text={heading} marker={layout.marker} />
+          <div
+            ref={listRef}
+            role="tablist"
+            aria-label={ariaLabel}
+            aria-orientation={isColumn ? "vertical" : "horizontal"}
+            onKeyDown={onKeyDown}
+            className={cn(LIST, layout.list)}
+          >
+            {items.map((item) => {
+              const active = item.id === selected
+              return (
+                <button
+                  key={item.id}
+                  ref={(node) => {
+                    if (node) refs.current.set(item.id, node)
+                    else refs.current.delete(item.id)
+                  }}
+                  type="button"
+                  role="tab"
+                  id={tabId(item.id)}
+                  aria-selected={active}
+                  data-current={active || undefined}
+                  aria-controls={panelId(item.id)}
+                  tabIndex={active ? 0 : -1}
+                  data-error={item.error || undefined}
+                  onClick={() => select(item.id)}
+                  className={cn(TAB, layout.tab, active && TAB_ACTIVE_MOVING)}
+                >
+                  <TabContent
+                    item={item}
+                    active={active}
+                    marker={layout.marker}
+                    pill={layout.pill}
+                    group={group}
+                  />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div data-slot="section-tabs-content" className={layout.content}>
+          <PanelContext.Provider value={{ selected, tabId, panelId }}>
+            {children}
+          </PanelContext.Provider>
         </div>
       </div>
-      <div data-slot="section-tabs-content" className={layout.content}>
-        <PanelContext.Provider value={{ selected, tabId, panelId }}>
-          {children}
-        </PanelContext.Provider>
-      </div>
-    </div>
+    </MotionConfig>
   )
 }
 
@@ -470,6 +509,8 @@ export function SectionTabsPanel({
       id={context.panelId(id)}
       aria-labelledby={context.tabId(id)}
       hidden={!active}
+      // The enter animation replays each time the panel is unhidden.
+      className={PANEL_ENTER}
     >
       {children}
     </div>

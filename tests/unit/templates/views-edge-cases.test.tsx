@@ -23,6 +23,7 @@ describe("admin-editable link hrefs go through interpolateHref (ruling)", () => 
       href: "/contact",
     })
     expect(chrome.footer.quickLinks.links.map((l) => l.href)).toEqual([
+      "/",
       "/about",
       "/services",
       "/team",
@@ -67,7 +68,7 @@ describe("admin-editable link hrefs go through interpolateHref (ruling)", () => 
 
     const home = homeView(s)
     const chrome = chromeView(s)
-    expect(chrome.header.links[0]).toEqual({ label: "About", href: tel })
+    expect(chrome.header.links[0]).toEqual({ label: "Home", href: tel })
     expect(chrome.header.cta.href).toBe(tel)
     expect(chrome.footer.quickLinks.links[0].href).toBe(tel)
     expect(chrome.footer.legal.privacy.href).toBe(tel)

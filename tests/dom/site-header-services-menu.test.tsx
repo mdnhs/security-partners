@@ -209,3 +209,64 @@ describe("header Services menu across pages", () => {
     expect(submenu()).toHaveAttribute("data-open", "false")
   })
 })
+
+describe("mobile menu submenu", () => {
+  const openSheet = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    return screen.findByRole("navigation", { name: "Mobile" })
+  }
+
+  it("shows the arrow, and the submenu, only for a link that has one", async () => {
+    nav.path = "/about"
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(true)} />)
+    const mobile = await openSheet(user)
+    // Services has a toggle beside its label; About has none.
+    expect(mobile.querySelectorAll("button[aria-expanded]")).toHaveLength(1)
+    const toggle = mobile.querySelector("button[aria-expanded]")!
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(mobile.querySelector('a[href^="/services/"]')).toBeNull()
+  })
+
+  it("opens and closes the list on the arrow; the label still goes to the page", async () => {
+    nav.path = "/about"
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(true)} />)
+    const mobile = await openSheet(user)
+    const toggle = mobile.querySelector("button[aria-expanded]")!
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(
+      mobile.querySelector('a[href="/services/alarm-responses"]')
+    ).toHaveTextContent("Alarm Responses")
+    expect(
+      mobile.querySelector('a[href="/services/mobile-patrols"]')
+    ).toHaveTextContent("Mobile Patrols")
+    // The label is an ordinary link to the page.
+    expect(mobile.querySelector('a[href="/services"]')).toHaveTextContent(
+      "Services"
+    )
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("starts open on a page under the link", async () => {
+    nav.path = "/services/alarm-responses"
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(true)} />)
+    const mobile = await openSheet(user)
+    expect(mobile.querySelector("button[aria-expanded]")).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    )
+    nav.path = "/about"
+  })
+
+  it("has no toggle when no link has a submenu", async () => {
+    nav.path = "/about"
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(false)} />)
+    const mobile = await openSheet(user)
+    expect(mobile.querySelector("button[aria-expanded]")).toBeNull()
+  })
+})

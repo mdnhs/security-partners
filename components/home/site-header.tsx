@@ -1,8 +1,21 @@
 "use client"
 
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react"
+import {
+  AnimatePresence,
+  LazyMotion,
+  MotionConfig,
+  domAnimation,
+  useReducedMotion,
+} from "motion/react"
 import * as m from "motion/react-m"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import {
+  type RefObject,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -36,6 +49,158 @@ type NavLink = {
   href: string
   children?: NavLink[]
   icon?: string
+}
+
+/**
+ * A mobile-menu link that has a submenu: the label goes to the page as any
+ * other link; the arrow beside it opens and closes the list of children (and
+ * turns down). Any child closes the menu. It starts open on a page under
+ * this link.
+ */
+function MobileSubmenu({
+  link,
+  isActive,
+}: {
+  link: NavLink
+  isActive: (href: string) => boolean
+}) {
+  const [open, setOpen] = useState(() => isActive(link.href))
+  const panelId = useId()
+  return (
+    <div className="border-b border-brand-line">
+      <div className="flex items-center gap-2.5">
+        <SheetClose
+          nativeButton={false}
+          render={
+            <Link
+              href={link.href}
+              aria-current={isActive(link.href) && !open ? "page" : undefined}
+              className={cn(
+                "flex-1 py-[18px] hover:text-brand-green",
+                isActive(link.href) && "text-brand-green"
+              )}
+            />
+          }
+        >
+          {link.label}
+        </SheetClose>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={link.label}
+          onClick={() => setOpen((now) => !now)}
+          className="-mr-2 inline-flex size-11 shrink-0 items-center justify-center rounded-full text-brand-ink hover:text-brand-green"
+        >
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "size-5 transition-transform duration-300 motion-reduce:transition-none",
+              open && "rotate-90"
+            )}
+          />
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {open ? (
+          <m.div
+            id={panelId}
+            key="panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <ul className="flex flex-col pb-3 text-base font-bold">
+              {(link.children ?? []).map((child) => (
+                <li key={child.href}>
+                  <SheetClose
+                    nativeButton={false}
+                    render={
+                      <Link
+                        href={child.href}
+                        aria-current={isActive(child.href) ? "page" : undefined}
+                        className={cn(
+                          "block rounded-lg py-3 pl-4 hover:text-brand-green",
+                          isActive(child.href) && "text-brand-green"
+                        )}
+                      />
+                    }
+                  >
+                    {child.label}
+                  </SheetClose>
+                </li>
+              ))}
+            </ul>
+          </m.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/**
+ * The desktop nav's current-page border (motion): one bar under the current
+ * top-level link that slides, and stretches to its width, when the page
+ * changes (the navbar lives in the layout, so it persists between pages).
+ * The first position is taken at once; reduced motion jumps.
+ */
+function NavIndicator({
+  navRef,
+  pathname,
+}: {
+  navRef: RefObject<HTMLElement | null>
+  pathname: string
+}) {
+  const reduceMotion = useReducedMotion()
+  const [pos, setPos] = useState<{
+    x: number
+    y: number
+    width: number
+  } | null>(null)
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const measure = () => {
+      const link = nav.querySelector<HTMLElement>(
+        'a[data-nav-top][aria-current="page"]'
+      )
+      if (!link) return setPos(null)
+      const box = nav.getBoundingClientRect()
+      const at = link.getBoundingClientRect()
+      const next = {
+        x: at.left - box.left,
+        y: at.bottom - box.top + 6,
+        width: at.width,
+      }
+      setPos((now) =>
+        now && now.x === next.x && now.y === next.y && now.width === next.width
+          ? now
+          : next
+      )
+    }
+    measure()
+    // Fonts and window width move the links.
+    const observer = new ResizeObserver(measure)
+    observer.observe(nav)
+    void document.fonts?.ready.then(measure)
+    return () => observer.disconnect()
+  }, [navRef, pathname])
+  if (!pos) return null
+  return (
+    <m.span
+      aria-hidden
+      initial={false}
+      animate={{ x: pos.x, y: pos.y, width: pos.width }}
+      transition={
+        reduceMotion
+          ? { duration: 0 }
+          : { type: "spring", stiffness: 420, damping: 36 }
+      }
+      className="pointer-events-none absolute top-0 left-0 h-0.5 rounded-full bg-brand-green"
+    />
+  )
 }
 
 /**
@@ -109,6 +274,7 @@ function NavMenu({
       <Link
         ref={topRef}
         href={link.href}
+        data-nav-top
         aria-current={active ? "page" : undefined}
         className={cn(
           "transition-colors hover:text-brand-green",
@@ -224,6 +390,7 @@ export function SiteHeader({
     return () => window.removeEventListener("scroll", update)
   }, [])
   const pathname = usePathname()
+  const navRef = useRef<HTMLElement>(null)
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`)
 
@@ -283,33 +450,40 @@ export function SiteHeader({
             {logo.animation ? <LogoAnimation src={logo.animation} /> : null}
           </Link>
 
-          <nav
-            aria-label={aria.mainNav}
-            className="hidden items-center gap-9 text-base font-bold text-brand-navy lg:flex"
-          >
-            {links.map((link) =>
-              link.children?.length ? (
-                <NavMenu
-                  key={link.href}
-                  link={link}
-                  active={isActive(link.href)}
-                  isActive={isActive}
-                />
-              ) : (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  aria-current={isActive(link.href) ? "page" : undefined}
-                  className={cn(
-                    "transition-colors hover:text-brand-green",
-                    isActive(link.href) && "text-brand-green"
-                  )}
-                >
-                  {link.label}
-                </Link>
-              )
-            )}
-          </nav>
+          <MotionConfig reducedMotion="user">
+            <LazyMotion features={domAnimation} strict>
+              <nav
+                ref={navRef}
+                aria-label={aria.mainNav}
+                className="relative hidden items-center gap-9 text-base font-bold text-brand-navy lg:flex"
+              >
+                <NavIndicator navRef={navRef} pathname={pathname} />
+                {links.map((link) =>
+                  link.children?.length ? (
+                    <NavMenu
+                      key={link.href}
+                      link={link}
+                      active={isActive(link.href)}
+                      isActive={isActive}
+                    />
+                  ) : (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      data-nav-top
+                      aria-current={isActive(link.href) ? "page" : undefined}
+                      className={cn(
+                        "transition-colors hover:text-brand-green",
+                        isActive(link.href) && "text-brand-green"
+                      )}
+                    >
+                      {link.label}
+                    </Link>
+                  )
+                )}
+              </nav>
+            </LazyMotion>
+          </MotionConfig>
 
           <div className="flex items-center gap-3">
             <Link
@@ -376,32 +550,32 @@ export function SiteHeader({
                             delay: 0.12 + index * 0.05,
                           }}
                         >
-                          <SheetClose
-                            nativeButton={false}
-                            render={
-                              <Link
-                                href={link.href}
-                                aria-current={
-                                  isActive(link.href) ? "page" : undefined
-                                }
-                                className={cn(
-                                  "flex items-center gap-2.5 border-b border-brand-line py-[18px] hover:text-brand-green",
-                                  isActive(link.href) && "text-brand-green"
-                                )}
-                              />
-                            }
-                          >
-                            <span className="flex-1">{link.label}</span>
-                            {link.href.startsWith("/careers") ? (
-                              <span className="rounded-full bg-brand-mint px-2.5 py-1 text-xs font-bold text-brand-green-dark">
-                                We&apos;re hiring
-                              </span>
-                            ) : null}
-                            <ChevronRight
-                              aria-hidden
-                              className="size-5 shrink-0 text-brand-ink"
-                            />
-                          </SheetClose>
+                          {link.children?.length ? (
+                            <MobileSubmenu link={link} isActive={isActive} />
+                          ) : (
+                            <SheetClose
+                              nativeButton={false}
+                              render={
+                                <Link
+                                  href={link.href}
+                                  aria-current={
+                                    isActive(link.href) ? "page" : undefined
+                                  }
+                                  className={cn(
+                                    "flex items-center gap-2.5 border-b border-brand-line py-[18px] hover:text-brand-green",
+                                    isActive(link.href) && "text-brand-green"
+                                  )}
+                                />
+                              }
+                            >
+                              <span className="flex-1">{link.label}</span>
+                              {link.href.startsWith("/careers") ? (
+                                <span className="rounded-full bg-brand-mint px-2.5 py-1 text-xs font-bold text-brand-green-dark">
+                                  We&apos;re hiring
+                                </span>
+                              ) : null}
+                            </SheetClose>
+                          )}
                         </m.div>
                       ))}
                     </nav>
