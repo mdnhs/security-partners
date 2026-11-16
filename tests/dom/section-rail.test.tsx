@@ -66,7 +66,12 @@ describe("SectionRail", () => {
     expect(
       within(rail).getByRole("link", { name: "Overview" })
     ).not.toHaveAttribute("aria-current")
-    expect(links("SEO")).toEqual(["Overview", "Defaults", "Redirects"])
+    expect(links("SEO")).toEqual([
+      "Overview",
+      "Defaults",
+      "Redirects",
+      "Canonical URLs",
+    ])
     expect(screen.getByText("Body")).toBeInTheDocument()
   })
 
@@ -86,7 +91,7 @@ describe("SectionRail", () => {
 
   it("lists only the children the role may open", () => {
     renderAt("/admin/seo/defaults", ["editor"])
-    expect(links("SEO")).toEqual(["Overview", "Defaults"])
+    expect(links("SEO")).toEqual(["Overview", "Defaults", "Canonical URLs"])
   })
 
   it("shows the Site settings rail for a viewer", () => {
@@ -113,9 +118,14 @@ describe("SectionRail", () => {
     expect(screen.getByText("Body")).toBeInTheDocument()
   })
 
-  it("the same marketer gets the SEO rail (three children)", () => {
+  it("the same marketer gets the SEO rail (four children)", () => {
     renderAt("/admin/seo", ["marketer"])
-    expect(links("SEO")).toEqual(["Overview", "Defaults", "Redirects"])
+    expect(links("SEO")).toEqual([
+      "Overview",
+      "Defaults",
+      "Redirects",
+      "Canonical URLs",
+    ])
   })
 
   it("no rail when only one child is visible (author: Blog only)", () => {

@@ -302,6 +302,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
         permission: { redirect: ["read"] },
         keywords: ["301", "404"],
       },
+      {
+        id: "seo-canonical",
+        label: "Canonical URLs",
+        href: "/admin/seo/canonical",
+        permission: { seo: ["read"] },
+        keywords: ["canonical", "duplicate", "rel canonical"],
+      },
     ],
   },
   {

@@ -99,3 +99,29 @@ export async function disableCustomCode(
     .returning({ key: settings.key })
   return updated.length > 0
 }
+
+/**
+ * Merges `patch` into both the draft and the published value of `key` (when
+ * each is an object) and bumps the version: a setting saved live outside
+ * the draft/publish editor (SEO › Canonical URLs' preferred address), so a
+ * later publish of the draft keeps it. False when the row is missing.
+ */
+export async function mergeIntoSettingsLive(
+  db: DbOrTx,
+  key: string,
+  patch: Record<string, unknown>,
+  updatedBy: string | null
+): Promise<boolean> {
+  const json = JSON.stringify(patch)
+  const updated = await db
+    .update(settings)
+    .set({
+      draft: sql`CASE WHEN jsonb_typeof(${settings.draft}) = 'object' THEN ${settings.draft} || ${json}::jsonb ELSE ${settings.draft} END`,
+      published: sql`CASE WHEN jsonb_typeof(${settings.published}) = 'object' THEN ${settings.published} || ${json}::jsonb ELSE ${settings.published} END`,
+      version: sql`${settings.version} + 1`,
+      updatedBy,
+    })
+    .where(eq(settings.key, key))
+    .returning({ key: settings.key })
+  return updated.length > 0
+}
