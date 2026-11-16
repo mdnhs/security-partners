@@ -1,9 +1,14 @@
 import type { Metadata } from "next"
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google"
+import { unstable_rethrow } from "next/navigation"
+import { connection } from "next/server"
 
 import "./admin.css"
 import { AdminThemeProvider } from "@/components/admin/theme-provider"
 import { cn } from "@/lib/utils"
+import { resolveMedia } from "@/server/modules/media/queries"
+import { getPublishedSettings } from "@/server/modules/settings/queries"
+import { DEFAULT_FAVICON } from "@/templates/shared/page-meta"
 
 // MK's admin face; admin.css maps --font-sans to it.
 const jakarta = Plus_Jakarta_Sans({
@@ -19,15 +24,32 @@ const fontMono = Geist_Mono({
   display: "swap",
 })
 
-export const metadata: Metadata = {
+const BASE_METADATA: Metadata = {
   title: {
     default: "Admin · Security Partners",
     template: "%s · Security Partners admin",
   },
   robots: { index: false, follow: false },
-  // The bundled icon (public/favicon.ico); the public site's root layout
-  // uses settings.site.favicon when set.
-  icons: { icon: "/favicon.ico" },
+}
+
+/**
+ * The tab icon is the site's favicon (settings.site.favicon, as on the public
+ * site), else the bundled public/favicon.ico. Never fails the page: with the
+ * database down the bundled icon is used.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  try {
+    const site = await getPublishedSettings("site")
+    const { favicon } = await resolveMedia({ favicon: site?.favicon ?? null })
+    return {
+      ...BASE_METADATA,
+      icons: { icon: favicon?.url ?? DEFAULT_FAVICON },
+    }
+  } catch (error) {
+    unstable_rethrow(error)
+    return { ...BASE_METADATA, icons: { icon: DEFAULT_FAVICON } }
+  }
 }
 
 /**
