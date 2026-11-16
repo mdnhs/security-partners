@@ -5,9 +5,8 @@ const state = vi.hoisted(() => ({
   fail: false,
 }))
 
-vi.mock("next/font/google", () => ({
-  Geist_Mono: () => ({ variable: "" }),
-  Plus_Jakarta_Sans: () => ({ variable: "" }),
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "" }),
 }))
 vi.mock("next/server", () => ({ connection: async () => {} }))
 vi.mock("next/navigation", () => ({ unstable_rethrow: () => {} }))

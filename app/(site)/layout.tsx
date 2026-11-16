@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist_Mono, Lato } from "next/font/google"
+import localFont from "next/font/local"
 import { unstable_rethrow } from "next/navigation"
 import { connection } from "next/server"
 import { Suspense } from "react"
@@ -19,15 +19,22 @@ import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
 import { DEFAULT_FAVICON, siteMetadata } from "@/templates/shared/page-meta"
 
-const lato = Lato({
-  subsets: ["latin"],
-  weight: ["400", "700", "900"],
+// Fonts live in assets/fonts (latin subset, SIL OFL): the build needs no network.
+const lato = localFont({
+  src: [
+    { path: "../../assets/fonts/lato-latin-400-normal.woff2", weight: "400" },
+    { path: "../../assets/fonts/lato-latin-700-normal.woff2", weight: "700" },
+    { path: "../../assets/fonts/lato-latin-900-normal.woff2", weight: "900" },
+  ],
   variable: "--font-sans",
+  display: "swap",
 })
 
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
+const fontMono = localFont({
+  src: "../../assets/fonts/geist-mono-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-mono",
+  display: "swap",
 })
 
 /**

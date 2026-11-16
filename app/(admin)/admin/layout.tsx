@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google"
+import localFont from "next/font/local"
 import { unstable_rethrow } from "next/navigation"
 import { connection } from "next/server"
 
@@ -11,15 +11,33 @@ import { getPublishedSettings } from "@/server/modules/settings/queries"
 import { DEFAULT_FAVICON } from "@/templates/shared/page-meta"
 
 // MK's admin face; admin.css maps --font-sans to it.
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Fonts live in assets/fonts (latin subset, SIL OFL): the build needs no network.
+const jakarta = localFont({
+  src: [
+    {
+      path: "../../../assets/fonts/plus-jakarta-sans-latin-400-normal.woff2",
+      weight: "400",
+    },
+    {
+      path: "../../../assets/fonts/plus-jakarta-sans-latin-500-normal.woff2",
+      weight: "500",
+    },
+    {
+      path: "../../../assets/fonts/plus-jakarta-sans-latin-600-normal.woff2",
+      weight: "600",
+    },
+    {
+      path: "../../../assets/fonts/plus-jakarta-sans-latin-700-normal.woff2",
+      weight: "700",
+    },
+  ],
   variable: "--font-jakarta",
   display: "swap",
 })
 
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
+const fontMono = localFont({
+  src: "../../../assets/fonts/geist-mono-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-geist-mono",
   display: "swap",
 })
