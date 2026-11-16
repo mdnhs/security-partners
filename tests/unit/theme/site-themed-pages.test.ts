@@ -37,7 +37,8 @@ describe("public pages use SiteThemed", () => {
     expect(src).toMatch(
       /import \{ SiteThemed \} from "@\/components\/site-themed"/
     )
-    expect(src).toMatch(/<SiteThemed>/)
+    // With or without props (a detail page passes its loading skeleton).
+    expect(src).toMatch(/<SiteThemed[ >]/)
     expect(src, "no bare page-level Suspense").not.toMatch(/<Suspense\b/)
   })
 })

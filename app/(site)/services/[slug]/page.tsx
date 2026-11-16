@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 
 import { JsonLd } from "@/components/seo/json-ld"
+import { DetailSkeleton } from "@/components/site-detail-skeleton"
 import { SiteThemed } from "@/components/site-themed"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
@@ -23,7 +24,7 @@ export default function ServiceDetailPage({
   params,
 }: PageProps<"/services/[slug]">) {
   return (
-    <SiteThemed>
+    <SiteThemed fallback={<DetailSkeleton />}>
       <ServiceDetail params={params} />
     </SiteThemed>
   )
