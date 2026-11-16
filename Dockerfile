@@ -21,10 +21,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
-# 2. Build the app. next/font downloads Google Fonts here, so the build
-#    needs network access. Then bundle the operational scripts (migrate, …)
-#    into self-contained files, because the runtime image has no tsx and only
-#    the node_modules that Next traced for server.js.
+# 2. Build the app (the fonts are local, in assets/fonts, so no network is
+#    needed). Then bundle the operational scripts (migrate, …) into
+#    self-contained files, because the runtime image has no tsx and only the
+#    node_modules that Next traced for server.js.
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
