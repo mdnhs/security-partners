@@ -5,6 +5,16 @@ import { PAGE_HERO_GROUPS } from "../shared/editor-groups"
 /** Editor labels for the Team page (template "team"). People are edited under Team. */
 export const teamEditorMeta: EditorMeta = {
   fields: {
+    sections: {
+      label: "Page sections",
+      widget: "sections",
+      help: "Show, hide and reorder the sections below the hero. Their content is edited where it lives; hiding a section keeps it.",
+      options: [
+        { value: "team", label: "Leadership" },
+        { value: "officers", label: "Officers" },
+        { value: "enquireBanner", label: "Enquiry banner" },
+      ],
+    },
     hero: { label: "Page hero", help: "Banner at the top of the page." },
     "hero.image": { label: "Banner image" },
     "hero.crumb": { label: "Breadcrumb label" },

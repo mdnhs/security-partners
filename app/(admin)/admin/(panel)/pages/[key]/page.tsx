@@ -1,36 +1,36 @@
-import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 
-import { PageEditor } from "@/components/admin/pages/page-editor"
-import { PAGE_LABELS } from "@/lib/admin/page-labels"
-import { requirePage } from "@/server/auth/session"
-import { getSiteOrigin } from "@/server/modules/seo/queries"
+import { pageEditorHref, withSearch } from "@/lib/admin/website"
+import { requireActor, requirePermission } from "@/server/auth/session"
 import { isPageKey } from "@/templates/registry"
 
-export async function generateMetadata({
+/**
+ * Each page is edited on its Website screen; Privacy and Terms under Legal
+ * pages (307, query kept).
+ */
+export default function PageKeyPage({
   params,
-}: PageProps<"/admin/pages/[key]">): Promise<Metadata> {
-  const { key } = await params
-  return { title: isPageKey(key) ? `Edit ${PAGE_LABELS[key]}` : "Page" }
-}
-
-export default function EditPagePage({
-  params,
+  searchParams,
 }: PageProps<"/admin/pages/[key]">) {
   return (
     <Suspense fallback={null}>
-      <Editor params={params} />
+      <Go params={params} searchParams={searchParams} />
     </Suspense>
   )
 }
 
-async function Editor({
+// Signed in before the 404, so a stranger never learns which paths exist.
+async function Go({
   params,
-}: Pick<PageProps<"/admin/pages/[key]">, "params">) {
+  searchParams,
+}: Pick<
+  PageProps<"/admin/pages/[key]">,
+  "params" | "searchParams"
+>): Promise<never> {
   const { key } = await params
-  // Permission first, as on every [param] page but settings/[key].
-  await requirePage("/admin/pages")
+  await requireActor()
   if (!isPageKey(key)) notFound()
-  return <PageEditor pageKey={key} origin={await getSiteOrigin()} />
+  await requirePermission({ page: ["read"] })
+  redirect(withSearch(pageEditorHref(key), await searchParams))
 }

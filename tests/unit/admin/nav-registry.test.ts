@@ -17,6 +17,11 @@ import {
   reachableLinks,
   visibleNav,
 } from "@/lib/admin/nav"
+import {
+  isWebsiteSettingsKey,
+  SITE_SETTINGS_KEYS,
+  WEBSITE_SCREENS,
+} from "@/lib/admin/website"
 import { statements } from "@/lib/auth/permissions"
 import { ROLES } from "@/lib/auth/roles"
 
@@ -31,22 +36,24 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     const badged = NAV_ITEMS.filter((item) => item.badge)
     expect(badged.map((item) => [item.id, item.badgeLabel])).toEqual([
       ["leads", "new enquiries"],
+      ["chat", "unread chats"],
       ["careers", "new applications"],
     ])
   })
 
-  it("Insights holds Articles and Categories; Collections the rest", () => {
-    const hrefs = (id: string) =>
-      NAV_ITEMS.find((item) => item.id === id)!.children!.map((c) => c.href)
-    expect(hrefs("insights")).toEqual([
-      "/admin/insights",
-      "/admin/insights/categories",
-    ])
-    expect(hrefs("collections")).toEqual([
-      "/admin/collections/team",
-      "/admin/collections/clients",
-      "/admin/collections/group-companies",
-    ])
+  it("Website lists its screens from the registry", () => {
+    const website = NAV_ITEMS.find((item) => item.id === "website")!
+    expect(website).toMatchObject({
+      label: "Website",
+      group: "menu",
+      href: "/admin/website",
+    })
+    expect(website.children!.map((c) => c.id)).toEqual(
+      WEBSITE_SCREENS.map((s) => `website-${s.key}`)
+    )
+    expect(website.children!.map((c) => c.href)).toEqual(
+      WEBSITE_SCREENS.map((s) => `/admin/website/${s.key}`)
+    )
   })
 
   it("groups are Menu, Growth, General in order", () => {
@@ -65,12 +72,10 @@ describe("nav registry (MK IA, spec §5.1)", () => {
   it("registers the spec's item ids in order", () => {
     expect(NAV_ITEMS.map((i) => i.id)).toEqual([
       "dashboard",
-      "pages",
-      "insights",
-      "services",
-      "collections",
+      "website",
       "media",
       "leads",
+      "chat",
       "careers",
       "seo",
       "marketing",
@@ -112,8 +117,21 @@ describe("nav registry (MK IA, spec §5.1)", () => {
       integration: ["read"],
     })
     expect(permissionFor("/admin/design")).toEqual({ customCode: ["update"] })
-    // The page builder (D5.5) sits under the "pages" item.
+    // The page builder (D5.5) belongs to Website › Custom pages.
     expect(permissionFor("/admin/pages/custom/x")).toEqual({ page: ["read"] })
+    expect(permissionFor("/admin/pages/legal/x")).toEqual({ page: ["read"] })
+    expect(permissionFor("/admin/website/blog")).toEqual({ article: ["read"] })
+    expect(permissionFor("/admin/website/header-footer/footer")).toEqual({
+      settings: ["read"],
+    })
+    expect(permissionFor("/admin/services/x")).toEqual({ service: ["read"] })
+    expect(permissionFor("/admin/careers/jobs/x")).toEqual({ job: ["read"] })
+    expect(permissionFor("/admin/careers/applications/x")).toEqual({
+      application: ["read"],
+    })
+    // Redirect stubs, no longer registered.
+    expect(permissionFor("/admin/pages")).toBeUndefined()
+    expect(permissionFor("/admin/collections/team")).toBeUndefined()
     expect(
       permissionFor("/admin/pages/custom/0199a000-0000-7000-8000-000000000000")
     ).toEqual({ page: ["read"] })
@@ -132,9 +150,6 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     expect(permissionFor("/admin/activity")).toEqual({ audit: ["read"] })
     expect(permissionFor("/admin/help")).toBeNull()
     expect(permissionFor("/admin/account")).toBeNull()
-    expect(permissionFor("/admin/collections/team")).toEqual({
-      collection: ["read"],
-    })
     expect(permissionFor("/")).toBeUndefined()
     expect(permissionFor("/administrator")).toBeUndefined()
   })
@@ -163,7 +178,14 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     expect(activeChild(item, "/admin/seo")!.id).toBe("seo-overview")
     expect(activeItem("/admin", ["author"])!.id).toBe("dashboard")
     expect(activeItem("/admin/insights/categories", ["owner"])!.id).toBe(
-      "insights"
+      "website"
+    )
+    // Jobs sit under Website; Applications is its own item.
+    expect(activeItem("/admin/careers/jobs/0192", ["owner"])!.id).toBe(
+      "website"
+    )
+    expect(activeItem("/admin/careers/applications/0192", ["owner"])!.id).toBe(
+      "careers"
     )
     const settings = activeItem("/admin/settings/integrations/smtp", ["owner"])!
     expect(activeChild(settings, "/admin/settings/integrations/smtp")!.id).toBe(
@@ -254,7 +276,17 @@ describe("nav registry (MK IA, spec §5.1)", () => {
     )
   })
 
-  it("Site settings has one child per editable key, then AI assistant and Integrations", () => {
+  it("every editable setting is a Website part or a Site settings page, once", () => {
+    const settings = NAV_ITEMS.find((i) => i.id === "settings")!
+    const hrefs = settings.children!.map((c) => c.href)
+    for (const key of EDITABLE_SETTINGS_KEYS)
+      expect(
+        hrefs.filter((h) => h === `/admin/settings/${key}`),
+        key
+      ).toHaveLength(isWebsiteSettingsKey(key) ? 0 : 1)
+  })
+
+  it("Site settings has the remaining keys, then AI assistant and Integrations", () => {
     const settings = NAV_ITEMS.find((i) => i.id === "settings")!
     expect(settings).toMatchObject({
       label: "Site settings",
@@ -262,7 +294,7 @@ describe("nav registry (MK IA, spec §5.1)", () => {
       group: "general",
     })
     expect(settings.children!.map((c) => [c.id, c.label, c.href])).toEqual([
-      ...EDITABLE_SETTINGS_KEYS.map((key) => [
+      ...SITE_SETTINGS_KEYS.map((key) => [
         `settings-${key}`,
         SETTINGS_ENTRIES[key].label,
         `/admin/settings/${key}`,

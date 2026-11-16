@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  activeChild,
   activeItem,
   dockLinks,
   firstVisibleChild,
@@ -28,13 +29,11 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
           "Menu",
           [
             "Dashboard",
-            "Pages",
-            "Insights",
-            "Services",
-            "Collections",
+            "Website",
             "Media",
             "Enquiries",
-            "Careers",
+            "Live chat",
+            "Job applications",
           ],
         ],
         ["Growth", ["SEO", "Marketing"]],
@@ -44,18 +43,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     [
       "editor",
       [
-        [
-          "Menu",
-          [
-            "Dashboard",
-            "Pages",
-            "Insights",
-            "Services",
-            "Collections",
-            "Media",
-            "Careers",
-          ],
-        ],
+        ["Menu", ["Dashboard", "Website", "Media"]],
         ["Growth", ["SEO"]],
         ["General", ["Appearance", "Site settings"]],
       ],
@@ -63,18 +51,7 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     [
       "viewer",
       [
-        [
-          "Menu",
-          [
-            "Dashboard",
-            "Pages",
-            "Insights",
-            "Services",
-            "Collections",
-            "Media",
-            "Careers",
-          ],
-        ],
+        ["Menu", ["Dashboard", "Website", "Media"]],
         ["Growth", ["SEO", "Marketing"]],
         ["General", ["Appearance", "Site settings"]],
       ],
@@ -82,16 +59,16 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
     [
       "marketer",
       [
-        [
-          "Menu",
-          ["Dashboard", "Pages", "Insights", "Services", "Media", "Careers"],
-        ],
+        ["Menu", ["Dashboard", "Website", "Media"]],
         ["Growth", ["SEO", "Marketing"]],
         ["General", ["Appearance"]],
       ],
     ],
-    ["author", [["Menu", ["Dashboard", "Insights", "Media"]]]],
-    ["intake", [["Menu", ["Dashboard", "Enquiries", "Careers"]]]],
+    ["author", [["Menu", ["Dashboard", "Website", "Media"]]]],
+    [
+      "intake",
+      [["Menu", ["Dashboard", "Enquiries", "Live chat", "Job applications"]]],
+    ],
   ])("%s sees %j", (role, expected) => {
     expect(menu([role])).toEqual(expected)
   })
@@ -120,12 +97,30 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
       "Defaults",
       "Redirects",
     ])
-    expect(children(["marketer"], "insights")).toEqual(["Articles"])
-    expect(children(["viewer"], "insights")).toEqual(["Articles", "Categories"])
-    expect(children(["owner"], "collections")).toEqual([
+    // Website lists the public site page by page; each role sees its own.
+    expect(children(["author"], "website")).toEqual(["Blog"])
+    expect(children(["marketer"], "website")).toEqual([
+      "Home",
+      "About",
+      "Services",
       "Team",
-      "Clients",
-      "Group companies",
+      "Blog",
+      "Contact",
+      "Careers",
+      "Custom pages",
+      "Legal pages",
+    ])
+    expect(children(["owner"], "website")).toEqual([
+      "Home",
+      "About",
+      "Services",
+      "Team",
+      "Blog",
+      "Contact",
+      "Careers",
+      "Custom pages",
+      "Legal pages",
+      "Header & footer",
     ])
     const settings = children(["editor"], "settings")!
     expect(settings).not.toContain("AI assistant")
@@ -201,17 +196,67 @@ describe("registry items (ported from the JW nav tests)", () => {
   })
 
   it("drops a section whose children are all hidden", () => {
-    expect(menu(["author"]).flat(2)).not.toContain("Collections")
+    expect(menu(["author"]).flat(2)).not.toContain("Marketing")
     expect(menu(["intake"]).flat(2)).not.toContain("Site settings")
   })
 
   it("activeItem: /admin is exact; sub-pages and ids select their section", () => {
-    expect(activeItem("/admin/pages", ["owner"])!.id).toBe("pages")
-    expect(activeItem("/admin/collections/clients", ["owner"])!.id).toBe(
-      "collections"
-    )
+    expect(activeItem("/admin/website/home", ["owner"])!.id).toBe("website")
+    expect(activeItem("/admin/settings/site", ["owner"])!.id).toBe("settings")
     expect(activeItem("/admin/users-archive", ["owner"])).toBeNull()
-    expect(activeItem("/admin/insights/0192", ["author"])!.id).toBe("insights")
+    expect(activeItem("/admin/insights/0192", ["author"])!.id).toBe("website")
+  })
+
+  it("activeItem/activeChild: owned paths select Website and the owning screen", () => {
+    const at = (path: string) => {
+      const found = activeItem(path, ["owner"])!
+      return [found.id, activeChild(found, path)?.id ?? null]
+    }
+    expect(at("/admin/services/x")).toEqual(["website", "website-services"])
+    expect(at("/admin/insights")).toEqual(["website", "website-blog"])
+    expect(at("/admin/insights/categories")).toEqual([
+      "website",
+      "website-blog",
+    ])
+    expect(at("/admin/careers")).toEqual(["website", "website-careers"])
+    expect(at("/admin/careers/jobs/0192")).toEqual([
+      "website",
+      "website-careers",
+    ])
+    expect(at("/admin/pages/custom/x")).toEqual([
+      "website",
+      "website-custom-pages",
+    ])
+    expect(at("/admin/pages/legal/x")).toEqual(["website", "website-legal"])
+    expect(at("/admin/website/legal/privacy")).toEqual([
+      "website",
+      "website-legal",
+    ])
+    expect(at("/admin/website/header-footer/footer")).toEqual([
+      "website",
+      "website-header-footer",
+    ])
+    // Applications stays its own item.
+    expect(at("/admin/careers/applications/x")).toEqual(["careers", null])
+  })
+
+  it("⌘K finds the Website parts, labelled with their screen", () => {
+    const owner = reachableLinks(["owner"])
+    expect(owner.find((l) => l.label === "Client logos")).toMatchObject({
+      parent: "Home",
+      href: "/admin/website/home/clients",
+    })
+    expect(owner.find((l) => l.label === "Footer")).toMatchObject({
+      parent: "Header & footer",
+      href: "/admin/website/header-footer/footer",
+    })
+    expect(owner.find((l) => l.label === "All services")).toMatchObject({
+      parent: "Services",
+      href: "/admin/services",
+    })
+    const author = reachableLinks(["author"]).map((l) => l.href)
+    expect(author).toContain("/admin/insights")
+    expect(author).not.toContain("/admin/insights/categories")
   })
 })
 
@@ -220,8 +265,11 @@ describe("firstVisibleChild (section index pages)", () => {
     expect(firstVisibleChild("settings", ["viewer"])?.href).toBe(
       "/admin/settings/site"
     )
-    expect(firstVisibleChild("collections", ["editor"])?.href).toBe(
-      "/admin/collections/team"
+    expect(firstVisibleChild("website", ["editor"])?.href).toBe(
+      "/admin/website/home"
+    )
+    expect(firstVisibleChild("website", ["author"])?.href).toBe(
+      "/admin/website/blog"
     )
     expect(firstVisibleChild("marketing", ["marketer"])?.href).toBe(
       "/admin/marketing"
@@ -230,8 +278,8 @@ describe("firstVisibleChild (section index pages)", () => {
 
   it("is undefined when the section is hidden or has no children", () => {
     expect(firstVisibleChild("settings", ["author"])).toBeUndefined()
-    expect(firstVisibleChild("collections", ["author"])).toBeUndefined()
-    expect(firstVisibleChild("pages", ["owner"])).toBeUndefined()
+    expect(firstVisibleChild("website", ["intake"])).toBeUndefined()
+    expect(firstVisibleChild("dashboard", ["owner"])).toBeUndefined()
     expect(firstVisibleChild("nope", ["owner"])).toBeUndefined()
   })
 })

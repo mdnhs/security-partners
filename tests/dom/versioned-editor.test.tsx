@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/pages/home",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 import { z } from "zod"
@@ -17,8 +18,27 @@ import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { PageDto } from "@/lib/schemas/api/content"
 import { fixtureMediaLookup } from "@/server/db/seed/fixtures/media"
 import { pagesFixture } from "@/server/db/seed/fixtures/pages"
+import { settingsFixture } from "@/server/db/seed/fixtures/settings"
 
 const home = pagesFixture(fixtureMediaLookup).home.data
+const settings = settingsFixture(fixtureMediaLookup)
+
+/** A published, clean settings record (a section inside the page's form). */
+const settingsDto = (key: "sections.enquireBanner" | "sections.clients") => ({
+  key,
+  label: key,
+  description: "",
+  group: "Shared sections",
+  canEdit: true,
+  draft: settings[key],
+  published: settings[key],
+  version: 1,
+  status: "published",
+  dirty: false,
+  publishedAt: "2026-10-16T09:00:00.000Z",
+  updatedAt: "2026-10-16T10:00:00.000Z",
+  updatedBy: null,
+})
 
 const dto = (version: number, heading: string, published = home): PageDto => ({
   key: "home",
@@ -60,6 +80,11 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock)
   routes = {
     "GET /api/v1/admin/pages/home": () => json(200, dto(1, home.hero.heading)),
+    // Shared sections edited inside Home's form (page-bundle).
+    "GET /api/v1/admin/settings/sections.enquireBanner": () =>
+      json(200, settingsDto("sections.enquireBanner")),
+    "GET /api/v1/admin/settings/sections.clients": () =>
+      json(200, settingsDto("sections.clients")),
   }
 })
 
@@ -233,7 +258,7 @@ describe("page editor (master 4.4)", () => {
     await user.click(
       within(screen.getByRole("navigation", { name: "Admin" })).getByRole(
         "link",
-        { name: "Services" }
+        { name: "Media" }
       )
     )
     // The shell's styled dialog, not the native confirm().
@@ -605,93 +630,64 @@ describe("page editor (master 4.4)", () => {
   })
 })
 
-describe("page editor section tabs", () => {
-  it("shows one template group per tab and keeps edits across tabs", async () => {
+describe("page editor: one flat form with the page's shared sections", () => {
+  it("stacks every group as a card (no section tabs) and saves a section with its own record", async () => {
     const user = userEvent.setup()
-    const put = vi.fn((init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { draft: typeof home }
+    const pagePut = vi.fn()
+    const bannerPut = vi.fn((init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { draft: unknown }
       return json(200, {
-        ...dto(2, body.draft.hero.heading),
+        ...settingsDto("sections.enquireBanner"),
         draft: body.draft,
+        version: 2,
+        dirty: true,
       })
     })
-    routes["PUT /api/v1/admin/pages/home/draft"] = put
+    routes["PUT /api/v1/admin/pages/home/draft"] = pagePut
+    routes["PUT /api/v1/admin/settings/sections.enquireBanner/draft"] =
+      bannerPut
     renderEditor()
-    const heading = await headingInput()
-    const tablist = screen.getByRole("tablist", { name: "Sections" })
-    // A page has a parent list: the header links back to it.
-    expect(screen.getByRole("link", { name: "All pages" })).toHaveAttribute(
-      "href",
-      "/admin/pages"
-    )
-    // The sticky tab rail stops below the editor's sticky bar.
+    await headingInput()
+    expect(screen.queryByRole("tablist", { name: "Sections" })).toBeNull()
+    // No back link: the Website rail gives the context.
+    expect(screen.queryByRole("link", { name: "All pages" })).toBeNull()
+    for (const name of [
+      "Hero",
+      "Services section",
+      "Enquire banner",
+      "Clients strip",
+      "Team section",
+      "Blog section",
+    ])
+      expect(screen.getByRole("region", { name })).toBeVisible()
+    // The show/hide + order widget is the form's last card.
+    const blog = screen.getByRole("region", { name: "Blog section" })
+    const layout = screen.getAllByText("Page sections").at(-1)!
     expect(
-      tablist
-        .closest<HTMLElement>("[style]")
-        ?.style.getPropertyValue("--section-tabs-top")
-    ).toMatch(/^\d+px$/)
-    expect(
-      within(tablist)
-        .getAllByRole("tab")
-        .map((tab) => tab.textContent)
-    ).toEqual(["Hero", "Services section", "Team section", "Blog section"])
-    expect(within(tablist).getByRole("tab", { name: "Hero" })).toHaveAttribute(
-      "aria-selected",
-      "true"
+      blog.compareDocumentPosition(layout) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    // The shared section sits right after the group it follows on the site.
+    const order = screen
+      .getAllByRole("region")
+      .map((r) => r.getAttribute("aria-labelledby"))
+      .map((id) => (id ? document.getElementById(id)?.textContent : null))
+    expect(order.indexOf("Enquire banner")).toBe(
+      order.indexOf("Services section") + 1
     )
-    expect(screen.queryByRole("region", { name: "Team section" })).toBeNull()
 
-    await user.clear(heading)
-    await user.type(heading, "Kept heading")
-    await user.click(within(tablist).getByRole("tab", { name: "Team section" }))
-    expect(window.location.search).toBe("?tab=team")
-    expect(screen.getByRole("region", { name: "Team section" })).toBeVisible()
-    expect(screen.queryByRole("region", { name: "Hero" })).toBeNull()
-    await user.click(within(tablist).getByRole("tab", { name: "Hero" }))
-    expect(await headingInput()).toHaveValue("Kept heading")
-
-    // The hidden groups still belong to the draft that is saved.
+    const banner = screen.getByRole("region", { name: "Enquire banner" })
+    const field = within(banner).getByRole("textbox", { name: "Heading" })
+    await user.clear(field)
+    await user.type(field, "Talk to us")
     await user.keyboard("{Control>}s{/Control}")
-    await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
-    const sent = JSON.parse(String(put.mock.calls[0][0]?.body)) as {
-      draft: typeof home
+    await waitFor(() => expect(bannerPut).toHaveBeenCalledTimes(1))
+    const sent = JSON.parse(String(bannerPut.mock.calls[0][0]?.body)) as {
+      draft: { heading: string }
+      version: number
     }
-    expect(sent.draft.hero.heading).toBe("Kept heading")
-    expect(sent.draft.team).toEqual(home.team)
-  })
-
-  it("marks tabs with errors and jumps to the first one on publish", async () => {
-    const user = userEvent.setup()
-    const push = vi.spyOn(window.history, "pushState")
-    renderEditor()
-    const heading = await headingInput()
-    await user.clear(heading)
-    const tablist = screen.getByRole("tablist", { name: "Sections" })
-    await user.click(within(tablist).getByRole("tab", { name: "Blog section" }))
-    await user.click(screen.getByRole("button", { name: "Publish" }))
-    const hero = await within(tablist).findByRole("tab", {
-      name: "Hero, has errors",
-    })
-    expect(hero).toHaveAttribute("aria-selected", "true")
-    expect(
-      within(tablist).getByRole("tab", { name: "Blog section" })
-    ).toHaveAttribute("aria-selected", "false")
-    expect(await headingInput()).toHaveAttribute("aria-invalid", "true")
-    // The jump lands on the first invalid field and replaces the history
-    // entry (it was not a click).
-    await waitFor(async () => expect(await headingInput()).toHaveFocus())
-    expect(window.location.search).toBe("?tab=hero")
-    // The click on "Blog section" (the unsaved-changes guard's own Back
-    // entry, pushed on the first edit, does not count).
-    expect(
-      push.mock.calls.filter(
-        ([state]) => !(state as Record<string, unknown> | null)?.__spUnsaved
-      )
-    ).toHaveLength(1)
-    push.mockRestore()
-    expect(
-      screen.queryByRole("dialog", { name: "Publish changes?" })
-    ).toBeNull()
+    expect(sent).toMatchObject({ draft: { heading: "Talk to us" }, version: 1 })
+    // Only the section changed: the page's own record is not written.
+    expect(pagePut).not.toHaveBeenCalled()
   })
 })
 

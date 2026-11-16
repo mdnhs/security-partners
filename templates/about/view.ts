@@ -4,6 +4,7 @@ import type { ClientsProps } from "@/components/home/clients-team-blog"
 import type { IconCardsProps } from "@/components/home/icon-cards"
 import type { PageHeroProps } from "@/components/home/page-hero"
 import type { EnquireBannerProps } from "@/components/home/services"
+import { ABOUT_SECTIONS, visibleSections } from "@/templates/shared/sections"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
   aboutSectionView,
@@ -14,6 +15,7 @@ import {
 
 export type AboutView = {
   hero: PageHeroProps
+  sections: (typeof ABOUT_SECTIONS)[number][]
   about: AboutProps
   stats: StatsProps
   values: IconCardsProps
@@ -24,6 +26,7 @@ export type AboutView = {
 export function aboutView(s: SiteSources): AboutView {
   const page = s.pages.about.data
   return {
+    sections: visibleSections(page.sections, ABOUT_SECTIONS),
     hero: pageHeroView(s, page.hero),
     about: aboutSectionView(s),
     stats: { stats: page.stats },

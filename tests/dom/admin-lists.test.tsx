@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
 
 import { AdminSessionProvider } from "@/components/admin/session-provider"
 import { DataTablePagination } from "@/components/admin/data-table/data-table-pagination"
-import { PagesList } from "@/components/admin/pages/pages-list"
+import { SitePagesList } from "@/components/admin/pages/pages-list"
 import { makeQueryClient } from "@/components/admin/providers"
 
 const page = (over: Record<string, unknown>) => ({
@@ -45,7 +45,7 @@ function renderPages() {
       }}
     >
       <QueryClientProvider client={makeQueryClient()}>
-        <PagesList />
+        <SitePagesList />
       </QueryClientProvider>
     </AdminSessionProvider>
   )
@@ -102,7 +102,7 @@ describe("pages list (JW pattern)", () => {
     const rows = within(table).getAllByRole("row").slice(1)
     expect(within(rows[0]).getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
-      "/admin/pages/home"
+      "/admin/website/home"
     )
     expect(
       within(rows[0]).getByText("/", { selector: "code" })

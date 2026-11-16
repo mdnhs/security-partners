@@ -5,6 +5,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { SplitText } from "gsap/SplitText"
 import { useGSAP } from "@gsap/react"
 
+import { whenChromeReady } from "@/components/motion/chrome-ready"
 import { pageStory } from "@/components/motion/page-story"
 
 gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText)
@@ -20,46 +21,60 @@ const q = <T extends Element = HTMLElement>(
 // Wires the home page's data-* hooks to GSAP. Renders nothing; markup stays server-rendered.
 export function HomeMotion() {
   useGSAP(() => {
-    const mm = gsap.matchMedia()
-
-    mm.add("(prefers-reduced-motion: reduce)", () => {
-      gsap.set("[data-hero-item], [data-hero-title]", { autoAlpha: 1 })
+    let mm: gsap.MatchMedia | undefined
+    // Not before the navbar and footer have hydrated (see chrome-ready).
+    const cancel = whenChromeReady(() => {
+      mm = start()
     })
-
-    mm.add(
-      {
-        motion: "(prefers-reduced-motion: no-preference)",
-        desktop: "(min-width: 1024px)",
-      },
-      (context) => {
-        const { motion, desktop } = context.conditions as {
-          motion: boolean
-          desktop: boolean
-        }
-        if (!motion) return
-
-        heroIntro()
-        heroScroll()
-        scrollProgress()
-        reveals()
-        aboutStory(desktop)
-        parallax()
-        banner(desktop)
-        const stopStory = pageStory(desktop)
-        contactInfo()
-        map()
-        const stopButtons = bannerButtons()
-        const stopCards = serviceCards()
-        return () => {
-          stopButtons?.()
-          stopCards?.()
-          stopStory?.()
-        }
-      }
-    )
+    return () => {
+      cancel()
+      mm?.revert()
+    }
   })
 
   return null
+}
+
+function start(): gsap.MatchMedia {
+  const mm = gsap.matchMedia()
+
+  mm.add("(prefers-reduced-motion: reduce)", () => {
+    gsap.set("[data-hero-item], [data-hero-title]", { autoAlpha: 1 })
+  })
+
+  mm.add(
+    {
+      motion: "(prefers-reduced-motion: no-preference)",
+      desktop: "(min-width: 1024px)",
+    },
+    (context) => {
+      const { motion, desktop } = context.conditions as {
+        motion: boolean
+        desktop: boolean
+      }
+      if (!motion) return
+
+      heroIntro()
+      heroScroll()
+      scrollProgress()
+      reveals()
+      aboutStory(desktop)
+      parallax()
+      banner(desktop)
+      const stopStory = pageStory(desktop)
+      contactInfo()
+      map()
+      const stopButtons = bannerButtons()
+      const stopCards = serviceCards()
+      return () => {
+        stopButtons?.()
+        stopCards?.()
+        stopStory?.()
+      }
+    }
+  )
+
+  return mm
 }
 
 function heroIntro() {

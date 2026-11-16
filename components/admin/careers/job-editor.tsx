@@ -66,6 +66,7 @@ export function JobEditor({ id }: { id: string }) {
     <VersionedEditor<JobDto>
       key={epoch}
       title={record.data?.title ?? "Job"}
+      flat
       backHref="/admin/careers"
       backLabel="All jobs"
       path={record.data ? `/careers/${record.data.slug}` : undefined}

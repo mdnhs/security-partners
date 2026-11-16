@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from "react"
+
 import { About } from "@/components/home/about"
 import { Blog, Clients, Team } from "@/components/home/clients-team-blog"
 import { Contact, LocationMap } from "@/components/home/contact"
@@ -9,18 +11,23 @@ import type { HomeView } from "./view"
 
 /** "/" — section order is the design's; content comes from the view. */
 export function HomeTemplate({ view }: { view: HomeView }) {
+  const parts: Record<HomeView["sections"][number], ReactNode> = {
+    about: <About {...view.about} />,
+    services: <Services {...view.services} />,
+    enquireBanner: <EnquireBanner {...view.enquireBanner} />,
+    clients: <Clients {...view.clients} />,
+    team: <Team {...view.team} />,
+    blog: <Blog {...view.blog} />,
+    contact: <Contact {...view.contact} />,
+    map: <LocationMap {...view.map} />,
+  }
   return (
     <>
       <main>
         <Hero {...view.hero} />
-        <About {...view.about} />
-        <Services {...view.services} />
-        <EnquireBanner {...view.enquireBanner} />
-        <Clients {...view.clients} />
-        <Team {...view.team} />
-        <Blog {...view.blog} />
-        <Contact {...view.contact} />
-        <LocationMap {...view.map} />
+        {view.sections.map((id) => (
+          <Fragment key={id}>{parts[id]}</Fragment>
+        ))}
       </main>
       <HomeMotion />
     </>

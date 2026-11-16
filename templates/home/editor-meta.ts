@@ -3,6 +3,21 @@ import type { EditorMeta } from "@/components/admin/schema-form/editor-meta"
 /** Editor labels for the home page (template "home"). */
 export const homeEditorMeta: EditorMeta = {
   fields: {
+    sections: {
+      label: "Page sections",
+      widget: "sections",
+      help: "Show, hide and reorder the sections below the hero. Their content is edited where it lives; hiding a section keeps it.",
+      options: [
+        { value: "about", label: "About" },
+        { value: "services", label: "Services" },
+        { value: "enquireBanner", label: "Enquiry banner" },
+        { value: "clients", label: "Clients" },
+        { value: "team", label: "Team" },
+        { value: "blog", label: "Blog" },
+        { value: "contact", label: "Contact form" },
+        { value: "map", label: "Location map" },
+      ],
+    },
     hero: {
       label: "Hero",
       help: "The full-screen banner at the top of the home page.",

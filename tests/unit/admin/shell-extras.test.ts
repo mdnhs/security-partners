@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { leadBadge, applicationBadge, getAiStatus, getShellNotifications } =
-  vi.hoisted(() => ({
-    leadBadge: vi.fn(),
-    applicationBadge: vi.fn(),
-    getAiStatus: vi.fn(),
-    getShellNotifications: vi.fn(),
-  }))
+const {
+  leadBadge,
+  applicationBadge,
+  getAiStatus,
+  getShellNotifications,
+  unreadCount,
+} = vi.hoisted(() => ({
+  unreadCount: vi.fn(),
+  leadBadge: vi.fn(),
+  applicationBadge: vi.fn(),
+  getAiStatus: vi.fn(),
+  getShellNotifications: vi.fn(),
+}))
 vi.mock("@/server/modules/leads/service", () => ({ leadBadge }))
 vi.mock("@/server/modules/applications/service", () => ({
   applicationBadge,
 }))
+vi.mock("@/server/modules/chat/repo", () => ({ unreadCount }))
 vi.mock("@/server/modules/ai/service", () => ({ getAiStatus }))
 vi.mock("@/server/modules/dashboard/service", () => ({
   getShellNotifications,
@@ -32,6 +39,7 @@ const status = { available: true } as never
 beforeEach(() => {
   leadBadge.mockReset().mockResolvedValue({ newLeads: 3 })
   applicationBadge.mockReset().mockResolvedValue({ newApplications: 2 })
+  unreadCount.mockReset().mockResolvedValue(2)
   getAiStatus.mockReset().mockResolvedValue(status)
   getShellNotifications.mockReset().mockResolvedValue([])
   vi.spyOn(console, "error").mockImplementation(() => {})
@@ -42,7 +50,7 @@ describe("admin frame extras (final review I7)", () => {
     const extras = await loadShellExtras(actor(["intake"]))
     expect(extras).toEqual({
       // intake reads applications too (careers plan Task 7).
-      badges: { "new-leads": 3, "new-applications": 2 },
+      badges: { "new-leads": 3, "new-applications": 2, "chat-unread": 2 },
       assistant: status,
       notifications: [],
     })
@@ -54,12 +62,22 @@ describe("admin frame extras (final review I7)", () => {
     expect(extras.badges).toEqual({})
     expect(applicationBadge).not.toHaveBeenCalled()
     expect(leadBadge).not.toHaveBeenCalled()
+    expect(unreadCount).not.toHaveBeenCalled()
     expect(getShellNotifications).toHaveBeenCalledWith(expect.anything(), null)
+  })
+
+  it("a failing chat count leaves no chat badge and keeps the frame", async () => {
+    unreadCount.mockRejectedValue(new Error("chat table locked"))
+    const extras = await loadShellExtras(actor(["intake"]))
+    expect(extras.badges).toEqual({ "new-leads": 3, "new-applications": 2 })
+    expect(extras.assistant).toBe(status)
+    expect(console.error).toHaveBeenCalledTimes(1)
   })
 
   it("degrades each part on its own instead of failing the frame", async () => {
     leadBadge.mockRejectedValue(new Error("db hiccup"))
     applicationBadge.mockRejectedValue(new Error("db hiccup"))
+    unreadCount.mockRejectedValue(new Error("db hiccup"))
     getAiStatus.mockRejectedValue(new Error("ai settings unreadable"))
     getShellNotifications.mockRejectedValue(new Error("jobs table locked"))
     await expect(loadShellExtras(actor(["owner"]))).resolves.toEqual({
@@ -67,6 +85,6 @@ describe("admin frame extras (final review I7)", () => {
       assistant: undefined,
       notifications: [],
     })
-    expect(console.error).toHaveBeenCalledTimes(4)
+    expect(console.error).toHaveBeenCalledTimes(5)
   })
 })

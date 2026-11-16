@@ -7,6 +7,7 @@ import type {
 import type { OtherServicesProps } from "@/components/services/other-services"
 import type { ServiceBodyProps } from "@/components/services/service-body"
 import type { WhyChooseUsProps } from "@/components/services/why-choose-us"
+import { SERVICES_SECTIONS, visibleSections } from "@/templates/shared/sections"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
   clientsView,
@@ -20,6 +21,7 @@ import {
 
 export type ServicesView = {
   hero: PageHeroProps
+  sections: (typeof SERVICES_SECTIONS)[number][]
   services: ServicesProps
   whyChooseUs: WhyChooseUsProps
   clients: ClientsProps
@@ -30,6 +32,7 @@ export function servicesView(s: SiteSources): ServicesView {
   const page = s.pages.services.data
   const why = s.settings["sections.whyChooseUs"]
   return {
+    sections: visibleSections(page.sections, SERVICES_SECTIONS),
     hero: pageHeroView(s, page.hero),
     services: {
       eyebrow: page.servicesSection.eyebrow,

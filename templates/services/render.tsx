@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from "react"
+
 import { Clients } from "@/components/home/clients-team-blog"
 import { PageHero } from "@/components/home/page-hero"
 import { EnquireBanner, Services } from "@/components/home/services"
@@ -10,14 +12,19 @@ import type { ServiceDetailView, ServicesView } from "./view"
 
 /** "/services" */
 export function ServicesTemplate({ view }: { view: ServicesView }) {
+  const parts: Record<ServicesView["sections"][number], ReactNode> = {
+    services: <Services {...view.services} />,
+    whyChooseUs: <WhyChooseUs {...view.whyChooseUs} />,
+    clients: <Clients {...view.clients} />,
+    enquireBanner: <EnquireBanner {...view.enquireBanner} />,
+  }
   return (
     <>
       <main>
         <PageHero {...view.hero} />
-        <Services {...view.services} />
-        <WhyChooseUs {...view.whyChooseUs} />
-        <Clients {...view.clients} />
-        <EnquireBanner {...view.enquireBanner} />
+        {view.sections.map((id) => (
+          <Fragment key={id}>{parts[id]}</Fragment>
+        ))}
       </main>
       <HomeMotion />
     </>

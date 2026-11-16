@@ -6,7 +6,6 @@ import { useState } from "react"
 import { VersionedEditor } from "@/components/admin/editor/versioned-editor"
 import type { StatusPillSpec } from "@/components/admin/kit/content-status"
 import { EditorSeoTab, textAt } from "@/components/admin/seo/editor-seo-tab"
-import { SeoLink } from "@/components/admin/seo/seo-link"
 import { usePermission } from "@/hooks/use-permission"
 import { api, unwrap } from "@/lib/api-client"
 import { formatDateTime } from "@/lib/format"
@@ -107,6 +106,7 @@ export function ArticleEditor({ id, origin }: { id: string; origin?: string }) {
       }
       schema={articleContent}
       meta={articleEditorMeta}
+      flat
       revisions={{ entity: "article", id }}
       previewHref={previewHref("article", id)}
       publicHref={record.data?.live ? `/blog/${record.data.slug}` : undefined}
@@ -114,10 +114,7 @@ export function ArticleEditor({ id, origin }: { id: string; origin?: string }) {
       canPublish={permissions?.publish ?? false}
       status={(dto, dirty) => articleStatusPills({ ...dto, dirty })}
       actions={(ctx) => (
-        <>
-          <SeoLink />
-          <WorkflowActions ctx={ctx} />
-        </>
+        <WorkflowActions ctx={ctx} />
       )}
       seo={
         canReadSeo

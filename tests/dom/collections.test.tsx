@@ -155,13 +155,14 @@ describe("collection screen + data table (master 4.6)", () => {
     expect(screen.queryByRole("button", { name: "Change order" })).toBeNull()
   })
 
-  it("beside the Insights rail the page sits on the panel (MK, no tab card)", async () => {
+  it("beside the Website rail the page sits on the panel (MK, no tab card)", async () => {
     renderScreen(["editor"])
     const table = await screen.findByRole("table", { name: "Categories" })
-    const rail = screen.getByRole("navigation", { name: "Insights" })
-    expect(
-      within(rail).getByRole("link", { name: "Categories" })
-    ).toHaveAttribute("aria-current", "page")
+    const rail = screen.getByRole("navigation", { name: "Website" })
+    expect(within(rail).getByRole("link", { name: "Blog" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
     // White cards on the grey panel: no outline, header beside its actions.
     expect(table.closest('[data-slot="table-card"]')).not.toHaveClass("border")
     const cards = within(

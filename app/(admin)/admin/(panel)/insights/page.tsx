@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { ArticlesScreen } from "@/components/admin/articles/articles-screen"
+import { WebsiteTabs } from "@/components/admin/website/website-tabs"
 import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Insights" }
@@ -16,5 +17,10 @@ export default function ArticlesPage() {
 
 async function Screen() {
   await requirePage("/admin/insights")
-  return <ArticlesScreen />
+  return (
+    <>
+      <WebsiteTabs screen="blog" />
+      <ArticlesScreen />
+    </>
+  )
 }

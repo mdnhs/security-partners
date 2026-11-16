@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext } from "react"
+import { createContext, type ReactNode, useContext } from "react"
 
 import type { EditorMeta } from "./editor-meta"
 import type { ResolvedField } from "./resolve-widget"
@@ -10,6 +10,11 @@ export type SchemaFormContextValue = {
   disabled: boolean
   /** Prefix for element ids (two forms on one page stay unique). */
   idPrefix: string
+  /**
+   * Extra content by group path: "grid" at the end of that section card,
+   * "after:grid" as cards of their own right after it.
+   */
+  slots?: Record<string, ReactNode>
 }
 
 export const SchemaFormContext = createContext<SchemaFormContextValue | null>(

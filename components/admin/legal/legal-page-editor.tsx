@@ -61,7 +61,7 @@ export function LegalPageEditor({ id }: { id: string }) {
   if (deleted)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Legal page deleted. Returning to all pages…
+        Legal page deleted. Returning to legal pages…
       </p>
     )
   return (
@@ -69,8 +69,8 @@ export function LegalPageEditor({ id }: { id: string }) {
       key={epoch}
       title={record.data?.title ?? "Legal page"}
       description="Shown at its own address and linked from the footer once published."
-      backHref="/admin/pages"
-      backLabel="All pages"
+      backHref="/admin/website/legal"
+      backLabel="Legal pages"
       path={record.data?.path}
       queryKey={queryKey}
       load={() => unwrap(api["legal-pages"][":id"].$get({ param }))}
@@ -301,7 +301,7 @@ function DeleteLegalPage({
       // Drop the deleted record first so nothing refetches it (404).
       queryClient.removeQueries({ queryKey: [...LEGAL_PAGES_KEY, page.id] })
       await queryClient.invalidateQueries({ queryKey: LEGAL_PAGES_KEY })
-      router.push("/admin/pages")
+      router.push("/admin/website/legal")
     },
     onError: (err) => {
       setOpen(false)

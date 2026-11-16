@@ -316,20 +316,12 @@ describe("editor SEO tab (MK D1.4)", () => {
     })
   })
 
-  it("the header SEO link selects the SEO tab on the same page", async () => {
-    const user = userEvent.setup()
+  it("SEO is the editor's own tab row, not a header link", async () => {
     renderEditor()
     await screen.findByRole("region", { name: "Hero" })
     const bar = document.querySelector<HTMLElement>('[data-slot="editor-bar"]')!
-    const link = within(bar).getByRole("link", { name: "SEO" })
-    expect(link).toHaveAttribute("href", "?tab=seo")
-    await user.click(link)
-    expect(screen.getByRole("tab", { name: "SEO" })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
-    expect(window.location.pathname).toBe("/admin/services/x")
-    expect(window.location.search).toBe("?tab=seo")
+    expect(within(bar).queryByRole("link", { name: "SEO" })).toBeNull()
+    expect(screen.getByRole("tab", { name: "SEO" })).toBeInTheDocument()
   })
 
   it("a dirty editor switches to SEO without a leave prompt; reloads stay guarded (review D1.4 I1)", async () => {
@@ -339,8 +331,7 @@ describe("editor SEO tab (MK D1.4)", () => {
     renderEditor()
     const hero = await screen.findByRole("region", { name: "Hero" })
     await user.type(within(hero).getByRole("textbox", { name: "Heading" }), "!")
-    const bar = document.querySelector<HTMLElement>('[data-slot="editor-bar"]')!
-    await user.click(within(bar).getByRole("link", { name: "SEO" }))
+    await user.click(screen.getByRole("tab", { name: "SEO" }))
     expect(screen.queryByRole("alertdialog")).toBeNull()
     expect(screen.getByRole("tab", { name: "SEO" })).toHaveAttribute(
       "aria-selected",

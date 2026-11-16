@@ -278,7 +278,7 @@ function SectionFields({
 }
 
 export function GroupWidget({ field, path }: WidgetProps) {
-  const { idPrefix } = useSchemaForm()
+  const { idPrefix, slots } = useSchemaForm()
   const shape = (field.schema as z.ZodObject).shape as Record<string, z.ZodType>
   const groupErrors = useGroupErrors(path, shape)
   if (!path) return <RootFields shape={shape} keys={Object.keys(shape)} />
@@ -303,15 +303,20 @@ export function GroupWidget({ field, path }: WidgetProps) {
   const section = field.meta.section ?? !path.includes(".")
   if (section)
     return (
-      <FormCard
-        id={id}
-        title={field.label}
-        description={field.meta.help}
-        aria-describedby={errorRef}
-      >
-        {errors}
-        <SectionFields shape={shape} path={path} id={id} />
-      </FormCard>
+      <>
+        <FormCard
+          id={id}
+          title={field.label}
+          description={field.meta.help}
+          aria-describedby={errorRef}
+        >
+          {errors}
+          <SectionFields shape={shape} path={path} id={id} />
+          {slots?.[path]}
+        </FormCard>
+        {/* Cards of their own right after this one. */}
+        {slots?.[`after:${path}`]}
+      </>
     )
   return (
     <fieldset

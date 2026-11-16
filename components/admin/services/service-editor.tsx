@@ -13,7 +13,6 @@ import {
 } from "@/components/admin/editor/versioned-editor"
 import { ADMIN_CONTROL, FormCard } from "@/components/admin/form/form-ui"
 import { EditorSeoTab, textAt } from "@/components/admin/seo/editor-seo-tab"
-import { SeoLink } from "@/components/admin/seo/seo-link"
 import {
   ErrorText,
   HelpText,
@@ -92,6 +91,7 @@ export function ServiceEditor({ id, origin }: { id: string; origin?: string }) {
       }
       schema={serviceContent}
       meta={serviceEditorMeta}
+      flat
       revisions={{ entity: "service", id }}
       previewHref={previewHref("service", id)}
       publicHref={record.data ? `/services/${record.data.slug}` : undefined}
@@ -99,7 +99,6 @@ export function ServiceEditor({ id, origin }: { id: string; origin?: string }) {
       canPublish={canPublish}
       actions={
         <>
-          <SeoLink />
           {canDelete && record.data ? (
             <DeleteService
               service={record.data}

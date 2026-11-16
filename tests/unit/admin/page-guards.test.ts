@@ -69,10 +69,7 @@ const EXPECTED: Record<string, PermissionRequest | null> = {
   "careers/applications/page.tsx": { application: ["read"] },
   "careers/applications/[id]/page.tsx": { application: ["read"] },
   "careers/jobs/[id]/page.tsx": { job: ["read"] },
-  "collections/page.tsx": { collection: ["read"] },
-  "collections/clients/page.tsx": { collection: ["read"] },
-  "collections/group-companies/page.tsx": { collection: ["read"] },
-  "collections/team/page.tsx": { collection: ["read"] },
+  "chat/page.tsx": { chat: ["read"] },
   "design/page.tsx": { customCode: ["update"] },
   "help/page.tsx": null,
   "insights/page.tsx": { article: ["read"] },
@@ -86,8 +83,6 @@ const EXPECTED: Record<string, PermissionRequest | null> = {
   "marketing/consent/page.tsx": { marketing: ["read"] },
   "marketing/events/page.tsx": { marketing: ["read"] },
   "media/page.tsx": { media: ["read"] },
-  "pages/page.tsx": { page: ["read"] },
-  "pages/[key]/page.tsx": { page: ["read"] },
   "pages/custom/[id]/page.tsx": { page: ["read"] },
   "pages/legal/[id]/page.tsx": { page: ["read"] },
   "seo/page.tsx": { seo: ["read"] },
@@ -103,6 +98,41 @@ const EXPECTED: Record<string, PermissionRequest | null> = {
   "settings/integrations/[slug]/page.tsx": { integration: ["read"] },
   "users/page.tsx": { user: ["read"] },
   "users/[id]/page.tsx": { user: ["read"] },
+  "website/page.tsx": null,
+  // Static parent's; each screen's own is pinned by KEYED_GUARDS + the
+  // website-pages test (e.g. /admin/website/blog → article:read).
+  "website/[key]/page.tsx": null,
+  "website/[key]/[part]/page.tsx": null,
+  "website/custom-pages/page.tsx": { page: ["read"] },
+  "website/legal/page.tsx": { page: ["read"] },
+  "website/legal/[page]/page.tsx": { page: ["read"] },
+}
+
+/**
+ * Old URLs that only 307 to a Website screen (Phase 3 Task 3). They are on
+ * their way out of the registry, so they do not use requirePage: each signs
+ * in first (`await requireActor()`, before any notFound, so a stranger never
+ * learns which paths exist), then checks the pinned permission (null = any
+ * signed-in user), then redirects keeping the query. Nothing else is exempt.
+ */
+const REDIRECT_STUBS: Record<string, string | null> = {
+  "pages/page.tsx": null,
+  "pages/[key]/page.tsx": `requirePermission({ page: ["read"] })`,
+  "pages/legal/page.tsx": `requirePermission({ page: ["read"] })`,
+  "collections/page.tsx": null,
+  "collections/[name]/page.tsx": `requirePermission({ collection: ["read"] })`,
+}
+
+/**
+ * Pages whose registry href includes their [key]: each Website screen has
+ * its own permission (Blog is article:read, Header & footer settings:read),
+ * registered at /admin/website/<key>, so these guard with the screen's
+ * href, not the static parent. An unknown key falls back to /admin/website
+ * (any signed-in user) and the page then 404s.
+ */
+const KEYED_GUARDS: Record<string, string> = {
+  "website/[key]/page.tsx": "`/admin/website/${key}`",
+  "website/[key]/[part]/page.tsx": "`/admin/website/${key}`",
 }
 
 const rel = (file: string) => file.slice(ROOT.length + 1)
@@ -112,12 +142,20 @@ describe("panel page guards", () => {
     expect(pages.length).toBeGreaterThan(25)
   })
 
-  it.each(pages)(
+  it.each(pages.filter((file) => !(rel(file) in REDIRECT_STUBS)))(
     "%s guards with requirePage on its registered href",
     (file) => {
       const src = source(file)
       const calls = [...src.matchAll(/requirePage\(\s*([^)]*)\)/g)]
       expect(calls, "calls requirePage").toHaveLength(1)
+      const keyed = KEYED_GUARDS[rel(file)]
+      if (keyed) {
+        expect(calls[0]![1]).toBe(keyed)
+        expect(src, "the guard is awaited").toContain(
+          `await requirePage(${keyed})`
+        )
+        return
+      }
       const m = calls[0]![1]!.match(/^"([^"]+)"$/)
       expect(m, "requirePage takes a string literal").not.toBeNull()
       expect(src, "the guard is awaited").toMatch(/await requirePage\("/)
@@ -145,13 +183,48 @@ describe("panel page guards", () => {
     }
   )
 
+  it.each(Object.entries(REDIRECT_STUBS))(
+    "%s is a redirect stub: requireActor first, then its permission, query kept",
+    (file, check) => {
+      const src = source(`${ROOT}/${file}`)
+      expect(src).not.toMatch(/requirePage\(/)
+      const actor = src.search(/^\s*await requireActor\(\)$/m)
+      expect(actor, "awaits requireActor() as a statement").toBeGreaterThan(-1)
+      const notFound = src.indexOf("notFound()")
+      if (notFound !== -1) expect(actor).toBeLessThan(notFound)
+      const permission = src.indexOf("requirePermission(")
+      if (check === null) expect(permission).toBe(-1)
+      else {
+        expect(src).toMatch(
+          new RegExp(
+            `^\\s*await ${check.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+            "m"
+          )
+        )
+        expect(actor).toBeLessThan(permission)
+        if (notFound !== -1) expect(notFound).toBeLessThan(permission)
+      }
+      const go = src.search(
+        /^\s*redirect\(withSearch\(.*await searchParams\)\)$/m
+      )
+      expect(go, "redirects with the query kept").toBeGreaterThan(actor)
+    }
+  )
+
   it("pins a permission for every panel page", () => {
-    expect(Object.keys(EXPECTED).sort()).toEqual(pages.map(rel).sort())
+    expect(
+      [...Object.keys(EXPECTED), ...Object.keys(REDIRECT_STUBS)].sort()
+    ).toEqual(pages.map(rel).sort())
   })
 
-  it.each(pages.map(rel))("%s resolves to its pinned permission", (file) => {
-    expect(permissionFor(guardHref(`${ROOT}/${file}`))).toEqual(EXPECTED[file])
-  })
+  it.each(Object.keys(EXPECTED))(
+    "%s resolves to its pinned permission",
+    (file) => {
+      expect(permissionFor(guardHref(`${ROOT}/${file}`))).toEqual(
+        EXPECTED[file]
+      )
+    }
+  )
 
   it("maps page files to guard hrefs", () => {
     expect(guardHref(`${ROOT}/page.tsx`)).toBe("/admin")

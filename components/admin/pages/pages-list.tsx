@@ -11,7 +11,6 @@ import {
   NewPageDialog,
 } from "@/components/admin/builder/new-page-dialog"
 
-import { LegalPagesSection } from "@/components/admin/legal/legal-pages-section"
 import { ContentStatusPills } from "@/components/admin/kit/content-status"
 import { EmptyState } from "@/components/admin/kit/empty-state"
 import { RelativeTime } from "@/components/admin/kit/relative-time"
@@ -28,9 +27,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { usePermission } from "@/hooks/use-permission"
+import { pageEditorHref } from "@/lib/admin/website"
 import { api, errorMessage, unwrap } from "@/lib/api-client"
 import type { BuilderPageListItem } from "@/lib/schemas/api/builder-pages"
 import type { PageListItem } from "@/lib/schemas/api/content"
+import type { PageKey } from "@/templates/registry"
 
 const stateOf = (page: PageListItem) => ({
   published: page.publishedAt ? true : null,
@@ -49,8 +50,8 @@ function Updated({ page, now }: { page: PageListItem; now: number }) {
 }
 
 /**
- * Pages › "New page" (page:create): opens the new page dialog, also when
- * reached as /admin/pages?new=1 (⌘K "New page").
+ * Custom pages › "New page" (page:create): opens the new page dialog, also
+ * when reached as /admin/website/custom-pages?new=1 (⌘K "New page").
  */
 export function NewPageButton() {
   const canCreate = usePermission({ page: ["create"] })
@@ -83,32 +84,6 @@ export function NewPageButton() {
   )
 }
 
-/** Site pages (the eight fixed pages) and Custom pages (/p/<slug>). */
-export function PagesList() {
-  return (
-    <div className="flex flex-col gap-10">
-      <section aria-labelledby="pages-site" className="flex flex-col gap-4">
-        <h2 id="pages-site" className="text-card-title">
-          Site pages
-        </h2>
-        <SitePagesList />
-      </section>
-      <section aria-labelledby="pages-custom" className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 id="pages-custom" className="text-card-title">
-            Custom pages
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Pages built from blocks, at /p/ addresses.
-          </p>
-        </div>
-        <CustomPagesList />
-      </section>
-      <LegalPagesSection />
-    </div>
-  )
-}
-
 const customStateOf = (page: BuilderPageListItem) => ({
   published: page.status === "published" ? true : null,
   dirty: page.hasUnpublishedChanges,
@@ -130,8 +105,8 @@ function CustomUpdated({
   )
 }
 
-/** Builder pages: same card table / cards as the site pages. */
-function CustomPagesList() {
+/** Builder pages (/p/<slug>): same card table / cards as the site pages. */
+export function CustomPagesList() {
   const canCreate = usePermission({ page: ["create"] })
   const pages = useQuery({
     queryKey: BUILDER_PAGES_KEY,
@@ -251,8 +226,11 @@ function CustomPagesList() {
   )
 }
 
-/** The eight fixed pages (JW pages list): card table ≥ 640 px, cards below. */
-function SitePagesList() {
+/**
+ * Fixed pages (JW pages list), `only` these keys when given: card table
+ * ≥ 640 px, cards below. Each opens where it is edited under Website.
+ */
+export function SitePagesList({ only }: { only?: readonly PageKey[] }) {
   const pages = useQuery({
     queryKey: ["pages"],
     queryFn: () => unwrap(api.pages.$get()),
@@ -281,7 +259,9 @@ function SitePagesList() {
         }
       />
     )
-  const items = pages.data.items
+  const items = only
+    ? pages.data.items.filter((page) => only.includes(page.key))
+    : pages.data.items
   const now = pages.dataUpdatedAt
   if (items.length === 0)
     return (
@@ -332,7 +312,7 @@ function SitePagesList() {
               <TableRow key={page.key} className="hover:bg-muted/40">
                 <TableCell className="whitespace-normal">
                   <Link
-                    href={`/admin/pages/${page.key}`}
+                    href={pageEditorHref(page.key)}
                     className="font-semibold underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     {page.label}
@@ -359,7 +339,7 @@ function SitePagesList() {
           <li key={page.key} className="rounded-card relative bg-card p-4">
             <div className="flex flex-col gap-2 text-sm">
               <Link
-                href={`/admin/pages/${page.key}`}
+                href={pageEditorHref(page.key)}
                 className="after:rounded-card font-semibold outline-none after:absolute after:inset-0 focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
               >
                 {page.label}

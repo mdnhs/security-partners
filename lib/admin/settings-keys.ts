@@ -19,6 +19,7 @@ export const EDITABLE_SETTINGS_KEYS = [
   "sections.whyChooseUs",
   "leads",
   "careers",
+  "chat",
 ] as const satisfies readonly SettingsKey[]
 export type EditableSettingsKey = (typeof EDITABLE_SETTINGS_KEYS)[number]
 
@@ -129,6 +130,15 @@ export const SETTINGS_ENTRIES: Record<
     read: { settings: ["read"] },
     // Operational, like enquiries: it decides where CVs go and when they are deleted.
     update: { settings: ["update"], application: ["update"] },
+  },
+  chat: {
+    label: "Live chat",
+    description:
+      "Turns the chat bubble and its AI assistant on, and holds every text visitors see in it.",
+    group: "Leads",
+    read: { settings: ["read"] },
+    // Operational, like leads: only chat managers switch it on or change it.
+    update: { settings: ["update"], chat: ["manage"] },
   },
 }
 
