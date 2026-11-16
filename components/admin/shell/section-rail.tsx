@@ -1,5 +1,6 @@
 "use client"
 
+import { MotionConfig } from "motion/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -17,6 +18,12 @@ import {
   SectionTabsColumn,
 } from "@/components/admin/section-tabs/section-tabs"
 import { useAdminSession } from "@/components/admin/session-provider"
+import {
+  ActiveBar,
+  ActivePill,
+  PANEL_ENTER,
+  useClickedCurrent,
+} from "@/components/admin/shell/active-indicator"
 import { activeChild, activeItem } from "@/lib/admin/nav"
 import { cn } from "@/lib/utils"
 
@@ -34,10 +41,10 @@ export function useInSectionRail(): boolean {
  * -m-1/p-1 keep focus rings clear of that overflow clip.
  */
 const COLUMN =
-  "min-w-0 lg:sticky lg:top-0 lg:-m-1 lg:w-52 lg:shrink-0 lg:self-start lg:overflow-y-auto lg:p-1 lg:max-h-[calc(var(--main-h,var(--content-h,100svh))-2*var(--main-pad,0px))]"
+  "min-w-0 lg:sticky lg:-top-1 lg:-m-1 lg:w-52 lg:shrink-0 lg:self-start lg:overflow-y-auto lg:p-1 lg:max-h-[calc(var(--main-h,var(--content-h,100svh))-2*var(--main-pad,0px))]"
 
 /**
- * The active section's sub-pages (Insights, Collections, SEO, Marketing,
+ * The active section's sub-pages (Website, SEO, Marketing,
  * Site settings) from the nav registry as a rail inside the content panel
  * (MK), so the sidebar lists sections only. Shown when the user may open
  * two or more of them; below lg a scrolling row above the page. The page
@@ -48,60 +55,76 @@ export function SectionRail({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const item = activeItem(pathname, roles)
   const tabs = item?.children ?? []
-  const current = item ? activeChild(item, pathname) : null
+  const routed = item ? activeChild(item, pathname) : null
+  const [current, mark] = useClickedCurrent(routed?.id, pathname)
   const listRef = useRef<HTMLUListElement>(null)
-  useCurrentInView(listRef, current?.id)
+  useCurrentInView(listRef, current)
   if (!item || tabs.length < 2) return children
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
-      <nav aria-label={item.label} className={COLUMN}>
-        <p
-          aria-hidden
-          className="mb-2 hidden px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase lg:block"
-        >
-          {item.label}
-        </p>
-        <ul
-          ref={listRef}
-          // -m-1/p-1: the row's overflow clip keeps clear of focus rings.
-          className="-m-1 flex [scrollbar-width:thin] gap-1 overflow-x-auto p-1 lg:mx-0 lg:my-0 lg:flex-col lg:overflow-visible lg:px-0 lg:py-0"
-        >
-          {tabs.map((tab) => {
-            const active = tab.id === current?.id
-            return (
-              <li key={tab.id} className="flex shrink-0">
-                <Link
-                  href={tab.href}
-                  aria-current={active ? "page" : undefined}
-                  data-current={active || undefined}
-                  className={cn(
-                    SECTION_TAB,
-                    "min-h-11 lg:min-h-0 lg:w-full",
-                    active && SECTION_TAB_ACTIVE
-                  )}
-                >
-                  {active ? (
-                    <span
-                      aria-hidden
-                      className="absolute top-1/2 left-0 hidden h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary lg:block"
-                    />
-                  ) : null}
-                  {tab.icon ? (
-                    <tab.icon aria-hidden className="size-4 shrink-0" />
-                  ) : null}
-                  <span className="truncate">{tab.label}</span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
-      <div data-slot="section-content" className="min-w-0 flex-1">
-        <RailContext.Provider value>
-          <SectionTabsColumn>{children}</SectionTabsColumn>
-        </RailContext.Provider>
+    <MotionConfig reducedMotion="user">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+        <nav aria-label={item.label} className={COLUMN}>
+          <p
+            aria-hidden
+            className="mb-2 hidden px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase lg:block"
+          >
+            {item.label}
+          </p>
+          <ul
+            ref={listRef}
+            // -m-1/p-1: the row's overflow clip keeps clear of focus rings.
+            className="-m-1 flex [scrollbar-width:thin] gap-1 overflow-x-auto p-1 lg:mx-0 lg:my-0 lg:flex-col lg:overflow-visible lg:px-0 lg:py-0"
+          >
+            {tabs.map((tab) => {
+              const active = tab.id === current
+              return (
+                <li key={tab.id} className="flex shrink-0">
+                  <Link
+                    href={tab.href}
+                    aria-current={active ? "page" : undefined}
+                    data-current={active || undefined}
+                    onClick={mark(tab.id)}
+                    className={cn(
+                      SECTION_TAB,
+                      "min-h-11 lg:min-h-0 lg:w-full",
+                      active && SECTION_TAB_ACTIVE,
+                      // The pill below carries the active background.
+                      active && "bg-transparent"
+                    )}
+                  >
+                    {active ? (
+                      <>
+                        <ActivePill layoutId={`rail-pill-${item.id}`} />
+                        <ActiveBar
+                          layoutId={`rail-bar-${item.id}`}
+                          className="absolute top-1/2 left-0 hidden h-6 w-1 -translate-y-1/2 lg:block"
+                        />
+                      </>
+                    ) : null}
+                    {tab.icon ? (
+                      <tab.icon
+                        aria-hidden
+                        className="relative size-4 shrink-0"
+                      />
+                    ) : null}
+                    <span className="relative truncate">{tab.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+        <div data-slot="section-content" className="min-w-0 flex-1">
+          <RailContext.Provider value>
+            {/* Fades and rises in when the rail item changes (tabs inside a
+              screen animate on their own); still for reduced motion. */}
+            <div key={routed?.id} className={PANEL_ENTER}>
+              <SectionTabsColumn>{children}</SectionTabsColumn>
+            </div>
+          </RailContext.Provider>
+        </div>
       </div>
-    </div>
+    </MotionConfig>
   )
 }
 

@@ -173,7 +173,7 @@ describe("SectionRail", () => {
     expect(seen.at(-1)).toEqual([true, false])
   })
 
-  it("nested in-page tabs drop to the xl column and stay off a card", () => {
+  it("nested in-page tabs stay a row and off a card", () => {
     renderAt(
       "/admin/settings/site",
       ["owner"],
@@ -192,9 +192,9 @@ describe("SectionRail", () => {
       .getByText("Panel A")
       .closest('[data-slot="section-tabs-content"]')
     expect(inner).not.toHaveClass("bg-card")
-    expect(
-      screen.getByRole("tablist", { name: "Groups" }).parentElement
-    ).toHaveClass("xl:w-52")
+    const tablist = screen.getByRole("tablist", { name: "Groups" })
+    expect(tablist).toHaveAttribute("aria-orientation", "horizontal")
+    expect(tablist.parentElement!.className).not.toMatch(/w-52/)
   })
 })
 

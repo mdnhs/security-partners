@@ -999,7 +999,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await editorReady(page, "SEO defaults")
       await expect(
         // The schema form shows its groups as tabs (General selected).
-        page.getByRole("tab", { name: "Business details for search engines" })
+        page.getByRole("tab", { name: "Business details" })
       ).toBeVisible()
       await expect(page).toHaveScreenshot(shot("seo-defaults"), {
         mask: await masks(page),

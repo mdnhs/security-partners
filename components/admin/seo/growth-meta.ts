@@ -50,7 +50,7 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
         help: "Used when a page has no share image. Leave empty to generate a card with each page's title. Best at 1200 × 630.",
       },
       organization: {
-        label: "Business details for search engines",
+        label: "Business details",
         section: true,
       },
       "organization.type": {
@@ -98,7 +98,7 @@ export const growthEditorMeta: Record<GrowthSettingsKey, EditorMeta> = {
         help: "The site answers on http and https, with and without www. Search engines count each as a separate site, so pick one and the others redirect to it (301, always to https). Only the host in Settings › Site › Production URL is redirected: staging, previews and IP addresses are left alone. Takes effect within a minute.",
       },
       verification: {
-        label: "Search console verification",
+        label: "Verification",
         section: true,
       },
       "verification.google": {

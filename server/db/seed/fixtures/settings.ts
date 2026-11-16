@@ -44,6 +44,7 @@ export function settingsFixture(media: MediaLookup): SettingsFixture {
     },
     navigation: {
       headerLinks: [
+        { label: "Home", href: "/" },
         { label: "About", href: "/about" },
         { label: "Services", href: "/services" },
         { label: "Team", href: "/team" },

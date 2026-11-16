@@ -1,6 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import type { MouseEvent } from "react"
+
+import { ActiveBar } from "@/components/admin/shell/active-indicator"
 
 import {
   SidebarMenuBadge,
@@ -32,17 +35,17 @@ export function NavEntry({
   item: NavItem
   active: boolean
   badge?: number
-  onNavigate?: () => void
+  onNavigate?: (event: MouseEvent) => void
 }) {
   const Icon = item.icon
   return (
     <SidebarMenuItem>
       {/* The 4 px active bar on the panel's edge (the group's p-2 away). */}
       {active ? (
-        <span
-          aria-hidden
-          data-slot="nav-active-bar"
-          className="absolute top-1/2 -left-2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-primary"
+        <ActiveBar
+          layoutId="nav-active-bar"
+          slot="nav-active-bar"
+          className="absolute top-1/2 -left-2 h-8 w-1 -translate-y-1/2"
         />
       ) : null}
       <SidebarMenuButton
