@@ -224,6 +224,18 @@ export function SiteFooter({
                 </a>
               </Fragment>
             ))}
+            {/* Always last: the way in to the admin panel (its own sign-in). */}
+            <span aria-hidden className="whitespace-pre">
+              {"   ·   "}
+            </span>
+            <Link
+              href="/admin/sign-in"
+              prefetch={false}
+              rel="nofollow"
+              className="hover:text-white"
+            >
+              Login
+            </Link>
           </p>
         </div>
       </Container>

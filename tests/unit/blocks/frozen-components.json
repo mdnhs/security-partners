@@ -16,7 +16,7 @@
     "components/home/page-hero.tsx": "22b3de71e9260a9b36c4529c3a1ac67064b4a7de4ed9c577dedf64c86d90e096",
     "components/home/section.tsx": "dab65a8b11b56b29a3ad54a034d050caa1cdf574719d1f8ae36db1c0a71c4b1b",
     "components/home/services.tsx": "4d794100733cba044123ae873dcc367276984b2ad099e01e8a0849b4bf3019e3",
-    "components/home/site-footer.tsx": "c8342ba48e35383e1d0e3b241df3f19f4ec86e47c4aa0040e532cbf477653a05",
+    "components/home/site-footer.tsx": "890f237a858dce9b878a55c2fcc8fef889dfb13afbef27a0421a13c0113ac610",
     "components/home/site-header.tsx": "9c35fa69d3c91bf58ad2baf8ac058d12eab4016a1d8931ec1f352cfda4c67fe9",
     "components/home/use-turnstile.ts": "c09a883aaf040a8c96dee30801ab52f2215ac8c5fc4b2b544c4580d3b2ac4290",
     "components/services/other-services.tsx": "cf6f8b636378e27e84df72b351cb1e6904acf291e5ed847d4823633a8278fc92",
