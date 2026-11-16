@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { href, mediaRef, pageHero, text } from "@/lib/schemas/common"
+import { CONTACT_SECTIONS, sectionList } from "@/templates/shared/sections"
 
 /** Page "contact" (/contact). The contact section and map are settings.sections.contact. */
 export const contactTemplate = z.object({
@@ -21,5 +22,7 @@ export const contactTemplate = z.object({
       )
       .min(1),
   }),
+  /** Which sections after the hero show, and in what order. */
+  sections: sectionList(CONTACT_SECTIONS),
 })
 export type ContactTemplate = z.infer<typeof contactTemplate>

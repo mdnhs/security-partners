@@ -418,7 +418,7 @@ function Builder({ initial }: { initial: BuilderPageDto }) {
       />
       <PageHeader
         breadcrumbs={[
-          { label: "Pages", href: "/admin/pages" },
+          { label: "Custom pages", href: "/admin/website/custom-pages" },
           { label: record.title },
         ]}
         title={record.title}

@@ -183,6 +183,13 @@
       "when": 1793838502201,
       "tag": "0025_careers_talent_pool",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794838892553,
+      "tag": "0026_live_chat",
+      "breakpoints": true
     }
   ]
 }

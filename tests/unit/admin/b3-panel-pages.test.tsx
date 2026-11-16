@@ -62,7 +62,6 @@ vi.mock("@/components/admin/audit/audit-screen", () => ({
   AuditScreen: () => null,
 }))
 
-import CollectionsPage from "@/app/(admin)/admin/(panel)/collections/page"
 import ActivityPage from "@/app/(admin)/admin/(panel)/activity/page"
 import MarketingCodePage from "@/app/(admin)/admin/(panel)/marketing/code/page"
 import MarketingConsentPage from "@/app/(admin)/admin/(panel)/marketing/consent/page"
@@ -122,15 +121,6 @@ describe("section index pages open their first readable child (registry)", () =>
   it("/admin/settings is forbidden without settings:read", async () => {
     session.roles = ["author"]
     await expect(inner(SettingsPage())).rejects.toThrow("FORBIDDEN")
-  })
-
-  it("/admin/collections → Team for collection readers", async () => {
-    session.roles = ["editor"]
-    await expect(inner(CollectionsPage())).rejects.toThrow(
-      "REDIRECT /admin/collections/team"
-    )
-    session.roles = ["author"]
-    await expect(inner(CollectionsPage())).rejects.toThrow("FORBIDDEN")
   })
 })
 

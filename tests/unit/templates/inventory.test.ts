@@ -118,6 +118,8 @@ describe("template schemas match docs/brief-inventory.json (master Task 3.2)", (
       expect(
         [...paths.leaves].filter(
           (p) =>
+            // the section layout is editor state, not brief copy
+            !p.startsWith("sections[]") &&
             !inventory.has(p) &&
             !(p.endsWith("[]") && inventory.has(p.slice(0, -2)))
         )

@@ -7,6 +7,7 @@ import { Suspense } from "react"
 import "../globals.css"
 import { AttributionCapture } from "@/components/attribution-capture"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
+import { ChatSlot } from "@/components/chat/chat-slot"
 import { PreviewBar } from "@/components/preview-bar"
 import { SiteExtras } from "@/components/site-extras"
 import { SiteThemeStyle } from "@/components/site-theme-style"
@@ -98,6 +99,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <SiteThemeStyle id="site-theme-extras" />
           <SiteExtras />
+          <ChatSlot />
         </Suspense>
       </body>
     </html>

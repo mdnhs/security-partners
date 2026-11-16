@@ -4,6 +4,16 @@ import type { EditableSettingsKey } from "@/lib/admin/settings-keys"
 const PLACEHOLDER_HELP =
   "Placeholders such as {phone24h} or {officeHref} are filled from Contact details."
 
+const CHAT_TEMPLATE_HELP = "{team}, {botName} and {agent} are filled in."
+const CHAT_NOTICE_HELP = "Shown once in the chat. {team} is filled in."
+const chatNotice = (label: string, help = CHAT_NOTICE_HELP) => ({
+  label,
+  help,
+  widget: "textarea" as const,
+  rows: 2,
+  width: "full" as const,
+})
+
 /** Editor hints per settings key (labels default to the field name). */
 export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
   site: {
@@ -381,6 +391,228 @@ export const settingsEditorMeta: Record<EditableSettingsKey, EditorMeta> = {
           title: "Retention",
           description: "How long applications are kept.",
           fields: ["retentionMonths", "keepOnFileMonths"],
+        },
+      ],
+    },
+  },
+  chat: {
+    fields: {
+      enabled: { label: "Show the chat on the site", width: "full" },
+      teamName: {
+        label: "Team name",
+        help: "Filled in wherever a text says {team}.",
+      },
+      bot: { label: "AI assistant" },
+      "bot.enabled": {
+        label: "AI assistant answers first",
+        help: "Needs the AI assistant set up under Site settings › AI assistant. Chats are sent to that provider.",
+        width: "full",
+      },
+      "bot.name": { label: "Assistant name" },
+      "bot.extraInstructions": {
+        label: "Extra instructions",
+        widget: "textarea",
+        rows: 4,
+        width: "full",
+      },
+      "bot.maxAiReplies": { label: "Assistant replies per chat" },
+      hint: { label: "Hint" },
+      "hint.title": { label: "Title" },
+      "hint.subtitle": { label: "Subtitle" },
+      "hint.presets": {
+        label: "Questions",
+        itemName: "Question",
+        itemLabel: "label",
+      },
+      "hint.presets[].label": { label: "Question" },
+      "hint.presets[].message": {
+        label: "Message",
+        help: "Typed into the message box when picked. Leave empty to just open the chat.",
+      },
+      copy: { label: "Widget text" },
+      "copy.launcherOpen": { label: "Chat button (screen readers)" },
+      "copy.launcherOpenUnread": {
+        label: "Chat button with a new message (screen readers)",
+      },
+      "copy.close": { label: "Close button (screen readers)" },
+      "copy.hintGroup": { label: "Hint questions (screen readers)" },
+      "copy.hintDismiss": { label: "Hide hint button (screen readers)" },
+      "copy.title": { label: "Title" },
+      "copy.welcome": { label: "Welcome line" },
+      "copy.statusReconnecting": { label: "Reconnecting" },
+      "copy.statusAgent": {
+        label: "Chatting with a person",
+        help: CHAT_TEMPLATE_HELP,
+      },
+      "copy.statusBot": {
+        label: "Chatting with the assistant",
+        help: CHAT_TEMPLATE_HELP,
+      },
+      "copy.statusOnline": { label: "Team online" },
+      "copy.statusOffline": { label: "Team offline" },
+      "copy.conversation": { label: "Conversation (screen readers)" },
+      "copy.aiCaption": {
+        label: "Caption under assistant replies",
+        help: CHAT_TEMPLATE_HELP,
+      },
+      "copy.typing": { label: "Typing", help: CHAT_TEMPLATE_HELP },
+      "copy.messageLabel": { label: "Message box label (screen readers)" },
+      "copy.messagePlaceholder": { label: "Message box placeholder" },
+      "copy.send": { label: "Send button (screen readers)" },
+      "copy.startNew": { label: "Start a new chat button" },
+      "copy.connecting": { label: "Connecting" },
+      "copy.consentBot": {
+        label: "Consent line with the assistant on",
+        help: CHAT_TEMPLATE_HELP,
+        width: "full",
+      },
+      "copy.consentTeam": {
+        label: "Consent line with the assistant off",
+        help: CHAT_TEMPLATE_HELP,
+        width: "full",
+      },
+      "copy.privacyLabel": { label: "Privacy link text" },
+      "copy.privacyHref": { label: "Privacy link address" },
+      "copy.offlineNote": {
+        label: "Email request",
+        help: CHAT_TEMPLATE_HELP,
+        width: "full",
+      },
+      "copy.emailPlaceholder": { label: "Email box placeholder" },
+      "copy.emailSave": { label: "Save email button" },
+      "copy.emailDismiss": { label: "Hide email request button" },
+      "copy.emailError": { label: "Email error" },
+      "copy.noticeOffline": { label: "Visitor offline" },
+      "copy.noticeRate": { label: "Sending too fast" },
+      "copy.noticeEnded": { label: "Chat ended" },
+      "copy.errorTooLong": { label: "Message too long" },
+      "copy.errorStart": { label: "Chat could not start" },
+      "copy.errorGeneric": { label: "Other error" },
+      notices: { label: "Messages in the chat" },
+      // The assistant no longer hands a chat over on its own (2026-11-15).
+      "notices.handoff": {
+        ...chatNotice("Assistant asks for a person"),
+        hidden: true,
+      },
+      "notices.limit": chatNotice("Assistant reply limit reached"),
+      "notices.failed": chatNotice("Assistant unavailable"),
+      "notices.joined": chatNotice(
+        "Team member joined",
+        "Shown each time a team member takes the chat over, by replying or with Take over. {name} is filled in."
+      ),
+      "notices.back": chatNotice(
+        "Assistant back on",
+        "Shown each time the chat is handed back to the assistant. {team} is filled in."
+      ),
+      "notices.ended": chatNotice(
+        "Chat closed",
+        "Shown when the chat is closed. {team} is filled in."
+      ),
+      alerts: { label: "Alerts" },
+      "alerts.includeMessage": {
+        label: "Include the visitor's message in alert emails",
+        width: "full",
+      },
+      retentionMonths: {
+        label: "Keep chats for (months)",
+        help: "Chats older than this are deleted automatically.",
+      },
+    },
+    groups: {
+      "": [
+        {
+          title: "Chat",
+          description: "Whether visitors see the chat, and who answers it.",
+          fields: ["enabled", "teamName"],
+        },
+        {
+          title: "AI assistant",
+          description: "The assistant that answers before a person joins.",
+          fields: ["bot"],
+        },
+        {
+          title: "Hint",
+          description: "The note above the chat button and its questions.",
+          fields: ["hint"],
+        },
+        {
+          title: "Widget text",
+          description: "Every text visitors see in the chat window.",
+          fields: ["copy"],
+        },
+        {
+          title: "Messages in the chat",
+          description:
+            "Notes stored in the conversation when it changes hands.",
+          fields: ["notices"],
+        },
+        {
+          title: "Alerts and retention",
+          description:
+            "Alert emails to the Enquiries addresses and how long chats are kept.",
+          fields: ["alerts", "retentionMonths"],
+        },
+      ],
+      copy: [
+        {
+          title: "Chat button and hint",
+          fields: [
+            "launcherOpen",
+            "launcherOpenUnread",
+            "close",
+            "hintGroup",
+            "hintDismiss",
+          ],
+        },
+        { title: "Header", fields: ["title", "welcome"] },
+        {
+          title: "Status line",
+          fields: [
+            "statusReconnecting",
+            "statusAgent",
+            "statusBot",
+            "statusOnline",
+            "statusOffline",
+          ],
+        },
+        {
+          title: "Conversation",
+          fields: ["conversation", "aiCaption", "typing"],
+        },
+        {
+          title: "Message box",
+          fields: [
+            "messageLabel",
+            "messagePlaceholder",
+            "send",
+            "startNew",
+            "connecting",
+          ],
+        },
+        {
+          title: "Consent line",
+          fields: ["consentBot", "consentTeam", "privacyLabel", "privacyHref"],
+        },
+        {
+          title: "Email request",
+          fields: [
+            "offlineNote",
+            "emailPlaceholder",
+            "emailSave",
+            "emailDismiss",
+            "emailError",
+          ],
+        },
+        {
+          title: "Notices and errors",
+          fields: [
+            "noticeOffline",
+            "noticeRate",
+            "noticeEnded",
+            "errorTooLong",
+            "errorStart",
+            "errorGeneric",
+          ],
         },
       ],
     },

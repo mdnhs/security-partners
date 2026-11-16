@@ -21,22 +21,23 @@ const ONE_LINE_MAX = 80
 /**
  * A name on one line: control characters (C0, DEL, C1) become spaces,
  * whitespace runs (incl. line and paragraph separators) collapse, at most
- * 80 characters. Names cannot start a new instruction line.
+ * `max` characters (80 by default). Names cannot start a new instruction
+ * line.
  */
-export function oneLine(value: string): string {
+export function oneLine(value: string, max = ONE_LINE_MAX): string {
   return [
     ...value
       .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
       .replace(/\s+/g, " ")
       .trim(),
   ]
-    .slice(0, ONE_LINE_MAX)
+    .slice(0, max)
     .join("")
     .trim()
 }
 
 /** Owner text keeps its lines; other control characters are dropped. */
-const multiLine = (value: string) =>
+export const multiLine = (value: string) =>
   value
     .replace(/\r\n?/g, "\n")
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "")

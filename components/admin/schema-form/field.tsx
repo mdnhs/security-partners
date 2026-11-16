@@ -21,6 +21,7 @@ import {
 } from "./widgets/pickers"
 import { GroupWidget } from "./widgets/group"
 import { ListWidget } from "./widgets/list"
+import { SectionsWidget } from "./widgets/sections"
 
 export const WIDGETS: Record<WidgetKind, ComponentType<WidgetProps>> = {
   text: TextWidget,
@@ -36,6 +37,7 @@ export const WIDGETS: Record<WidgetKind, ComponentType<WidgetProps>> = {
   collection: CollectionWidget,
   radio: RadioWidget,
   checkboxes: CheckboxesWidget,
+  sections: SectionsWidget,
 }
 
 /** Renders the widget for one schema node at `path` (recursive via group/list). */

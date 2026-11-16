@@ -5,6 +5,16 @@ import { PAGE_HERO_GROUPS } from "../shared/editor-groups"
 /** Editor labels for the Contact page (template "contact"). The form and map are in Settings › Shared sections. */
 export const contactEditorMeta: EditorMeta = {
   fields: {
+    sections: {
+      label: "Page sections",
+      widget: "sections",
+      help: "Show, hide and reorder the sections below the hero. Their content is edited where it lives; hiding a section keeps it.",
+      options: [
+        { value: "contact", label: "Contact form" },
+        { value: "departments", label: "Departments" },
+        { value: "map", label: "Location map" },
+      ],
+    },
     hero: { label: "Page hero", help: "Banner at the top of the page." },
     "hero.image": { label: "Banner image" },
     "hero.crumb": { label: "Breadcrumb label" },

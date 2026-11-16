@@ -2,6 +2,7 @@ import type { TeamProps } from "@/components/home/clients-team-blog"
 import type { IconCardsProps } from "@/components/home/icon-cards"
 import type { PageHeroProps } from "@/components/home/page-hero"
 import type { EnquireBannerProps } from "@/components/home/services"
+import { TEAM_SECTIONS, visibleSections } from "@/templates/shared/sections"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
   enquireBannerView,
@@ -11,6 +12,7 @@ import {
 
 export type TeamView = {
   hero: PageHeroProps
+  sections: (typeof TEAM_SECTIONS)[number][]
   team: TeamProps
   officers: IconCardsProps
   enquireBanner: EnquireBannerProps
@@ -19,6 +21,7 @@ export type TeamView = {
 export function teamView(s: SiteSources): TeamView {
   const page = s.pages.team.data
   return {
+    sections: visibleSections(page.sections, TEAM_SECTIONS),
     hero: pageHeroView(s, page.hero),
     team: teamSectionView(s, page.leadership),
     officers: {

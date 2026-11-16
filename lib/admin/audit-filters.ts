@@ -49,6 +49,15 @@ export const AUDIT_ACTION_SUGGESTIONS = [
   "service.restored",
   "service.slug_changed",
   "service.deleted",
+  "chat.replied",
+  "chat.taken_over",
+  "chat.handed_back",
+  "chat.assigned",
+  "chat.closed",
+  "chat.deleted",
+  "chat.exported",
+  "chat.erased",
+  "chat.purged",
 ] as const
 
 /** Suggestions for the entity filter (Phases 2–4 write these types). */
@@ -61,6 +70,7 @@ export const AUDIT_ENTITY_TYPES = [
   "client",
   "groupCompany",
   "category",
+  "chat",
 ] as const
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/

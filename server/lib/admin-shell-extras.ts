@@ -7,6 +7,7 @@ import type { ShellNotification } from "@/lib/schemas/api/dashboard"
 import type { Actor } from "@/server/lib/actor"
 import { getAiStatus } from "@/server/modules/ai/service"
 import { applicationBadge } from "@/server/modules/applications/service"
+import { unreadCount } from "@/server/modules/chat/repo"
 import { getShellNotifications } from "@/server/modules/dashboard/service"
 import { leadBadge } from "@/server/modules/leads/service"
 
@@ -39,10 +40,20 @@ export async function loadShellExtras(actor: Actor): Promise<ShellExtras> {
         .then((b): NavBadges => ({ "new-applications": b.newApplications }))
         .catch(degraded("application badge", {}))
     : Promise.resolve({})
-  const [leadBadges, applicationBadges, assistant, notifications] =
+  // Open chats with a visitor message nobody has read; the sidebar polls it
+  // afterwards (useChatUnread).
+  const chatLoad: Promise<NavBadges> = hasPermission(actor.roles, {
+    chat: ["read"],
+  })
+    ? unreadCount()
+        .then((count): NavBadges => ({ "chat-unread": count }))
+        .catch(degraded("chat badge", {}))
+    : Promise.resolve({})
+  const [leadBadges, applicationBadges, chatBadges, assistant, notifications] =
     await Promise.all([
       badgesLoad,
       applicationsLoad,
+      chatLoad,
       getAiStatus(actor).catch(degraded("AI status", undefined)),
       badgesLoad
         .then((loaded) =>
@@ -51,7 +62,7 @@ export async function loadShellExtras(actor: Actor): Promise<ShellExtras> {
         .catch(degraded("notifications", [] as ShellNotification[])),
     ])
   return {
-    badges: { ...leadBadges, ...applicationBadges },
+    badges: { ...leadBadges, ...applicationBadges, ...chatBadges },
     assistant,
     notifications,
   }

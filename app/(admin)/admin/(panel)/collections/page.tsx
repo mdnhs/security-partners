@@ -1,24 +1,23 @@
-import type { Metadata } from "next"
-import { forbidden, redirect } from "next/navigation"
+import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
-import { firstVisibleChild } from "@/lib/admin/nav"
-import { requirePage } from "@/server/auth/session"
+import { withSearch } from "@/lib/admin/website"
+import { requireActor } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Collections" }
-
-/** No overview: Collections opens (307) on the first child the user may read. */
-export default function CollectionsPage() {
+/** Collections are edited on the Website screens (307, query kept). */
+export default function CollectionsPage({
+  searchParams,
+}: PageProps<"/admin/collections">) {
   return (
     <Suspense fallback={null}>
-      <FirstChild />
+      <Go searchParams={searchParams} />
     </Suspense>
   )
 }
 
-async function FirstChild(): Promise<never> {
-  const actor = await requirePage("/admin/collections")
-  const child = firstVisibleChild("collections", actor.roles)
-  if (!child) forbidden()
-  redirect(child.href)
+async function Go({
+  searchParams,
+}: Pick<PageProps<"/admin/collections">, "searchParams">): Promise<never> {
+  await requireActor()
+  redirect(withSearch("/admin/website", await searchParams))
 }

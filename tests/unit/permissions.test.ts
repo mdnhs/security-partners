@@ -78,6 +78,9 @@ const EXPECTED: Record<Role, string[]> = {
     "appearance:read",
     "appearance:update",
     "appearance:publish",
+    "chat:read",
+    "chat:reply",
+    "chat:manage",
   ],
   admin: [
     "job:read",
@@ -142,6 +145,9 @@ const EXPECTED: Record<Role, string[]> = {
     "appearance:read",
     "appearance:update",
     "appearance:publish",
+    "chat:read",
+    "chat:reply",
+    "chat:manage",
   ],
   editor: [
     "job:read",
@@ -217,6 +223,8 @@ const EXPECTED: Record<Role, string[]> = {
     "application:read",
     "application:update",
     "ai:use",
+    "chat:read",
+    "chat:reply",
   ],
   viewer: [
     "job:read",
@@ -241,9 +249,9 @@ const req = (resource: Resource, action: string) =>
   ({ [resource]: [action] }) as PermissionRequest
 
 describe("permission matrix (spec §6.1): every role × resource × action", () => {
-  it("covers 19 resources and 65 actions", () => {
-    expect(Object.keys(statements)).toHaveLength(19)
-    expect(ALL_PAIRS).toHaveLength(65)
+  it("covers 20 resources and 68 actions", () => {
+    expect(Object.keys(statements)).toHaveLength(20)
+    expect(ALL_PAIRS).toHaveLength(68)
   })
 
   it("page:create/delete (builder pages, D5.2) go to owner, admin, editor only", () => {
@@ -258,6 +266,15 @@ describe("permission matrix (spec §6.1): every role × resource × action", () 
       "marketer",
       "viewer",
     ])
+  })
+
+  it("chat: intake reads and replies, admins manage, content roles get nothing", () => {
+    expect(hasPermission(["intake"], { chat: ["reply"] })).toBe(true)
+    expect(hasPermission(["intake"], { chat: ["manage"] })).toBe(false)
+    expect(hasPermission(["admin"], { chat: ["manage"] })).toBe(true)
+    for (const role of ["marketer", "editor", "author", "viewer"] as const)
+      for (const action of ["read", "reply", "manage"] as const)
+        expect(hasPermission([role], { chat: [action] })).toBe(false)
   })
 
   for (const role of ROLES) {

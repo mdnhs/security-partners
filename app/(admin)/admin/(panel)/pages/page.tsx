@@ -1,30 +1,28 @@
-import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
-import { PageHeader } from "@/components/admin/page-header"
-import { NewPageButton, PagesList } from "@/components/admin/pages/pages-list"
-import { requirePage } from "@/server/auth/session"
+import { websiteHref, withSearch } from "@/lib/admin/website"
+import { requireActor } from "@/server/auth/session"
 
-export const metadata: Metadata = { title: "Pages" }
-
-export default function PagesPage() {
+/**
+ * The Pages list moved to Website (307, query kept). `?new=1` (New page)
+ * opens the dialog on Custom pages, where builder pages now live.
+ */
+export default function PagesPage({ searchParams }: PageProps<"/admin/pages">) {
   return (
     <Suspense fallback={null}>
-      <Pages />
+      <Go searchParams={searchParams} />
     </Suspense>
   )
 }
 
-async function Pages() {
-  await requirePage("/admin/pages")
-  return (
-    <>
-      <PageHeader
-        title="Pages"
-        description="Every page of the site. Changes stay in a draft until you publish."
-        actions={<NewPageButton />}
-      />
-      <PagesList />
-    </>
-  )
+async function Go({
+  searchParams,
+}: Pick<PageProps<"/admin/pages">, "searchParams">): Promise<never> {
+  await requireActor()
+  const target =
+    (await searchParams).new === "1"
+      ? websiteHref("custom-pages")
+      : "/admin/website"
+  redirect(withSearch(target, await searchParams))
 }

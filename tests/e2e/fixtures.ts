@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test"
 import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
@@ -37,6 +38,17 @@ export type E2EFixtures = {
 export function clientIpFor(testTitle: string): string {
   const [a, b] = createHash("sha256").update(testTitle).digest()
   return `198.18.${a}.${b}`
+}
+
+/**
+ * Resolves once React has hydrated the footer, so a negative assertion that
+ * follows cannot pass before the client effects have run.
+ */
+export async function waitForHydration(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const f = document.querySelector("footer")
+    return !!f && Object.keys(f).some((k) => k.startsWith("__reactFiber"))
+  })
 }
 
 export function readFixtures(): E2EFixtures {

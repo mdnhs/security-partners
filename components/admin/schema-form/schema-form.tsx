@@ -2,7 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CircleAlert } from "lucide-react"
-import { type FocusEvent, useEffect, useMemo, useRef, useState } from "react"
+import {
+  type FocusEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   type DefaultValues,
   FormProvider,
@@ -59,6 +66,8 @@ export type SchemaFormProps<S extends z.ZodObject> = {
   sectionTabs?: string
   /** Called when a plain text field (text or textarea widget) gains focus. */
   onFieldFocus?: (field: FocusedTextField) => void
+  /** Extra content at the end of a section card, by group path ("grid"). */
+  slots?: Record<string, ReactNode>
 }
 
 /**
@@ -110,6 +119,7 @@ export function SchemaForm<S extends z.ZodObject>({
   idPrefix = "sf",
   sectionTabs,
   onFieldFocus,
+  slots,
 }: SchemaFormProps<S>) {
   const [defaults] = useState(() => toFormValues(schema, value))
   const resolver = useMemo(() => emittedValuesResolver(schema), [schema])
@@ -168,8 +178,8 @@ export function SchemaForm<S extends z.ZodObject>({
   }, [form, errors])
 
   const context = useMemo(
-    () => ({ meta, disabled, idPrefix }),
-    [meta, disabled, idPrefix]
+    () => ({ meta, disabled, idPrefix, slots }),
+    [meta, disabled, idPrefix, slots]
   )
   // The field tree only depends on the schema (and the context above);
   // re-rendering SchemaForm per keystroke must not re-render every widget.

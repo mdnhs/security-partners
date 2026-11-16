@@ -17,6 +17,8 @@ export const WIDGET_KINDS = [
   "radio",
   /** array of an enum (e.g. roles) as a checkbox group; chosen by default. */
   "checkboxes",
+  /** a fixed page's section layout: show/hide and reorder, no add/remove. */
+  "sections",
 ] as const
 export type WidgetKind = (typeof WIDGET_KINDS)[number]
 

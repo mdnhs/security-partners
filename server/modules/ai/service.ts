@@ -139,7 +139,7 @@ async function readAiState(): Promise<AiState> {
 }
 
 /** The saved settings when the assistant is on; null when off or unreadable. */
-async function activeConfig(): Promise<AiConfig | null> {
+export async function activeAiConfig(): Promise<AiConfig | null> {
   return (await readAiState()).config
 }
 
@@ -149,7 +149,7 @@ const inAllowList = (actor: Actor, config: AiConfig) =>
 /** ai:use first (403), then on (404), then the role allow-list (403). */
 async function requireAssistant(actor: Actor): Promise<AiConfig> {
   if (!hasPermission(actor.roles, { ai: ["use"] })) throw forbidden()
-  const config = await activeConfig()
+  const config = await activeAiConfig()
   if (!config) throw turnedOff()
   if (!inAllowList(actor, config)) throw forbidden()
   return config

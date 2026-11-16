@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { link, mediaRef, text } from "@/lib/schemas/common"
+import { HOME_SECTIONS, sectionList } from "@/templates/shared/sections"
 
 const sectionCopy = z.object({ eyebrow: text, heading: text, intro: text })
 
@@ -32,5 +33,7 @@ export const homeTemplate = z.object({
     cta: link,
     count: z.number().int().min(1).max(12),
   }),
+  /** Which sections after the hero show, and in what order. */
+  sections: sectionList(HOME_SECTIONS),
 })
 export type HomeTemplate = z.infer<typeof homeTemplate>

@@ -38,6 +38,8 @@ import {
   applicationsRoutes,
   publicApplicationsRoutes,
 } from "@/server/modules/applications/routes"
+import { chatPublicRoutes } from "@/server/modules/chat/public-routes"
+import { chatRoutes } from "@/server/modules/chat/routes"
 import { leadsRoutes, publicLeadsRoutes } from "@/server/modules/leads/routes"
 import { marketingRoutes } from "@/server/modules/marketing/routes"
 import { mediaFileRoutes, mediaRoutes } from "@/server/modules/media/routes"
@@ -82,6 +84,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .route("/dashboard", dashboardRoutes)
   .route("/integrations", integrationsRoutes)
   .route("/leads", leadsRoutes)
+  .route("/chat", chatRoutes)
   .route("/applications", applicationsRoutes)
   .route("/redirects", redirectsRoutes)
   .route("/marketing", marketingRoutes)
@@ -115,6 +118,7 @@ export function createApp() {
   // files); leads and applications add their own DB rate limit
   api.use("/v1/public/*", limitPublicBody)
   api.route("/v1/public/leads", publicLeadsRoutes)
+  api.route("/v1/public/chat", chatPublicRoutes)
   api.route("/v1/public/careers/applications", publicApplicationsRoutes)
 
   // 4. Admin endpoints: session → signed in → same origin → body limit (1 MB; uploads 20 MB)

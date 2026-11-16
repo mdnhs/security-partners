@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { SettingsEditor } from "@/components/admin/settings/settings-editor"
@@ -7,6 +7,11 @@ import {
   isEditableSettingsKey,
   SETTINGS_ENTRIES,
 } from "@/lib/admin/settings-keys"
+import {
+  adminHrefForSettings,
+  isWebsiteSettingsKey,
+  withSearch,
+} from "@/lib/admin/website"
 import { requirePage, requirePermission } from "@/server/auth/session"
 
 export async function generateMetadata({
@@ -22,17 +27,19 @@ export async function generateMetadata({
 
 export default function SettingsKeyPage({
   params,
+  searchParams,
 }: PageProps<"/admin/settings/[key]">) {
   return (
     <Suspense fallback={null}>
-      <Editor params={params} />
+      <Editor params={params} searchParams={searchParams} />
     </Suspense>
   )
 }
 
 async function Editor({
   params,
-}: Pick<PageProps<"/admin/settings/[key]">, "params">) {
+  searchParams,
+}: Pick<PageProps<"/admin/settings/[key]">, "params" | "searchParams">) {
   const { key } = await params
   // The registry answers for every /admin/settings/* path by prefix
   // (permissionFor → settings:read), so a page guard alone would let any
@@ -42,5 +49,8 @@ async function Editor({
   if (!isEditableSettingsKey(key)) notFound()
   await requirePage("/admin/settings")
   await requirePermission(SETTINGS_ENTRIES[key].read)
+  // Page content (sections, contact, navigation, footer…) moved to Website.
+  if (isWebsiteSettingsKey(key))
+    redirect(withSearch(adminHrefForSettings(key), await searchParams))
   return <SettingsEditor settingsKey={key} />
 }

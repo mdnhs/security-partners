@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from "react"
+
 import { Stats } from "@/components/about/stats"
 import { About } from "@/components/home/about"
 import { Clients } from "@/components/home/clients-team-blog"
@@ -10,15 +12,20 @@ import type { AboutView } from "./view"
 
 /** "/about" */
 export function AboutTemplate({ view }: { view: AboutView }) {
+  const parts: Record<AboutView["sections"][number], ReactNode> = {
+    about: <About {...view.about} />,
+    stats: <Stats {...view.stats} />,
+    values: <IconCards {...view.values} />,
+    clients: <Clients {...view.clients} />,
+    enquireBanner: <EnquireBanner {...view.enquireBanner} />,
+  }
   return (
     <>
       <main>
         <PageHero {...view.hero} />
-        <About {...view.about} />
-        <Stats {...view.stats} />
-        <IconCards {...view.values} />
-        <Clients {...view.clients} />
-        <EnquireBanner {...view.enquireBanner} />
+        {view.sections.map((id) => (
+          <Fragment key={id}>{parts[id]}</Fragment>
+        ))}
       </main>
       <HomeMotion />
     </>

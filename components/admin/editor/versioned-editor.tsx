@@ -86,6 +86,10 @@ export type VersionedEditorProps<Dto extends VersionedDto<unknown>> = {
    * either side survive a switch).
    */
   seo?: EditorSlot<Dto>
+  /** Show every section stacked in one scroll instead of section tabs. */
+  flat?: boolean
+  /** Extra content at the end of a section card, by group path (SchemaForm slots). */
+  slots?: Record<string, ReactNode>
 }
 
 /** A plain node, or one rendered from the editor's state. */
@@ -466,7 +470,8 @@ function LoadedEditor<Dto extends VersionedDto<unknown>>({
         errors={fieldErrors}
         resetKey={resetKey}
         disabled={!props.canEdit}
-        sectionTabs="Sections"
+        sectionTabs={props.flat ? undefined : "Sections"}
+        slots={props.slots}
         onFieldFocus={props.canEdit ? onFieldFocus : undefined}
       />
     </div>

@@ -1,17 +1,21 @@
 import {
-  Briefcase,
-  Building2,
+  BriefcaseBusiness,
   CircleHelp,
   Component,
   FileText,
+  Globe,
+  House,
   Images,
   Inbox,
   LayoutDashboard,
-  Layers,
   type LucideIcon,
+  Mail,
   Megaphone,
+  MessagesSquare,
   Newspaper,
   Palette,
+  PanelTop,
+  Scale,
   ScrollText,
   SearchCheck,
   Settings,
@@ -26,8 +30,18 @@ import {
 import { GROWTH_SETTINGS } from "@/lib/admin/growth-settings"
 import {
   EDITABLE_SETTINGS_KEYS,
+  type EditableSettingsKey,
   SETTINGS_ENTRIES,
 } from "@/lib/admin/settings-keys"
+import {
+  isWebsiteSettingsKey,
+  partHref,
+  type WebsiteKey,
+  type WebsitePart,
+  WEBSITE_PARTS,
+  WEBSITE_SCREENS,
+  websiteHref,
+} from "@/lib/admin/website"
 import { hasPermission, type PermissionRequest } from "@/lib/auth/permissions"
 import type { Role } from "@/lib/auth/roles"
 
@@ -39,7 +53,7 @@ import type { Role } from "@/lib/auth/roles"
 export type NavGroupId = "menu" | "growth" | "general"
 
 /** Live counts shown beside nav items. */
-export type NavBadgeKey = "new-leads" | "new-applications"
+export type NavBadgeKey = "new-leads" | "new-applications" | "chat-unread"
 export type NavBadges = Partial<Record<NavBadgeKey, number>>
 
 export type NavLink = {
@@ -52,6 +66,13 @@ export type NavLink = {
   keywords?: readonly string[]
   /** ⌘K's icon for this link (a child falls back to its section's). */
   icon?: LucideIcon
+  /**
+   * Pages outside `href` that belong to this link (an editor that stays at
+   * its own URL, e.g. /admin/services under Website › Services). Each is a
+   * prefix: it selects this link in the sidebar and rail, and guards its
+   * pages with its own permission (`permissionFor`).
+   */
+  owns?: readonly { href: string; permission: PermissionRequest }[]
 }
 
 /**
@@ -89,19 +110,69 @@ export const NAV_GROUPS: readonly { id: NavGroupId; label: string }[] = [
   { id: "general", label: "General" },
 ]
 
-const COLLECTION = { collection: ["read"] } satisfies PermissionRequest
 const INTEGRATION = { integration: ["read"] } satisfies PermissionRequest
+const PAGE_READ = { page: ["read"] } satisfies PermissionRequest
 
-const collection = (
-  slug: string,
-  label: string,
-  icon: LucideIcon
-): NavLink => ({
-  id: `collections-${slug}`,
-  label,
-  href: `/admin/collections/${slug}`,
-  permission: COLLECTION,
-  icon,
+type RoutePart = WebsitePart & {
+  source: Extract<WebsitePart["source"], { kind: "route" }>
+}
+const isRoutePart = (part: WebsitePart): part is RoutePart =>
+  part.source.kind === "route"
+
+/**
+ * What each Website screen owns outside /admin/website: its route parts
+ * (the services, insights and careers editors stay at their own URLs), the
+ * page builder (Custom pages) and the legal page editor (Legal pages).
+ */
+const websiteOwns = (key: WebsiteKey): NonNullable<NavLink["owns"]> => [
+  ...WEBSITE_PARTS.filter(isRoutePart)
+    .filter((part) => part.screen === key)
+    .map((part) => ({ href: part.source.href, permission: part.permission })),
+  ...(key === "custom-pages"
+    ? [{ href: "/admin/pages/custom", permission: PAGE_READ }]
+    : []),
+  ...(key === "legal"
+    ? [{ href: "/admin/pages/legal", permission: PAGE_READ }]
+    : []),
+]
+
+/** The Website rail's icons. */
+const SCREEN_ICONS: Record<WebsiteKey, LucideIcon> = {
+  home: House,
+  about: UserRound,
+  services: ShieldCheck,
+  team: Users,
+  blog: Newspaper,
+  contact: Mail,
+  careers: BriefcaseBusiness,
+  "custom-pages": FileText,
+  legal: Scale,
+  "header-footer": PanelTop,
+}
+
+const SCREEN_KEYWORDS: Partial<Record<WebsiteKey, readonly string[]>> = {
+  services: ["security services", "offerings"],
+  team: ["people", "staff", "leadership"],
+  blog: ["insights", "articles", "posts", "news"],
+  careers: ["jobs", "vacancies", "hiring", "recruitment"],
+  "custom-pages": ["builder"],
+  legal: ["privacy", "terms", "cookies", "policy"],
+  "header-footer": ["menu", "navbar", "header", "navigation"],
+}
+
+/** ⌘K icons for the route parts. */
+const ROUTE_PART_ICONS: Record<string, LucideIcon> = {
+  "all-services": Wrench,
+  articles: Newspaper,
+  categories: Tags,
+  jobs: BriefcaseBusiness,
+}
+
+const settingLink = (key: EditableSettingsKey): NavLink => ({
+  id: `settings-${key}`,
+  label: SETTINGS_ENTRIES[key].label,
+  href: `/admin/settings/${key}`,
+  permission: SETTINGS_ENTRIES[key].read,
 })
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -116,66 +187,44 @@ export const NAV_ITEMS: readonly NavItem[] = [
     keywords: ["home", "overview"],
   },
   {
-    id: "pages",
+    id: "website",
     group: "menu",
-    label: "Pages",
-    href: "/admin/pages",
-    icon: FileText,
-    permission: { page: ["read"] },
+    label: "Website",
+    href: "/admin/website",
+    icon: Globe,
+    // Shown when any screen is: each screen guards its own pages.
+    permission: null,
     match: "prefix",
-    keywords: ["home page", "about", "contact", "builder", "custom pages"],
-  },
-  {
-    id: "insights",
-    group: "menu",
-    label: "Insights",
-    href: "/admin/insights",
-    icon: Newspaper,
-    permission: { article: ["read"] },
-    match: "prefix",
-    keywords: ["blog", "articles", "posts", "news"],
-    children: [
-      {
-        id: "insights-articles",
-        label: "Articles",
-        href: "/admin/insights",
-        permission: { article: ["read"] },
-        icon: Newspaper,
-      },
-      {
-        id: "insights-categories",
-        label: "Categories",
-        href: "/admin/insights/categories",
-        permission: COLLECTION,
-        icon: Tags,
-        keywords: ["tags", "topics"],
-      },
+    keywords: [
+      "pages",
+      "frontend",
+      "front end",
+      "home page",
+      "about",
+      "contact",
+      "builder",
+      "sections",
+      "collections",
+      "footer",
+      "navigation",
     ],
-  },
-  {
-    id: "services",
-    group: "menu",
-    label: "Services",
-    href: "/admin/services",
-    icon: Wrench,
-    permission: { service: ["read"] },
-    match: "prefix",
-    keywords: ["security services", "offerings"],
-  },
-  {
-    id: "collections",
-    group: "menu",
-    label: "Collections",
-    href: "/admin/collections",
-    icon: Layers,
-    permission: COLLECTION,
-    match: "prefix",
-    keywords: ["team", "clients", "group companies"],
-    children: [
-      collection("team", "Team", Users),
-      collection("clients", "Clients", ShieldCheck),
-      collection("group-companies", "Group companies", Building2),
-    ],
+    children: WEBSITE_SCREENS.map((screen): NavLink => {
+      const owns = websiteOwns(screen.key)
+      return {
+        id: `website-${screen.key}`,
+        label: screen.label,
+        href: websiteHref(screen.key),
+        permission: screen.permission,
+        icon: SCREEN_ICONS[screen.key],
+        keywords: [
+          ...WEBSITE_PARTS.filter((part) => part.screen === screen.key).map(
+            (part) => part.label
+          ),
+          ...(SCREEN_KEYWORDS[screen.key] ?? []),
+        ],
+        ...(owns.length > 0 ? { owns } : {}),
+      }
+    }),
   },
   {
     id: "media",
@@ -200,32 +249,28 @@ export const NAV_ITEMS: readonly NavItem[] = [
     keywords: ["leads", "contact", "inbox", "messages"],
   },
   {
+    id: "chat",
+    group: "menu",
+    label: "Live chat",
+    href: "/admin/chat",
+    icon: MessagesSquare,
+    permission: { chat: ["read"] },
+    match: "prefix",
+    badge: "chat-unread",
+    badgeLabel: "unread chats",
+    keywords: ["chat", "support", "live chat", "conversations"],
+  },
+  {
     id: "careers",
     group: "menu",
-    label: "Careers",
-    href: "/admin/careers",
-    icon: Briefcase,
-    // Each sub-page has its own permission: intake sees Applications only.
-    permission: null,
+    label: "Job applications",
+    href: "/admin/careers/applications",
+    icon: Inbox,
+    permission: { application: ["read"] },
     match: "prefix",
     badge: "new-applications",
     badgeLabel: "new applications",
-    keywords: ["jobs", "vacancies", "recruitment", "applications", "cv"],
-    children: [
-      {
-        id: "careers-jobs",
-        label: "Jobs",
-        href: "/admin/careers",
-        permission: { job: ["read"] },
-      },
-      {
-        id: "careers-applications",
-        label: "Applications",
-        href: "/admin/careers/applications",
-        permission: { application: ["read"] },
-        icon: Inbox,
-      },
-    ],
+    keywords: ["careers", "jobs", "recruitment", "cv", "applicants"],
   },
   {
     id: "seo",
@@ -318,14 +363,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Settings,
     permission: { settings: ["read"] },
     match: "prefix",
-    keywords: ["identity", "contact", "footer", "navigation"],
+    keywords: ["identity"],
     children: [
-      ...EDITABLE_SETTINGS_KEYS.map((key): NavLink => ({
-        id: `settings-${key}`,
-        label: SETTINGS_ENTRIES[key].label,
-        href: `/admin/settings/${key}`,
-        permission: SETTINGS_ENTRIES[key].read,
-      })),
+      // Page content (sections, contact, navigation, footer…) is under Website.
+      ...EDITABLE_SETTINGS_KEYS.filter((key) => !isWebsiteSettingsKey(key)).map(
+        settingLink
+      ),
       {
         id: "settings-ai-assistant",
         label: "AI assistant",
@@ -434,7 +477,7 @@ export function visibleNav(
 
 /**
  * Where a section index without a page of its own (/admin/settings,
- * /admin/collections) lands: its first child `roles` may open; undefined
+ * /admin/website) lands: its first child `roles` may open; undefined
  * when the section is hidden from them or has no children.
  */
 export function firstVisibleChild(
@@ -461,7 +504,11 @@ export function dockLinks(roles: readonly Role[]): NavLink[] {
 export function reachableLinks(roles: readonly Role[]): ReachableLink[] {
   const seen = new Set<string>()
   const out: ReachableLink[] = []
-  const add = (link: NavLink, icon: LucideIcon, section?: NavItem) => {
+  const add = (
+    link: NavLink,
+    icon: LucideIcon,
+    section?: Pick<NavItem, "label" | "keywords">
+  ) => {
     if (seen.has(link.href)) return
     seen.add(link.href)
     out.push({
@@ -476,10 +523,43 @@ export function reachableLinks(roles: readonly Role[]): ReachableLink[] {
       for (const child of item.children) add(child, item.icon, item)
     else add(item, item.icon)
   }
+  // Each Website part on its own page (route parts at their own URLs),
+  // labelled with its screen.
+  for (const part of WEBSITE_PARTS) {
+    if (!hasPermission(roles, part.permission)) continue
+    const screen = WEBSITE_SCREENS.find((s) => s.key === part.screen)!
+    if (!hasPermission(roles, screen.permission)) continue
+    add(
+      {
+        id: `website-${part.screen}-${part.id}`,
+        label: part.label,
+        href: partHref(part),
+        permission: part.permission,
+        icon: ROUTE_PART_ICONS[part.id],
+      },
+      Globe,
+      { label: screen.label, keywords: [] }
+    )
+  }
   for (const link of [HELP_LINK, ...EXTRA_LINKS])
     if (allowed(roles, link)) add(link, link.icon ?? CircleHelp)
   return out
 }
+
+/** A link's own href and the hrefs it owns. */
+const hrefsOf = (link: NavLink): string[] => [
+  link.href,
+  ...(link.owns ?? []).map((owned) => owned.href),
+]
+
+/** The longest of `link`'s hrefs (own or owned) covering `pathname`; -1 if none. */
+const linkMatch = (link: NavLink, pathname: string): number =>
+  Math.max(
+    -1,
+    ...hrefsOf(link)
+      .filter((href) => covers(href, pathname))
+      .map((href) => href.length)
+  )
 
 /** Every href an item (or its children) answers for, longest match wins. */
 const matchLength = (item: NavItem, pathname: string): number => {
@@ -487,9 +567,7 @@ const matchLength = (item: NavItem, pathname: string): number => {
     return pathname === item.href ? item.href.length : -1
   return Math.max(
     -1,
-    ...[item, ...(item.children ?? [])]
-      .filter((link) => covers(link.href, pathname))
-      .map((link) => link.href.length)
+    ...[item, ...(item.children ?? [])].map((link) => linkMatch(link, pathname))
   )
 }
 
@@ -510,31 +588,42 @@ export function activeItem(
   return best
 }
 
-/** The child of `item` whose href is the longest prefix of `pathname`. */
+/**
+ * The child of `item` whose href (or an href it owns) is the longest prefix
+ * of `pathname`.
+ */
 export function activeChild(item: NavItem, pathname: string): NavLink | null {
   let best: NavLink | null = null
-  for (const child of item.children ?? [])
-    if (
-      covers(child.href, pathname) &&
-      child.href.length > (best?.href.length ?? -1)
-    )
+  let bestLength = -1
+  for (const child of item.children ?? []) {
+    const length = linkMatch(child, pathname)
+    if (length > bestLength) {
       best = child
+      bestLength = length
+    }
+  }
   return best
 }
 
+type Registered = {
+  href: string
+  permission: PermissionRequest | null
+  match: "exact" | "prefix"
+}
+
+/** A link and each href it owns (with the owned permission), all prefixes. */
+const registered = (link: NavLink): Registered[] => [
+  { href: link.href, permission: link.permission, match: "prefix" },
+  ...(link.owns ?? []).map((owned) => ({ ...owned, match: "prefix" as const })),
+]
+
 /** Children before their item, so a shared href resolves to the child. */
-const REGISTERED: readonly (NavLink & { match: "exact" | "prefix" })[] = [
-  ...NAV_ITEMS.flatMap((item) => [
-    ...(item.children ?? []).map((child) => ({
-      ...child,
-      match: "prefix" as const,
-    })),
+const REGISTERED: readonly Registered[] = [
+  ...NAV_ITEMS.flatMap((item): Registered[] => [
+    ...(item.children ?? []).flatMap(registered),
     item,
   ]),
-  ...[HELP_LINK, ...EXTRA_LINKS].map((link) => ({
-    ...link,
-    match: "prefix" as const,
-  })),
+  ...[HELP_LINK, ...EXTRA_LINKS].flatMap(registered),
 ]
 
 /**

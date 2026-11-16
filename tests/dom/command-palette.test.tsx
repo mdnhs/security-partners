@@ -208,7 +208,15 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(
       await within(dialog).findByRole("option", { name: /Alarm Responses/ })
     ).toBeInTheDocument()
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    // The two searches (records, people); the sidebar's unread-chats poll
+    // is not one of them.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(
+          ([input]) => !String(input).includes("/chat/unread")
+        )
+      ).toHaveLength(2)
+    )
     expect(within(dialog).queryByRole("group", { name: "People" })).toBeNull()
     expect(within(dialog).queryByRole("alert")).toBeNull()
   })
@@ -246,8 +254,8 @@ describe("⌘K command palette (master 4.1)", () => {
     expect(options).toEqual([
       "Dashboard",
       "Enquiries",
-      // intake reads applications (careers plan Task 7), not jobs.
-      "ApplicationsCareers",
+      "Live chat",
+      "Job applications",
       "Help",
       "Account",
       "Open the live site",
@@ -358,16 +366,16 @@ describe("⌘K command palette (master 4.1)", () => {
       empty()
       renderShell(["owner"])
       const { user, dialog, input } = await openPalette()
-      await user.type(input(), "blog cat")
+      await user.type(input(), "website legal")
       const goTo = within(dialog).getByRole("group", { name: "Go to" })
       expect(
         within(goTo)
           .getAllByRole("option")
           .map((o) => o.textContent)
-      ).toEqual(["CategoriesInsights"])
+      ).toEqual(["Legal pagesWebsite"])
       // Assistive tech hears the section apart from the label.
       expect(
-        within(goTo).getByRole("option", { name: "Categories, in Insights" })
+        within(goTo).getByRole("option", { name: "Legal pages, in Website" })
       ).toBeInTheDocument()
     })
 
@@ -423,14 +431,14 @@ describe("⌘K command palette (master 4.1)", () => {
       const open = vi.spyOn(window, "open").mockReturnValue(null)
       renderShell(["author"])
       const { user, input } = await openPalette()
-      await user.type(input(), "website")
+      await user.type(input(), "live site")
       await user.keyboard("{Enter}")
       expect(open).toHaveBeenCalledWith("/", "_blank", "noopener,noreferrer")
       open.mockRestore()
     })
   })
 
-  it("New page (page:create) opens Pages with its New page dialog (D5.5)", async () => {
+  it("New page (page:create) opens Custom pages with its New page dialog (D5.5)", async () => {
     const user = userEvent.setup()
     renderShell(["editor"])
     await user.keyboard("{Control>}k{/Control}")
@@ -438,7 +446,7 @@ describe("⌘K command palette (master 4.1)", () => {
       name: "Search the admin",
     })
     await user.click(within(dialog).getByRole("option", { name: "New page" }))
-    expect(push).toHaveBeenCalledWith("/admin/pages?new=1")
+    expect(push).toHaveBeenCalledWith("/admin/website/custom-pages?new=1")
   })
 
   it("no New page action without page:create (marketer)", async () => {

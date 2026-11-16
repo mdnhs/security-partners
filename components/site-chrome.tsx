@@ -4,6 +4,7 @@ import { connection } from "next/server"
 
 import { SiteFooter } from "@/components/home/site-footer"
 import { SiteHeader } from "@/components/home/site-header"
+import { ChromeReady } from "@/components/motion/chrome-ready"
 import { SiteLocale } from "@/components/site-locale"
 import { SiteThemeStyle } from "@/components/site-theme-style"
 import { loadChromeSources } from "@/server/modules/pages/sources"
@@ -47,6 +48,8 @@ async function Header() {
   return (
     <>
       <SiteHeader {...chrome.header} />
+      {/* After the header in the same boundary: it mounts when the header has hydrated. */}
+      <ChromeReady part="header" />
       {/* settings.site.locale onto <html lang>; once per page load. */}
       <SiteLocale lang={chrome.locale} />
     </>
@@ -56,7 +59,12 @@ async function Header() {
 async function Footer() {
   const chrome = await chromeOrNull()
   if (!chrome) return null
-  return <SiteFooter {...chrome.footer} />
+  return (
+    <>
+      <SiteFooter {...chrome.footer} />
+      <ChromeReady part="footer" />
+    </>
+  )
 }
 
 export function SiteHeaderSlot() {

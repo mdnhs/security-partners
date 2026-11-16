@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from "react"
+
 import { Team } from "@/components/home/clients-team-blog"
 import { IconCards } from "@/components/home/icon-cards"
 import { PageHero } from "@/components/home/page-hero"
@@ -8,13 +10,18 @@ import type { TeamView } from "./view"
 
 /** "/team" */
 export function TeamTemplate({ view }: { view: TeamView }) {
+  const parts: Record<TeamView["sections"][number], ReactNode> = {
+    team: <Team {...view.team} stack />,
+    officers: <IconCards {...view.officers} />,
+    enquireBanner: <EnquireBanner {...view.enquireBanner} />,
+  }
   return (
     <>
       <main>
         <PageHero {...view.hero} />
-        <Team {...view.team} stack />
-        <IconCards {...view.officers} />
-        <EnquireBanner {...view.enquireBanner} />
+        {view.sections.map((id) => (
+          <Fragment key={id}>{parts[id]}</Fragment>
+        ))}
       </main>
       <HomeMotion />
     </>

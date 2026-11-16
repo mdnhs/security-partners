@@ -11,6 +11,7 @@ import type {
   ServicesProps,
 } from "@/components/home/services"
 import { interpolateHref, interpolateParts } from "@/lib/interpolate"
+import { HOME_SECTIONS, visibleSections } from "@/templates/shared/sections"
 import type { SiteSources } from "@/templates/shared/sources"
 import {
   aboutSectionView,
@@ -29,6 +30,8 @@ import {
 
 export type HomeView = {
   hero: HeroProps
+  /** Sections after the hero: the visible ones, in order. */
+  sections: (typeof HOME_SECTIONS)[number][]
   about: AboutProps
   services: ServicesProps
   enquireBanner: EnquireBannerProps
@@ -43,6 +46,7 @@ export function homeView(s: SiteSources): HomeView {
   const page = s.pages.home.data
   const values = placeholders(s)
   return {
+    sections: visibleSections(page.sections, HOME_SECTIONS),
     hero: {
       eyebrow: page.hero.eyebrow,
       heading: page.hero.heading,

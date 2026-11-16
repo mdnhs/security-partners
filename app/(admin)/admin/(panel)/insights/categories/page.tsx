@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { CollectionScreen } from "@/components/admin/collections/collection-screen"
+import { WebsiteTabs } from "@/components/admin/website/website-tabs"
 import { requirePage } from "@/server/auth/session"
 
 export const metadata: Metadata = { title: "Categories" }
@@ -16,5 +17,10 @@ export default function Page() {
 
 async function Screen() {
   await requirePage("/admin/insights/categories")
-  return <CollectionScreen name="categories" />
+  return (
+    <>
+      <WebsiteTabs screen="blog" />
+      <CollectionScreen name="categories" />
+    </>
+  )
 }

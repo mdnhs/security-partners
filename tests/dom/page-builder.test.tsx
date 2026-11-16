@@ -22,7 +22,10 @@ import {
 } from "@/components/admin/builder/page-builder"
 import { BUILDER_AUTOSAVE_MS } from "@/components/admin/builder/use-builder-autosave"
 import { PageEditor } from "@/components/admin/pages/page-editor"
-import { NewPageButton, PagesList } from "@/components/admin/pages/pages-list"
+import {
+  CustomPagesList,
+  NewPageButton,
+} from "@/components/admin/pages/pages-list"
 import { makeQueryClient } from "@/components/admin/providers"
 import { AdminShell } from "@/components/admin/shell/admin-shell"
 import type { Role } from "@/lib/auth/roles"
@@ -137,16 +140,15 @@ function renderWith(children: ReactNode, roles: Role[] = ["editor"]) {
 const keysCalled = () => calls.map((c) => c.key)
 
 describe("PageBuilder (D5.5)", () => {
-  it("header: breadcrumb Pages › title, address, status, actions; outline and block settings", async () => {
+  it("header: breadcrumb Custom pages › title, address, status, actions; outline and block settings", async () => {
     renderWith(<PageBuilder id={ID} />)
     expect(
       await screen.findByRole("heading", { level: 1, name: "Spring campaign" })
     ).toBeInTheDocument()
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" })
-    expect(within(crumbs).getByRole("link", { name: "Pages" })).toHaveAttribute(
-      "href",
-      "/admin/pages"
-    )
+    expect(
+      within(crumbs).getByRole("link", { name: "Custom pages" })
+    ).toHaveAttribute("href", "/admin/website/custom-pages")
     expect(screen.getByText("/p/spring-campaign")).toBeInTheDocument()
     expect(screen.getByText("Draft")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "History" })).toBeInTheDocument()
@@ -606,12 +608,9 @@ describe("Pages list: Site pages and Custom pages", () => {
     renderWith(
       <>
         <NewPageButton />
-        <PagesList />
+        <CustomPagesList />
       </>
     )
-    expect(
-      await screen.findByRole("heading", { name: "Site pages" })
-    ).toBeInTheDocument()
     const table = await screen.findByRole("table", { name: "Custom pages" })
     expect(
       within(table).getByRole("link", { name: "Spring campaign" })
@@ -624,7 +623,7 @@ describe("Pages list: Site pages and Custom pages", () => {
     renderWith(
       <>
         <NewPageButton />
-        <PagesList />
+        <CustomPagesList />
       </>,
       ["marketer"]
     )
@@ -647,7 +646,7 @@ describe("Pages list: Site pages and Custom pages", () => {
   })
 })
 
-describe("Copy to new page (fixed page editor)", () => {
+describe("fixed page editor", () => {
   const about = pagesFixture(fixtureMediaLookup).about.data
   const aboutDto = {
     key: "about",
@@ -665,48 +664,9 @@ describe("Copy to new page (fixed page editor)", () => {
   }
   beforeEach(() => {
     routes["GET /api/v1/admin/pages/about"] = () => json(200, aboutDto)
-    routes["POST /api/v1/admin/builder-pages"] = () => json(201, page())
   })
 
-  it("seeds a NEW builder page at /p/about-copy with About's blocks; the fixed page is not written", async () => {
-    const user = userEvent.setup()
-    renderWith(<PageEditor pageKey="about" />)
-    await user.click(
-      await screen.findByRole("button", { name: "Copy to new page" })
-    )
-    const dialog = await screen.findByRole("dialog", {
-      name: "Copy to a new page",
-    })
-    expect(within(dialog).getByRole("textbox", { name: "Title" })).toHaveValue(
-      "About copy"
-    )
-    expect(
-      within(dialog).getByRole("textbox", { name: "Address" })
-    ).toHaveValue("about-copy")
-    await user.click(
-      within(dialog).getByRole("button", { name: "Create copy" })
-    )
-    await waitFor(() =>
-      expect(nav.push).toHaveBeenCalledWith(`/admin/pages/custom/${ID}`)
-    )
-    const post = calls.find((c) => c.key === "POST /api/v1/admin/builder-pages")
-    const body = post?.body as { seed: { blocks: { type: string }[] } }
-    expect(body.seed.blocks.map((b) => b.type)).toEqual([
-      "hero.page",
-      "about",
-      "stats",
-      "iconCards",
-      "clients",
-      "enquireBanner",
-    ])
-    expect(
-      calls.filter(
-        (c) => c.key.includes("/pages/about") && !c.key.startsWith("GET")
-      )
-    ).toEqual([])
-  })
-
-  it("no Copy to new page without page:create", async () => {
+  it("has no Copy to new page action (as the reference admin)", async () => {
     renderWith(<PageEditor pageKey="about" />, ["marketer"])
     expect(
       await screen.findByRole("heading", { level: 1, name: "About" })

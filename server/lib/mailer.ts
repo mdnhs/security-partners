@@ -17,6 +17,7 @@ export type MailTemplate =
   | "lead-notification"
   | "lead-acknowledgement"
   | "application-notification"
+  | "chat-alert"
 
 export type MailMessage = {
   to: string | readonly string[]

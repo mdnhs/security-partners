@@ -66,7 +66,14 @@ function client(name: CollectionName) {
  * table (cards on phones), add/edit in a sheet, delete, reorder.
  * `?edit=<id>` opens a record (⌘K results link here).
  */
-export function CollectionScreen({ name }: { name: CollectionName }) {
+export function CollectionScreen({
+  name,
+  compact = false,
+}: {
+  name: CollectionName
+  /** Inside a page's form: a small heading and standard-size buttons. */
+  compact?: boolean
+}) {
   const config = COLLECTION_CONFIGS[name]
   const queryClient = useQueryClient()
   const router = useRouter()
@@ -149,38 +156,53 @@ export function CollectionScreen({ name }: { name: CollectionName }) {
     [config, canUpdate]
   )
 
+  const ACTIONS = (
+    <>
+      {canUpdate ? (
+        <Button
+          type="button"
+          variant="outline"
+          className={compact ? undefined : SECONDARY_ACTION}
+          onClick={() => setReordering((v) => !v)}
+          aria-pressed={reordering}
+        >
+          <ArrowUpDown aria-hidden />
+          {reordering ? "Back to list" : "Change order"}
+        </Button>
+      ) : null}
+      {canCreate ? (
+        <Button
+          type="button"
+          variant={compact ? "outline" : "default"}
+          className={compact ? undefined : PRIMARY_ACTION}
+          onClick={() => setCreating(true)}
+        >
+          <Plus aria-hidden />
+          Add {config.singular.toLowerCase()}
+        </Button>
+      ) : null}
+    </>
+  )
+
   return (
     <>
-      <PageHeader
-        title={config.title}
-        description={config.description}
-        actions={
-          <>
-            {canUpdate ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={SECONDARY_ACTION}
-                onClick={() => setReordering((v) => !v)}
-                aria-pressed={reordering}
-              >
-                <ArrowUpDown aria-hidden />
-                {reordering ? "Back to list" : "Change order"}
-              </Button>
-            ) : null}
-            {canCreate ? (
-              <Button
-                type="button"
-                className={PRIMARY_ACTION}
-                onClick={() => setCreating(true)}
-              >
-                <Plus aria-hidden />
-                Add {config.singular.toLowerCase()}
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+      {compact ? (
+        <header className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h3 className="text-[15px] font-semibold">{config.title}</h3>
+            <p className="text-sm text-muted-foreground">
+              {config.description}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">{ACTIONS}</div>
+        </header>
+      ) : (
+        <PageHeader
+          title={config.title}
+          description={config.description}
+          actions={ACTIONS}
+        />
+      )}
       {reordering ? (
         <ReorderPanel
           collection={name}
