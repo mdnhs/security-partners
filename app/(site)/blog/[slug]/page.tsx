@@ -3,7 +3,6 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 
 import { JsonLd } from "@/components/seo/json-ld"
-import { DetailSkeleton } from "@/components/site-detail-skeleton"
 import { SiteThemed } from "@/components/site-themed"
 import { publicOrigin } from "@/server/lib/site-origin"
 import { loadSiteSources } from "@/server/modules/pages/sources"
@@ -22,7 +21,7 @@ export async function generateMetadata({
 
 export default function ArticlePage({ params }: PageProps<"/blog/[slug]">) {
   return (
-    <SiteThemed fallback={<DetailSkeleton />}>
+    <SiteThemed>
       <Article params={params} />
     </SiteThemed>
   )
