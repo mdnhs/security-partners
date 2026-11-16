@@ -136,6 +136,7 @@ export function BlogPosts({
               {featured.author && <AuthorBadge author={featured.author} />}
               <Link
                 href={`/blog/${featured.slug}`}
+                prefetch={false}
                 className="pt-1.5 text-base leading-[normal] font-bold whitespace-pre text-brand-blue hover:underline"
               >
                 {labels.readArticle}

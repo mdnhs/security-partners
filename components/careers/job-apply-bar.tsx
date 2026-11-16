@@ -20,7 +20,7 @@ export function JobApplyBar({ href, label }: { href: string; label: string }) {
     }
   }, [])
   return (
-    <SlideInBar className="fixed inset-x-0 bottom-0 z-40 border-t border-brand-line bg-white px-4 pt-3 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-[0px_-6px_20px_0px_rgba(13,27,54,0.1)] md:hidden">
+    <SlideInBar className="fixed inset-x-0 bottom-0 z-40 bg-white/55 px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-[0px_-4px_20px_0px_rgba(13,26,51,0.08)] backdrop-blur-lg backdrop-saturate-150 md:hidden">
       <Link
         href={href}
         className="flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-brand-green px-6 text-base font-bold text-white"

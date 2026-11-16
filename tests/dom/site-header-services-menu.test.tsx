@@ -210,6 +210,37 @@ describe("header Services menu across pages", () => {
   })
 })
 
+describe("desktop nav arrow", () => {
+  it("shows an arrow beside a link that has a submenu, and only there", () => {
+    nav.path = "/about"
+    render(<SiteHeader {...header(true)} />)
+    const services = desktopNav().querySelector('a[href="/services"]')!
+    expect(services.querySelector("[data-nav-arrow]")).not.toBeNull()
+    expect(
+      desktopNav().querySelector('a[href="/about"] [data-nav-arrow]')
+    ).toBeNull()
+  })
+
+  it("turns the arrow up while the submenu is open", async () => {
+    nav.path = "/about"
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(true)} />)
+    const link = desktopNav().querySelector('a[href="/services"]')!
+    const arrow = () => link.querySelector("[data-nav-arrow]")!
+    expect(arrow().getAttribute("class")).not.toContain("rotate-180")
+    await user.hover(link)
+    expect(arrow().getAttribute("class")).toContain("rotate-180")
+    await user.unhover(link)
+    expect(arrow().getAttribute("class")).not.toContain("rotate-180")
+  })
+
+  it("has no arrow when no link has a submenu", () => {
+    nav.path = "/about"
+    render(<SiteHeader {...header(false)} />)
+    expect(desktopNav().querySelector("[data-nav-arrow]")).toBeNull()
+  })
+})
+
 describe("mobile menu submenu", () => {
   const openSheet = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole("button", { name: "Open" }))
@@ -248,6 +279,22 @@ describe("mobile menu submenu", () => {
     )
     await user.click(toggle)
     expect(toggle).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("shows each service's icon beside its name in the opened list", async () => {
+    nav.path = "/about"
+    const user = userEvent.setup()
+    render(<SiteHeader {...header(true)} />)
+    const mobile = await openSheet(user)
+    await user.click(mobile.querySelector("button[aria-expanded]")!)
+    const link = mobile.querySelector('a[href="/services/alarm-responses"]')!
+    const tile = link.querySelector("[aria-hidden]")!
+    expect(tile.querySelector("img")).not.toBeNull()
+    expect(tile.querySelector("img")!.getAttribute("src")).toContain(
+      "service-alarm"
+    )
+    // The name stays the link's accessible text; the picture is decoration.
+    expect(link).toHaveTextContent("Alarm Responses")
   })
 
   it("starts open on a page under the link", async () => {

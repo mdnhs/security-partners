@@ -230,7 +230,7 @@ export function SiteFooter({
       {/* Phones: call / quote shortcuts pinned to the bottom of the screen. */}
       <SlideInBar
         data-site-cta
-        className="fixed inset-x-0 bottom-0 z-40 flex gap-2.5 border-t border-brand-line bg-white px-4 pt-3 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-[0px_-6px_20px_0px_rgba(13,27,54,0.1)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex gap-2.5 bg-white/55 px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-[0px_-4px_20px_0px_rgba(13,26,51,0.08)] backdrop-blur-lg backdrop-saturate-150 md:hidden"
       >
         <a
           href={contact.phone24hHref}

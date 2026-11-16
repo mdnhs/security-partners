@@ -362,6 +362,7 @@ function SimilarJobCard({
       <h3 className="text-[19px] leading-6 font-black text-brand-navy md:text-xl md:leading-[1.3]">
         <Link
           href={job.href}
+          prefetch={false}
           className="outline-none after:absolute after:inset-0 focus-visible:underline"
         >
           {job.title}
