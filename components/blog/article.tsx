@@ -194,6 +194,7 @@ export function ArticleBody({
               <Link
                 key={item.slug}
                 href={`/blog/${item.slug}`}
+                prefetch={false}
                 className="group flex items-center gap-3.5 rounded-[18px] border border-brand-line bg-white p-3 md:rounded-none md:border-0 md:bg-transparent md:p-0"
               >
                 <div className="relative size-[88px] shrink-0 overflow-hidden rounded-xl md:size-[76px] md:rounded-[14px]">

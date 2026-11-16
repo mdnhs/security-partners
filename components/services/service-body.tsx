@@ -67,6 +67,7 @@ export function ServiceBody({
               <li key={item.slug} className="shrink-0">
                 <Link
                   href={`/services/${item.slug}`}
+                  prefetch={false}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex h-10 items-center rounded-full border px-4 text-sm font-bold whitespace-nowrap",
@@ -177,6 +178,7 @@ export function ServiceBody({
                 <Link
                   key={item.slug}
                   href={`/services/${item.slug}`}
+                  prefetch={false}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center justify-between gap-3 rounded-[14px] px-[18px] py-4 leading-[normal] font-bold transition-colors",

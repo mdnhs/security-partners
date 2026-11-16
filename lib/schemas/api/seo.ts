@@ -1,6 +1,10 @@
 import { z } from "zod"
 
 import type { Seo } from "@/lib/schemas/common"
+import {
+  PREFERRED_HOSTS,
+  type PreferredHost,
+} from "@/lib/schemas/settings/seo-defaults"
 import type { CheckResult, SeoCheckId } from "@/lib/seo/checks"
 
 /** A failed check of one record (SEO overview entries). */
@@ -14,6 +18,16 @@ export const seoEntryParam = z.object({
   kind: z.enum(SEO_KINDS),
   id: z.string().min(1).max(100),
 })
+
+/** SEO › Canonical URLs: the site's main address (seo.defaults.preferredHost), saved live. */
+export const preferredAddressInput = z.object({
+  preferredHost: z.enum(PREFERRED_HOSTS),
+})
+export type PreferredAddressDto = {
+  preferredHost: PreferredHost
+  /** settings.site.productionUrl's host without www; null while unset. */
+  siteHost: string | null
+}
 
 /** PUT /seo/entries/:kind/:id — `seo` is validated by the service (field paths without "seo."). */
 export const seoUpdateInput = z.object({ seo: z.unknown() })

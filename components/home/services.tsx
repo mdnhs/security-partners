@@ -101,6 +101,7 @@ export function ServiceCard({
       </p>
       <Link
         href={`/services/${service.slug}`}
+        prefetch={false}
         className="flex items-center gap-1.5 text-sm leading-[normal] font-bold text-brand-blue group-hover:underline max-sm:pt-3.5 sm:gap-2 sm:text-[15px]"
         aria-label={interpolate(labels.ariaReadMore, { title: service.title })}
       >

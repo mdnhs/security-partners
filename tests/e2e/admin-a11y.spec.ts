@@ -174,7 +174,12 @@ const INTEGRATIONS = [
 ]
 
 /** Growth ▸ SEO (Phase 8), audited signed in as the admin. */
-const GROWTH = ["/admin/seo", "/admin/seo/defaults", "/admin/seo/redirects"]
+const GROWTH = [
+  "/admin/seo",
+  "/admin/seo/defaults",
+  "/admin/seo/redirects",
+  "/admin/seo/canonical",
+]
 
 /** SEO › Redirects, pinned (Phase 8 Task 9): one row and a loop error. */
 const REDIRECTS = {

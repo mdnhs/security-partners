@@ -60,6 +60,7 @@ export function BlogCard({
           </p>
           <Link
             href={`/blog/${post.slug}`}
+            prefetch={false}
             className="pt-1 text-[15px] leading-[normal] font-bold whitespace-pre text-brand-blue hover:underline"
           >
             {readArticle}
@@ -94,6 +95,7 @@ function BlogRow({ post }: { post: BlogCardPost }) {
         </h3>
         <Link
           href={`/blog/${post.slug}`}
+          prefetch={false}
           className="flex items-center gap-1.5 text-[13px] font-bold text-brand-blue"
         >
           Read

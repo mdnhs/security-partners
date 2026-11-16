@@ -116,6 +116,7 @@ export function JobCard({
         <h3 className="text-[19px] leading-6 font-black text-brand-navy md:text-[22px] md:leading-[1.25]">
           <Link
             href={job.href}
+            prefetch={false}
             className="outline-none after:absolute after:inset-0 focus-visible:underline"
           >
             {job.title}
@@ -129,6 +130,7 @@ export function JobCard({
         </p>
         <Link
           href={job.href}
+          prefetch={false}
           tabIndex={-1}
           aria-hidden
           className={buttonClassName(

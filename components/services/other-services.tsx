@@ -34,6 +34,7 @@ export function OtherServices({
             <li key={service.slug}>
               <Link
                 href={`/services/${service.slug}`}
+                prefetch={false}
                 className="flex items-center gap-3.5 rounded-[18px] border border-brand-line bg-white p-3.5"
               >
                 <span

@@ -20,6 +20,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  ChevronDown,
   ChevronRight,
   Clock,
   FileText,
@@ -49,6 +50,40 @@ type NavLink = {
   href: string
   children?: NavLink[]
   icon?: string
+}
+
+// The mobile submenu's motion: the panel opens in height (slow out), then
+// its entries come down one after another; closing is quicker and runs the
+// entries back up first.
+const PANEL = {
+  closed: {
+    height: 0,
+    opacity: 0,
+    transition: {
+      height: { duration: 0.35, ease: [0.4, 0, 0.2, 1] as const, delay: 0.05 },
+      opacity: { duration: 0.2 },
+    },
+  },
+  open: {
+    height: "auto",
+    opacity: 1,
+    transition: {
+      height: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
+      opacity: { duration: 0.3 },
+    },
+  },
+}
+const LIST = {
+  closed: { transition: { staggerChildren: 0.03, staggerDirection: -1 } },
+  open: { transition: { staggerChildren: 0.07, delayChildren: 0.12 } },
+}
+const ITEM = {
+  closed: { opacity: 0, y: -10 },
+  open: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
+  },
 }
 
 /**
@@ -95,7 +130,7 @@ function MobileSubmenu({
           <ChevronRight
             aria-hidden
             className={cn(
-              "size-5 transition-transform duration-300 motion-reduce:transition-none",
+              "size-5 transition-transform duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
               open && "rotate-90"
             )}
           />
@@ -106,33 +141,54 @@ function MobileSubmenu({
           <m.div
             id={panelId}
             key="panel"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            variants={PANEL}
+            initial="closed"
+            animate="open"
+            exit="closed"
             className="overflow-hidden"
           >
-            <ul className="flex flex-col pb-3 text-base font-bold">
+            <m.ul
+              variants={LIST}
+              className="flex flex-col pb-3 text-base font-bold"
+            >
               {(link.children ?? []).map((child) => (
-                <li key={child.href}>
+                <m.li key={child.href} variants={ITEM}>
                   <SheetClose
                     nativeButton={false}
                     render={
                       <Link
                         href={child.href}
+                        prefetch={false}
                         aria-current={isActive(child.href) ? "page" : undefined}
                         className={cn(
-                          "block rounded-lg py-3 pl-4 hover:text-brand-green",
+                          "flex items-center gap-3 rounded-lg py-2 pl-2 hover:text-brand-green",
                           isActive(child.href) && "text-brand-green"
                         )}
                       />
                     }
                   >
+                    {child.icon ? (
+                      // The same mint tile as the desktop list.
+                      <span
+                        aria-hidden
+                        className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-brand-mint"
+                      >
+                        <span className="relative size-[54px] shrink-0">
+                          <Image
+                            src={child.icon}
+                            alt=""
+                            fill
+                            sizes="54px"
+                            className="object-contain"
+                          />
+                        </span>
+                      </span>
+                    ) : null}
                     {child.label}
                   </SheetClose>
-                </li>
+                </m.li>
               ))}
-            </ul>
+            </m.ul>
           </m.div>
         ) : null}
       </AnimatePresence>
@@ -277,11 +333,20 @@ function NavMenu({
         data-nav-top
         aria-current={active ? "page" : undefined}
         className={cn(
-          "transition-colors hover:text-brand-green",
+          "inline-flex items-center gap-1 transition-colors hover:text-brand-green",
           active && "text-brand-green"
         )}
       >
         {link.label}
+        {/* The arrow marks a link with a submenu; it turns up while open. */}
+        <ChevronDown
+          aria-hidden
+          data-nav-arrow
+          className={cn(
+            "size-4 shrink-0 transition-transform duration-300 motion-reduce:transition-none",
+            open && "rotate-180"
+          )}
+        />
       </Link>
       {/* Centred under the link. The list unrolls downward from the pointer
           like a scroll being pulled open (a clip that grows from the top,
@@ -306,6 +371,7 @@ function NavMenu({
             >
               <Link
                 href={child.href}
+                prefetch={false}
                 aria-current={isActive(child.href) ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-brand-surface hover:text-brand-green",

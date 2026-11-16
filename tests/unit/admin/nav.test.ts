@@ -91,11 +91,16 @@ describe("role gating keeps the permission matrix (lib/auth/permissions.ts)", ()
         "Consent banner",
         "Event catalogue",
       ])
-    expect(children(["editor"], "seo")).toEqual(["Overview", "Defaults"])
+    expect(children(["editor"], "seo")).toEqual([
+      "Overview",
+      "Defaults",
+      "Canonical URLs",
+    ])
     expect(children(["marketer"], "seo")).toEqual([
       "Overview",
       "Defaults",
       "Redirects",
+      "Canonical URLs",
     ])
     // Website lists the public site page by page; each role sees its own.
     expect(children(["author"], "website")).toEqual(["Blog"])
