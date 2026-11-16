@@ -10,16 +10,9 @@ import { SiteThemeStyle } from "@/components/site-theme-style"
  * turns the catch-all's notFound() into a streamed soft 404 (HTTP 200),
  * which also breaks proxy.ts' 404 rewrites for unknown slugs.
  */
-export function SiteThemed({
-  children,
-  fallback = null,
-}: {
-  children: React.ReactNode
-  /** Shown while the page's request-time content streams (default: nothing). */
-  fallback?: React.ReactNode
-}) {
+export function SiteThemed({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={fallback}>
+    <Suspense fallback={null}>
       <SiteThemeStyle />
       {children}
     </Suspense>
