@@ -178,6 +178,22 @@ describe("PermissionMatrix", () => {
     return (role: (typeof ROLES)[number]) => cells[ROLES.indexOf(role)]
   }
 
+  it("Live chat: intake reads and replies, only owner and admin manage", () => {
+    render(<PermissionMatrix />)
+    const table = screen.getByRole("table", { name: MATRIX })
+    const group = table.querySelector(
+      'tbody[data-resource="chat"]'
+    ) as HTMLElement
+    expect(group).toHaveTextContent("Live chat")
+    expect(group).toHaveTextContent("Reply")
+    const reply = cellsOf("chat", "reply")
+    expect(reply("intake")).toHaveTextContent(/^Allowed$/)
+    expect(reply("editor")).toHaveTextContent("Not allowed")
+    const manage = cellsOf("chat", "manage")
+    expect(manage("admin")).toHaveTextContent(/^Allowed$/)
+    expect(manage("intake")).toHaveTextContent("Not allowed")
+  })
+
   it("article.submit is Own only for authors, Allowed for editors", () => {
     render(<PermissionMatrix />)
     const cell = cellsOf("article", "submit")

@@ -1,12 +1,14 @@
 import "server-only"
 
 import { backupJob } from "./backup"
+import { chatSweepJob } from "./chat-sweep"
 import { deleteApplicationFilesJob } from "./delete-application-files"
 import { deleteRetiredMediaJob } from "./delete-retired-media"
 import { migrateMediaJob } from "./migrate-media"
 import { publishScheduledJob } from "./publish-scheduled"
 import { pruneRevisionsJob } from "./prune-revisions"
 import { purgeApplicationsJob } from "./purge-applications"
+import { purgeChatsJob } from "./purge-chats"
 import { purgeLeadsJob } from "./purge-leads"
 
 export type JobContext = { now: Date; payload: unknown }
@@ -38,6 +40,8 @@ export const RECURRING_JOBS: readonly JobDefinition[] = [
   purgeLeadsJob,
   purgeApplicationsJob,
   backupJob,
+  chatSweepJob,
+  purgeChatsJob,
 ]
 
 /** One-off jobs queued by a request (enqueueKeyedJob); tick() runs them, ensureRecurringJobs never creates them. */

@@ -64,7 +64,11 @@ type Widget = {
  * loads until prepare() (first focus); without a site key every token is
  * null and the server decides.
  */
-export function useTurnstile(container: RefObject<HTMLDivElement | null>) {
+export function useTurnstile(
+  container: RefObject<HTMLDivElement | null>,
+  /** Where the site key comes from (the chat has its own). */
+  configEndpoint: string = LEADS_CONFIG_ENDPOINT
+) {
   const ready = useRef<Promise<Widget | null> | null>(null)
   const widget = useRef<Widget | null>(null)
   const unmounted = useRef(false)
@@ -79,7 +83,7 @@ export function useTurnstile(container: RefObject<HTMLDivElement | null>) {
     }
     const attempt = (async (): Promise<Widget | null> => {
       try {
-        const res = await fetch(LEADS_CONFIG_ENDPOINT)
+        const res = await fetch(configEndpoint)
         if (!res.ok) return retryLater()
         const { turnstileSiteKey } = (await res.json()) as LeadPublicConfig
         if (!turnstileSiteKey) return null
@@ -109,7 +113,7 @@ export function useTurnstile(container: RefObject<HTMLDivElement | null>) {
     })()
     ready.current = attempt
     return attempt
-  }, [container])
+  }, [container, configEndpoint])
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const w = await prepare()

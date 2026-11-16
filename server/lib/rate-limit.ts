@@ -24,6 +24,40 @@ export const CAREERS_RATE_LIMIT = {
   windowMs: 10 * 60_000,
 } as const
 
+/** Live chat. Start: per IP, middleware. */
+export const CHAT_START_RATE_LIMIT = {
+  bucket: "chat-start",
+  max: 5,
+  windowMs: 10 * 60_000,
+} as const
+/** New chats site-wide, key "chat:start:site". */
+export const CHAT_START_SITE_RATE_LIMIT = {
+  max: 60,
+  windowMs: 60 * 60_000,
+} as const
+/** Visitor messages per IP, key rateLimitKey("chat-send", ip). */
+export const CHAT_SEND_RATE_LIMIT = {
+  bucket: "chat-send",
+  max: 20,
+  windowMs: 60_000,
+} as const
+/** Visitor messages per chat, key "chat:send:chat:{id}". */
+export const CHAT_SEND_CHAT_RATE_LIMIT = {
+  max: 60,
+  windowMs: 60 * 60_000,
+} as const
+/** Bot replies site-wide, key "chat:bot:site". */
+export const CHAT_BOT_SITE_RATE_LIMIT = {
+  max: 300,
+  windowMs: 60 * 60_000,
+} as const
+/** Visitor polls per IP, key rateLimitKey("chat-poll", ip). */
+export const CHAT_POLL_RATE_LIMIT = {
+  bucket: "chat-poll",
+  max: 120,
+  windowMs: 60_000,
+} as const
+
 export function rateLimitKey(bucket: string, ip: string | null): string {
   return `${bucket}:${ip ? hashIp(ip) : "unknown"}`
 }

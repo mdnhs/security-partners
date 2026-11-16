@@ -32,6 +32,7 @@ export const statements = {
   audit: ["read"],
   ai: ["use"],
   appearance: ["read", "update", "publish"], // theme (admin + public colours)
+  chat: ["read", "reply", "manage"], // live chat inbox (manage: settings, delete, privacy requests)
 } as const
 
 export type Resource = keyof typeof statements
@@ -64,6 +65,7 @@ const EVERYTHING = {
   audit: all("audit"),
   ai: all("ai"),
   appearance: all("appearance"),
+  chat: all("chat"),
 } satisfies Required<Grants>
 
 /**
@@ -93,6 +95,7 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
     audit: all("audit"),
     ai: all("ai"),
     appearance: all("appearance"),
+    chat: all("chat"),
   },
   editor: {
     job: all("job"),
@@ -127,6 +130,7 @@ export const ROLE_GRANTS: Record<Role, Grants> = {
     lead: ["read", "update", "export"],
     application: ["read", "update"],
     ai: ["use"],
+    chat: ["read", "reply"],
   },
   viewer: {
     job: ["read"],
