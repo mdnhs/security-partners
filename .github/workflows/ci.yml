@@ -3,6 +3,8 @@ name: CI
 # Pull requests run it directly (one run per PR update, not also per branch
 # push); main runs it from deploy.yml (workflow_call), so a failing check
 # blocks the deploy. workflow_dispatch: run it by hand on any branch.
+# Quick jobs (lint, types, unit, dom, build, Docker smoke) run everywhere; the
+# Integration and E2E suites run on pull requests and manual runs only.
 on:
   pull_request:
   workflow_call:
@@ -45,6 +47,10 @@ jobs:
 
   integration:
     name: Integration (Postgres + Mailpit)
+    # Heavy (~10 and ~20 min): pull requests and manual runs only. A push to
+    # main (deploy.yml) runs the quick jobs; run these locally with
+    # `pnpm verify:full` before risky changes.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:
@@ -103,6 +109,10 @@ jobs:
 
   e2e:
     name: E2E (Postgres + Mailpit)
+    # Heavy (~10 and ~20 min): pull requests and manual runs only. A push to
+    # main (deploy.yml) runs the quick jobs; run these locally with
+    # `pnpm verify:full` before risky changes.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     services:
