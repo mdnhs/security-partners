@@ -91,11 +91,12 @@ describe("website registry", () => {
       "/admin/services"
     )
     expect(websitePart("home", "footer")).toBeUndefined()
+    // Header & footer is one form; its parts are its tabs.
     expect(adminHrefForSettings("footer")).toBe(
-      "/admin/website/header-footer/footer"
+      "/admin/website/header-footer?tab=footer"
     )
     expect(adminHrefForSettings("navigation")).toBe(
-      "/admin/website/header-footer/navigation"
+      "/admin/website/header-footer?tab=navigation"
     )
     expect(adminHrefForSettings("site")).toBe("/admin/settings/site")
     expect(pageEditorHref("about")).toBe("/admin/website/about")
@@ -112,12 +113,8 @@ describe("website registry", () => {
     expect(ids("blog", "owner")).toEqual(["page", "articles", "categories"])
     expect(ids("blog", "author")).toEqual(["articles"])
     expect(ids("services", "owner")).toEqual(["page"])
-    expect(ids("header-footer", "owner")).toEqual([
-      "navigation",
-      "footer",
-      "microcopy",
-      "group-companies",
-    ])
+    // Header & footer is one form with tabs inside it, not screen tabs.
+    expect(ids("header-footer", "owner")).toEqual([])
     expect(ids("home", "marketer")).toEqual(["page"])
     expect(ids("home", "intake")).toEqual([])
     expect(websiteTabs("home", ["owner"])[0]).toEqual({
@@ -126,7 +123,6 @@ describe("website registry", () => {
       href: "/admin/website/home",
     })
     expect(websiteTabs("blog", ["author"])[0].href).toBe("/admin/insights")
-    expect(websiteTabs("header-footer", ["owner"])[0].label).toBe("Header menu")
   })
 
   it("part ids are unique; All services is a route part, not a tab", () => {
