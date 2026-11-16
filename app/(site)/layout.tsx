@@ -78,7 +78,9 @@ export default function RootLayout({
       <body className="bg-white">
         <SmoothScroll />
         {/* Shows at once that a click on a link to another page was taken. */}
-        <NavProgress />
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {/* First-touch lead attribution; renders nothing. */}
         <AttributionCapture />
         <ThemeProvider>
