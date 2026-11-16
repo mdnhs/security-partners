@@ -6,6 +6,7 @@ import { Suspense } from "react"
 
 import "../globals.css"
 import { AttributionCapture } from "@/components/attribution-capture"
+import { NavProgress } from "@/components/motion/nav-progress"
 import { SmoothScroll } from "@/components/motion/smooth-scroll"
 import { ChatSlot } from "@/components/chat/chat-slot"
 import { PreviewBar } from "@/components/preview-bar"
@@ -76,6 +77,10 @@ export default function RootLayout({
           overscroll) that showed as a black flash. */}
       <body className="bg-white">
         <SmoothScroll />
+        {/* Shows at once that a click on a link to another page was taken. */}
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {/* First-touch lead attribution; renders nothing. */}
         <AttributionCapture />
         <ThemeProvider>
