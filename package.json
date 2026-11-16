@@ -10,6 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && vitest run --project dom && pnpm build",
+    "verify:full": "pnpm verify && pnpm db:up && pnpm test:integration && pnpm test:e2e",
     "test:visual": "playwright test tests/visual",
     "test:visual:update": "playwright test tests/visual --update-snapshots",
     "test": "vitest run",
