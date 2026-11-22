@@ -19,7 +19,6 @@ export const aboutEditorMeta: EditorMeta = {
     },
     hero: { label: "Page hero", help: "Banner at the top of the page." },
     "hero.image": { label: "Banner image" },
-    "hero.crumb": { label: "Breadcrumb label" },
     "hero.title": { label: "Title" },
     "hero.description": { label: "Introduction" },
     stats: {

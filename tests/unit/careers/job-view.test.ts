@@ -42,7 +42,7 @@ describe("jobView", () => {
   it("hero: breadcrumb through Careers, Now Hiring and category tags, Apply and Share", () => {
     const view = jobView(s, job, [job, ...others], NOW)
     expect(view.hero.trail).toEqual([
-      { label: page.hero.crumb, href: "/careers" },
+      { label: page.hero.title, href: "/careers" },
     ])
     expect(view.hero.crumb).toBe("Static Security Officer")
     expect(view.hero.tags.map((t) => t.label)).toEqual([

@@ -36,7 +36,7 @@ describe("blocksFromTemplate", () => {
     ])
     expect(hero.data).toEqual({
       image: data.hero.image,
-      crumb: data.hero.crumb,
+      crumb: data.hero.title,
       title: data.hero.title,
       description: data.hero.description,
     })
@@ -209,9 +209,9 @@ describe("caps follow the block schemas (review D5.5 M2/M3)", () => {
     expect(listMax(lines, {})).toBe(COPY_LIST_MAX.departmentLines)
   })
 
-  it("string caps are read from the schemas: a crumb is cut to the hero's crumb cap", () => {
+  it("string caps are read from the schemas: the crumb (the page title) is cut to the hero's crumb cap", () => {
     const data = structuredClone(fixture.pages.about.data) as PageData<"about">
-    data.hero.crumb = "c".repeat(500)
+    data.hero.title = "c".repeat(500)
     const crumb = shape("hero.page").crumb as z.ZodString
     const doc = blocksFromTemplate("about", data)
     expect((doc.blocks[0].data as { crumb: string }).crumb).toHaveLength(

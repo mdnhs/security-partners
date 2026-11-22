@@ -176,7 +176,7 @@ const shared = (type: "enquireBanner" | "clients" | "contact" | "map") =>
 function heroOf(hero: PageHero): Part {
   return part("hero.page", {
     image: media(hero.image),
-    crumb: clip(hero.crumb, HERO.crumb),
+    crumb: clip(hero.title, HERO.crumb),
     title: clip(hero.title, HERO.title),
     description: clip(hero.description, HERO.description),
   })

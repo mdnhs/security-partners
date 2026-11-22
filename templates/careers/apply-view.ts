@@ -101,7 +101,7 @@ export function applyView(
       open: true,
       hero: {
         ...pageHeroView(s, page.hero, {
-          trail: [{ label: page.hero.crumb, href: "/careers" }],
+          trail: [{ label: page.hero.title, href: "/careers" }],
         }),
         crumb: apply.crumb,
         title: page.cta.heading,
@@ -128,7 +128,7 @@ export function applyView(
     hero: {
       ...pageHeroView(s, page.hero, {
         trail: [
-          { label: page.hero.crumb, href: "/careers" },
+          { label: page.hero.title, href: "/careers" },
           { label: c.title, href },
         ],
       }),

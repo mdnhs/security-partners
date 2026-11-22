@@ -150,7 +150,7 @@ export function jobJsonLdFor(
     breadcrumbJsonLd([
       { name: crumbs.home, url: absoluteUrl(origin, "/") },
       {
-        name: s.pages.careers.data.hero.crumb,
+        name: s.pages.careers.data.hero.title,
         url: absoluteUrl(origin, "/careers"),
       },
       { name: c.title, url },
