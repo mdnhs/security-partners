@@ -3,6 +3,7 @@ import { forbidden, notFound, redirect } from "next/navigation"
 import { Suspense } from "react"
 
 import { PageEditor } from "@/components/admin/pages/page-editor"
+import { WebsiteTabs } from "@/components/admin/website/website-tabs"
 import { HeaderFooterEditor } from "@/components/admin/website/header-footer-editor"
 import { isWebsiteKey, WEBSITE_SCREENS, websiteTabs } from "@/lib/admin/website"
 import { requirePage } from "@/server/auth/session"
@@ -42,6 +43,12 @@ async function Screen({
   if (tabs.length === 0) forbidden()
   // No Page (Header & footer, or an author on Blog): open the first part,
   // which may live at its own URL (/admin/insights).
-  if (tabs[0].id !== "page" || !screen.page) redirect(tabs[0].href)
-  return <PageEditor pageKey={screen.page} origin={await getSiteOrigin()} />
+  if (!screen.page || !tabs.some((tab) => tab.id === "page"))
+    redirect(tabs[0].href)
+  return (
+    <>
+      <WebsiteTabs screen={screen.key} />
+      <PageEditor pageKey={screen.page} origin={await getSiteOrigin()} />
+    </>
+  )
 }
