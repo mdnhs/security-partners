@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { slug } from "@/lib/schemas/common"
-import type { JobContent } from "@/lib/schemas/content/job"
+import { type JobContent, jobContent } from "@/lib/schemas/content/job"
 
 import type { VersionedDto } from "./content"
 
@@ -20,10 +20,15 @@ const jobSlug = slug
   .max(80)
   .refine((value) => value !== "apply", "This address is reserved")
 
-/** POST /jobs — a new draft built from its title (the editor fills the rest). */
+/**
+ * POST /jobs — a new draft built from its title, plus the location and
+ * closing date when given (the editor fills the rest).
+ */
 export const createJobInput = z.object({
   title: z.string().trim().min(1).max(120),
   slug: jobSlug,
+  location: jobContent.shape.location.optional(),
+  closingDate: jobContent.shape.closingDate.optional(),
 })
 
 /** PATCH /jobs/:id/slug — changes the public address immediately. */

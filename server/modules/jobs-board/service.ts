@@ -70,7 +70,12 @@ function inThirtyDays(now: Date): string {
 }
 
 /** A complete, valid first draft: the editor replaces every line. */
-function starterDraft(title: string, slug: string, now: Date): JobContent {
+function starterDraft(
+  title: string,
+  slug: string,
+  now: Date,
+  given: { location?: string; closingDate?: string } = {}
+): JobContent {
   const yymm = dublinToday(now).slice(2, 7).replace("-", "")
   const initials = slug
     .split("-")
@@ -82,14 +87,14 @@ function starterDraft(title: string, slug: string, now: Date): JobContent {
     title,
     category: "Static Guarding",
     licence: "Security Guard (Static)",
-    location: "Portlaoise, Co. Laois",
+    location: given.location ?? "Portlaoise, Co. Laois",
     employmentType: "Full-time, Permanent",
     contractType: "full-time",
     shift: "To be confirmed",
     pay: "To be confirmed",
     reference: `SP-${yymm}-${initials}`,
     startDate: "To be confirmed",
-    closingDate: inThirtyDays(now),
+    closingDate: given.closingDate ?? inThirtyDays(now),
     urgent: false,
     filled: false,
     summary: title,
@@ -143,7 +148,12 @@ export async function getJobAdmin(actor: Actor, id: string): Promise<JobDto> {
 
 export async function createJob(
   actor: Actor,
-  input: { title: string; slug: string },
+  input: {
+    title: string
+    slug: string
+    location?: string
+    closingDate?: string
+  },
   now: Date = new Date()
 ): Promise<JobDto> {
   assertCan(actor, { job: ["create"] })
@@ -152,7 +162,7 @@ export async function createJob(
     const id = await db.transaction(async (tx) => {
       const newId = await repo.insertJob(tx, {
         slug: input.slug,
-        draft: starterDraft(input.title, input.slug, now),
+        draft: starterDraft(input.title, input.slug, now, input),
         createdBy: actor.userId,
       })
       await writeAudit(tx, actor, {

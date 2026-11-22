@@ -79,36 +79,39 @@ export const jobEditorMeta: EditorMeta = {
   groups: {
     "": [
       {
-        title: "The role",
-        description: "How the role appears in the list on /careers.",
+        title: "Post the job",
+        description:
+          "The essentials. Fill these in and publish: everything else has a sensible default.",
         fields: [
           "title",
-          "category",
-          "licence",
           "location",
           "employmentType",
-          "contractType",
-          "shift",
-          "pay",
+          "closingDate",
+          "summary",
         ],
       },
       {
-        title: "Dates and status",
-        description:
-          "Open = published, not filled and the closing date not passed.",
-        fields: ["reference", "startDate", "closingDate", "urgent", "filled"],
+        title: "Job description",
+        description: "What the role involves and who we are looking for.",
+        fields: ["about", "responsibilities", "essential"],
       },
       {
-        title: "Job page",
-        description: "The text of the role's own page.",
+        title: "More details (optional)",
+        description:
+          "Category, licence, pay, hours, benefits and status. Adjust only if they differ from the defaults.",
         fields: [
-          "summary",
-          "about",
-          "responsibilities",
-          "essential",
+          "category",
+          "licence",
+          "contractType",
+          "shift",
+          "pay",
+          "startDate",
+          "reference",
           "desirable",
           "offerIntro",
           "offers",
+          "urgent",
+          "filled",
         ],
       },
     ],

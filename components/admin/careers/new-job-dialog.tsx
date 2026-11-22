@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { api, ApiError, errorMessage, unwrap } from "@/lib/api-client"
 import { SLUG_PATTERN } from "@/lib/schemas/common"
 
-/** "New job": a title and an address; the editor opens on the starter draft. */
+/** "New job": title, location, closing date and an address; the editor opens on the starter draft. */
 export function NewJobDialog() {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -33,12 +33,22 @@ export function NewJobDialog() {
   const [title, setTitle] = useState("")
   const [slug, setSlug] = useState("")
   const [slugTouched, setSlugTouched] = useState(false)
+  const [location, setLocation] = useState("")
+  const [closingDate, setClosingDate] = useState("")
   const [error, setError] = useState<string | null>(null)
   const effectiveSlug = slugTouched ? slug : slugify(title)
   const create = useMutation({
     mutationFn: () =>
       unwrap(
-        api.jobs.$post({ json: { title: title.trim(), slug: effectiveSlug } })
+        api.jobs.$post({
+          json: {
+            title: title.trim(),
+            slug: effectiveSlug,
+            // Left empty, the starter draft's defaults apply.
+            ...(location.trim() ? { location: location.trim() } : {}),
+            ...(closingDate ? { closingDate } : {}),
+          },
+        })
       ),
     onSuccess: async (dto) => {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] })
@@ -90,6 +100,33 @@ export function NewJobDialog() {
                   setTitle(e.target.value)
                   setError(null)
                 }}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="new-job-location" className={LABEL_CLASS}>
+                Location
+              </label>
+              <Input
+                id="new-job-location"
+                value={location}
+                placeholder="Portlaoise, Co. Laois"
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="new-job-closing" className={LABEL_CLASS}>
+                Closing date
+              </label>
+              <HelpText id="new-job-closing-help">
+                Applications close at the end of this day (Irish time). Empty
+                means 30 days from today.
+              </HelpText>
+              <Input
+                id="new-job-closing"
+                type="date"
+                value={closingDate}
+                aria-describedby="new-job-closing-help"
+                onChange={(e) => setClosingDate(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-2">
