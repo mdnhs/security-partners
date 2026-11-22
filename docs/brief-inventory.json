@@ -2048,16 +2048,6 @@
       ]
     },
     {
-      "id": "about.hero.crumb",
-      "source": "app/(site)/about/page.tsx:27",
-      "kind": "text",
-      "value": "About Us",
-      "target": "pages.about.hero.crumb",
-      "pages": [
-        "/about"
-      ]
-    },
-    {
       "id": "about.hero.title",
       "source": "app/(site)/about/page.tsx:28",
       "kind": "text",
@@ -2213,16 +2203,6 @@
       "kind": "image",
       "value": "/images/banner.png",
       "target": "pages.services.hero.image",
-      "pages": [
-        "/services"
-      ]
-    },
-    {
-      "id": "services.hero.crumb",
-      "source": "app/(site)/services/page.tsx:24",
-      "kind": "text",
-      "value": "Services",
-      "target": "pages.services.hero.crumb",
       "pages": [
         "/services"
       ]
@@ -2619,16 +2599,6 @@
       ]
     },
     {
-      "id": "team.hero.crumb",
-      "source": "app/(site)/team/page.tsx:25",
-      "kind": "text",
-      "value": "Our Team",
-      "target": "pages.team.hero.crumb",
-      "pages": [
-        "/team"
-      ]
-    },
-    {
       "id": "team.hero.title",
       "source": "app/(site)/team/page.tsx:26",
       "kind": "text",
@@ -2764,16 +2734,6 @@
       "kind": "image",
       "value": "/images/banner.png",
       "target": "pages.blog.hero.image",
-      "pages": [
-        "/blog"
-      ]
-    },
-    {
-      "id": "blog.hero.crumb",
-      "source": "app/(site)/blog/page.tsx:24",
-      "kind": "text",
-      "value": "Blog",
-      "target": "pages.blog.hero.crumb",
       "pages": [
         "/blog"
       ]
@@ -3523,16 +3483,6 @@
       "kind": "image",
       "value": "/images/hero.jpg",
       "target": "pages.contact.hero.image",
-      "pages": [
-        "/contact"
-      ]
-    },
-    {
-      "id": "contact.hero.crumb",
-      "source": "app/(site)/contact/page.tsx:23",
-      "kind": "text",
-      "value": "Contact",
-      "target": "pages.contact.hero.crumb",
       "pages": [
         "/contact"
       ]

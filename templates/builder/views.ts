@@ -103,7 +103,11 @@ export function blockView(
 ): BlockViewResult {
   switch (block.type) {
     case "hero.page":
-      return { type: block.type, props: pageHeroView(s, block.data) }
+      // A builder hero keeps its own breadcrumb label.
+      return {
+        type: block.type,
+        props: { ...pageHeroView(s, block.data), crumb: block.data.crumb },
+      }
     case "about":
       return { type: block.type, props: aboutSectionView(s) }
     case "stats":
