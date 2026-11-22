@@ -321,8 +321,15 @@ export function websiteTabs(
   roles: readonly string[]
 ): WebsiteTab[] {
   const tabs: WebsiteTab[] = []
-  if (websiteScreen(screen).page && hasPermission(roles, PAGE_READ))
-    tabs.push({ id: "page", label: "Page", href: websiteHref(screen) })
+  const pageTab: WebsiteTab | null =
+    websiteScreen(screen).page && hasPermission(roles, PAGE_READ)
+      ? {
+          id: "page",
+          label: screen === CAREERS_JOBS_FIRST ? "Page text" : "Page",
+          href: websiteHref(screen),
+        }
+      : null
+  if (pageTab && screen !== CAREERS_JOBS_FIRST) tabs.push(pageTab)
   for (const part of WEBSITE_PARTS)
     if (
       part.screen === screen &&
@@ -331,8 +338,13 @@ export function websiteTabs(
       hasPermission(roles, part.permission)
     )
       tabs.push(toTab(part))
+  // Careers is about posting jobs: Jobs comes first, the page's own text last.
+  if (pageTab && screen === CAREERS_JOBS_FIRST) tabs.push(pageTab)
   return tabs
 }
+
+/** The screen whose Jobs list leads and whose page text comes after it. */
+const CAREERS_JOBS_FIRST: WebsiteKey = "careers"
 
 const settingsPartOf = (key: string) =>
   WEBSITE_PARTS.find(
