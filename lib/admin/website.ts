@@ -326,7 +326,11 @@ export function websiteTabs(
       ? {
           id: "page",
           label: screen === CAREERS_JOBS_FIRST ? "Page text" : "Page",
-          href: websiteHref(screen),
+          // Careers lands on Jobs: its page text sits behind ?view=text.
+          href:
+            screen === CAREERS_JOBS_FIRST
+              ? `${websiteHref(screen)}?view=text`
+              : websiteHref(screen),
         }
       : null
   if (pageTab && screen !== CAREERS_JOBS_FIRST) tabs.push(pageTab)

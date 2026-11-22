@@ -213,9 +213,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
       return {
         id: `website-${screen.key}`,
         label: screen.label,
-        // Careers opens on its Jobs list: posting a job is the common task.
-        href:
-          screen.key === "careers" ? "/admin/careers" : websiteHref(screen.key),
+        href: websiteHref(screen.key),
         permission: screen.permission,
         icon: SCREEN_ICONS[screen.key],
         keywords: [

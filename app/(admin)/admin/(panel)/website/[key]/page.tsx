@@ -19,18 +19,22 @@ export async function generateMetadata({
 
 export default function WebsiteScreenPage({
   params,
+  searchParams,
 }: PageProps<"/admin/website/[key]">) {
   return (
     <Suspense fallback={null}>
-      <Screen params={params} />
+      <Screen params={params} searchParams={searchParams} />
     </Suspense>
   )
 }
 
 async function Screen({
   params,
-}: Pick<PageProps<"/admin/website/[key]">, "params">) {
+  searchParams,
+}: Pick<PageProps<"/admin/website/[key]">, "params" | "searchParams">) {
   const { key } = await params
+  // Tolerates a caller that passes none (tests render the page directly).
+  const { view } = (await searchParams) ?? {}
   // Signed in (and the screen's permission checked) before the 404, so a
   // stranger never learns which paths exist; an unknown key falls back to
   // /admin/website's guard (any signed-in user), then 404s.
@@ -44,6 +48,9 @@ async function Screen({
   // No Page (Header & footer, or an author on Blog): open the first part,
   // which may live at its own URL (/admin/insights).
   if (!screen.page || !tabs.some((tab) => tab.id === "page"))
+    redirect(tabs[0].href)
+  // Careers opens on its Jobs list; its page text is ?view=text.
+  if (screen.key === "careers" && tabs[0].id !== "page" && view !== "text")
     redirect(tabs[0].href)
   return (
     <>
