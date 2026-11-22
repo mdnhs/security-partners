@@ -156,7 +156,8 @@ export function pageHeroView(
 ): PageHeroProps {
   return {
     image: hero.image.url,
-    crumb: hero.crumb,
+    // The breadcrumb is the page title: nothing to keep in step by hand.
+    crumb: interpolate(hero.title, placeholders(s)),
     title: interpolate(hero.title, placeholders(s)),
     description: interpolate(hero.description, placeholders(s)),
     homeLabel: s.settings.microcopy.breadcrumb.home,

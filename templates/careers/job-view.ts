@@ -142,7 +142,7 @@ export function jobView(
       image: page.hero.image.url,
       homeLabel: s.settings.microcopy.breadcrumb.home,
       ariaLabel: s.settings.microcopy.aria.breadcrumb,
-      trail: [{ label: page.hero.crumb, href: "/careers" }],
+      trail: [{ label: page.hero.title, href: "/careers" }],
       crumb: c.title,
       tags: [status, { label: c.category, tone: "category" }],
       title: c.title,

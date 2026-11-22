@@ -114,7 +114,6 @@ async function starterDraft(db: DbOrTx, title: string): Promise<LegalTemplate> {
   return {
     hero: {
       image: source.data.hero.image,
-      crumb: title,
       title,
       description: "Please read this page carefully.",
     },

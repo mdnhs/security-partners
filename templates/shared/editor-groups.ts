@@ -4,8 +4,8 @@ import type { FieldGroupMeta } from "@/components/admin/schema-form/editor-meta"
 export const PAGE_HERO_GROUPS: FieldGroupMeta[] = [
   {
     title: "Text",
-    description: "The breadcrumb, title and introduction over the banner.",
-    fields: ["crumb", "title", "description"],
+    description: "The title (also the breadcrumb) and introduction over the banner.",
+    fields: ["title", "description"],
   },
   { title: "Banner image", fields: ["image"] },
 ]

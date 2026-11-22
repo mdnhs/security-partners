@@ -129,10 +129,9 @@ export const paragraphsText = z.object({
   content: z.array(paragraph).min(1),
 })
 
-/** The PageHero block of an inner page (image, breadcrumb label, title, intro). */
+/** The PageHero block of an inner page (image, title, intro; the breadcrumb is the title). */
 export const pageHero = z.object({
   image: mediaRef,
-  crumb: text,
   title: text,
   description: text,
 })

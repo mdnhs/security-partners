@@ -68,7 +68,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/hero.jpg"),
-          crumb: "About Us",
           title: "About Security Partners",
           description:
             "A family-run security company based in Mountmellick, Co. Laois, providing first class security services across Ireland since 2008.",
@@ -136,7 +135,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/banner.png"),
-          crumb: "Services",
           title: "Our Services",
           description:
             "Professional security solutions for every sector, from a single alarm response to full-time static guarding.",
@@ -158,7 +156,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/hero.jpg"),
-          crumb: "Our Team",
           title: "Meet The Team",
           description:
             "The experienced people behind Security Partners, from operations to HR and accounts.",
@@ -206,7 +203,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/banner.png"),
-          crumb: "Blog",
           title: "News & Insights",
           description:
             "Security tips, company news and advice from the Security Partners team.",
@@ -224,7 +220,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/hero.jpg"),
-          crumb: "Contact",
           title: "Contact Us",
           description:
             "Get in touch with our team. For urgent matters, our 24 Hour Number is {phone24h}.",
@@ -291,7 +286,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/hero.jpg"),
-          crumb: "Privacy Policy",
           title: "Privacy Policy",
           description:
             "How Security Partners Ltd collects, uses and protects personal information.",
@@ -324,7 +318,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/hero.jpg"),
-          crumb: "Terms",
           title: "Terms of Use",
           description: "The terms that apply when you use this website.",
         },
@@ -353,7 +346,6 @@ export function pagesFixture(media: MediaLookup): PagesFixture {
       data: {
         hero: {
           image: media("/images/hero.jpg"),
-          crumb: "Careers",
           title: "Careers",
           description:
             "Build a career in security with a family-run Irish company protecting homes and businesses since 2008.",

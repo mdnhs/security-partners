@@ -104,7 +104,6 @@ describe("create", () => {
       published: null,
     })
     expect(first.draft.hero).toMatchObject({
-      crumb: "Cookie Policy",
       title: "Cookie Policy",
     })
     expect(first.draft.hero.image.mediaId).toBeTruthy()
